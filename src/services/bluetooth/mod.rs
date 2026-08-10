@@ -1,6 +1,6 @@
+use super::compat::{Subscription, Task, channel};
 use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::{BatteryProxy, BluetoothDbus, DeviceProxy};
-use super::compat::{Subscription, Task, channel};
 use futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender, stream::pending, stream_select};
 use inotify::{Inotify, WatchMask};
 use log::{debug, error, info, warn};

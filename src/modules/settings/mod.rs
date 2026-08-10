@@ -27,12 +27,12 @@ pub enum SubMenu {
 }
 
 pub struct SettingsSignals {
-    pub audio_data: services::audio::AudioDataSignals,
-    pub audio_svc: Service<services::audio::AudioCmd>,
+    pub audio_data: services::compat::ServiceSignal<services::audio::AudioService>,
+    pub audio_svc: Service<services::audio::AudioCommand>,
     pub brightness_data: services::compat::ServiceSignal<services::brightness::BrightnessService>,
     pub brightness_svc: Service<services::brightness::BrightnessCommand>,
-    pub network_data: services::network::NetworkDataSignals,
-    pub network_svc: Service<services::network::NetworkCmd>,
+    pub network_data: services::compat::ServiceSignal<services::network::NetworkService>,
+    pub network_svc: Service<services::network::NetworkCommand>,
     pub bluetooth_data: services::compat::ServiceSignal<services::bluetooth::BluetoothService>,
     pub bluetooth_svc: Service<services::bluetooth::BluetoothCommand>,
     pub upower_data: services::compat::ServiceSignal<services::upower::UPowerService>,
@@ -63,10 +63,11 @@ impl Clone for SettingsSignals {
 }
 
 pub fn create() -> SettingsSignals {
-    let (audio_data, audio_svc) = services::audio::create();
+    let (audio_data, audio_svc) = services::compat::run_service::<services::audio::AudioService>();
     let (brightness_data, brightness_svc) =
         services::compat::run_service::<services::brightness::BrightnessService>();
-    let (network_data, network_svc) = services::network::create();
+    let (network_data, network_svc) =
+        services::compat::run_service::<services::network::NetworkService>();
     let (bluetooth_data, bluetooth_svc) =
         services::compat::run_service::<services::bluetooth::BluetoothService>();
     let (upower_data, upower_svc) =
@@ -126,19 +127,19 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
                         .with(|s| s.as_ref().map(|x| x.power_profile))
                         .unwrap_or_default();
                     match profile {
-                    PowerProfile::Performance => Some(
-                        bar_indicator()
-                            .kind(StaticIcon::Performance)
-                            .color(theme.danger)
-                            .format(SettingsFormat::Icon),
-                    ),
-                    PowerProfile::PowerSaver => Some(
-                        bar_indicator()
-                            .kind(StaticIcon::PowerSaver)
-                            .color(theme.success)
-                            .format(SettingsFormat::Icon),
-                    ),
-                    _ => None,
+                        PowerProfile::Performance => Some(
+                            bar_indicator()
+                                .kind(StaticIcon::Performance)
+                                .color(theme.danger)
+                                .format(SettingsFormat::Icon),
+                        ),
+                        PowerProfile::PowerSaver => Some(
+                            bar_indicator()
+                                .kind(StaticIcon::PowerSaver)
+                                .color(theme.success)
+                                .format(SettingsFormat::Icon),
+                        ),
+                        _ => None,
                     }
                 });
             }
@@ -161,11 +162,14 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
                 ));
             }
             SettingsIndicator::Vpn => {
-                let active = settings.network_data.active_connections;
+                let network = settings.network_data;
                 row = row.child(move || {
-                    let has_vpn = active.with(|acs| {
-                        acs.iter()
-                            .any(|ac| matches!(ac, ActiveConnectionInfo::Vpn { .. }))
+                    let has_vpn = network.with(|s| {
+                        s.as_ref().is_some_and(|x| {
+                            x.active_connections
+                                .iter()
+                                .any(|ac| matches!(ac, ActiveConnectionInfo::Vpn { .. }))
+                        })
                     });
                     if has_vpn {
                         Some(
@@ -194,26 +198,26 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
                             .unwrap_or((BluetoothState::Unavailable, 0))
                     });
                     match state {
-                    BluetoothState::Unavailable => None,
-                    _ => {
-                        let ic = if connected_count > 0 {
-                            StaticIcon::BluetoothConnected
-                        } else {
-                            StaticIcon::Bluetooth
-                        };
-                        let label = if connected_count > 0 {
-                            Some(format!("{connected_count}"))
-                        } else {
-                            None
-                        };
-                        Some(
-                            bar_indicator()
-                                .kind(ic)
-                                .label(label)
-                                .color(theme.text)
-                                .format(format),
-                        )
-                    }
+                        BluetoothState::Unavailable => None,
+                        _ => {
+                            let ic = if connected_count > 0 {
+                                StaticIcon::BluetoothConnected
+                            } else {
+                                StaticIcon::Bluetooth
+                            };
+                            let label = if connected_count > 0 {
+                                Some(format!("{connected_count}"))
+                            } else {
+                                None
+                            };
+                            Some(
+                                bar_indicator()
+                                    .kind(ic)
+                                    .label(label)
+                                    .color(theme.text)
+                                    .format(format),
+                            )
+                        }
                     }
                 });
             }
@@ -235,8 +239,11 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
             SettingsIndicator::PeripheralBattery => {
                 let upower = settings.upower_data;
                 row = row.child(move || {
-                    let periphs =
-                        upower.with(|s| s.as_ref().map(|x| x.peripherals.clone()).unwrap_or_default());
+                    let periphs = upower.with(|s| {
+                        s.as_ref()
+                            .map(|x| x.peripherals.clone())
+                            .unwrap_or_default()
+                    });
                     if periphs.is_empty() {
                         return None;
                     }

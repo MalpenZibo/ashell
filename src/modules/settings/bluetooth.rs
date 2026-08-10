@@ -19,8 +19,10 @@ pub fn bt_quick_setting(
 
     quick_setting()
         .kind(move || {
-            let connected =
-                data.with(|s| s.as_ref().is_some_and(|x| x.devices.iter().any(|d| d.connected)));
+            let connected = data.with(|s| {
+                s.as_ref()
+                    .is_some_and(|x| x.devices.iter().any(|d| d.connected))
+            });
             if connected {
                 StaticIcon::BluetoothConnected
             } else {
@@ -213,7 +215,10 @@ pub fn bt_submenu(
         })
 }
 
-fn remove_button(svc: Service<BluetoothCommand>, path: zbus::zvariant::OwnedObjectPath) -> impl Widget {
+fn remove_button(
+    svc: Service<BluetoothCommand>,
+    path: zbus::zvariant::OwnedObjectPath,
+) -> impl Widget {
     icon_button()
         .icon(StaticIcon::Remove)
         .size(ButtonSize::Small)

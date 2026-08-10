@@ -181,7 +181,7 @@ pub fn battery_header(
                             indicator.into_any()
                         }
                     })
-            })
+                })
         })
     })
 }
@@ -191,8 +191,11 @@ pub fn peripherals_view(data: ServiceSignal<UPowerService>) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
 
     container().width(fill()).child(move || {
-        let periphs =
-            data.with(|s| s.as_ref().map(|x| x.peripherals.clone()).unwrap_or_default());
+        let periphs = data.with(|s| {
+            s.as_ref()
+                .map(|x| x.peripherals.clone())
+                .unwrap_or_default()
+        });
         if periphs.is_empty() {
             return Some(container());
         }

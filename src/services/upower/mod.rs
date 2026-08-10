@@ -1,10 +1,10 @@
-use super::{ReadOnlyService, Service, ServiceEvent};
 use super::compat::Task;
+use super::compat::{Subscription, channel};
+use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{
     components::icons::StaticIcon, services::throttle::ThrottleExt, utils::IndicatorState,
 };
 use dbus::{DeviceProxy, PowerProfilesProxy, SystemBattery, UPowerDbus, UPowerProxy, UpDeviceKind};
-use super::compat::{Subscription, channel};
 use futures::{
     SinkExt, Stream, StreamExt,
     channel::mpsc::Sender,

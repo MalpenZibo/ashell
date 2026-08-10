@@ -1,42 +1,87 @@
 use guido::prelude::*;
 
-use crate::components::{IconKind, bar_indicator, selectable_item, slider};
+use crate::components::{IconKind, StaticIcon, bar_indicator, selectable_item, slider};
 use crate::config::SettingsFormat;
-use crate::services::audio::{AudioCmd, AudioDataSignals, Sinks, Sources};
+use crate::services::audio::{AudioCommand, AudioService, ChannelVolumesExt, DevicePortType, Port};
+use crate::services::compat::ServiceSignal;
 use crate::theme::ThemeColors;
 
 use super::SubMenu;
 
+const NORMAL_VOLUME: u32 = libpulse_binding::volume::Volume::NORMAL.0;
+
+fn to_percent(raw: u32) -> i32 {
+    (raw as f32 / NORMAL_VOLUME as f32 * 100.0).round() as i32
+}
+
+fn to_raw(percent: i32) -> u32 {
+    (percent.max(0) as f32 / 100.0 * NORMAL_VOLUME as f32).round() as u32
+}
+
+fn sink_icon(s: &AudioService) -> StaticIcon {
+    match s.active_sink() {
+        Some(sink) if !sink.is_mute => match to_percent(sink.volume.get_volume()) {
+            0..=33 => StaticIcon::Speaker1,
+            34..=66 => StaticIcon::Speaker2,
+            _ => StaticIcon::Speaker3,
+        },
+        _ => StaticIcon::Speaker0,
+    }
+}
+
+fn source_icon(s: &AudioService) -> StaticIcon {
+    match s.active_source() {
+        Some(source) if !source.is_mute => StaticIcon::Mic1,
+        _ => StaticIcon::Mic0,
+    }
+}
+
+fn port_icon(port: Option<&Port>) -> StaticIcon {
+    match port.map(|p| p.device_type) {
+        Some(DevicePortType::Headphones) => StaticIcon::Headphones1,
+        Some(DevicePortType::Headset) => StaticIcon::Headset,
+        Some(DevicePortType::HDMI | DevicePortType::TV | DevicePortType::Video) => {
+            StaticIcon::MonitorSpeaker
+        }
+        Some(DevicePortType::Mic) => StaticIcon::Mic1,
+        _ => StaticIcon::Speaker3,
+    }
+}
+
 pub fn sink_slider(
-    data: AudioDataSignals,
-    svc: Service<AudioCmd>,
+    data: ServiceSignal<AudioService>,
+    svc: Service<AudioCommand>,
     submenu: RwSignal<Option<SubMenu>>,
 ) -> impl Widget {
-    let sinks = data.sinks;
-    let server_info = data.server_info;
-    let cur_vol = data.cur_sink_volume;
-
     let svc_change = svc.clone();
     let svc_mute = svc.clone();
 
     slider()
-        .value(cur_vol)
+        .value(move || {
+            data.with(|s| {
+                s.as_ref()
+                    .map(|x| to_percent(x.sink_slider.value()))
+                    .unwrap_or(0)
+            })
+        })
         .kind(move || -> IconKind {
-            sinks
-                .with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone())))
-                .into()
+            data.with(|s| {
+                s.as_ref()
+                    .map(|x| sink_icon(x))
+                    .unwrap_or(StaticIcon::Speaker0)
+            })
+            .into()
         })
         .muted(move || {
-            let si = server_info.with(|si| si.default_sink.clone());
-            sinks.with(|s| {
-                s.iter()
-                    .find(|d| d.name == si && d.ports.iter().any(|p| p.active))
+            data.with(|s| {
+                s.as_ref()
+                    .and_then(|x| x.active_sink())
                     .map(|d| d.is_mute)
                     .unwrap_or(false)
             })
         })
-        .on_change(move |vol| svc_change.send(AudioCmd::SinkVolume(vol)))
-        .on_mute_toggle(move || svc_mute.send(AudioCmd::ToggleSinkMute))
+        .on_change(move |vol| svc_change.send(AudioCommand::SinkVolume(to_raw(vol))))
+        .on_mute_toggle(move || svc_mute.send(AudioCommand::ToggleSinkMute))
         .expanded(move || submenu.get() == Some(SubMenu::Sinks))
         .on_chevron(move || {
             submenu.set(if submenu.get() == Some(SubMenu::Sinks) {
@@ -48,35 +93,39 @@ pub fn sink_slider(
 }
 
 pub fn source_slider(
-    data: AudioDataSignals,
-    svc: Service<AudioCmd>,
+    data: ServiceSignal<AudioService>,
+    svc: Service<AudioCommand>,
     submenu: RwSignal<Option<SubMenu>>,
 ) -> impl Widget {
-    let sources = data.sources;
-    let server_info = data.server_info;
-    let cur_vol = data.cur_source_volume;
-
     let svc_change = svc.clone();
     let svc_mute = svc.clone();
 
     slider()
-        .value(cur_vol)
+        .value(move || {
+            data.with(|s| {
+                s.as_ref()
+                    .map(|x| to_percent(x.source_slider.value()))
+                    .unwrap_or(0)
+            })
+        })
         .kind(move || -> IconKind {
-            sources
-                .with(|s| Sources::get_icon(s, &server_info.with(|si| si.default_source.clone())))
-                .into()
+            data.with(|s| {
+                s.as_ref()
+                    .map(|x| source_icon(x))
+                    .unwrap_or(StaticIcon::Mic0)
+            })
+            .into()
         })
         .muted(move || {
-            let si = server_info.with(|si| si.default_source.clone());
-            sources.with(|s| {
-                s.iter()
-                    .find(|d| d.name == si && d.ports.iter().any(|p| p.active))
+            data.with(|s| {
+                s.as_ref()
+                    .and_then(|x| x.active_source())
                     .map(|d| d.is_mute)
                     .unwrap_or(false)
             })
         })
-        .on_change(move |vol| svc_change.send(AudioCmd::SourceVolume(vol)))
-        .on_mute_toggle(move || svc_mute.send(AudioCmd::ToggleSourceMute))
+        .on_change(move |vol| svc_change.send(AudioCommand::SourceVolume(to_raw(vol))))
+        .on_mute_toggle(move || svc_mute.send(AudioCommand::ToggleSourceMute))
         .expanded(move || submenu.get() == Some(SubMenu::Sources))
         .on_chevron(move || {
             submenu.set(if submenu.get() == Some(SubMenu::Sources) {
@@ -88,104 +137,126 @@ pub fn source_slider(
 }
 
 /// Bar indicator: speaker icon and/or volume %
-pub fn sink_indicator(data: AudioDataSignals, format: SettingsFormat) -> impl Widget {
+pub fn sink_indicator(data: ServiceSignal<AudioService>, format: SettingsFormat) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
-    let sinks = data.sinks;
-    let server_info = data.server_info;
-    let cur_vol = data.cur_sink_volume;
 
     bar_indicator()
         .kind(move || -> IconKind {
-            sinks
-                .with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone())))
-                .into()
+            data.with(|s| {
+                s.as_ref()
+                    .map(|x| sink_icon(x))
+                    .unwrap_or(StaticIcon::Speaker0)
+            })
+            .into()
         })
-        .label(move || Some(format!("{}%", cur_vol.get())))
+        .label(move || {
+            Some(format!(
+                "{}%",
+                data.with(|s| {
+                    s.as_ref()
+                        .map(|x| to_percent(x.sink_slider.value()))
+                        .unwrap_or(0)
+                })
+            ))
+        })
         .color(theme.text)
         .format(format)
 }
 
 /// Bar indicator: mic icon and/or volume %
-pub fn source_indicator(data: AudioDataSignals, format: SettingsFormat) -> impl Widget {
+pub fn source_indicator(data: ServiceSignal<AudioService>, format: SettingsFormat) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
-    let sources = data.sources;
-    let server_info = data.server_info;
-    let cur_vol = data.cur_source_volume;
 
     bar_indicator()
         .kind(move || -> IconKind {
-            sources
-                .with(|s| Sources::get_icon(s, &server_info.with(|si| si.default_source.clone())))
-                .into()
+            data.with(|s| {
+                s.as_ref()
+                    .map(|x| source_icon(x))
+                    .unwrap_or(StaticIcon::Mic0)
+            })
+            .into()
         })
-        .label(move || Some(format!("{}%", cur_vol.get())))
+        .label(move || {
+            Some(format!(
+                "{}%",
+                data.with(|s| {
+                    s.as_ref()
+                        .map(|x| to_percent(x.source_slider.value()))
+                        .unwrap_or(0)
+                })
+            ))
+        })
         .color(theme.text)
         .format(format)
 }
 
-/// Sinks submenu: list all sinks with active port selection
-pub fn sinks_submenu(data: AudioDataSignals, svc: Service<AudioCmd>) -> impl Widget {
-    let sinks = data.sinks;
-    let server_info = data.server_info;
-
-    container()
-        .width(fill())
-        .layout(Flex::column().spacing(4))
-        .child(move || {
-            let devices = sinks.with(|s| s.clone());
-            let default = server_info.with(|si| si.default_sink.clone());
-            let mut col = container().width(fill()).layout(Flex::column().spacing(2));
-            for device in devices {
-                for port in &device.ports {
-                    let name = device.name.clone();
-                    let port_name = port.name.clone();
-                    let desc = port.description.clone();
-                    let is_active = device.name == default && port.active;
-                    let svc = svc.clone();
-                    col = col.child(
-                        selectable_item()
-                            .kind(port.device_type.get_icon())
-                            .label(desc)
-                            .selected(is_active)
-                            .on_click(move || {
-                                svc.send(AudioCmd::DefaultSink(name.clone(), port_name.clone()));
-                            }),
-                    );
-                }
-            }
-            Some(col)
-        })
+/// Sinks submenu: selectable audio routes (upstream's sink_iter — ports,
+/// portless devices and smart filters)
+pub fn sinks_submenu(data: ServiceSignal<AudioService>, svc: Service<AudioCommand>) -> impl Widget {
+    submenu_view(data, svc, true)
 }
 
-/// Sources submenu: list all sources with active port selection
-pub fn sources_submenu(data: AudioDataSignals, svc: Service<AudioCmd>) -> impl Widget {
-    let sources = data.sources;
-    let server_info = data.server_info;
+/// Sources submenu
+pub fn sources_submenu(
+    data: ServiceSignal<AudioService>,
+    svc: Service<AudioCommand>,
+) -> impl Widget {
+    submenu_view(data, svc, false)
+}
 
+fn submenu_view(
+    data: ServiceSignal<AudioService>,
+    svc: Service<AudioCommand>,
+    sinks: bool,
+) -> impl Widget {
     container()
         .width(fill())
         .layout(Flex::column().spacing(4))
         .child(move || {
-            let devices = sources.with(|s| s.clone());
-            let default = server_info.with(|si| si.default_source.clone());
+            // Collect owned route facts out of the signal borrow first
+            let routes: Vec<(String, StaticIcon, String, Option<String>, bool)> = data.with(|s| {
+                let Some(s) = s.as_ref() else {
+                    return Vec::new();
+                };
+                let default = if sinks {
+                    &s.server_info.default_sink
+                } else {
+                    &s.server_info.default_source
+                };
+                let iter = if sinks {
+                    s.sink_iter().collect::<Vec<_>>()
+                } else {
+                    s.source_iter().collect::<Vec<_>>()
+                };
+                iter.into_iter()
+                    .map(|route| {
+                        (
+                            route.to_string(),
+                            port_icon(route.port),
+                            route.device.name.clone(),
+                            route.port.map(|p| p.name.clone()),
+                            route.device.name == *default,
+                        )
+                    })
+                    .collect()
+            });
+
             let mut col = container().width(fill()).layout(Flex::column().spacing(2));
-            for device in devices {
-                for port in &device.ports {
-                    let name = device.name.clone();
-                    let port_name = port.name.clone();
-                    let desc = port.description.clone();
-                    let is_active = device.name == default && port.active;
-                    let svc = svc.clone();
-                    col = col.child(
-                        selectable_item()
-                            .kind(port.device_type.get_icon())
-                            .label(desc)
-                            .selected(is_active)
-                            .on_click(move || {
-                                svc.send(AudioCmd::DefaultSource(name.clone(), port_name.clone()));
-                            }),
-                    );
-                }
+            for (label, ic, device_name, port_name, is_active) in routes {
+                let svc = svc.clone();
+                col = col.child(
+                    selectable_item()
+                        .kind(ic)
+                        .label(label)
+                        .selected(is_active)
+                        .on_click(move || {
+                            svc.send(if sinks {
+                                AudioCommand::DefaultSink(device_name.clone(), port_name.clone())
+                            } else {
+                                AudioCommand::DefaultSource(device_name.clone(), port_name.clone())
+                            });
+                        }),
+                );
             }
             Some(col)
         })
