@@ -548,18 +548,13 @@ pub fn view(handle: TempoHandle, config: TempoModuleConfig) -> impl Widget {
         // ── Hourly strip ──
         let mut hourly_row = container().layout(Flex::row().spacing(8));
         {
-            // TODO(guido): content laid out wider than the popup surface
-            // makes the renderer drop the whole frame (empty popup, huge GPU
-            // times). Until that is fixed, cap the strip to what fits the
-            // 650px menu; upstream shows 23 scrollable entries.
-            let hourly_cap = 8;
             let mut time = data
                 .hourly
                 .time
                 .iter()
                 .enumerate()
                 .filter(|(_, t)| **t > data.current.time)
-                .take(hourly_cap)
+                .take(23)
                 .peekable();
             let start_index = time.peek().map(|(index, _)| *index).unwrap_or(0);
 

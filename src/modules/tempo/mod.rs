@@ -223,17 +223,10 @@ pub fn menu_view(handle: TempoHandle) -> impl Widget {
     let config = with_context::<Config, _>(|c| c.tempo.clone()).unwrap_or_default();
     let has_weather = config.weather_location.is_some();
 
-    // KNOWN ISSUE (guido renderer): popups whose combined content exceeds
-    // a certain amount of draw work never get a visible frame out (each
-    // section renders fine alone, combinations turn the popup permanently
-    // blank — repro: ASHELL_DEBUG_OPEN_TEMPO + ASHELL_DEBUG_TEMPO_FULL).
-    // Until that is fixed the menu shows the calendar only; the weather
-    // column can be forced on for debugging.
-    let show_weather = has_weather && std::env::var("ASHELL_DEBUG_TEMPO_FULL").is_ok();
     container()
         .width(fill())
         .layout(Flex::row().spacing(16))
         .child(calendar::view(handle, config.clone()))
-        .maybe_child(show_weather.then(|| weather::view(handle, config)))
+        .maybe_child(has_weather.then(|| weather::view(handle, config)))
         .into_any()
 }
