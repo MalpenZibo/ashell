@@ -8,6 +8,8 @@ This document shows every available configuration option with its default value.
 Commented-out lines show the default; uncomment and change to customize.
 
 ```toml
+# ── General ───────────────────────────────────────────────────────────────────
+
 log_level = "warn"
 # language = "en-US"        # UI language; defaults to $LC_MESSAGES / $LANG
 # region   = "it-IT"        # date format + unit system; defaults to $LC_TIME / $LANG
@@ -15,6 +17,8 @@ log_level = "warn"
 position = "Top"             # "Top" (default) or "Bottom"
 # layer = "Bottom"           # "Bottom" (default), "Top", or "Overlay"
 # enable_esc_key = false     # Pressing Escape closes open menus
+
+# ── Modules ───────────────────────────────────────────────────────────────────
 
 [modules]
 left = [ [ "appLauncher", "Updates", "Workspaces" ] ]
@@ -26,10 +30,14 @@ right = [ "SystemInfo", "MediaPlayer", [ "Tray", "Tempo", "Privacy", "Settings" 
 # center = [ "WindowTitle" ]
 # right = [ [ "Tempo", "Privacy", "Settings" ] ]
 
+# ── Updates ───────────────────────────────────────────────────────────────────
+
 [updates]
 check_cmd = "checkupdates; paru -Qua"
 update_cmd = 'alacritty -e bash -c "paru; echo Done - Press enter to exit; read" &'
 interval = 3600             # seconds; minimum enforced to 1
+
+# ── Workspaces ────────────────────────────────────────────────────────────────
 
 [workspaces]
 visibility_mode = "All"           # "All" (default), "MonitorSpecific", "MonitorSpecificExclusive"
@@ -42,6 +50,8 @@ enable_workspace_filling = false  # (default)
 # enable_virtual_desktops = false   # (default) group workspaces into virtual desktops
 # invert_scroll_direction = "All"   # (default: None) "All", "Mouse", or "Trackpad"
 
+# ── Custom Modules ────────────────────────────────────────────────────────────
+
 [[CustomModule]]
 name = "appLauncher"
 icon = "󱗼"
@@ -51,12 +61,18 @@ command = "walker"
 # alert = "regex"              # show alert dot when `alt` matches regex
 # type = "Button"              # (default) "Button" or "Text"
 
+# ── Window Title ──────────────────────────────────────────────────────────────
+
 [window_title]
 mode = "Title"                   # "Title" (default), "Class", "InitialTitle", "InitialClass"
 truncate_title_after_length = 150 # (default) 0 means no truncation; capped at 2048
 
+# ── Keyboard Layout ───────────────────────────────────────────────────────────
+
 [keyboard_layout]
 # labels = { "English (US)" = "EN", "Italian" = "IT" }  # (default: {}) map layout names to short labels
+
+# ── System Info ───────────────────────────────────────────────────────────────
 
 [system_info]
 indicators = [ "Cpu", "Memory", "Temperature" ]
@@ -85,6 +101,8 @@ alert_threshold = 85
 # format = "Percentage"   # (default) or "Fraction"
 # mounts = ["/", "/home"] # (default: None = all non-removable disks)
 
+# ── Media Player ──────────────────────────────────────────────────────────────
+
 [media_player]
 # indicator_format = "IconAndText"  # (default), "Text", or "Icon"
 # indicator_fields = ["Artist", "Title"] # (default), also supports "Album"
@@ -93,9 +111,13 @@ alert_threshold = 85
 # menu_visualizer = false       # (default) bars behind the menu cards; cava runs only while the menu is open
 # visualizer_framerate = 30     # (default) cava frames per second, clamped to 1-144
 
+# ── Tray ──────────────────────────────────────────────────────────────────────
+
 [tray]
 # blocklist = ["regex"]    # (default: []) hide tray items matching regex patterns
 # right_click = "Menu"     # (default: None) "Open" or "Menu"; sets right-click action, left click gets the complement
+
+# ── Tempo ─────────────────────────────────────────────────────────────────────
 
 [tempo]
 clock_format = "%a %d %b %R"
@@ -106,6 +128,8 @@ clock_format = "%a %d %b %R"
 # weather_location = "Current"
 weather_indicator = "IconAndTemperature"  # (default), "Icon", or "None"
 # wind_speed_unit = "Kmh"   # (default: None = derive from locale) "Kmh", "Mph", or "Ms"
+
+# ── Notifications ─────────────────────────────────────────────────────────────
 
 [notifications]
 format = "%H:%M"
@@ -118,6 +142,8 @@ show_bodies = true
 # toast_limit = 5           # (default) max concurrent toasts
 # toast_max_height = 150    # (default) max height of toast cards in pixels
 # blocklist = ["regex"]     # (default: []) suppress notifications from apps matching regex
+
+# ── Settings ──────────────────────────────────────────────────────────────────
 
 [settings]
 # Optional: disable hover tooltips on status indicators
@@ -157,14 +183,20 @@ command = "/path/to/toggle-keyboard.sh"
 status_command = "/path/to/check-keyboard-status.sh"
 tooltip = "Toggle On-Screen Keyboard"
 
+# ── OSD ───────────────────────────────────────────────────────────────────────
+
 [osd]
 enabled = false   # (default)
 timeout = 1500    # milliseconds
 show_volume_percentage = false      # (default) show numeric volume value in the OSD
 show_brightness_percentage = false  # (default) show numeric brightness value in the OSD
 
+# ── Animations ────────────────────────────────────────────────────────────────
+
 [animations]
 enabled = false   # (default)
+
+# ── Appearance ────────────────────────────────────────────────────────────────
 
 [appearance]
 # font_name = "Sans"           # (default: None) custom font family
