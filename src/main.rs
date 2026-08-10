@@ -154,6 +154,19 @@ async fn main() {
                 .contains(&ModuleName::Notifications)
                 .then(modules::notifications::create);
 
+            // One instance per custom module referenced in the layout
+            let custom: std::collections::HashMap<_, _> = cfg
+                .custom_modules
+                .iter()
+                .filter(|def| needed.contains(&ModuleName::Custom(def.name.clone())))
+                .map(|def| {
+                    (
+                        def.name.clone(),
+                        modules::custom_module::create(def.clone()),
+                    )
+                })
+                .collect();
+
             let data = ModuleData {
                 compositor_state,
                 compositor_svc,
@@ -165,6 +178,7 @@ async fn main() {
                 media_player,
                 tempo,
                 notifications,
+                custom,
             };
 
             // Menu state — menus are xdg popups anchored to the bar; the

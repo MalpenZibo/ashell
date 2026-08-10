@@ -1,4 +1,5 @@
 pub mod clock;
+pub mod custom_module;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
 pub mod media_player;
@@ -54,6 +55,7 @@ pub struct ModuleData {
     pub media_player: Option<media_player::MediaPlayerHandle>,
     pub tempo: Option<tempo::TempoHandle>,
     pub notifications: Option<notifications::NotificationsHandle>,
+    pub custom: std::collections::HashMap<String, custom_module::CustomHandle>,
 }
 
 /// Menu infrastructure signals (all Copy).
@@ -392,6 +394,13 @@ fn add_module(
         }
         ModuleName::KeyboardSubmap => {
             group.child(module_item().child(keyboard_submap::view(data.compositor_state)))
+        }
+        ModuleName::Custom(name) => {
+            if let Some(handle) = data.custom.get(name) {
+                group.child(module_item().child(custom_module::view(handle.clone())))
+            } else {
+                group
+            }
         }
         // Unimplemented modules are silently skipped.
         _ => group,

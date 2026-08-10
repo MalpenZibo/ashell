@@ -28,6 +28,8 @@ pub struct Config {
     pub media_player: MediaPlayerModuleConfig,
     pub keyboard_layout: KeyboardLayoutModuleConfig,
     pub notifications: NotificationsModuleConfig,
+    #[serde(rename = "CustomModule")]
+    pub custom_modules: Vec<CustomModuleDef>,
     pub enable_esc_key: bool,
 }
 
@@ -50,6 +52,7 @@ impl Default for Config {
             media_player: MediaPlayerModuleConfig::default(),
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
             notifications: NotificationsModuleConfig::default(),
+            custom_modules: Vec::new(),
             enable_esc_key: false,
         }
     }
@@ -641,6 +644,52 @@ impl PartialEq for RegexCfg {
     }
 }
 impl Eq for RegexCfg {}
+
+impl std::hash::Hash for RegexCfg {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.as_str().hash(state);
+    }
+}
+
+fn empty_string_as_none<'de, D>(d: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(d)?;
+    Ok(opt.filter(|s| !s.is_empty()))
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CustomModuleType {
+    #[default]
+    Button,
+    Text,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct CustomModuleDef {
+    pub name: String,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub command: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub listen_cmd: Option<String>,
+    #[serde(default)]
+    pub icons: Option<HashMap<RegexCfg, String>>,
+    #[serde(default)]
+    pub alert: Option<RegexCfg>,
+    #[serde(rename = "type", default)]
+    pub r#type: CustomModuleType,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub on_right_click: Option<String>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub on_middle_click: Option<String>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub on_scroll_up: Option<String>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub on_scroll_down: Option<String>,
+}
 
 #[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ToastPosition {

@@ -262,14 +262,14 @@ impl StaticIcon {
 }
 
 /// Arbitrary icon character string (always uses Nerd Font).
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct DynamicIcon(pub String);
 
 // ---------------------------------------------------------------------------
 // IconKind — unified icon data: predefined variant OR arbitrary string
 // ---------------------------------------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum IconKind {
     Static(StaticIcon),
     Dynamic(String),
