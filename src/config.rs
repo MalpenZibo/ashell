@@ -27,6 +27,7 @@ pub struct Config {
     pub appearance: Appearance,
     pub media_player: MediaPlayerModuleConfig,
     pub keyboard_layout: KeyboardLayoutModuleConfig,
+    pub notifications: NotificationsModuleConfig,
     pub enable_esc_key: bool,
 }
 
@@ -48,6 +49,7 @@ impl Default for Config {
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
+            notifications: NotificationsModuleConfig::default(),
             enable_esc_key: false,
         }
     }
@@ -82,6 +84,7 @@ pub enum ModuleName {
     Privacy,
     Settings,
     MediaPlayer,
+    Notifications,
     Custom(String),
 }
 
@@ -111,6 +114,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "Clock" => ModuleName::Clock,
                     "Tempo" => ModuleName::Tempo,
                     "Privacy" => ModuleName::Privacy,
+                    "Notifications" => ModuleName::Notifications,
                     "Settings" => ModuleName::Settings,
                     "MediaPlayer" => ModuleName::MediaPlayer,
                     other => ModuleName::Custom(other.to_string()),
@@ -609,6 +613,74 @@ impl Default for MediaPlayerModuleConfig {
 #[serde(default)]
 pub struct KeyboardLayoutModuleConfig {
     pub labels: HashMap<String, String>,
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+/// A regex in config (matched against notification/tray app names).
+#[derive(Clone, Debug)]
+pub struct RegexCfg(pub regex::Regex);
+
+impl<'de> Deserialize<'de> for RegexCfg {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(d)?;
+        regex::Regex::new(&s)
+            .map(RegexCfg)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+impl PartialEq for RegexCfg {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_str() == other.0.as_str()
+    }
+}
+impl Eq for RegexCfg {}
+
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ToastPosition {
+    TopLeft,
+    #[default]
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct NotificationsModuleConfig {
+    pub format: String,
+    pub show_timestamps: bool,
+    pub show_bodies: bool,
+    pub grouped: bool,
+    pub toast: bool,
+    pub toast_position: ToastPosition,
+    pub toast_timeout: u64,
+    pub toast_limit: usize,
+    pub toast_max_height: u32,
+    pub blocklist: Vec<RegexCfg>,
+}
+
+impl Default for NotificationsModuleConfig {
+    fn default() -> Self {
+        Self {
+            format: "%H:%M".to_string(),
+            show_timestamps: true,
+            show_bodies: true,
+            grouped: false,
+            toast: true,
+            toast_position: ToastPosition::default(),
+            toast_timeout: 5000,
+            toast_limit: 5,
+            toast_max_height: 150,
+            blocklist: Vec::new(),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

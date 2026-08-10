@@ -150,6 +150,10 @@ async fn main() {
                 .contains(&ModuleName::Tempo)
                 .then(modules::tempo::create);
 
+            let notifications = needed
+                .contains(&ModuleName::Notifications)
+                .then(modules::notifications::create);
+
             let data = ModuleData {
                 compositor_state,
                 compositor_svc,
@@ -160,6 +164,7 @@ async fn main() {
                 privacy,
                 media_player,
                 tempo,
+                notifications,
             };
 
             // Menu state — menus are xdg popups anchored to the bar; the

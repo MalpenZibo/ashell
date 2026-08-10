@@ -2,6 +2,7 @@ pub mod clock;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
 pub mod media_player;
+pub mod notifications;
 pub mod privacy;
 pub mod settings;
 pub mod system_info;
@@ -35,6 +36,7 @@ pub enum MenuType {
     Settings,
     MediaPlayer,
     Tempo,
+    Notifications,
     /// Tray item menu, keyed by the item's service name
     Tray(String),
 }
@@ -51,6 +53,7 @@ pub struct ModuleData {
         Option<crate::services::compat::ServiceSignal<crate::services::privacy::PrivacyService>>,
     pub media_player: Option<media_player::MediaPlayerHandle>,
     pub tempo: Option<tempo::TempoHandle>,
+    pub notifications: Option<notifications::NotificationsHandle>,
 }
 
 /// Menu infrastructure signals (all Copy).
@@ -115,6 +118,7 @@ pub fn menu_width_for(mt: &MenuType) -> f32 {
         MenuType::Settings => 350.0,
         MenuType::MediaPlayer => 450.0,
         MenuType::Tempo => 650.0,
+        MenuType::Notifications => 350.0,
         _ => MENU_WIDTH,
     }
 }
