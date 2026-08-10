@@ -301,6 +301,30 @@ async fn main() {
         load_font(CUSTOM_FONT.to_vec());
 
         let cfg = config::load_config(&config_path);
+
+        // The embedded nerd fonts are subsets covering only the glyphs in
+        // icons.rs; config-defined icons (custom modules, custom buttons)
+        // can use any glyph, so pull in the full system font for those
+        let needs_full_nerd = cfg
+            .custom_modules
+            .iter()
+            .any(|m| m.icon.is_some() || m.icons.is_some())
+            || !cfg.settings.custom_buttons.is_empty();
+        if needs_full_nerd {
+            match std::process::Command::new("fc-match")
+                .args(["--format=%{file}", "Symbols Nerd Font"])
+                .output()
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .filter(|p| !p.is_empty())
+                .and_then(|p| std::fs::read(p).ok())
+            {
+                Some(bytes) => load_font(bytes),
+                None => log::warn!(
+                    "config uses custom nerd-font glyphs but no system \"Symbols Nerd Font\" was found; they may render blank"
+                ),
+            }
+        }
         let theme_colors = theme::init(&cfg.appearance);
         i18n::init_localizer(i18n::Localizer::resolve(
             cfg.language.as_deref(),
@@ -527,8 +551,13 @@ async fn main() {
                     let bar_ids = bar_ids.clone();
                     create_effect(move || {
                         let outs = outputs().get();
+                        // While output info hasn't arrived yet, spawn nothing:
+                        // a fallback bar would be closed moments later on the
+                        // fallback->pinned handover, and guido currently
+                        // leaves the closed tree's reactive subscribers
+                        // behind (first signal touching them panics).
                         let desired: Vec<Option<OutputId>> = if outs.is_empty() {
-                            vec![None]
+                            Vec::new()
                         } else {
                             match &mode {
                                 config::Outputs::All => outs.iter().map(|o| Some(o.id)).collect(),

@@ -245,6 +245,75 @@ fn collect_system_info(
     }
 }
 
+// ── Temperature sensor auto-detection (upstream match lists) ────────────────
+
+enum SensorMatch {
+    Exact(&'static [&'static str]),
+    StartsWith(&'static [&'static str]),
+    Contains(&'static [&'static str]),
+}
+
+const CPU_MATCHES: &[SensorMatch] = &[
+    SensorMatch::Exact(&[
+        "coretemp Package id 0",
+        "coretemp Core 0",
+        "coretemp Physical id 0",
+    ]),
+    SensorMatch::StartsWith(&["k10temp", "applesmc"]),
+];
+const GPU_MATCHES: &[SensorMatch] = &[
+    SensorMatch::StartsWith(&["xe"]),
+    SensorMatch::Exact(&["amdgpu edge", "nouveau temp1"]),
+    SensorMatch::Contains(&["nvidia"]),
+];
+const ACPI_MATCHES: &[SensorMatch] = &[SensorMatch::Exact(&["acpitz temp1", "acpitz temp0"])];
+const NVME_MATCHES: &[SensorMatch] = &[SensorMatch::StartsWith(&["nvme"])];
+
+fn find_sensor(components: &Components, matches: &[SensorMatch]) -> Option<String> {
+    for rule in matches {
+        let found = components.iter().find(|c| {
+            let label = c.label();
+            match rule {
+                SensorMatch::Exact(names) => names.contains(&label),
+                SensorMatch::StartsWith(prefixes) => prefixes.iter().any(|p| label.starts_with(p)),
+                SensorMatch::Contains(fragments) => fragments.iter().any(|f| label.contains(f)),
+            }
+        });
+        if let Some(c) = found {
+            return Some(c.label().to_string());
+        }
+    }
+    None
+}
+
+fn resolve_sensor_label(
+    components: &Components,
+    sensor: &crate::config::TemperatureSensor,
+) -> Option<String> {
+    use crate::config::{TemperatureSensor, TemperatureSensorType};
+
+    let sensor_type = match sensor {
+        TemperatureSensor::Label(label) => {
+            if components.iter().any(|c| c.label() == label) {
+                return Some(label.clone());
+            }
+            log::warn!(
+                "Configured temperature sensor {label:?} not found; auto-detecting a CPU sensor"
+            );
+            TemperatureSensorType::Cpu
+        }
+        TemperatureSensor::Type(t) => *t,
+    };
+
+    let matches = match sensor_type {
+        TemperatureSensorType::Cpu => CPU_MATCHES,
+        TemperatureSensorType::Gpu => GPU_MATCHES,
+        TemperatureSensorType::Acpi => ACPI_MATCHES,
+        TemperatureSensorType::Nvme => NVME_MATCHES,
+    };
+    find_sensor(components, matches)
+}
+
 pub fn start_system_info_service(
     writers: SystemInfoDataWriters,
     config: SystemInfoModuleConfig,
@@ -254,6 +323,7 @@ pub fn start_system_info_service(
 
     let _ = create_service::<(), _, _>(move |_rx, ctx| async move {
         let mut sys = System::new();
+        // (sensor resolution below uses upstream's ordered detection lists)
         let mut components = Components::new_with_refreshed_list();
         let mut disks = Disks::new_with_refreshed_list();
         let mut networks = Networks::new_with_refreshed_list();
@@ -261,10 +331,20 @@ pub fn start_system_info_service(
         let mut data = SystemInfoData::default();
         let mut tick: u32 = 0;
 
-        let sensor = &config.temperature.sensor;
-        if bar_scope.temperature && !components.iter().any(|c| c.label() == sensor) {
+        // Resolve the configured sensor (exact label, or auto-detection by
+        // category — upstream's match lists) once; re-resolved if it ever
+        // disappears.
+        let mut sensor_label = if bar_scope.temperature {
+            resolve_sensor_label(&components, &config.temperature.sensor)
+        } else {
+            None
+        };
+        if let Some(label) = &sensor_label {
+            log::info!("Using temperature sensor: {label}");
+        } else if bar_scope.temperature {
             log::warn!(
-                "Temperature sensor {sensor:?} not found; available: {:?}",
+                "Temperature sensor {:?} not found; available: {:?}",
+                config.temperature.sensor,
                 components.iter().map(|c| c.label()).collect::<Vec<_>>()
             );
         }
@@ -274,13 +354,16 @@ pub fn start_system_info_service(
             let scope = if open { RefreshScope::ALL } else { bar_scope };
 
             // Missing sensor (typo or hotplug): rescan the component list
-            // occasionally (~once a minute), never per tick.
-            if scope.temperature
-                && tick.is_multiple_of(12)
-                && tick > 0
-                && !components.iter().any(|c| c.label() == sensor)
-            {
+            // and re-resolve occasionally (~once a minute), never per tick.
+            let sensor_present = sensor_label
+                .as_deref()
+                .is_some_and(|l| components.iter().any(|c| c.label() == l));
+            if scope.temperature && tick.is_multiple_of(12) && tick > 0 && !sensor_present {
                 components.refresh(true);
+                sensor_label = resolve_sensor_label(&components, &config.temperature.sensor);
+                if let Some(label) = &sensor_label {
+                    log::info!("Using temperature sensor: {label}");
+                }
             }
             tick = tick.wrapping_add(1);
             data = collect_system_info(
@@ -289,7 +372,7 @@ pub fn start_system_info_service(
                 &mut disks,
                 &mut networks,
                 last_check,
-                &config.temperature.sensor,
+                sensor_label.as_deref().unwrap_or(""),
                 scope,
                 &data,
             );

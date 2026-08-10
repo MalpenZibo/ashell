@@ -93,7 +93,13 @@ pub fn view(info: SystemInfoDataSignals) -> impl Widget {
                     temp.get().map(|_| {
                         indicator(
                             StaticIcon::Temp,
-                            move || format!("{:.0}°", temp.get().unwrap_or(0.0)),
+                            move || {
+                                format!(
+                                    "{:.0}{}",
+                                    temp.get().unwrap_or(0.0),
+                                    crate::i18n::unit_system().temperature_symbol()
+                                )
+                            },
                             move || {
                                 status_color(
                                     theme,

@@ -298,12 +298,36 @@ impl Default for SystemInfoMemory {
     }
 }
 
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TemperatureSensorType {
+    #[default]
+    Cpu,
+    Gpu,
+    Acpi,
+    Nvme,
+}
+
+/// Either a sensor category (auto-detected per hardware) or an exact
+/// sysinfo component label like "k10temp Tctl". Upstream semantics.
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum TemperatureSensor {
+    Type(TemperatureSensorType),
+    Label(String),
+}
+
+impl Default for TemperatureSensor {
+    fn default() -> Self {
+        Self::Type(TemperatureSensorType::Cpu)
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SystemInfoTemperature {
     pub warn_threshold: i32,
     pub alert_threshold: i32,
-    pub sensor: String,
+    pub sensor: TemperatureSensor,
 }
 
 impl Default for SystemInfoTemperature {
@@ -311,7 +335,7 @@ impl Default for SystemInfoTemperature {
         Self {
             warn_threshold: 60,
             alert_threshold: 80,
-            sensor: "acpitz temp1".to_string(),
+            sensor: TemperatureSensor::default(),
         }
     }
 }

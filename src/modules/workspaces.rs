@@ -163,35 +163,41 @@ fn calculate_ui_workspaces(
 
     // Workspace filling: add phantom workspaces for missing IDs
     if config.enable_workspace_filling && !result.is_empty() {
+        // Fill by INDEX like upstream — on niri ids are arbitrary growing
+        // numbers while the index is the 1-based position, so filling by id
+        // fabricates phantom pills next to real workspaces
+        let existing_indices: Vec<i32> = result.iter().map(|w| w.index).collect();
         let existing_ids: Vec<i32> = result.iter().map(|w| w.id).collect();
-        let mut max_id = existing_ids
+        let mut max_index = existing_indices
             .iter()
-            .filter(|&&id| id > 0)
+            .filter(|&&idx| idx > 0)
             .max()
             .copied()
             .unwrap_or(0);
 
         if let Some(max_cfg) = config.max_workspaces
-            && max_cfg as i32 > max_id
+            && max_cfg as i32 > max_index
         {
-            max_id = max_cfg as i32;
+            max_index = max_cfg as i32;
         }
 
-        for id in 1..=max_id {
-            if !existing_ids.contains(&id) {
-                let name = if id > 0 {
-                    let idx = (id - 1) as usize;
-                    config
-                        .workspace_names
-                        .get(idx)
-                        .cloned()
-                        .unwrap_or_else(|| id.to_string())
+        for index in 1..=max_index {
+            if !existing_indices.contains(&index) {
+                let name = config
+                    .workspace_names
+                    .get((index - 1) as usize)
+                    .cloned()
+                    .unwrap_or_else(|| index.to_string());
+                // Upstream reuses the index as id; keep keyed() rows unique
+                // when a real workspace already owns that numeric id
+                let id = if existing_ids.contains(&index) {
+                    -(100_000 + index)
                 } else {
-                    id.to_string()
+                    index
                 };
                 result.push(UiWorkspace {
                     id,
-                    index: id,
+                    index,
                     name,
 
                     monitor: String::new(),
