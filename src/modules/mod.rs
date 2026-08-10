@@ -494,14 +494,28 @@ fn add_module(
                 // DEBUG: auto-open the tempo menu shortly after startup
                 if std::env::var("ASHELL_DEBUG_OPEN_TEMPO").is_ok() {
                     let trigger = menu_toggle(MenuType::Tempo, wr, menu, content.clone());
-                    let opened = create_signal(false);
-                    let w = opened.writer();
+                    let step = create_signal(0u32);
+                    let w = step.writer();
+                    // With ASHELL_DEBUG_REOPEN_TEMPO: open at 3s, close at
+                    // 6s, reopen at 8s — cold vs warm open comparison
+                    let reopen = std::env::var("ASHELL_DEBUG_REOPEN_TEMPO").is_ok();
                     tokio::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                        w.set(true);
+                        w.set(1);
+                        if reopen {
+                            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                            w.set(2);
+                            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                            w.set(3);
+                        }
                     });
                     create_effect(move || {
-                        if opened.get() {
+                        if step.get() > 0 {
+                            eprintln!(
+                                "[open-probe] t={} menu_toggle step {}",
+                                crate::utils::debug_wall_ms(),
+                                step.get()
+                            );
                             trigger();
                         }
                     })

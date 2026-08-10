@@ -46,3 +46,29 @@ unic-langid = "0.9"
 
 [build-dependencies]
 allsorts = "0.15"
+
+# Pixel-crunching dependencies are unusable at opt-level 0 (~25ms per 16px
+# SVG raster, menu cold-open in the hundreds of ms): optimize them even in
+# dev builds. App and guido code stay unoptimized for fast rebuilds.
+[profile.dev.package.tiny-skia]
+opt-level = 3
+[profile.dev.package.tiny-skia-path]
+opt-level = 3
+[profile.dev.package.resvg]
+opt-level = 3
+[profile.dev.package.usvg]
+opt-level = 3
+[profile.dev.package.cosmic-text]
+opt-level = 3
+[profile.dev.package.rustybuzz]
+opt-level = 3
+[profile.dev.package.ttf-parser]
+opt-level = 3
+[profile.dev.package.fontdb]
+opt-level = 3
+[profile.dev.package.swash]
+opt-level = 3
+[profile.dev.package.zeno]
+opt-level = 3
+[profile.dev.package.image]
+opt-level = 3
