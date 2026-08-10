@@ -356,9 +356,11 @@ impl App {
             ModuleName::Tray => Some(self.tray.subscription().map(Message::Tray)),
             ModuleName::Tempo => Some(self.tempo.subscription().map(Message::Tempo)),
             ModuleName::Privacy => Some(self.privacy.subscription().map(Message::Privacy)),
-            ModuleName::MediaPlayer => {
-                Some(self.media_player.subscription().map(Message::MediaPlayer))
-            }
+            ModuleName::MediaPlayer => Some(
+                self.media_player
+                    .subscription(self.outputs.menu_of_type_is_open(&MenuType::MediaPlayer))
+                    .map(Message::MediaPlayer),
+            ),
             ModuleName::Settings => Some(self.settings.subscription().map(Message::Settings)),
             ModuleName::Notifications => Some(
                 self.notifications
