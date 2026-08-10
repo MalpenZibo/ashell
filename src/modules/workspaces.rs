@@ -14,34 +14,92 @@ const PILL_VISIBLE_WIDTH: f32 = 24.0;
 const PILL_HIDDEN_WIDTH: f32 = 16.0;
 const PILL_CORNER_RADIUS: f32 = 8.0;
 
-fn workspace_colors() -> Vec<Color> {
+/// base/weak/strong/text variants of a workspace (or background) color —
+/// the port of upstream's generated palette pairs. Explicit values from an
+/// `AppearanceColor::Complete` win; the rest is derived.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ColorPair {
+    base: Color,
+    weak: Color,
+    strong: Color,
+    text: Color,
+}
+
+fn lerp_color(a: Color, b: Color, t: f32) -> Color {
+    Color::rgba(
+        a.r + (b.r - a.r) * t,
+        a.g + (b.g - a.g) * t,
+        a.b + (b.b - a.b) * t,
+        a.a + (b.a - a.a) * t,
+    )
+}
+
+/// Contrast-picked text color for a background.
+fn readable_on(bg: Color, light: Color, dark: Color) -> Color {
+    let luma = 0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b;
+    if luma > 0.5 { dark } else { light }
+}
+
+fn pair_from(
+    ac: &crate::config::AppearanceColor,
+    surface: Color,
+    theme: &ThemeColors,
+) -> ColorPair {
+    let base = ac.base();
+    let weak = ac.weak().unwrap_or_else(|| lerp_color(base, surface, 0.65));
+    ColorPair {
+        base,
+        weak,
+        strong: ac.strong().unwrap_or_else(|| base.lighter(0.1)),
+        text: ac
+            .text()
+            .unwrap_or_else(|| readable_on(base, theme.text, surface)),
+    }
+}
+
+/// The background pairs (used by empty pills).
+fn background_pair() -> ColorPair {
+    let theme = expect_context::<ThemeColors>();
+    with_context::<Config, _>(|c| {
+        pair_from(&c.appearance.background_color, theme.background, &theme)
+    })
+    .unwrap()
+}
+
+fn workspace_pairs() -> Vec<ColorPair> {
+    let theme = expect_context::<ThemeColors>();
     let ws = with_context::<Config, _>(|c| {
         c.appearance
             .workspace_colors
             .iter()
-            .map(|c| c.base())
+            .map(|ac| pair_from(ac, theme.background, &theme))
             .collect::<Vec<_>>()
     })
     .unwrap();
     if ws.is_empty() {
-        let theme = expect_context::<ThemeColors>();
-        vec![theme.primary, theme.success, theme.warning]
+        vec![pair_from(
+            &crate::config::AppearanceColor::Simple(hex_color::HexColor::rgb(122, 162, 247)),
+            theme.background,
+            &theme,
+        )]
     } else {
         ws
     }
 }
 
-/// Colors for special workspaces; falls back to the normal list like upstream.
-fn special_workspace_colors() -> Vec<Color> {
+/// Pairs for special workspaces; falls back to the normal list like upstream.
+fn special_workspace_pairs() -> Vec<ColorPair> {
+    let theme = expect_context::<ThemeColors>();
     with_context::<Config, _>(|c| {
-        c.appearance
-            .special_workspace_colors
-            .as_ref()
-            .map(|l| l.iter().map(|c| c.base()).collect::<Vec<_>>())
+        c.appearance.special_workspace_colors.as_ref().map(|l| {
+            l.iter()
+                .map(|ac| pair_from(ac, theme.background, &theme))
+                .collect::<Vec<_>>()
+        })
     })
     .unwrap()
     .filter(|l| !l.is_empty())
-    .unwrap_or_else(workspace_colors)
+    .unwrap_or_else(workspace_pairs)
 }
 
 // ── Display state ────────────────────────────────────────────────────────────
@@ -239,13 +297,16 @@ fn calculate_ui_workspaces(
 // - Empty pills: surface background, 1px border in ws_color (invisible when None).
 // - Occupied pills: ws_color background (surface when None), no border.
 
-/// Resolve the workspace color. Returns None for workspaces without a monitor
-/// (phantom/filled workspaces), which makes their border blend with the
-/// background. An index past the end of the list falls back to `fallback`
-/// (upstream: theme primary), it does not wrap.
-fn resolve_ws_color(colors: &[Color], monitor_id: Option<i128>, fallback: Color) -> Option<Color> {
+/// Resolve the workspace color pair. Returns None for workspaces without a
+/// monitor (phantom/filled workspaces). An index past the end of the list
+/// falls back to the theme primary pair, it does not wrap.
+fn resolve_ws_pair(
+    pairs: &[ColorPair],
+    monitor_id: Option<i128>,
+    fallback: ColorPair,
+) -> Option<ColorPair> {
     monitor_id.map(|mid| {
-        colors
+        pairs
             .get(mid.unsigned_abs() as usize)
             .copied()
             .unwrap_or(fallback)
@@ -273,11 +334,15 @@ fn is_empty(workspaces: &[CompositorWorkspace], ws_id: i32) -> bool {
         .is_none_or(|w| w.windows == 0)
 }
 
-fn pill_background(theme: ThemeColors, ws_color: Option<Color>, empty: bool) -> Color {
-    if empty {
-        theme.background.lighter(0.1)
-    } else {
-        ws_color.unwrap_or(theme.background.lighter(0.1))
+// Upstream `workspace_button_style` matrix (minus the urgent branch, which
+// waits on compositor urgency plumbing). `ws` None means "no monitor
+// assignment": background pairs stand in for the whole palette.
+fn pill_background(bg: ColorPair, ws: Option<ColorPair>, active: bool, empty: bool) -> Color {
+    match (empty, active) {
+        (true, true) => bg.strong,
+        (true, false) => bg.weak,
+        (false, true) => ws.map(|p| p.base).unwrap_or(bg.strong),
+        (false, false) => ws.map(|p| p.weak).unwrap_or(bg.weak),
     }
 }
 
@@ -285,24 +350,18 @@ fn pill_border_width(empty: bool) -> f32 {
     if empty { 1.0 } else { 0.0 }
 }
 
-fn pill_border_color(theme: ThemeColors, ws_color: Option<Color>, active: bool) -> Color {
-    if active {
-        // Workspace color when assigned → visible colored border.
-        // Surface color when unassigned → border blends with background.
-        ws_color.unwrap_or(theme.background.lighter(0.8))
-    } else {
-        Color::TRANSPARENT
-    }
+fn pill_border_color(bg: ColorPair, ws: Option<ColorPair>, active: bool) -> Color {
+    let ws = ws.unwrap_or(bg);
+    if active { ws.base } else { ws.weak }
 }
 
-fn pill_text_color(theme: ThemeColors, ws_color: Option<Color>, empty: bool) -> Color {
+fn pill_text_color(theme: ThemeColors, ws: Option<ColorPair>, active: bool, empty: bool) -> Color {
     if empty {
         theme.text
-    } else if ws_color.is_some() {
-        // Dark text on colored background
-        theme.background
+    } else if active {
+        ws.map(|p| p.text).unwrap_or(theme.text)
     } else {
-        // Light text on surface background
+        // On the dim weak background the normal text color reads fine
         theme.text
     }
 }
@@ -312,7 +371,8 @@ fn pill_text_color(theme: ThemeColors, ws_color: Option<Color>, empty: bool) -> 
 pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let config = with_context::<Config, _>(|c| c.workspaces.clone()).unwrap();
-    let colors = workspace_colors();
+    let colors = workspace_pairs();
+    let bg_pair = background_pair();
     let enable_vdesks = config.enable_virtual_desktops;
 
     let svc_scroll = svc.clone();
@@ -405,26 +465,30 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                 let label = uw.name;
                 let is_special = uw.is_special;
                 let colors = if is_special {
-                    special_workspace_colors()
+                    special_workspace_pairs()
                 } else {
                     colors.clone()
                 };
                 let svc = svc_children.clone();
 
                 {
-                    let theme_primary = theme.primary;
+                    let primary_pair = pair_from(
+                        &with_context::<Config, _>(|c| c.appearance.primary_color).unwrap(),
+                        theme.background,
+                        &theme,
+                    );
                     // Per-pill reactive memos
                     let ws_color = create_memo({
                         let colors = colors.clone();
                         move || {
                             if enable_vdesks {
                                 // Virtual desktops always have a color
-                                resolve_ws_color(&colors, Some(id as i128), theme_primary)
+                                resolve_ws_pair(&colors, Some(id as i128), primary_pair)
                             } else {
                                 // Look up current monitor_id from live workspace data
                                 let ws = workspaces.get();
                                 let mid = ws.iter().find(|w| w.id == id).and_then(|w| w.monitor_id);
-                                resolve_ws_color(&colors, mid, theme_primary)
+                                resolve_ws_pair(&colors, mid, primary_pair)
                             }
                         }
                     });
@@ -472,13 +536,20 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
 
                     let mut pill = container()
                         .height(PILL_HEIGHT)
-                        .background(move || pill_background(theme, ws_color.get(), empty.get()))
+                        .background(move || {
+                            pill_background(
+                                bg_pair,
+                                ws_color.get(),
+                                displayed.get() == Displayed::Active,
+                                empty.get(),
+                            )
+                        })
                         .corner_radius(PILL_CORNER_RADIUS)
                         .border(
                             move || pill_border_width(empty.get()),
                             move || {
                                 pill_border_color(
-                                    theme,
+                                    bg_pair,
                                     ws_color.get(),
                                     displayed.get() == Displayed::Active,
                                 )
@@ -492,7 +563,14 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                         .overflow(Overflow::Hidden)
                         .child(
                             text(label.clone())
-                                .color(move || pill_text_color(theme, ws_color.get(), empty.get()))
+                                .color(move || {
+                                    pill_text_color(
+                                        theme,
+                                        ws_color.get(),
+                                        displayed.get() == Displayed::Active,
+                                        empty.get(),
+                                    )
+                                })
                                 .font_size(10)
                                 .nowrap(),
                         )

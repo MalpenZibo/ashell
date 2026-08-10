@@ -16,6 +16,7 @@ pub struct Config {
     pub language: Option<String>,
     pub region: Option<String>,
     pub position: Position,
+    pub layer: Layer,
     pub outputs: Outputs,
     pub modules: Modules,
     pub updates: Option<UpdatesModuleConfig>,
@@ -43,6 +44,7 @@ impl Default for Config {
             language: None,
             region: None,
             position: Position::default(),
+            layer: Layer::default(),
             outputs: Outputs::default(),
             modules: Modules::default(),
             updates: None,
@@ -78,6 +80,42 @@ pub enum Position {
 // ---------------------------------------------------------------------------
 // Outputs
 // ---------------------------------------------------------------------------
+
+/// Layer-shell layer for the bar.
+///
+/// Upstream defaults to Bottom, but its menus are standalone surfaces; here
+/// menus are xdg popups that inherit the bar's layer, so a Bottom bar would
+/// open its menus UNDER regular windows. Top is the default instead —
+/// visually identical for the bar itself (the exclusive zone keeps windows
+/// away) while menus stack above windows.
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Layer {
+    Bottom,
+    #[default]
+    Top,
+    Overlay,
+}
+
+/// When to ask the compositor for background blur (ext-background-effect).
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum BlurMode {
+    /// Blur when the surface is translucent (opacity < 1).
+    #[default]
+    Auto,
+    Always,
+    Never,
+}
+
+impl BlurMode {
+    pub fn enabled(&self, opacity: f32) -> bool {
+        match self {
+            BlurMode::Auto => opacity < 1.0,
+            BlurMode::Always => true,
+            BlurMode::Never => false,
+        }
+    }
+}
 
 /// Which outputs get a bar: every one, the compositor-chosen active one, or
 /// those matching a connector name / EDID substring.
@@ -895,6 +933,30 @@ fn hex_to_color(c: HexColor) -> Color {
     Color::rgb(c.r as f32 / 255.0, c.g as f32 / 255.0, c.b as f32 / 255.0)
 }
 
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum BarSurface {
+    #[default]
+    Transparent,
+    Solid,
+}
+
+#[derive(Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
+pub struct BarAppearance {
+    pub surface: BarSurface,
+    pub opacity: f32,
+}
+
+impl Default for BarAppearance {
+    fn default() -> Self {
+        Self {
+            surface: BarSurface::default(),
+            opacity: 1.0,
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(default)]
 pub struct MenuAppearance {
@@ -920,6 +982,8 @@ pub struct Appearance {
     pub scale_factor: f64,
     pub style: AppearanceStyle,
     pub opacity: f32,
+    pub bar: BarAppearance,
+    pub blur: BlurMode,
     pub menu: MenuAppearance,
     pub background_color: AppearanceColor,
     pub primary_color: AppearanceColor,
@@ -938,6 +1002,8 @@ impl Default for Appearance {
             scale_factor: 1.0,
             style: AppearanceStyle::default(),
             opacity: 1.0,
+            bar: BarAppearance::default(),
+            blur: BlurMode::default(),
             menu: MenuAppearance::default(),
             background_color: AppearanceColor::Complete {
                 base: HexColor::rgb(30, 30, 46),

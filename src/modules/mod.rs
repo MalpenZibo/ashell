@@ -153,10 +153,18 @@ pub fn modules_in_config(modules: &Modules) -> HashSet<ModuleName> {
 /// the bar edge. No fill-height — auto-height popups size to the content.
 fn menu_shell(content: AnyWidget, open: RwSignal<bool>, origin: TransformOrigin) -> Container {
     let theme = expect_context::<crate::theme::ThemeColors>();
-    container()
+    let (menu_opacity, blur) =
+        with_context::<Config, _>(|c| (c.appearance.menu.opacity, c.appearance.blur))
+            .unwrap_or((1.0, crate::config::BlurMode::Never));
+    let bg = theme.background;
+    let mut shell = container()
         .width(fill())
-        .background(theme.background)
-        .corner_radius(12)
+        .background(Color::rgba(bg.r, bg.g, bg.b, menu_opacity))
+        .corner_radius(12);
+    if blur.enabled(menu_opacity) {
+        shell = shell.background_blur();
+    }
+    shell
         .padding(16)
         .overflow(Overflow::Hidden)
         .transform(move || {
@@ -410,6 +418,22 @@ fn add_module(
             if let Some(t) = data.tempo {
                 let wr = create_widget_ref();
                 let content = move || tempo::menu_view(t).into_any();
+                // DEBUG: auto-open the tempo menu shortly after startup
+                if std::env::var("ASHELL_DEBUG_OPEN_TEMPO").is_ok() {
+                    let trigger = menu_toggle(MenuType::Tempo, wr, menu, content.clone());
+                    let opened = create_signal(false);
+                    let w = opened.writer();
+                    tokio::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                        w.set(true);
+                    });
+                    create_effect(move || {
+                        if opened.get() {
+                            trigger();
+                        }
+                    })
+                    .detach();
+                }
                 group.child(
                     container().height(fill()).widget_ref(wr).child(
                         module_item()

@@ -472,6 +472,20 @@ async fn main() {
                 config::Position::Bottom => Anchor::BOTTOM,
             };
             let _ = app; // surfaces are spawned dynamically below
+            let bar_layer = match cfg.layer {
+                config::Layer::Bottom => Layer::Bottom,
+                config::Layer::Top => Layer::Top,
+                config::Layer::Overlay => Layer::Overlay,
+            };
+            // Solid surface: the bar itself carries the (possibly translucent,
+            // possibly blurred) background; Transparent leaves it to the islands
+            let bar_bg = match cfg.appearance.bar.surface {
+                config::BarSurface::Solid => {
+                    let c = cfg.appearance.background_color.base();
+                    Color::rgba(c.r, c.g, c.b, cfg.appearance.bar.opacity)
+                }
+                config::BarSurface::Transparent => Color::TRANSPARENT,
+            };
             let data = std::rc::Rc::new(data);
             let active_menu = menu.active_menu;
             let pending_close_writer = menu.pending_close_writer;
@@ -492,9 +506,9 @@ async fn main() {
                     let mut sc = SurfaceConfig::new()
                         .height(34)
                         .anchor(position_anchor | Anchor::LEFT | Anchor::RIGHT)
-                        .layer(Layer::Bottom)
+                        .layer(bar_layer)
                         .exclusive_zone(Some(34))
-                        .background_color(Color::TRANSPARENT)
+                        .background_color(bar_bg)
                         .keyboard_interactivity(KeyboardInteractivity::None)
                         .namespace("ashell");
                     if let Some(o) = output {

@@ -196,7 +196,7 @@ pub fn view(handle: TempoHandle) -> impl Widget {
             let mut inner = container()
                 .layout(
                     Flex::row()
-                        .spacing(2)
+                        .spacing(4)
                         .cross_alignment(CrossAlignment::Center),
                 )
                 .child(

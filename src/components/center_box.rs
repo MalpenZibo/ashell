@@ -30,22 +30,37 @@ impl Layout for CenterBoxLayout {
         // Only use first 3 children
         let children = &children[..children.len().min(3)];
 
-        // Measure all children with loose constraints
+        // Measure the sides first with loose constraints; the center then
+        // gets only the space they leave, so a long window title clips
+        // instead of running underneath the side sections
+        const SIDE_GAP: f32 = 8.0;
         let loose = Constraints::loose(Size::new(available_width, available_height));
-        self.child_sizes.clear();
-        for &child_id in children {
-            if let Some(size) =
-                tree.with_widget_mut(child_id, |widget, id, tree| widget.layout(tree, id, loose))
-            {
-                self.child_sizes.push(size);
-            } else {
-                self.child_sizes.push(Size::zero());
-            }
-        }
+        let measure = |tree: &mut Tree, id: WidgetId, c: Constraints| {
+            tree.with_widget_mut(id, |widget, id, tree| widget.layout(tree, id, c))
+                .unwrap_or_else(Size::zero)
+        };
 
-        let left_width = self.child_sizes.first().map_or(0.0, |s| s.width);
-        let center_width = self.child_sizes.get(1).map_or(0.0, |s| s.width);
-        let right_width = self.child_sizes.get(2).map_or(0.0, |s| s.width);
+        let left_size = children
+            .first()
+            .map_or_else(Size::zero, |&id| measure(tree, id, loose));
+        let right_size = children
+            .get(2)
+            .map_or_else(Size::zero, |&id| measure(tree, id, loose));
+
+        let center_max =
+            (available_width - left_size.width - right_size.width - 2.0 * SIDE_GAP).max(0.0);
+        let center_constraints = Constraints::loose(Size::new(center_max, available_height));
+        let center_size = children
+            .get(1)
+            .map_or_else(Size::zero, |&id| measure(tree, id, center_constraints));
+
+        self.child_sizes.clear();
+        self.child_sizes
+            .extend([left_size, center_size, right_size]);
+
+        let left_width = left_size.width;
+        let center_width = center_size.width;
+        let right_width = right_size.width;
 
         // Position left at origin
         if !children.is_empty() {

@@ -131,7 +131,7 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
 
     let mut row = container().layout(
         Flex::row()
-            .spacing(10)
+            .spacing(8)
             .cross_alignment(CrossAlignment::Center),
     );
 
