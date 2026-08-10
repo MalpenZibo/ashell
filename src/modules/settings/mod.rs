@@ -29,8 +29,8 @@ pub enum SubMenu {
 pub struct SettingsSignals {
     pub audio_data: services::audio::AudioDataSignals,
     pub audio_svc: Service<services::audio::AudioCmd>,
-    pub brightness_data: services::brightness::BrightnessDataSignals,
-    pub brightness_svc: Service<services::brightness::BrightnessCmd>,
+    pub brightness_data: services::compat::ServiceSignal<services::brightness::BrightnessService>,
+    pub brightness_svc: Service<services::brightness::BrightnessCommand>,
     pub network_data: services::network::NetworkDataSignals,
     pub network_svc: Service<services::network::NetworkCmd>,
     pub bluetooth_data: services::bluetooth::BluetoothDataSignals,
@@ -64,7 +64,8 @@ impl Clone for SettingsSignals {
 
 pub fn create() -> SettingsSignals {
     let (audio_data, audio_svc) = services::audio::create();
-    let (brightness_data, brightness_svc) = services::brightness::create();
+    let (brightness_data, brightness_svc) =
+        services::compat::run_service::<services::brightness::BrightnessService>();
     let (network_data, network_svc) = services::network::create();
     let (bluetooth_data, bluetooth_svc) = services::bluetooth::create();
     let (upower_data, upower_svc) = services::upower::create();

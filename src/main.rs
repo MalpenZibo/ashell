@@ -3,6 +3,7 @@ pub mod config;
 mod config_watcher;
 mod modules;
 mod services;
+mod utils;
 
 use components::center_box;
 use config::ModuleName;
