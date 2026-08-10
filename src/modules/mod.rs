@@ -1,4 +1,5 @@
 pub mod clock;
+pub mod privacy;
 pub mod settings;
 pub mod system_info;
 pub mod tray;
@@ -40,6 +41,8 @@ pub struct ModuleData {
     pub updates: Option<(UpdatesDataSignals, Service<UpdatesCmd>)>,
     pub settings: Option<SettingsSignals>,
     pub tray: Option<tray::TrayHandle>,
+    pub privacy:
+        Option<crate::services::compat::ServiceSignal<crate::services::privacy::PrivacyService>>,
 }
 
 /// Menu infrastructure signals (all Copy).
@@ -305,6 +308,13 @@ fn add_module(
                 group.child(container().height(fill()).child(move || {
                     (!items.with(|l| l.is_empty())).then(|| tray::view(items, svc.clone(), menu))
                 }))
+            } else {
+                group
+            }
+        }
+        ModuleName::Privacy => {
+            if let Some(data) = data.privacy {
+                group.child(module_item().child(privacy::view(data)))
             } else {
                 group
             }

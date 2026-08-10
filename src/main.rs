@@ -129,6 +129,10 @@ async fn main() {
                 .contains(&ModuleName::Tray)
                 .then(modules::tray::create);
 
+            let privacy = needed
+                .contains(&ModuleName::Privacy)
+                .then(modules::privacy::create);
+
             let data = ModuleData {
                 compositor_state,
                 compositor_svc,
@@ -136,6 +140,7 @@ async fn main() {
                 updates: updates.clone(),
                 settings: settings.clone(),
                 tray,
+                privacy,
             };
 
             // Menu state — menus are xdg popups anchored to the bar; the

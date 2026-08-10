@@ -181,6 +181,73 @@ where
     run_service_hooked::<S>(|_| {})
 }
 
+/// [`run_service`] for services without a command channel.
+pub fn run_readonly_service<S>() -> ServiceSignal<S>
+where
+    S: ReadOnlyService + Clone + Send + 'static,
+    S::UpdateEvent: Send + 'static,
+    S::Error: Send + std::fmt::Debug + 'static,
+{
+    run_readonly_service_hooked::<S>(|_| {})
+}
+
+/// [`run_readonly_service`] plus the raw event hook.
+pub fn run_readonly_service_hooked<S>(
+    mut hook: impl FnMut(&ServiceEvent<S>) + Send + 'static,
+) -> ServiceSignal<S>
+where
+    S: ReadOnlyService + Clone + Send + 'static,
+    S::UpdateEvent: Send + 'static,
+    S::Error: Send + std::fmt::Debug + 'static,
+{
+    let signal = create_signal(None::<Versioned<S>>);
+    let writer = signal.writer();
+
+    if let Ok(only) = std::env::var("ASHELL_BENCH_ONLY") {
+        let name = std::any::type_name::<S>();
+        if !only.split(',').any(|frag| name.contains(frag)) {
+            return signal;
+        }
+    }
+
+    let _svc = create_service::<(), _, _>(move |_rx, _ctx| async move {
+        let mut events = S::subscribe().0;
+        let mut service: Option<S> = None;
+        let mut version = 0u64;
+
+        while let Some(event) = events.next().await {
+            hook(&event);
+            match event {
+                ServiceEvent::Init(s) => {
+                    service = Some(s.clone());
+                    log::debug!("publish {}", std::any::type_name::<S>());
+                    version += 1;
+                    writer.set(Some(Versioned {
+                        version,
+                        service: s,
+                    }));
+                }
+                ServiceEvent::Update(update) => {
+                    if let Some(s) = service.as_mut() {
+                        s.update(update);
+                        log::debug!("publish {}", std::any::type_name::<S>());
+                        version += 1;
+                        writer.set(Some(Versioned {
+                            version,
+                            service: s.clone(),
+                        }));
+                    }
+                }
+                ServiceEvent::Error(err) => {
+                    log::error!("service {} error: {err:?}", std::any::type_name::<S>());
+                }
+            }
+        }
+    });
+
+    signal
+}
+
 /// [`run_service`] plus a raw event hook, for consumers that react to the
 /// events themselves rather than to folded snapshots (the notifications
 /// list, the OSD). The hook runs on the service task before the event is
