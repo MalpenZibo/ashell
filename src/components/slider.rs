@@ -92,16 +92,15 @@ pub fn slider(
                         on_change(new_val);
                     }
                 })
-                // Fill bar
+                // Thumb clearance: the fill resolves against the inner width
+                .padding([0, 6, 0, 0])
+                // Fill bar: fraction of the track, correct on the very first
+                // frame — a measured-rect width lagged one layout behind and
+                // flashed to zero whenever the menu content rebuilt
                 .child(
                     container()
                         .height(fill())
-                        .width(move || -> Length {
-                            let v = value.get();
-                            let w = track_ref.rect().get().width;
-                            let fill_w = (v as f32 / 100.0 * w - 6.0).max(0.0);
-                            Length::from(fill_w)
-                        })
+                        .width(move || fraction((value.get() as f32 / 100.0).clamp(0.0, 1.0)))
                         .corner_radius(3)
                         .background(theme.primary),
                 )
