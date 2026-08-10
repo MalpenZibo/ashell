@@ -501,22 +501,47 @@ impl Default for SettingsModuleConfig {
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum MediaPlayerFormat {
     Icon,
+    #[serde(alias = "Title")]
+    Text,
     #[default]
-    IconAndTitle,
+    #[serde(alias = "IconAndTitle")]
+    IconAndText,
+}
+
+#[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
+pub enum MediaPlayerTextField {
+    Artist,
+    Title,
+    Album,
+}
+
+#[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
+pub enum MediaPlayerVisualizer {
+    Background,
+    Before,
+    After,
 }
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct MediaPlayerModuleConfig {
-    pub max_title_length: u32,
     pub indicator_format: MediaPlayerFormat,
+    pub indicator_fields: Vec<MediaPlayerTextField>,
+    pub max_text_length: u32,
+    pub indicator_visualizer: Option<MediaPlayerVisualizer>,
+    pub menu_visualizer: bool,
+    pub visualizer_framerate: u32,
 }
 
 impl Default for MediaPlayerModuleConfig {
     fn default() -> Self {
         Self {
-            max_title_length: 100,
             indicator_format: MediaPlayerFormat::default(),
+            indicator_fields: vec![MediaPlayerTextField::Artist, MediaPlayerTextField::Title],
+            max_text_length: 100,
+            indicator_visualizer: None,
+            menu_visualizer: false,
+            visualizer_framerate: 30,
         }
     }
 }

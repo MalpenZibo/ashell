@@ -1,6 +1,7 @@
 pub mod clock;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
+pub mod media_player;
 pub mod privacy;
 pub mod settings;
 pub mod system_info;
@@ -31,6 +32,7 @@ pub enum MenuType {
     SystemInfo,
     Updates,
     Settings,
+    MediaPlayer,
     /// Tray item menu, keyed by the item's service name
     Tray(String),
 }
@@ -45,6 +47,7 @@ pub struct ModuleData {
     pub tray: Option<tray::TrayHandle>,
     pub privacy:
         Option<crate::services::compat::ServiceSignal<crate::services::privacy::PrivacyService>>,
+    pub media_player: Option<media_player::MediaPlayerHandle>,
 }
 
 /// Menu infrastructure signals (all Copy).
@@ -107,6 +110,7 @@ pub fn finish_menu_close() {
 pub fn menu_width_for(mt: &MenuType) -> f32 {
     match mt {
         MenuType::Settings => 350.0,
+        MenuType::MediaPlayer => 450.0,
         _ => MENU_WIDTH,
     }
 }
@@ -325,6 +329,59 @@ fn add_module(
             data.compositor_state,
             data.compositor_svc.clone(),
         ))),
+        ModuleName::MediaPlayer => {
+            if let Some(mp) = &data.media_player {
+                let (mp_data, mp_svc, mp_bars) = (mp.data, mp.svc.clone(), mp.bars);
+                let config =
+                    with_context::<Config, _>(|c| c.media_player.clone()).unwrap_or_default();
+
+                // cava runs only while a visualizer can be seen and music
+                // actually plays (upstream gates the subscription the same way)
+                let wants_bar_viz = config.indicator_visualizer.is_some();
+                let menu_viz = config.menu_visualizer;
+                if wants_bar_viz || menu_viz {
+                    let gate = mp.gate.clone();
+                    let is_playing = create_memo(move || {
+                        mp_data.with(|s| {
+                            s.as_ref().is_some_and(|x| {
+                                x.players().iter().any(|p| {
+                                    p.state == crate::services::mpris::PlaybackStatus::Playing
+                                })
+                            })
+                        })
+                    });
+                    let active_menu = menu.active_menu;
+                    create_effect(move || {
+                        let menu_open = matches!(active_menu.get(), Some(MenuType::MediaPlayer));
+                        let wanted = (wants_bar_viz || (menu_viz && menu_open)) && is_playing.get();
+                        let _ = gate.send(wanted);
+                    })
+                    .detach();
+                }
+
+                let menu_config = config.clone();
+                let wr = create_widget_ref();
+                let content = move || {
+                    media_player::menu_view(mp_data, mp_svc.clone(), mp_bars, menu_config.clone())
+                        .into_any()
+                };
+                // The whole module (and its click handler) hides while no
+                // player is around
+                group.child(container().height(fill()).widget_ref(wr).child(move || {
+                    let has_players =
+                        mp_data.with(|s| s.as_ref().is_some_and(|x| !x.players().is_empty()));
+                    let config = config.clone();
+                    let content = content.clone();
+                    has_players.then(move || {
+                        module_item()
+                            .on_click(menu_toggle(MenuType::MediaPlayer, wr, menu, content))
+                            .child(media_player::view(mp_data, mp_bars, config))
+                    })
+                }))
+            } else {
+                group
+            }
+        }
         ModuleName::KeyboardSubmap => {
             group.child(module_item().child(keyboard_submap::view(data.compositor_state)))
         }

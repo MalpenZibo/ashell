@@ -60,13 +60,17 @@ pub fn format_duration(duration: &Duration) -> String {
     }
 }
 
+// Upstream ashell's grapheme-aware middle-ellipsis truncation
 pub fn truncate_text(value: &str, max_length: u32) -> String {
-    let length = value.len();
+    use unicode_segmentation::UnicodeSegmentation;
+
+    let graphemes = value.graphemes(true).collect::<Vec<&str>>();
+    let length = graphemes.len();
 
     if length > max_length as usize {
         let split = max_length as usize / 2;
-        let first_part = value.chars().take(split).collect::<String>();
-        let last_part = value.chars().skip(length - split).collect::<String>();
+        let first_part = graphemes[..split].concat();
+        let last_part = graphemes[length - split..].concat();
         format!("{first_part}...{last_part}")
     } else {
         value.to_string()
@@ -133,6 +137,10 @@ async fn main() {
                 .contains(&ModuleName::Privacy)
                 .then(modules::privacy::create);
 
+            let media_player = needed
+                .contains(&ModuleName::MediaPlayer)
+                .then(modules::media_player::create);
+
             let data = ModuleData {
                 compositor_state,
                 compositor_svc,
@@ -141,6 +149,7 @@ async fn main() {
                 settings: settings.clone(),
                 tray,
                 privacy,
+                media_player,
             };
 
             // Menu state — menus are xdg popups anchored to the bar; the
