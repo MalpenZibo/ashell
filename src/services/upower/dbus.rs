@@ -1,3 +1,4 @@
+use super::ChargeLimit;
 use log::debug;
 use std::ops::Deref;
 use zbus::{
@@ -9,6 +10,7 @@ pub struct UPowerDbus<'a>(UPowerProxy<'a>);
 
 impl<'a> Deref for UPowerDbus<'a> {
     type Target = UPowerProxy<'a>;
+
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -18,13 +20,43 @@ impl<'a> Deref for UPowerDbus<'a> {
 pub struct SystemBattery(Vec<DeviceProxy<'static>>);
 
 impl SystemBattery {
+    pub async fn charge_limit(&self) -> Option<ChargeLimit> {
+        for device in &self.0 {
+            let Ok(introspection) = device.inner().introspect().await else {
+                continue;
+            };
+
+            if !has_enable_charge_threshold_method(&introspection) {
+                continue;
+            }
+
+            if !device.charge_threshold_supported().await.unwrap_or(false) {
+                continue;
+            }
+
+            let Ok(enabled) = device.charge_threshold_enabled().await else {
+                continue;
+            };
+
+            return Some(ChargeLimit {
+                enabled,
+                device_path: device.inner().path().to_owned(),
+            });
+        }
+
+        None
+    }
+
     pub async fn state(&self) -> DeviceState {
         let mut charging = false;
         let mut discharging = false;
+        let mut pending_charge = false;
+        let mut pending_discharge = false;
         let mut fully_charged_count = 0;
         let mut total_devices = 0;
 
         for device in &self.0 {
+            // Skip batteries with zero capacity (non-functional/placeholder batteries)
             if let Ok(energy_full) = device.energy_full().await
                 && energy_full == 0.0
             {
@@ -38,28 +70,47 @@ impl SystemBattery {
                 match state {
                     DeviceState::Charging => charging = true,
                     DeviceState::Discharging => discharging = true,
+                    DeviceState::PendingCharge => pending_charge = true,
+                    DeviceState::PendingDischarge => pending_discharge = true,
                     DeviceState::FullyCharged => fully_charged_count += 1,
                     _ => {}
                 }
             }
         }
 
+        // If no real batteries found, return Unknown
         if total_devices == 0 {
             return DeviceState::Unknown;
         }
 
+        // Only report FullyCharged if ALL real batteries are fully charged
         if fully_charged_count == total_devices {
             DeviceState::FullyCharged
         } else if charging {
             DeviceState::Charging
         } else if discharging {
             DeviceState::Discharging
+        } else if pending_charge {
+            DeviceState::PendingCharge
+        } else if pending_discharge {
+            DeviceState::PendingDischarge
         } else {
             DeviceState::Unknown
         }
     }
 
     pub async fn percentage(&self) -> anyhow::Result<f64> {
+        // For single battery systems, use UPower's Percentage property directly.
+        // This avoids issues where some hardware (e.g. Framework 13 AMD AI) reports
+        // energy/energy_full as 0 via ACPI, while UPower's own percentage is correct.
+        if self.0.len() == 1
+            && let Ok(pct) = self.0[0].percentage().await
+        {
+            return Ok(pct);
+        }
+
+        // For multiple batteries, calculate from energy values to correctly
+        // weight batteries by capacity (fixes e.g. ThinkPad T480 dual battery).
         let mut energy = 0.0;
         let mut energy_full = 0.0;
 
@@ -77,30 +128,42 @@ impl SystemBattery {
 
     pub async fn time_to_empty(&self) -> i64 {
         let mut time = 0;
+
         for device in &self.0 {
             if let Ok(t) = device.time_to_empty().await {
                 time += t;
             }
         }
+
         time
     }
 
     pub async fn time_to_full(&self) -> i64 {
         let mut time = 0;
+
         for device in &self.0 {
             if let Ok(t) = device.time_to_full().await {
                 time += t;
             }
         }
+
         time
     }
 
-    pub fn get_devices_path(self) -> Vec<String> {
+    pub fn get_devices_path(self) -> Vec<ObjectPath<'static>> {
         self.0
             .into_iter()
-            .map(|device| device.inner().path().to_string())
+            .map(|device| device.inner().path().to_owned())
             .collect()
     }
+}
+
+fn has_enable_charge_threshold_method(introspection: &str) -> bool {
+    introspection
+        .split("<interface ")
+        .find(|section| section.contains("name=\"org.freedesktop.UPower.Device\""))
+        .and_then(|section| section.split("</interface>").next())
+        .is_some_and(|section| section.contains("<method name=\"EnableChargeThreshold\""))
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -132,7 +195,12 @@ impl TryFrom<u32> for DeviceState {
     }
 }
 
-#[allow(dead_code)]
+impl From<DeviceState> for u32 {
+    fn from(state: DeviceState) -> Self {
+        state as u32
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u32)]
 pub enum UpDeviceKind {
@@ -158,35 +226,104 @@ pub enum UpDeviceKind {
 }
 
 impl UpDeviceKind {
+    /// Convert from u32 to `UpDeviceKind`.
     pub fn from_u32(value: u32) -> Option<Self> {
         match value {
             0 => Some(Self::Unknown),
             1 => Some(Self::LinePower),
             2 => Some(Self::Battery),
+            3 => Some(Self::Ups),
+            4 => Some(Self::Monitor),
             5 => Some(Self::Mouse),
             6 => Some(Self::Keyboard),
+            7 => Some(Self::Pda),
+            8 => Some(Self::Phone),
+            9 => Some(Self::MediaPlayer),
+            10 => Some(Self::Tablet),
+            11 => Some(Self::Computer),
             12 => Some(Self::GamingInput),
+            13 => Some(Self::Pen),
+            14 => Some(Self::Touchpad),
             17 => Some(Self::Headset),
+            18 => Some(Self::Speakers),
             19 => Some(Self::Headphones),
             _ => None,
         }
     }
 
-    pub fn is_peripheral(&self) -> bool {
+    /// Convert to u32.
+    pub fn to_u32(self) -> u32 {
+        self as u32
+    }
+
+    /// Check if this device type is a peripheral input device.
+    pub fn is_peripheral(self) -> bool {
         matches!(
             self,
-            Self::Mouse | Self::Keyboard | Self::GamingInput | Self::Headset | Self::Headphones
+            Self::Mouse
+                | Self::Keyboard
+                | Self::GamingInput
+                | Self::Headset
+                | Self::Headphones
+                | Self::Touchpad
         )
     }
 
-    pub fn is_power_source(&self) -> bool {
+    /// Check if this device type is a system power source.
+    pub fn is_power_source(self) -> bool {
         matches!(self, Self::Battery)
+    }
+
+    /// Get a human-readable description.
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Unknown => "Unknown",
+            Self::LinePower => "Line Power",
+            Self::Battery => "Battery",
+            Self::Ups => "UPS",
+            Self::Monitor => "Monitor",
+            Self::Mouse => "Mouse",
+            Self::Keyboard => "Keyboard",
+            Self::Pda => "PDA",
+            Self::Phone => "Phone",
+            Self::MediaPlayer => "Media Player",
+            Self::Tablet => "Tablet",
+            Self::Computer => "Computer",
+            Self::GamingInput => "Gaming Input",
+            Self::Pen => "Pen",
+            Self::Touchpad => "Touchpad",
+            Self::Headset => "Headset",
+            Self::Speakers => "Speakers",
+            Self::Headphones => "Headphones",
+        }
+    }
+}
+
+impl std::fmt::Display for UpDeviceKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.description())
+    }
+}
+
+impl From<UpDeviceKind> for u32 {
+    #[inline]
+    fn from(kind: UpDeviceKind) -> Self {
+        kind.to_u32()
+    }
+}
+
+impl TryFrom<u32> for UpDeviceKind {
+    type Error = ();
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::from_u32(value).ok_or(())
     }
 }
 
 impl UPowerDbus<'_> {
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
         let nm = UPowerProxy::new(conn).await?;
+
         Ok(Self(nm))
     }
 
@@ -211,7 +348,6 @@ impl UPowerDbus<'_> {
         .await
     }
 
-    #[allow(dead_code)]
     pub async fn get_device(
         &self,
         path: &ObjectPath<'static>,
@@ -220,6 +356,7 @@ impl UPowerDbus<'_> {
             .path(path)?
             .build()
             .await?;
+
         Ok(device)
     }
 
@@ -228,22 +365,27 @@ impl UPowerDbus<'_> {
         f: fn(UpDeviceKind, bool) -> bool,
     ) -> anyhow::Result<Vec<DeviceProxy<'static>>> {
         let devices = self.enumerate_devices().await?;
+
         debug!("Found {} devices", devices.len());
 
         let mut res = Vec::new();
+
         for device in devices {
             let device = DeviceProxy::builder(self.inner().connection())
                 .path(device)?
                 .build()
                 .await?;
 
-            let device_type = UpDeviceKind::from_u32(device.device_type().await?)
+            let device_type = device
+                .device_type()
+                .await?
+                .try_into()
                 .unwrap_or(UpDeviceKind::Unknown);
 
             let power_supply = device.power_supply().await?;
 
             debug!(
-                "Device: {}, Type: {:?}, Power Supply: {}",
+                "Device: {}, Type: {}, Power Supply: {}",
                 device.inner().path(),
                 device_type,
                 power_supply
@@ -253,6 +395,7 @@ impl UPowerDbus<'_> {
                 res.push(device);
             }
         }
+
         Ok(res)
     }
 }
@@ -304,6 +447,14 @@ pub trait Device {
 
     #[zbus(property, name = "Model")]
     fn model(&self) -> zbus::Result<String>;
+
+    #[zbus(property)]
+    fn charge_threshold_supported(&self) -> zbus::Result<bool>;
+
+    #[zbus(property)]
+    fn charge_threshold_enabled(&self) -> zbus::Result<bool>;
+
+    fn enable_charge_threshold(&self, enable: bool) -> zbus::Result<()>;
 }
 
 #[proxy(

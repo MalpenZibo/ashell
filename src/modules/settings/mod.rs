@@ -33,10 +33,10 @@ pub struct SettingsSignals {
     pub brightness_svc: Service<services::brightness::BrightnessCommand>,
     pub network_data: services::network::NetworkDataSignals,
     pub network_svc: Service<services::network::NetworkCmd>,
-    pub bluetooth_data: services::bluetooth::BluetoothDataSignals,
-    pub bluetooth_svc: Service<services::bluetooth::BluetoothCmd>,
-    pub upower_data: services::upower::UPowerDataSignals,
-    pub upower_svc: Service<services::upower::UPowerCmd>,
+    pub bluetooth_data: services::compat::ServiceSignal<services::bluetooth::BluetoothService>,
+    pub bluetooth_svc: Service<services::bluetooth::BluetoothCommand>,
+    pub upower_data: services::compat::ServiceSignal<services::upower::UPowerService>,
+    pub upower_svc: Service<services::upower::UPowerCommand>,
     pub idle_inhibitor_data: services::idle_inhibitor::IdleInhibitorDataSignals,
     pub idle_inhibitor_svc: Service<services::idle_inhibitor::IdleInhibitorCmd>,
     pub submenu: RwSignal<Option<SubMenu>>,
@@ -67,8 +67,10 @@ pub fn create() -> SettingsSignals {
     let (brightness_data, brightness_svc) =
         services::compat::run_service::<services::brightness::BrightnessService>();
     let (network_data, network_svc) = services::network::create();
-    let (bluetooth_data, bluetooth_svc) = services::bluetooth::create();
-    let (upower_data, upower_svc) = services::upower::create();
+    let (bluetooth_data, bluetooth_svc) =
+        services::compat::run_service::<services::bluetooth::BluetoothService>();
+    let (upower_data, upower_svc) =
+        services::compat::run_service::<services::upower::UPowerService>();
     let (idle_inhibitor_data, idle_inhibitor_svc) = services::idle_inhibitor::create();
     let submenu = create_signal(None::<SubMenu>);
 
@@ -118,8 +120,12 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
                 });
             }
             SettingsIndicator::PowerProfile => {
-                let profile = settings.upower_data.power_profile;
-                row = row.child(move || match profile.get() {
+                let upower = settings.upower_data;
+                row = row.child(move || {
+                    let profile = upower
+                        .with(|s| s.as_ref().map(|x| x.power_profile))
+                        .unwrap_or_default();
+                    match profile {
                     PowerProfile::Performance => Some(
                         bar_indicator()
                             .kind(StaticIcon::Performance)
@@ -133,6 +139,7 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
                             .format(SettingsFormat::Icon),
                     ),
                     _ => None,
+                    }
                 });
             }
             SettingsIndicator::Audio => {
@@ -173,14 +180,22 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
                 });
             }
             SettingsIndicator::Bluetooth => {
-                let state = settings.bluetooth_data.state;
-                let devices = settings.bluetooth_data.devices;
+                let bluetooth = settings.bluetooth_data;
                 let format = cfg.settings.bluetooth_indicator_format;
-                row = row.child(move || match state.get() {
+                row = row.child(move || {
+                    let (state, connected_count) = bluetooth.with(|s| {
+                        s.as_ref()
+                            .map(|x| {
+                                (
+                                    x.state.clone(),
+                                    x.devices.iter().filter(|d| d.connected).count(),
+                                )
+                            })
+                            .unwrap_or((BluetoothState::Unavailable, 0))
+                    });
+                    match state {
                     BluetoothState::Unavailable => None,
                     _ => {
-                        let connected_count =
-                            devices.with(|d| d.iter().filter(|d| d.connected).count());
                         let ic = if connected_count > 0 {
                             StaticIcon::BluetoothConnected
                         } else {
@@ -199,14 +214,15 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
                                 .format(format),
                         )
                     }
+                    }
                 });
             }
             SettingsIndicator::Battery => {
-                let battery = settings.upower_data.system_battery;
+                let upower = settings.upower_data;
                 let format = cfg.settings.battery_format;
                 row = row.child(move || {
-                    battery.with(|bat| {
-                        bat.map(|b| {
+                    upower.with(|s| {
+                        s.as_ref().and_then(|x| x.system_battery.clone()).map(|b| {
                             bar_indicator()
                                 .kind(b.get_icon())
                                 .label(power::battery_label(&b, format))
@@ -217,9 +233,10 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
                 });
             }
             SettingsIndicator::PeripheralBattery => {
-                let peripherals = settings.upower_data.peripherals;
+                let upower = settings.upower_data;
                 row = row.child(move || {
-                    let periphs = peripherals.with(|p| p.clone());
+                    let periphs =
+                        upower.with(|s| s.as_ref().map(|x| x.peripherals.clone()).unwrap_or_default());
                     if periphs.is_empty() {
                         return None;
                     }

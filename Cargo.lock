@@ -180,6 +180,7 @@ dependencies = [
  "hyprland",
  "inotify",
  "itertools 0.14.0",
+ "libc",
  "libpulse-binding",
  "linicon-theme",
  "log",
@@ -194,6 +195,7 @@ dependencies = [
  "udev",
  "wayland-client",
  "wayland-protocols",
+ "wayland-protocols-wlr",
  "zbus",
 ]
 
@@ -1542,9 +1544,9 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "libc"
-version = "0.2.180"
+version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcc35a38544a891a5f7c865aca548a982ccb3b8650a5b06d0fd33a10283c56fc"
+checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
 name = "libloading"

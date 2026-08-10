@@ -43,6 +43,7 @@ impl BluetoothDbus<'_> {
         if let Some(adapter) = &self.adapter {
             adapter.set_powered(value).await?;
         }
+
         Ok(())
     }
 
@@ -88,7 +89,7 @@ impl BluetoothDbus<'_> {
             .into_iter()
             .filter_map(|(key, item)| {
                 if item.contains_key("org.bluez.Device1") {
-                    Some((key, item.contains_key("org.bluez.Battery1")))
+                    Some((key.clone(), item.contains_key("org.bluez.Battery1")))
                 } else {
                     None
                 }
@@ -111,6 +112,7 @@ impl BluetoothDbus<'_> {
                     .path(&device_path)?
                     .build()
                     .await?;
+
                 Some(battery_proxy.percentage().await?)
             } else {
                 None
@@ -124,6 +126,7 @@ impl BluetoothDbus<'_> {
                 paired,
             });
         }
+
         Ok(devices)
     }
 
@@ -132,6 +135,7 @@ impl BluetoothDbus<'_> {
             .path(device_path)?
             .build()
             .await?;
+
         device.pair().await
     }
 
@@ -140,6 +144,7 @@ impl BluetoothDbus<'_> {
             .path(device_path)?
             .build()
             .await?;
+
         device.connect().await
     }
 
@@ -148,6 +153,7 @@ impl BluetoothDbus<'_> {
             .path(device_path)?
             .build()
             .await?;
+
         device.disconnect().await
     }
 

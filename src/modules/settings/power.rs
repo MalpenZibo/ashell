@@ -3,9 +3,22 @@ use guido::prelude::*;
 use crate::components::{ButtonKind, IconKind, StaticIcon, button, icon, quick_setting};
 use crate::config::SettingsFormat;
 use crate::modules::settings::SubMenu;
+use crate::services::compat::ServiceSignal;
 use crate::services::upower::{
-    BatteryData, BatteryStatus, PowerProfile, UPowerCmd, UPowerDataSignals,
+    BatteryData, BatteryStatus, PowerProfile, UPowerCommand, UPowerService,
 };
+
+// Upstream BatteryData has no Default; the #[component] prop machinery
+// needs one. Neutral zero-value, never rendered (props are always set).
+impl Default for BatteryData {
+    fn default() -> Self {
+        Self {
+            capacity: 0,
+            status: BatteryStatus::Unknown,
+            is_discharging: false,
+        }
+    }
+}
 use crate::theme::ThemeColors;
 use crate::{IndicatorState, format_duration};
 
@@ -28,6 +41,9 @@ fn format_time_for_battery(battery: &BatteryData) -> String {
             }
         }
         BatteryStatus::Full => "100%".to_string(),
+        BatteryStatus::NotCharging | BatteryStatus::Unknown => {
+            format!("{}%", battery.capacity)
+        }
     }
 }
 
@@ -53,10 +69,13 @@ pub(crate) fn battery_color(battery: &BatteryData, theme: &ThemeColors) -> Color
 
 /// Power profile quick setting
 pub fn power_profile_quick_setting(
-    data: UPowerDataSignals,
-    svc: Service<UPowerCmd>,
+    data: ServiceSignal<UPowerService>,
+    svc: Service<UPowerCommand>,
 ) -> impl Widget {
-    let profile = data.power_profile;
+    let profile = create_memo(move || {
+        data.with(|s| s.as_ref().map(|x| x.power_profile))
+            .unwrap_or_default()
+    });
     let svc_toggle = svc.clone();
 
     quick_setting()
@@ -69,7 +88,7 @@ pub fn power_profile_quick_setting(
         })
         .subtitle(String::new)
         .active(move || profile.get() != PowerProfile::Unknown)
-        .on_toggle(move || svc_toggle.send(UPowerCmd::TogglePowerProfile))
+        .on_toggle(move || svc_toggle.send(UPowerCommand::TogglePowerProfile))
 }
 
 #[component]
@@ -112,16 +131,18 @@ pub fn menu_indicator(battery: BatteryData, peripheral_icon: Option<IconKind>) -
 }
 
 /// Battery/peripheral indicator in menu header.
-pub fn battery_header(data: UPowerDataSignals, submenu: RwSignal<Option<SubMenu>>) -> impl Widget {
-    let battery = data.system_battery;
-    let peripherals = data.peripherals;
-
+pub fn battery_header(
+    data: ServiceSignal<UPowerService>,
+    submenu: RwSignal<Option<SubMenu>>,
+) -> impl Widget {
     container().child(move || -> Option<AnyWidget> {
-        battery
-            .with(|bat| {
-                bat.map(|b| {
+        data.with(|s| {
+            let s = s.as_ref()?;
+            s.system_battery
+                .clone()
+                .map(|b| {
                     let indicator = menu_indicator().battery(b);
-                    let has_peripherals = !peripherals.with(|p| p.is_empty());
+                    let has_peripherals = !s.peripherals.is_empty();
 
                     if has_peripherals {
                         button()
@@ -138,12 +159,11 @@ pub fn battery_header(data: UPowerDataSignals, submenu: RwSignal<Option<SubMenu>
                         indicator.into_any()
                     }
                 })
-            })
-            .or_else(|| {
-                peripherals.with(|periphs| {
+                .or_else(|| {
+                    let periphs = &s.peripherals;
                     periphs.first().map(|p| {
                         let indicator = menu_indicator()
-                            .battery(p.data)
+                            .battery(p.data.clone())
                             .peripheral_icon(Some(p.kind.get_icon().into()));
 
                         if periphs.len() > 1 {
@@ -161,18 +181,18 @@ pub fn battery_header(data: UPowerDataSignals, submenu: RwSignal<Option<SubMenu>
                             indicator.into_any()
                         }
                     })
-                })
             })
+        })
     })
 }
 
 /// Peripherals section in menu
-pub fn peripherals_view(data: UPowerDataSignals) -> impl Widget {
+pub fn peripherals_view(data: ServiceSignal<UPowerService>) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
-    let peripherals = data.peripherals;
 
     container().width(fill()).child(move || {
-        let periphs = peripherals.with(|p| p.clone());
+        let periphs =
+            data.with(|s| s.as_ref().map(|x| x.peripherals.clone()).unwrap_or_default());
         if periphs.is_empty() {
             return Some(container());
         }
