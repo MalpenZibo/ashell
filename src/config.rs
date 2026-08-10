@@ -364,11 +364,46 @@ impl Default for ClockModuleConfig {
 // Tempo
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize, Default, Clone, Debug)]
+#[derive(Deserialize, Default, Clone, Debug, PartialEq)]
 pub enum WeatherLocation {
     #[default]
     Current,
     City(String),
+    Coordinates(f32, f32),
+}
+
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WeatherIndicator {
+    #[default]
+    IconAndTemperature,
+    Icon,
+    None,
+}
+
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WindSpeedUnit {
+    #[default]
+    Kmh,
+    Mph,
+    Ms,
+}
+
+impl WindSpeedUnit {
+    pub fn symbol(&self) -> &'static str {
+        match self {
+            WindSpeedUnit::Kmh => "km/h",
+            WindSpeedUnit::Mph => "mph",
+            WindSpeedUnit::Ms => "m/s",
+        }
+    }
+
+    pub fn api_param(&self) -> &'static str {
+        match self {
+            WindSpeedUnit::Kmh => "kmh",
+            WindSpeedUnit::Mph => "mph",
+            WindSpeedUnit::Ms => "ms",
+        }
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -381,6 +416,20 @@ pub struct TempoModuleConfig {
     pub timezones: Vec<String>,
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
+    pub weather_indicator: WeatherIndicator,
+    pub wind_speed_unit: Option<WindSpeedUnit>,
+}
+
+impl TempoModuleConfig {
+    pub fn resolved_wind_speed_unit(&self) -> WindSpeedUnit {
+        match self.wind_speed_unit {
+            Some(unit) => unit,
+            None => match crate::i18n::unit_system() {
+                crate::i18n::UnitSystem::Imperial => WindSpeedUnit::Mph,
+                crate::i18n::UnitSystem::Metric => WindSpeedUnit::Kmh,
+            },
+        }
+    }
 }
 
 impl Default for TempoModuleConfig {
@@ -390,6 +439,8 @@ impl Default for TempoModuleConfig {
             formats: vec![],
             timezones: vec![],
             weather_location: None,
+            weather_indicator: WeatherIndicator::default(),
+            wind_speed_unit: None,
         }
     }
 }

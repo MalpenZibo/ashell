@@ -146,6 +146,10 @@ async fn main() {
                 .contains(&ModuleName::MediaPlayer)
                 .then(modules::media_player::create);
 
+            let tempo = needed
+                .contains(&ModuleName::Tempo)
+                .then(modules::tempo::create);
+
             let data = ModuleData {
                 compositor_state,
                 compositor_svc,
@@ -155,6 +159,7 @@ async fn main() {
                 tray,
                 privacy,
                 media_player,
+                tempo,
             };
 
             // Menu state — menus are xdg popups anchored to the bar; the

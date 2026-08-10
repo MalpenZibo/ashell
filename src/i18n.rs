@@ -10,13 +10,13 @@ use log::warn;
 use unic_langid::LanguageIdentifier;
 
 const CATALOGS: &[(&str, &str)] = &[
-    ("en-US", include_str!("../i18n/en-US/ashell.ftl")),
-    ("fr-FR", include_str!("../i18n/fr-FR/ashell.ftl")),
-    ("de-DE", include_str!("../i18n/de-DE/ashell.ftl")),
+    ("en-US", include_str!("../i18n/en-US/ashell_guido.ftl")),
+    ("fr-FR", include_str!("../i18n/fr-FR/ashell_guido.ftl")),
+    ("de-DE", include_str!("../i18n/de-DE/ashell_guido.ftl")),
 ];
 
 const FALLBACK_LANG: &str = "en-US";
-const TRANSLATION_FILE: &str = "ashell.ftl";
+const TRANSLATION_FILE: &str = "ashell_guido.ftl";
 
 const FALLBACK_CHRONO: Locale = Locale::en_GB;
 
@@ -47,7 +47,7 @@ impl Default for Localizer {
         // parse. `init_localizer` in `App::new` replaces it immediately with
         // the resolved value; this just keeps `t!()` callable before that
         // point and on any non-main thread that ever touches LOCALIZER.
-        let loader = FluentLanguageLoader::new("ashell", en_us_langid());
+        let loader = FluentLanguageLoader::new("ashell_guido", en_us_langid());
         Self {
             chrono: FALLBACK_CHRONO,
             units: derive_units(FALLBACK_CHRONO),

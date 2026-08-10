@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- (c) ammap.com | SVG weather icons -->
+
+<svg
+   width="52"
+   height="52"
+   version="1.1"
+   id="svg6"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2">
+    <filter
+       id="blur"
+       x="-0.13846154"
+       y="-0.15122297"
+       width="1.2769231"
+       height="1.4325417">
+      <feGaussianBlur
+         in="SourceAlpha"
+         stdDeviation="3"
+         id="feGaussianBlur1" />
+      <feOffset
+         dx="0"
+         dy="4"
+         result="offsetblur"
+         id="feOffset1" />
+      <feComponentTransfer
+         id="feComponentTransfer1">
+        <feFuncA
+           slope="0.05"
+           type="linear"
+           id="feFuncA1" />
+      </feComponentTransfer>
+      <feMerge
+         id="feMerge2">
+        <feMergeNode
+           id="feMergeNode1" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode2" />
+      </feMerge>
+    </filter>
+  </defs>
+  <g
+     transform="translate(16,-2)"
+     filter="url(#blur)"
+     id="g6">
+    <g
+       transform="matrix(2.1940928,0,0,2.1940928,-19.291139,-0.19409248)"
+       id="g5">
+      <g
+         class="am-weather-moon-star-1"
+         id="g2">
+        <polygon
+           points="4,2.7 5.2,3.3 4,4 3.3,5.2 2.7,4 1.5,3.3 2.7,2.7 3.3,1.5 "
+           fill="#ffa500"
+           stroke-miterlimit="10"
+           id="polygon2" />
+      </g>
+      <g
+         class="am-weather-moon-star-2"
+         id="g3">
+        <polygon
+           transform="translate(20,10)"
+           points="4,2.7 5.2,3.3 4,4 3.3,5.2 2.7,4 1.5,3.3 2.7,2.7 3.3,1.5 "
+           fill="#ffa500"
+           stroke-miterlimit="10"
+           id="polygon3" />
+      </g>
+      <g
+         class="am-weather-moon"
+         id="g4">
+        <path
+           d="m 14.5,13.2 c 0,-3.7 2,-6.9 5,-8.7 -1.5,-0.9 -3.2,-1.3 -5,-1.3 -5.5,0 -10,4.5 -10,10 0,5.5 4.5,10 10,10 1.8,0 3.5,-0.5 5,-1.3 -3,-1.7 -5,-5 -5,-8.7 z"
+           fill="#ffa500"
+           stroke="#ffa500"
+           stroke-linejoin="round"
+           stroke-width="2"
+           id="path3" />
+      </g>
+    </g>
+  </g>
+</svg>
