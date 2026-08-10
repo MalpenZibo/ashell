@@ -16,6 +16,7 @@ pub struct Config {
     pub language: Option<String>,
     pub region: Option<String>,
     pub position: Position,
+    pub outputs: Outputs,
     pub modules: Modules,
     pub updates: Option<UpdatesModuleConfig>,
     pub workspaces: WorkspacesModuleConfig,
@@ -41,6 +42,7 @@ impl Default for Config {
             language: None,
             region: None,
             position: Position::default(),
+            outputs: Outputs::default(),
             modules: Modules::default(),
             updates: None,
             workspaces: WorkspacesModuleConfig::default(),
@@ -69,6 +71,20 @@ pub enum Position {
     #[default]
     Top,
     Bottom,
+}
+
+// ---------------------------------------------------------------------------
+// Outputs
+// ---------------------------------------------------------------------------
+
+/// Which outputs get a bar: every one, the compositor-chosen active one, or
+/// those matching a connector name / EDID substring.
+#[derive(Deserialize, Clone, Default, Debug, PartialEq, Eq)]
+pub enum Outputs {
+    #[default]
+    All,
+    Active,
+    Targets(Vec<String>),
 }
 
 // ---------------------------------------------------------------------------

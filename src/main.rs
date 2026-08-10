@@ -441,56 +441,137 @@ async fn main() {
             })
             .detach();
 
-            // Bar surface
+            // Bar surfaces: one per configured output (hotplug-aware), or a
+            // single compositor-placed bar for Outputs::Active
             let position_anchor = match cfg.position {
                 config::Position::Top => Anchor::TOP,
                 config::Position::Bottom => Anchor::BOTTOM,
             };
-            let bar_surface_id = app.add_surface(
-                SurfaceConfig::new()
-                    .height(34)
-                    .anchor(position_anchor | Anchor::LEFT | Anchor::RIGHT)
-                    .layer(Layer::Bottom)
-                    .exclusive_zone(Some(34))
-                    .background_color(Color::TRANSPARENT)
-                    .keyboard_interactivity(KeyboardInteractivity::None)
-                    .namespace("ashell"),
-                move || {
-                    // toggle-visibility (IPC) empties the bar
-                    container().child(move || {
-                        bar_visible.get().then(|| {
-                            container()
-                                .child(
-                                    center_box()
-                                        .left(modules::build_section(
-                                            &cfg.modules.left,
-                                            &data,
-                                            menu,
-                                        ))
-                                        .center(modules::build_section(
-                                            &cfg.modules.center,
-                                            &data,
-                                            menu,
-                                        ))
-                                        .right(modules::build_section(
-                                            &cfg.modules.right,
-                                            &data,
-                                            menu,
-                                        )),
-                                )
-                                .padding([4, 0])
+            let _ = app; // surfaces are spawned dynamically below
+            let data = std::rc::Rc::new(data);
+            let active_menu = menu.active_menu;
+            let pending_close_writer = menu.pending_close_writer;
+            let bar_ids: std::rc::Rc<std::cell::RefCell<Vec<SurfaceId>>> = Default::default();
+
+            let make_bar = {
+                let data = data.clone();
+                let cfg = cfg.clone();
+                let bar_ids = bar_ids.clone();
+                move |output: Option<OutputId>| -> SurfaceHandle {
+                    // Menus anchor their popups to the bar that was clicked
+                    let bar_sid = create_signal(None::<SurfaceId>);
+                    let bar_menu = MenuCtx {
+                        active_menu,
+                        bar_sid,
+                        pending_close_writer,
+                    };
+                    let mut sc = SurfaceConfig::new()
+                        .height(34)
+                        .anchor(position_anchor | Anchor::LEFT | Anchor::RIGHT)
+                        .layer(Layer::Bottom)
+                        .exclusive_zone(Some(34))
+                        .background_color(Color::TRANSPARENT)
+                        .keyboard_interactivity(KeyboardInteractivity::None)
+                        .namespace("ashell");
+                    if let Some(o) = output {
+                        sc = sc.output(o);
+                    }
+                    let cfg = cfg.clone();
+                    let data = data.clone();
+                    let handle = spawn_surface(sc, move || {
+                        // toggle-visibility (IPC) empties the bar
+                        container().child(move || {
+                            bar_visible.get().then(|| {
+                                container()
+                                    .child(
+                                        center_box()
+                                            .left(modules::build_section(
+                                                &cfg.modules.left,
+                                                &data,
+                                                bar_menu,
+                                            ))
+                                            .center(modules::build_section(
+                                                &cfg.modules.center,
+                                                &data,
+                                                bar_menu,
+                                            ))
+                                            .right(modules::build_section(
+                                                &cfg.modules.right,
+                                                &data,
+                                                bar_menu,
+                                            )),
+                                    )
+                                    .padding([4, 0])
+                            })
                         })
+                    });
+                    bar_sid.set(Some(handle.id()));
+                    bar_ids.borrow_mut().push(handle.id());
+                    handle
+                }
+            };
+
+            match cfg.outputs.clone() {
+                config::Outputs::Active => {
+                    make_bar(None);
+                }
+                mode => {
+                    // One bar per matching output; a single compositor-placed
+                    // bar until output info arrives (or nothing matches)
+                    let bars: std::rc::Rc<
+                        std::cell::RefCell<
+                            std::collections::HashMap<Option<OutputId>, SurfaceHandle>,
+                        >,
+                    > = Default::default();
+                    let make_bar = make_bar.clone();
+                    let bar_ids = bar_ids.clone();
+                    create_effect(move || {
+                        let outs = outputs().get();
+                        let desired: Vec<Option<OutputId>> = if outs.is_empty() {
+                            vec![None]
+                        } else {
+                            match &mode {
+                                config::Outputs::All => outs.iter().map(|o| Some(o.id)).collect(),
+                                config::Outputs::Targets(targets) => outs
+                                    .iter()
+                                    .filter(|o| {
+                                        let name = o.name.as_deref().unwrap_or("");
+                                        let description =
+                                            format!("{} {} {}", name, o.make, o.model);
+                                        // Exact connector match or EDID substring
+                                        targets
+                                            .iter()
+                                            .any(|t| name == t.as_str() || description.contains(t))
+                                    })
+                                    .map(|o| Some(o.id))
+                                    .collect(),
+                                config::Outputs::Active => unreachable!(),
+                            }
+                        };
+                        let mut bars = bars.borrow_mut();
+                        bars.retain(|key, handle| {
+                            if desired.contains(key) {
+                                true
+                            } else {
+                                bar_ids.borrow_mut().retain(|id| *id != handle.id());
+                                handle.close();
+                                false
+                            }
+                        });
+                        for key in desired {
+                            bars.entry(key).or_insert_with(|| make_bar(key));
+                        }
                     })
-                },
-            );
+                    .detach();
+                }
+            }
 
-            // Menus anchor their popups to the bar surface
-            menu.bar_sid.set(Some(bar_surface_id));
-
-            // Hidden bar gives up its exclusive zone
+            // Hidden bars give up their exclusive zone
             create_effect(move || {
                 let visible = bar_visible.get();
-                surface_handle(bar_surface_id).set_exclusive_zone(if visible { 34 } else { 0 });
+                for id in bar_ids.borrow().iter() {
+                    surface_handle(*id).set_exclusive_zone(if visible { 34 } else { 0 });
+                }
             })
             .detach();
         });
