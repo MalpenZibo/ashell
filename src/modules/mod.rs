@@ -1,4 +1,6 @@
 pub mod clock;
+pub mod keyboard_layout;
+pub mod keyboard_submap;
 pub mod privacy;
 pub mod settings;
 pub mod system_info;
@@ -318,6 +320,13 @@ fn add_module(
             } else {
                 group
             }
+        }
+        ModuleName::KeyboardLayout => group.child(module_item().child(keyboard_layout::view(
+            data.compositor_state,
+            data.compositor_svc.clone(),
+        ))),
+        ModuleName::KeyboardSubmap => {
+            group.child(module_item().child(keyboard_submap::view(data.compositor_state)))
         }
         // Unimplemented modules are silently skipped.
         _ => group,
