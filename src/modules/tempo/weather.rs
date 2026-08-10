@@ -615,13 +615,21 @@ pub fn view(handle: TempoHandle, config: TempoModuleConfig) -> impl Widget {
         {
             let is_first = index == 0;
             let is_last = index + 1 == daily_count;
-            let radius = if is_first || is_last { 16.0 } else { 6.0 };
+            // Upstream accordion: first row rounds its top corners large,
+            // the last its bottom ones; every other corner stays small
+            let (lg, sm) = (16.0, 4.0);
+            let radii = CornerRadii {
+                top_left: if is_first { lg } else { sm },
+                top_right: if is_first { lg } else { sm },
+                bottom_right: if is_last { lg } else { sm },
+                bottom_left: if is_last { lg } else { sm },
+            };
 
             daily_col = daily_col.child(
                 container()
                     .width(fill())
                     .padding(8)
-                    .corner_radius(radius)
+                    .corner_radii(radii)
                     .background(theme.background.lighter(0.05))
                     .layout(
                         Flex::row()
