@@ -551,13 +551,11 @@ async fn main() {
                     let bar_ids = bar_ids.clone();
                     create_effect(move || {
                         let outs = outputs().get();
-                        // While output info hasn't arrived yet, spawn nothing:
-                        // a fallback bar would be closed moments later on the
-                        // fallback->pinned handover, and guido currently
-                        // leaves the closed tree's reactive subscribers
-                        // behind (first signal touching them panics).
+                        // No output info yet (or none matches below): a
+                        // compositor-placed fallback bar keeps the app usable;
+                        // it hands over to per-output bars once outputs arrive
                         let desired: Vec<Option<OutputId>> = if outs.is_empty() {
-                            Vec::new()
+                            vec![None]
                         } else {
                             match &mode {
                                 config::Outputs::All => outs.iter().map(|o| Some(o.id)).collect(),
