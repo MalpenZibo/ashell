@@ -1,14 +1,15 @@
 use crate::{
     components::icons::{DynamicIcon, StaticIcon, icon},
+    components::{ButtonHierarchy, ButtonKind, ButtonUIRef, position_button},
     config::CustomModuleDef,
     theme::use_theme,
     utils::launcher::execute_command,
 };
 use iced::widget::canvas;
 use iced::{
-    Element, Length, Subscription, Theme,
+    Element, Length, Subscription, SurfaceId, Theme,
     stream::channel,
-    widget::{Space, Stack, row, text},
+    widget::{Space, Stack, column, row, text},
 };
 use iced::{
     mouse::Cursor,
@@ -35,6 +36,8 @@ pub struct Custom {
 pub struct CustomListenData {
     pub alt: String,
     pub text: Option<String>,
+    #[serde(default)]
+    pub tooltip: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +48,8 @@ pub enum Message {
     LaunchScrollUpCommand,
     LaunchScrollDownCommand,
     Update(CustomListenData),
+    TooltipHover(ButtonUIRef, SurfaceId),
+    TooltipUnhover(SurfaceId),
 }
 
 // Define a struct for the canvas program
@@ -116,12 +121,13 @@ impl Custom {
             Message::Update(data) => {
                 self.data = data;
             }
+            Message::TooltipHover(..) | Message::TooltipUnhover(..) => {}
         }
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
+    pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
         let space = use_theme(|theme| theme.space);
-        match self.config.r#type {
+        let content = match self.config.r#type {
             crate::config::CustomModuleType::Text => self
                 .data
                 .text
@@ -194,7 +200,38 @@ impl Custom {
                     icon_with_alert
                 }
             }
+        };
+
+        if let Some(tooltip) = self.data.tooltip.as_deref()
+            && !tooltip.is_empty()
+        {
+            let hover_style = use_theme(|theme| {
+                theme.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary)
+            });
+            position_button(content)
+                .width(Length::Shrink)
+                .height(Length::Shrink)
+                .padding(0)
+                .style(hover_style)
+                .on_hover_with_position(move |ui_ref| Message::TooltipHover(ui_ref, id))
+                .on_unhover(Message::TooltipUnhover(id))
+                .into()
+        } else {
+            content
         }
+    }
+
+    pub fn tooltip_view(&'_ self) -> Element<'_, Message> {
+        let space = use_theme(|theme| theme.space);
+        let lines: Vec<Element<'_, Message>> = self
+            .data
+            .tooltip
+            .as_deref()
+            .unwrap_or_default()
+            .lines()
+            .map(|line| text(line).into())
+            .collect();
+        column(lines).spacing(space.xs).into()
     }
 
     pub fn subscription(&self) -> Subscription<(String, Message)> {

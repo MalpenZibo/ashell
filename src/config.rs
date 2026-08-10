@@ -1365,7 +1365,7 @@ pub struct CustomModuleDef {
     #[serde(default)]
     pub icon: Option<String>,
 
-    /// yields json lines containing text, alt, (pot tooltip)
+    /// yields json lines containing text, alt, (optionally tooltip)
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub listen_cmd: Option<String>,
     /// map of regex -> icon

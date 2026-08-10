@@ -29,6 +29,7 @@ pub enum MenuType {
     VpnTooltip,
     BatteryTooltip,
     PeripheralBatteryTooltip(usize),
+    CustomTooltip(String),
 }
 
 #[derive(Clone, Debug)]
@@ -203,6 +204,7 @@ impl Menu {
                 | MenuType::VpnTooltip
                 | MenuType::BatteryTooltip
                 | MenuType::PeripheralBatteryTooltip(_)
+                | MenuType::CustomTooltip(_)
         );
         match &mut self.open {
             None => self.open(menu_type, button_ui_ref, request_keyboard, output_id),
@@ -223,6 +225,7 @@ impl Menu {
                         | MenuType::VpnTooltip
                         | MenuType::BatteryTooltip
                         | MenuType::PeripheralBatteryTooltip(_)
+                        | MenuType::CustomTooltip(_)
                 ) && menu_is_tooltip =>
             {
                 Task::none()

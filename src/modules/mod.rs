@@ -249,7 +249,9 @@ impl App {
                     }
                 };
                 (
-                    custom.view().map(|msg| Message::Custom(name.clone(), msg)),
+                    custom
+                        .view(id)
+                        .map(|msg| Message::Custom(name.clone(), msg)),
                     action,
                 )
             }),
