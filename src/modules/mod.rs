@@ -96,8 +96,9 @@ fn dispose_retired_popup_owners() {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Time the collapse animation gets before the popup surface is closed.
-const MENU_CLOSE_ANIM: std::time::Duration = std::time::Duration::from_millis(220);
+/// Time the collapse animation gets before the popup surface is closed
+/// (120ms ease-out close + a small margin).
+const MENU_CLOSE_ANIM: std::time::Duration = std::time::Duration::from_millis(140);
 /// Delay before flipping the open signal so the first frame renders
 /// collapsed and the expand animation actually plays.
 const MENU_OPEN_DELAY: std::time::Duration = std::time::Duration::from_millis(30);
@@ -211,8 +212,11 @@ fn menu_shell(content: AnyWidget, open: RwSignal<bool>, origin: TransformOrigin)
         })
         .transform_origin(origin)
         .animate_transform(
-            Transition::spring(SpringConfig::DEFAULT)
-                .reverse(Transition::new(200, TimingFunction::EaseOut)),
+            // Open: quick spring; close: upstream's 100ms-class easeOutCubic
+            Transition::spring(SpringConfig::SNAPPY).reverse(Transition::new(
+                120,
+                TimingFunction::CubicBezier(0.215, 0.61, 0.355, 1.0),
+            )),
         )
         .child(content)
 }

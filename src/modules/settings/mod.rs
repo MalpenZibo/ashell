@@ -537,8 +537,10 @@ fn submenu_wrapper(
         })
         .overflow(Overflow::Hidden)
         .animate_height(
-            Transition::spring(SpringConfig::SNAPPY)
-                .reverse(Transition::new(200, TimingFunction::EaseOut)),
+            Transition::spring(SpringConfig::SNAPPY).reverse(Transition::new(
+                120,
+                TimingFunction::CubicBezier(0.215, 0.61, 0.355, 1.0),
+            )),
         )
         .child(
             container()
