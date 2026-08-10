@@ -13,6 +13,8 @@ use serde::{Deserialize, Deserializer, de::Visitor};
 #[serde(default)]
 pub struct Config {
     pub log_level: String,
+    pub language: Option<String>,
+    pub region: Option<String>,
     pub position: Position,
     pub modules: Modules,
     pub updates: Option<UpdatesModuleConfig>,
@@ -32,6 +34,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             log_level: "warn".to_owned(),
+            language: None,
+            region: None,
             position: Position::default(),
             modules: Modules::default(),
             updates: None,

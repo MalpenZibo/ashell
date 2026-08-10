@@ -1,0 +1,262 @@
+use std::borrow::Cow;
+use std::cell::RefCell;
+
+use chrono::Locale;
+use i18n_embed::{
+    I18nAssets, LanguageLoader,
+    fluent::{FluentLanguageLoader, fluent_language_loader},
+};
+use log::warn;
+use unic_langid::LanguageIdentifier;
+
+const CATALOGS: &[(&str, &str)] = &[
+    ("en-US", include_str!("../i18n/en-US/ashell.ftl")),
+    ("fr-FR", include_str!("../i18n/fr-FR/ashell.ftl")),
+    ("de-DE", include_str!("../i18n/de-DE/ashell.ftl")),
+];
+
+const FALLBACK_LANG: &str = "en-US";
+const TRANSLATION_FILE: &str = "ashell.ftl";
+
+const FALLBACK_CHRONO: Locale = Locale::en_GB;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum UnitSystem {
+    Metric,
+    Imperial,
+}
+
+impl UnitSystem {
+    pub fn temperature_symbol(self) -> &'static str {
+        match self {
+            Self::Metric => "°C",
+            Self::Imperial => "°F",
+        }
+    }
+}
+
+pub struct Localizer {
+    pub chrono: Locale,
+    units: UnitSystem,
+    loader: FluentLanguageLoader,
+}
+
+impl Default for Localizer {
+    fn default() -> Self {
+        // Cheap fallback for the thread_local seed — no env reads, no bundle
+        // parse. `init_localizer` in `App::new` replaces it immediately with
+        // the resolved value; this just keeps `t!()` callable before that
+        // point and on any non-main thread that ever touches LOCALIZER.
+        let loader = FluentLanguageLoader::new("ashell", en_us_langid());
+        Self {
+            chrono: FALLBACK_CHRONO,
+            units: derive_units(FALLBACK_CHRONO),
+            loader,
+        }
+    }
+}
+
+impl Localizer {
+    pub fn resolve(language: Option<&str>, region: Option<&str>) -> Self {
+        let langid = resolve_language(language);
+        let chrono = resolve_region(region);
+        let units = resolve_units(region, chrono);
+        let loader = load_loader(&langid);
+        Self {
+            chrono,
+            units,
+            loader,
+        }
+    }
+
+    pub fn units(&self) -> UnitSystem {
+        self.units
+    }
+
+    pub fn loader(&self) -> &FluentLanguageLoader {
+        &self.loader
+    }
+}
+
+thread_local! {
+    pub(crate) static LOCALIZER: RefCell<Localizer> = RefCell::new(Localizer::default());
+}
+
+pub fn init_localizer(localizer: Localizer) {
+    LOCALIZER.replace(localizer);
+}
+
+pub fn use_localizer<R, F: FnOnce(&Localizer) -> R>(f: F) -> R {
+    LOCALIZER.with_borrow(f)
+}
+
+pub fn chrono_locale() -> Locale {
+    use_localizer(|l| l.chrono)
+}
+
+pub fn unit_system() -> UnitSystem {
+    use_localizer(|l| l.units())
+}
+
+/// Base language subtag of the active locale (e.g. "en", "it"). Useful for
+/// HTTP `Accept-Language` headers and APIs that take an ISO 639 code.
+pub fn language_subtag() -> String {
+    use_localizer(|l| l.loader().current_language().language.to_string())
+}
+
+#[macro_export]
+macro_rules! t {
+    ($($args:tt)*) => {
+        $crate::i18n::use_localizer(|l| ::i18n_embed_fl::fl!(l.loader(), $($args)*))
+    };
+}
+
+fn resolve_language(config: Option<&str>) -> LanguageIdentifier {
+    env_chain(config, "LC_MESSAGES")
+        .as_deref()
+        .and_then(|s| normalize_to_bcp47(s).parse().ok())
+        .unwrap_or_else(en_us_langid)
+}
+
+fn resolve_region(config: Option<&str>) -> Locale {
+    env_chain(config, "LC_TIME")
+        .as_deref()
+        .and_then(chrono_locale_from_posix)
+        .unwrap_or(FALLBACK_CHRONO)
+}
+
+fn chrono_locale_from_posix(s: &str) -> Option<Locale> {
+    let posix = normalize_to_posix(s);
+    Locale::try_from(posix.as_str()).ok().or_else(|| {
+        let (base, _) = posix.split_once('@')?;
+        Locale::try_from(base).ok()
+    })
+}
+
+fn env_chain(config: Option<&str>, category_var: &str) -> Option<String> {
+    config
+        .map(str::to_owned)
+        .or_else(|| env_locale("LC_ALL"))
+        .or_else(|| env_locale(category_var))
+        .or_else(|| env_locale("LANG"))
+}
+
+fn derive_units(c: Locale) -> UnitSystem {
+    // `en_LR` omitted: not a chrono Locale variant.
+    match c {
+        Locale::en_US | Locale::my_MM => UnitSystem::Imperial,
+        _ => UnitSystem::Metric,
+    }
+}
+
+// `LC_MEASUREMENT` is independent from `LC_TIME` in glibc, so users with
+// `LANG=en_US.UTF-8` + `LC_MEASUREMENT=de_DE.UTF-8` get metric without
+// having to override their date-format locale. The `config` override (from
+// `region` in config.toml) wins over env, mirroring `resolve_region`.
+fn resolve_units(config: Option<&str>, chrono: Locale) -> UnitSystem {
+    env_chain(config, "LC_MEASUREMENT")
+        .as_deref()
+        .map(units_from_locale_name)
+        .unwrap_or_else(|| derive_units(chrono))
+}
+
+fn units_from_locale_name(s: &str) -> UnitSystem {
+    let posix = normalize_to_posix(s);
+    let base = posix.split_once('@').map_or(posix.as_str(), |(b, _)| b);
+    match base {
+        "en_US" | "en_LR" | "my_MM" => UnitSystem::Imperial,
+        _ => UnitSystem::Metric,
+    }
+}
+
+struct StaticCatalogs;
+
+impl I18nAssets for StaticCatalogs {
+    fn get_files(&self, file_path: &str) -> Vec<Cow<'_, [u8]>> {
+        CATALOGS
+            .iter()
+            .find(|(lang, _)| expected_path(lang) == file_path)
+            .map(|(_, src)| vec![Cow::Borrowed(src.as_bytes())])
+            .unwrap_or_default()
+    }
+
+    fn filenames_iter(&self) -> Box<dyn Iterator<Item = String> + '_> {
+        Box::new(CATALOGS.iter().map(|(lang, _)| expected_path(lang)))
+    }
+}
+
+fn expected_path(lang: &str) -> String {
+    format!("{lang}/{TRANSLATION_FILE}")
+}
+
+fn load_loader(langid: &LanguageIdentifier) -> FluentLanguageLoader {
+    let loader = fluent_language_loader!();
+    let result = i18n_embed::select(&loader, &StaticCatalogs, std::slice::from_ref(langid));
+    if !result.as_ref().is_ok_and(|s| s.contains(langid)) {
+        warn!("i18n: ashell does not support language {langid}, using {FALLBACK_LANG}");
+    }
+    if result.is_err()
+        && let Err(e) = loader.load_fallback_language(&StaticCatalogs)
+    {
+        warn!("i18n: failed to load fallback language: {e}");
+    }
+    loader
+}
+
+fn env_locale(var: &str) -> Option<String> {
+    std::env::var(var)
+        .ok()
+        .filter(|s| !s.is_empty() && s != "C" && s != "POSIX")
+}
+
+fn normalize_to_bcp47(s: &str) -> String {
+    let (body, variant) = split_variant(s);
+    let (lang_region, _encoding) = split_encoding(body);
+    let bcp = lang_region.replace('_', "-");
+
+    let Some(script) = variant.and_then(script_subtag_for_variant) else {
+        return bcp;
+    };
+    match bcp.split_once('-') {
+        Some((lang, region)) => format!("{lang}-{script}-{region}"),
+        None => format!("{bcp}-{script}"),
+    }
+}
+
+fn normalize_to_posix(s: &str) -> String {
+    let (body, variant) = split_variant(s);
+    let (lang_region, _encoding) = split_encoding(body);
+    let posix = lang_region.replace('-', "_");
+    match variant {
+        Some(v) => format!("{posix}@{v}"),
+        None => posix,
+    }
+}
+
+fn split_variant(s: &str) -> (&str, Option<&str>) {
+    match s.split_once('@') {
+        Some((body, variant)) => (body, Some(variant)),
+        None => (s, None),
+    }
+}
+
+fn split_encoding(s: &str) -> (&str, Option<&str>) {
+    match s.split_once('.') {
+        Some((body, enc)) => (body, Some(enc)),
+        None => (s, None),
+    }
+}
+
+fn script_subtag_for_variant(variant: &str) -> Option<&'static str> {
+    if variant.eq_ignore_ascii_case("latin") {
+        Some("Latn")
+    } else if variant.eq_ignore_ascii_case("cyrillic") {
+        Some("Cyrl")
+    } else {
+        None
+    }
+}
+
+fn en_us_langid() -> LanguageIdentifier {
+    FALLBACK_LANG.parse().expect("en-US is a valid langid")
+}

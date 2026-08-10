@@ -1,6 +1,7 @@
 mod components;
 pub mod config;
 mod config_watcher;
+pub mod i18n;
 mod modules;
 mod services;
 mod utils;
@@ -99,6 +100,10 @@ async fn main() {
 
         let cfg = config::load_config(&config_path);
         let theme_colors = theme::init(&cfg.appearance);
+        i18n::init_localizer(i18n::Localizer::resolve(
+            cfg.language.as_deref(),
+            cfg.region.as_deref(),
+        ));
 
         let watcher_handle = config_watcher::spawn_config_watcher(config_path.clone());
 

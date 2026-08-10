@@ -5,7 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 guido = { path = "../guido" }
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "unstable-locales"] }
 hyprland = "0.4.0-beta.2"
 niri-ipc = "25.11.0"
 sysinfo = "0.37"
@@ -36,6 +36,11 @@ pipewire = "0.9"
 url = "2.5"
 bytes = "1"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+chrono-tz = "0.10"
+i18n-embed = { version = "0.16", default-features = false, features = ["fluent-system", "rust-embed"] }
+i18n-embed-fl = "0.10"
+rust-embed = "8"
+unic-langid = "0.9"
 
 [build-dependencies]
 allsorts = "0.15"
