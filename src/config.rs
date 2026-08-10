@@ -30,6 +30,7 @@ pub struct Config {
     pub notifications: NotificationsModuleConfig,
     #[serde(rename = "CustomModule")]
     pub custom_modules: Vec<CustomModuleDef>,
+    pub osd: OsdConfig,
     pub enable_esc_key: bool,
 }
 
@@ -53,6 +54,7 @@ impl Default for Config {
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
             notifications: NotificationsModuleConfig::default(),
             custom_modules: Vec::new(),
+            osd: OsdConfig::default(),
             enable_esc_key: false,
         }
     }
@@ -513,6 +515,8 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
     pub remove_airplane_btn: bool,
     pub remove_idle_btn: bool,
+    pub volume_step: u8,
+    pub max_volume: u8,
     pub indicators: Vec<SettingsIndicator>,
     #[serde(rename = "CustomButton")]
     pub custom_buttons: Vec<SettingsCustomButton>,
@@ -540,6 +544,8 @@ impl Default for SettingsModuleConfig {
             bluetooth_more_cmd: None,
             remove_airplane_btn: false,
             remove_idle_btn: false,
+            volume_step: 5,
+            max_volume: 100,
             indicators: vec![
                 SettingsIndicator::IdleInhibitor,
                 SettingsIndicator::PowerProfile,
@@ -728,6 +734,30 @@ impl Default for NotificationsModuleConfig {
             toast_limit: 5,
             toast_max_height: 150,
             blocklist: Vec::new(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// OSD
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
+pub struct OsdConfig {
+    pub enabled: bool,
+    pub timeout: u64,
+    pub show_volume_percentage: bool,
+    pub show_brightness_percentage: bool,
+}
+
+impl Default for OsdConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            timeout: 1500,
+            show_volume_percentage: false,
+            show_brightness_percentage: false,
         }
     }
 }

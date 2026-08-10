@@ -2,9 +2,11 @@ mod components;
 pub mod config;
 mod config_watcher;
 pub mod i18n;
+pub mod ipc;
 mod modules;
 mod services;
 mod utils;
+pub mod xdg;
 
 use components::center_box;
 use config::ModuleName;
@@ -78,18 +80,218 @@ pub fn truncate_text(value: &str, max_length: u32) -> String {
     }
 }
 
+/// Execute an IPC command through the settings services, then flash the OSD
+/// (mirrors upstream's osd_info_for: values are computed optimistically from
+/// the cached service state, mute/airplane toggles invert the current value).
+fn handle_ipc_command(
+    cmd: &ipc::IpcCommand,
+    settings: Option<&modules::SettingsSignals>,
+    osd: &modules::osd::OsdTrigger,
+    volume_step: u8,
+    max_volume: u8,
+    bar_visible: RwSignal<bool>,
+) {
+    use ipc::IpcCommand;
+    use modules::osd::OsdKind;
+
+    const NORMAL_VOLUME: u32 = libpulse_binding::volume::Volume::NORMAL.0;
+
+    if matches!(cmd, IpcCommand::ToggleVisibility) {
+        bar_visible.update(|v| *v = !*v);
+        return;
+    }
+
+    let Some(s) = settings else {
+        log::warn!("IPC command {cmd} ignored: settings services not running (no Settings module)");
+        return;
+    };
+    let no_osd = cmd.no_osd();
+    let show = |kind, value, scale, flag| {
+        if !no_osd {
+            osd.show(kind, value, scale, flag);
+        }
+    };
+
+    let vol_max = NORMAL_VOLUME * u32::from(max_volume.clamp(1, 200)) / 100;
+    let vol_scale = (vol_max as f32 / NORMAL_VOLUME as f32).max(1.0);
+    let step = u32::from(volume_step.clamp(1, 50)) * (NORMAL_VOLUME / 100);
+    let mic_step = 5 * (NORMAL_VOLUME / 100);
+
+    match cmd {
+        IpcCommand::VolumeUp { .. } | IpcCommand::VolumeDown { .. } => {
+            let Some((cur, muted)) = s.audio_data.with(|a| {
+                a.as_ref().map(|x| {
+                    (
+                        x.sink_slider.value(),
+                        x.active_sink().map(|d| d.is_mute).unwrap_or(false),
+                    )
+                })
+            }) else {
+                return;
+            };
+            let new = if matches!(cmd, IpcCommand::VolumeUp { .. }) {
+                (cur + step).min(vol_max)
+            } else {
+                cur.saturating_sub(step)
+            };
+            s.audio_svc
+                .send(services::audio::AudioCommand::SinkVolume(new));
+            show(
+                OsdKind::Volume,
+                new as f32 / NORMAL_VOLUME as f32,
+                vol_scale,
+                muted,
+            );
+        }
+        IpcCommand::VolumeToggleMute { .. } => {
+            let Some((cur, muted)) = s.audio_data.with(|a| {
+                a.as_ref().map(|x| {
+                    (
+                        x.sink_slider.value(),
+                        x.active_sink().map(|d| d.is_mute).unwrap_or(false),
+                    )
+                })
+            }) else {
+                return;
+            };
+            s.audio_svc
+                .send(services::audio::AudioCommand::ToggleSinkMute);
+            show(
+                OsdKind::Volume,
+                cur as f32 / NORMAL_VOLUME as f32,
+                vol_scale,
+                !muted,
+            );
+        }
+        IpcCommand::MicrophoneUp { .. } | IpcCommand::MicrophoneDown { .. } => {
+            let Some((cur, muted)) = s.audio_data.with(|a| {
+                a.as_ref().map(|x| {
+                    (
+                        x.source_slider.value(),
+                        x.active_source().map(|d| d.is_mute).unwrap_or(false),
+                    )
+                })
+            }) else {
+                return;
+            };
+            let new = if matches!(cmd, IpcCommand::MicrophoneUp { .. }) {
+                (cur + mic_step).min(NORMAL_VOLUME)
+            } else {
+                cur.saturating_sub(mic_step)
+            };
+            s.audio_svc
+                .send(services::audio::AudioCommand::SourceVolume(new));
+            show(
+                OsdKind::Microphone,
+                new as f32 / NORMAL_VOLUME as f32,
+                1.0,
+                muted,
+            );
+        }
+        IpcCommand::MicrophoneToggleMute { .. } => {
+            let Some((cur, muted)) = s.audio_data.with(|a| {
+                a.as_ref().map(|x| {
+                    (
+                        x.source_slider.value(),
+                        x.active_source().map(|d| d.is_mute).unwrap_or(false),
+                    )
+                })
+            }) else {
+                return;
+            };
+            s.audio_svc
+                .send(services::audio::AudioCommand::ToggleSourceMute);
+            show(
+                OsdKind::Microphone,
+                cur as f32 / NORMAL_VOLUME as f32,
+                1.0,
+                !muted,
+            );
+        }
+        IpcCommand::BrightnessUp { .. } | IpcCommand::BrightnessDown { .. } => {
+            let Some((cur, max)) = s
+                .brightness_data
+                .with(|b| b.as_ref().map(|x| (x.current.value(), x.max)))
+            else {
+                return;
+            };
+            if max == 0 {
+                return;
+            }
+            let step = (5 * max / 100).max(1);
+            let new = if matches!(cmd, IpcCommand::BrightnessUp { .. }) {
+                (cur + step).min(max)
+            } else {
+                cur.saturating_sub(step)
+            };
+            s.brightness_svc
+                .send(services::brightness::BrightnessCommand(new));
+            show(OsdKind::Brightness, new as f32 / max as f32, 1.0, false);
+        }
+        IpcCommand::ToggleAirplaneMode { .. } => {
+            let airplane = s
+                .network_data
+                .with(|n| n.as_ref().is_some_and(|x| x.airplane_mode));
+            s.network_svc
+                .send(services::network::NetworkCommand::ToggleAirplaneMode);
+            show(OsdKind::Airplane, 0.0, 1.0, !airplane);
+        }
+        IpcCommand::ToggleIdleInhibitor { .. } => {
+            let inhibited = s.idle_inhibitor_data.inhibited.get_untracked();
+            s.idle_inhibitor_svc
+                .send(services::idle_inhibitor::IdleInhibitorCmd::Toggle);
+            show(OsdKind::IdleInhibitor, 0.0, 1.0, !inhibited);
+        }
+        IpcCommand::ToggleVisibility => unreachable!(),
+    }
+}
+
 const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
 const NERD_FONT_MONO: &[u8] =
     include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
 const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 
+#[derive(clap::Parser, Debug)]
+#[command(version, about = "ashell, ported to guido")]
+struct Args {
+    /// Path to the config file (default ~/.config/ashell/config.toml)
+    #[arg(short, long)]
+    config_path: Option<String>,
+    #[command(subcommand)]
+    command: Option<CliCommand>,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum CliCommand {
+    /// Send a message to a running ashell instance
+    Msg {
+        #[command(subcommand)]
+        command: ipc::IpcCommand,
+    },
+}
+
 #[tokio::main]
 async fn main() {
+    use clap::Parser;
+    let args = Args::parse();
+
+    // Client mode: send the command to the running instance and exit
+    if let Some(CliCommand::Msg { command }) = args.command {
+        match ipc::run_client(&command) {
+            Ok(()) => std::process::exit(0),
+            Err(e) => {
+                eprintln!("Error: {e:#}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     env_logger::init();
 
-    // ASHELL_CONFIG_PATH overrides the default ~/.config/ashell/config.toml
-    // (used by the benchmark harness and handy for testing)
-    let custom_config = std::env::var("ASHELL_CONFIG_PATH").ok();
+    // -c/--config-path, then ASHELL_CONFIG_PATH (bench harness), then default
+    let custom_config = args
+        .config_path
+        .or_else(|| std::env::var("ASHELL_CONFIG_PATH").ok());
     let config_path = config_watcher::resolve_config_path(custom_config.as_deref());
     config_watcher::ensure_config_dir(&config_path);
 
@@ -181,6 +383,34 @@ async fn main() {
                 custom,
             };
 
+            // OSD + IPC: commands arrive on the unix socket, execute through
+            // the settings services and (optionally) flash the OSD overlay
+            let osd = modules::osd::create();
+            let ipc_cmd = create_signal(None::<ipc::VersionedCmd>);
+            let ipc_writer = ipc_cmd.writer();
+            let _ipc = create_service::<(), _, _>(move |_rx, _ctx| async move {
+                ipc::serve(ipc_writer).await;
+            });
+            let bar_visible = create_signal(true);
+            {
+                let settings = settings.clone();
+                let osd = osd.clone();
+                let volume_step = cfg.settings.volume_step;
+                let max_volume = cfg.settings.max_volume;
+                create_effect(move || {
+                    let Some(vc) = ipc_cmd.get() else { return };
+                    handle_ipc_command(
+                        &vc.cmd,
+                        settings.as_ref(),
+                        &osd,
+                        volume_step,
+                        max_volume,
+                        bar_visible,
+                    );
+                })
+                .detach();
+            }
+
             // Menu state — menus are xdg popups anchored to the bar; the
             // compositor positions and dismisses them (no overlay surface)
             let pending_close = create_signal(false);
@@ -226,19 +456,43 @@ async fn main() {
                     .keyboard_interactivity(KeyboardInteractivity::None)
                     .namespace("ashell"),
                 move || {
-                    container()
-                        .child(
-                            center_box()
-                                .left(modules::build_section(&cfg.modules.left, &data, menu))
-                                .center(modules::build_section(&cfg.modules.center, &data, menu))
-                                .right(modules::build_section(&cfg.modules.right, &data, menu)),
-                        )
-                        .padding([4, 0])
+                    // toggle-visibility (IPC) empties the bar
+                    container().child(move || {
+                        bar_visible.get().then(|| {
+                            container()
+                                .child(
+                                    center_box()
+                                        .left(modules::build_section(
+                                            &cfg.modules.left,
+                                            &data,
+                                            menu,
+                                        ))
+                                        .center(modules::build_section(
+                                            &cfg.modules.center,
+                                            &data,
+                                            menu,
+                                        ))
+                                        .right(modules::build_section(
+                                            &cfg.modules.right,
+                                            &data,
+                                            menu,
+                                        )),
+                                )
+                                .padding([4, 0])
+                        })
+                    })
                 },
             );
 
             // Menus anchor their popups to the bar surface
             menu.bar_sid.set(Some(bar_surface_id));
+
+            // Hidden bar gives up its exclusive zone
+            create_effect(move || {
+                let visible = bar_visible.get();
+                surface_handle(bar_surface_id).set_exclusive_zone(if visible { 34 } else { 0 });
+            })
+            .detach();
         });
 
         // App is dropped here, cleaning up all state
