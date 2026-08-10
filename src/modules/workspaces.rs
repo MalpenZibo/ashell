@@ -52,7 +52,9 @@ impl Displayed {
 
 // ── UI workspace (computed from raw compositor state) ────────────────────────
 
-#[derive(Debug, Clone)]
+/// Structural facts only — volatile state (active/visible, colors) is read
+/// via per-pill memos, so a pill is rebuilt only when these fields change.
+#[derive(Debug, Clone, PartialEq)]
 struct UiWorkspace {
     id: i32,
     index: i32,
@@ -326,165 +328,158 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                 }
             }
         })
-        .children(move || {
-            let ws_raw = workspaces.get();
-            let mons = monitors.get();
-            let svc = svc_children.clone();
-            let colors = colors.clone();
+        .children(keyed(
+            move || {
+                let ws_raw = workspaces.get();
+                let mons = monitors.get();
+                calculate_ui_workspaces(&config, &ws_raw, &mons)
+            },
+            // Special workspaces have negative ids; the cast still yields a
+            // unique key
+            |uw| uw.id as u64,
+            move |uw| {
+                let id = uw.id;
+                let label = uw.name;
+                let is_special = uw.is_special;
+                let colors = colors.clone();
+                let svc = svc_children.clone();
 
-            let ui_workspaces = calculate_ui_workspaces(&config, &ws_raw, &mons);
-
-            ui_workspaces
-                .into_iter()
-                .map(|uw| {
-                    let id = uw.id;
-                    let label = uw.name;
-                    let is_special = uw.is_special;
-                    let colors = colors.clone();
-                    let svc = svc.clone();
-
-                    (id as u64, move || {
-                        // Per-pill reactive memos
-                        let ws_color = create_memo({
-                            let colors = colors.clone();
-                            move || {
-                                if enable_vdesks {
-                                    // Virtual desktops always have a color
-                                    resolve_ws_color(&colors, Some(id as i128))
-                                } else {
-                                    // Look up current monitor_id from live workspace data
-                                    let ws = workspaces.get();
-                                    let mid =
-                                        ws.iter().find(|w| w.id == id).and_then(|w| w.monitor_id);
-                                    resolve_ws_color(&colors, mid)
-                                }
-                            }
-                        });
-
-                        let displayed = create_memo(move || {
-                            if is_special {
-                                let mons = monitors.get();
-                                if mons.iter().any(|m| m.special_workspace_id == id) {
-                                    Displayed::Active
-                                } else {
-                                    Displayed::Hidden
-                                }
-                            } else if enable_vdesks {
-                                let active = active_ws_id.get();
-                                let mons = monitors.get();
-                                let mc = mons.len().max(1) as i32;
-                                let range_start = (id - 1) * mc + 1;
-                                let range_end = id * mc;
-                                let is_active =
-                                    active.is_some_and(|a| a >= range_start && a <= range_end);
-                                if is_active {
-                                    Displayed::Active
-                                } else {
-                                    Displayed::Hidden
-                                }
-                            } else {
-                                compute_displayed(active_ws_id.get(), &monitors.get(), id)
-                            }
-                        });
-
-                        let empty = create_memo(move || {
+                {
+                    // Per-pill reactive memos
+                    let ws_color = create_memo({
+                        let colors = colors.clone();
+                        move || {
                             if enable_vdesks {
-                                let ws = workspaces.get();
-                                let mons = monitors.get();
-                                let mc = mons.len().max(1) as i32;
-                                let range_start = (id - 1) * mc + 1;
-                                let range_end = id * mc;
-                                ws.iter()
-                                    .filter(|w| w.id >= range_start && w.id <= range_end)
-                                    .all(|w| w.windows == 0)
+                                // Virtual desktops always have a color
+                                resolve_ws_color(&colors, Some(id as i128))
                             } else {
-                                is_empty(&workspaces.get(), id)
+                                // Look up current monitor_id from live workspace data
+                                let ws = workspaces.get();
+                                let mid = ws.iter().find(|w| w.id == id).and_then(|w| w.monitor_id);
+                                resolve_ws_color(&colors, mid)
+                            }
+                        }
+                    });
+
+                    let displayed = create_memo(move || {
+                        if is_special {
+                            let mons = monitors.get();
+                            if mons.iter().any(|m| m.special_workspace_id == id) {
+                                Displayed::Active
+                            } else {
+                                Displayed::Hidden
+                            }
+                        } else if enable_vdesks {
+                            let active = active_ws_id.get();
+                            let mons = monitors.get();
+                            let mc = mons.len().max(1) as i32;
+                            let range_start = (id - 1) * mc + 1;
+                            let range_end = id * mc;
+                            let is_active =
+                                active.is_some_and(|a| a >= range_start && a <= range_end);
+                            if is_active {
+                                Displayed::Active
+                            } else {
+                                Displayed::Hidden
+                            }
+                        } else {
+                            compute_displayed(active_ws_id.get(), &monitors.get(), id)
+                        }
+                    });
+
+                    let empty = create_memo(move || {
+                        if enable_vdesks {
+                            let ws = workspaces.get();
+                            let mons = monitors.get();
+                            let mc = mons.len().max(1) as i32;
+                            let range_start = (id - 1) * mc + 1;
+                            let range_end = id * mc;
+                            ws.iter()
+                                .filter(|w| w.id >= range_start && w.id <= range_end)
+                                .all(|w| w.windows == 0)
+                        } else {
+                            is_empty(&workspaces.get(), id)
+                        }
+                    });
+
+                    let mut pill = container()
+                        .height(PILL_HEIGHT)
+                        .background(move || pill_background(theme, ws_color.get(), empty.get()))
+                        .corner_radius(PILL_CORNER_RADIUS)
+                        .border(
+                            move || pill_border_width(empty.get()),
+                            move || {
+                                pill_border_color(
+                                    theme,
+                                    ws_color.get(),
+                                    displayed.get() == Displayed::Active,
+                                )
+                            },
+                        )
+                        .layout(
+                            Flex::row()
+                                .main_alignment(MainAlignment::Center)
+                                .cross_alignment(CrossAlignment::Center),
+                        )
+                        .overflow(Overflow::Hidden)
+                        .child(
+                            text(label)
+                                .color(move || pill_text_color(theme, ws_color.get(), empty.get()))
+                                .font_size(10)
+                                .nowrap(),
+                        )
+                        .on_click(move || {
+                            if enable_vdesks {
+                                svc.send(CompositorCommand::CustomDispatch(
+                                    "vdesk".to_string(),
+                                    id.to_string(),
+                                ));
+                            } else {
+                                svc.send(CompositorCommand::FocusWorkspace(id));
+                            }
+                        })
+                        .hover_state(|s| s.lighter(0.1).alpha(0.7).transform(Transform::scale(1.1)))
+                        .animate_border_width(Transition {
+                            duration_ms: 150.0,
+                            timing: TimingFunction::EaseInOut,
+                            delay_ms: 0.0,
+                        })
+                        .animate_border_color(Transition {
+                            duration_ms: 150.0,
+                            timing: TimingFunction::EaseInOut,
+                            delay_ms: 0.0,
+                        })
+                        .animate_background(Transition {
+                            duration_ms: 150.0,
+                            timing: TimingFunction::EaseInOut,
+                            delay_ms: 0.0,
+                        })
+                        .animate_transform(Transition::spring(SpringConfig::SNAPPY));
+
+                    if is_special {
+                        // Special workspaces: shrink to content, padding varies by state
+                        pill = pill.padding(move || -> Padding {
+                            let px = match displayed.get() {
+                                Displayed::Active => 12.0,
+                                Displayed::Visible => 8.0,
+                                Displayed::Hidden => 4.0,
+                            };
+                            Padding {
+                                left: px,
+                                right: px,
+                                top: 0.0,
+                                bottom: 0.0,
                             }
                         });
+                    } else {
+                        // Normal workspaces: fixed width based on state
+                        pill = pill
+                            .width(move || displayed.get().width())
+                            .animate_width(Transition::spring(SpringConfig::BOUNCY));
+                    }
 
-                        let mut pill = container()
-                            .height(PILL_HEIGHT)
-                            .background(move || pill_background(theme, ws_color.get(), empty.get()))
-                            .corner_radius(PILL_CORNER_RADIUS)
-                            .border(
-                                move || pill_border_width(empty.get()),
-                                move || {
-                                    pill_border_color(
-                                        theme,
-                                        ws_color.get(),
-                                        displayed.get() == Displayed::Active,
-                                    )
-                                },
-                            )
-                            .layout(
-                                Flex::row()
-                                    .main_alignment(MainAlignment::Center)
-                                    .cross_alignment(CrossAlignment::Center),
-                            )
-                            .overflow(Overflow::Hidden)
-                            .child(
-                                text(label)
-                                    .color(move || {
-                                        pill_text_color(theme, ws_color.get(), empty.get())
-                                    })
-                                    .font_size(10)
-                                    .nowrap(),
-                            )
-                            .on_click(move || {
-                                if enable_vdesks {
-                                    svc.send(CompositorCommand::CustomDispatch(
-                                        "vdesk".to_string(),
-                                        id.to_string(),
-                                    ));
-                                } else {
-                                    svc.send(CompositorCommand::FocusWorkspace(id));
-                                }
-                            })
-                            .hover_state(|s| {
-                                s.lighter(0.1).alpha(0.7).transform(Transform::scale(1.1))
-                            })
-                            .animate_border_width(Transition {
-                                duration_ms: 150.0,
-                                timing: TimingFunction::EaseInOut,
-                                delay_ms: 0.0,
-                            })
-                            .animate_border_color(Transition {
-                                duration_ms: 150.0,
-                                timing: TimingFunction::EaseInOut,
-                                delay_ms: 0.0,
-                            })
-                            .animate_background(Transition {
-                                duration_ms: 150.0,
-                                timing: TimingFunction::EaseInOut,
-                                delay_ms: 0.0,
-                            })
-                            .animate_transform(Transition::spring(SpringConfig::SNAPPY));
-
-                        if is_special {
-                            // Special workspaces: shrink to content, padding varies by state
-                            pill = pill.padding(move || -> Padding {
-                                let px = match displayed.get() {
-                                    Displayed::Active => 12.0,
-                                    Displayed::Visible => 8.0,
-                                    Displayed::Hidden => 4.0,
-                                };
-                                Padding {
-                                    left: px,
-                                    right: px,
-                                    top: 0.0,
-                                    bottom: 0.0,
-                                }
-                            });
-                        } else {
-                            // Normal workspaces: fixed width based on state
-                            pill = pill
-                                .width(move || displayed.get().width())
-                                .animate_width(Transition::spring(SpringConfig::BOUNCY));
-                        }
-
-                        pill
-                    })
-                })
-                .collect::<Vec<_>>()
-        })
+                    pill
+                }
+            },
+        ))
 }

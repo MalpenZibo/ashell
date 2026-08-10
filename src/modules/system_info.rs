@@ -228,23 +228,20 @@ pub fn menu_view(info: SystemInfoDataSignals) -> impl Widget {
                 )
             })
         })
-        // Disks (dynamic, keyed)
+        // Disks: stateless rows, rebuilt wholesale when the list changes
         .children(move || {
             disks.with(|ds| {
                 ds.iter()
-                    .enumerate()
-                    .map(|(i, d)| {
+                    .map(|d| {
                         let mount = d.mount_point.clone();
                         let usage = d.usage_pct;
-                        (i as u64, move || {
-                            menu_row(
-                                theme,
-                                StaticIcon::Drive,
-                                format!("Disk {mount}"),
-                                move || format!("{usage:.0}%"),
-                                move || theme.text,
-                            )
-                        })
+                        menu_row(
+                            theme,
+                            StaticIcon::Drive,
+                            format!("Disk {mount}"),
+                            move || format!("{usage:.0}%"),
+                            move || theme.text,
+                        )
                     })
                     .collect::<Vec<_>>()
             })
