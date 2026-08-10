@@ -431,6 +431,9 @@ impl Settings {
                 Action::None
             }
             Message::MenuOpened => {
+                self.network_dialog = None;
+                self.network_dialog_show_password = false;
+
                 self.sub_menu = if self.power.config.peripheral_expanded_by_default {
                     Some(SubMenu::PeripheralMenu)
                 } else {
