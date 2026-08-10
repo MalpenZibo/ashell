@@ -356,8 +356,15 @@ pub fn weather_icon(code: u32, is_day: bool) -> guido::prelude::Image {
     ))))
 }
 
-fn svg_icon(bytes: &'static [u8]) -> guido::prelude::Image {
-    image(ImageSource::SvgBytes(Arc::from(bytes)))
+/// Sized weather icon.
+pub fn weather_icon_sized(code: u32, is_day: bool, w: f32, h: f32) -> AnyWidget {
+    weather_icon(code, is_day).width(w).height(h).into_any()
+}
+
+fn svg_icon(bytes: &'static [u8], w: Option<f32>, h: f32) -> AnyWidget {
+    let img = image(ImageSource::SvgBytes(Arc::from(bytes)));
+    let img = if let Some(w) = w { img.width(w) } else { img };
+    img.height(h).into_any()
 }
 
 pub fn weather_description(code: u32) -> String {
@@ -505,7 +512,7 @@ pub fn view(handle: TempoHandle, config: TempoModuleConfig) -> impl Widget {
             .width(fill())
             .layout(Flex::column().spacing(4))
             .child(right_stat(
-                svg_icon(DROP_ICON).height(16).into_any(),
+                svg_icon(DROP_ICON, None, 16.0),
                 t!("tempo-humidity"),
                 format!("{}%", data.current.relative_humidity_2m),
             ))
@@ -514,7 +521,7 @@ pub fn view(handle: TempoHandle, config: TempoModuleConfig) -> impl Widget {
                     .transform(Transform::rotate_degrees(
                         data.current.wind_direction_10m as f32 + 90.0,
                     ))
-                    .child(svg_icon(WIND_ICON).height(16))
+                    .child(svg_icon(WIND_ICON, None, 16.0))
                     .into_any(),
                 t!("tempo-wind"),
                 format!("{} {wind}", data.current.wind_speed_10m.round()),
@@ -528,11 +535,12 @@ pub fn view(handle: TempoHandle, config: TempoModuleConfig) -> impl Widget {
                         .spacing(16)
                         .cross_alignment(CrossAlignment::Center),
                 )
-                .child(
-                    weather_icon(data.current.weather_code, data.current.is_day > 0)
-                        .width(48)
-                        .height(48),
-                )
+                .child(weather_icon_sized(
+                    data.current.weather_code,
+                    data.current.is_day > 0,
+                    48.0,
+                    48.0,
+                ))
                 .child(current_left)
                 .child(current_right),
         );
@@ -540,13 +548,18 @@ pub fn view(handle: TempoHandle, config: TempoModuleConfig) -> impl Widget {
         // ── Hourly strip ──
         let mut hourly_row = container().layout(Flex::row().spacing(8));
         {
+            // TODO(guido): content laid out wider than the popup surface
+            // makes the renderer drop the whole frame (empty popup, huge GPU
+            // times). Until that is fixed, cap the strip to what fits the
+            // 650px menu; upstream shows 23 scrollable entries.
+            let hourly_cap = 8;
             let mut time = data
                 .hourly
                 .time
                 .iter()
                 .enumerate()
                 .filter(|(_, t)| **t > data.current.time)
-                .take(23)
+                .take(hourly_cap)
                 .peekable();
             let start_index = time.peek().map(|(index, _)| *index).unwrap_or(0);
 
@@ -634,7 +647,7 @@ pub fn view(handle: TempoHandle, config: TempoModuleConfig) -> impl Widget {
                                     .spacing(2)
                                     .cross_alignment(CrossAlignment::Center),
                             )
-                            .child(weather_icon(*weather_code, true).width(14).height(14))
+                            .child(weather_icon_sized(*weather_code, true, 14.0, 14.0))
                             .child(
                                 text(format!(
                                     "{}{temp}/{}{temp}",
@@ -655,7 +668,7 @@ pub fn view(handle: TempoHandle, config: TempoModuleConfig) -> impl Widget {
                             .child(
                                 container()
                                     .transform(Transform::rotate_degrees(*wind_dir as f32 + 90.0))
-                                    .child(svg_icon(WIND_ICON).width(14).height(14)),
+                                    .child(svg_icon(WIND_ICON, Some(14.0), 14.0)),
                             )
                             .child(
                                 text(format!("{} {wind}", wind_speed.round()))

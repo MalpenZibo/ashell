@@ -52,7 +52,7 @@ pub fn view(state: CompositorStateSignals) -> impl Widget {
         .child(
             text(move || truncate_text(&title.get(), max_len))
                 .color(theme.text)
-                .font_size(14)
+                .font_size(12)
                 .nowrap(),
         )
         .overflow(Overflow::Hidden)

@@ -437,7 +437,7 @@ async fn main() {
 
             // Menu state — menus are xdg popups anchored to the bar; the
             // compositor positions and dismisses them (no overlay surface)
-            let pending_close = create_signal(false);
+            let pending_close = create_signal(None::<SurfaceId>);
             let menu = MenuCtx {
                 active_menu: create_signal(None::<MenuType>),
                 bar_sid: create_signal(None::<SurfaceId>),
@@ -446,9 +446,9 @@ async fn main() {
 
             // Destroy the menu popup once its collapse animation played
             create_effect(move || {
-                if pending_close.get() {
-                    modules::finish_menu_close();
-                    pending_close.set(false);
+                if let Some(target) = pending_close.get() {
+                    modules::finish_menu_close(target);
+                    pending_close.set(None);
                 }
             })
             .detach();
