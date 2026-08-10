@@ -31,6 +31,19 @@ fn workspace_colors() -> Vec<Color> {
     }
 }
 
+/// Colors for special workspaces; falls back to the normal list like upstream.
+fn special_workspace_colors() -> Vec<Color> {
+    with_context::<Config, _>(|c| {
+        c.appearance
+            .special_workspace_colors
+            .as_ref()
+            .map(|l| l.iter().map(|c| c.base()).collect::<Vec<_>>())
+    })
+    .unwrap()
+    .filter(|l| !l.is_empty())
+    .unwrap_or_else(workspace_colors)
+}
+
 // ── Display state ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -221,11 +234,15 @@ fn calculate_ui_workspaces(
 // - Occupied pills: ws_color background (surface when None), no border.
 
 /// Resolve the workspace color. Returns None for workspaces without a monitor
-/// (phantom/filled workspaces), which makes their border blend with the background.
-fn resolve_ws_color(colors: &[Color], monitor_id: Option<i128>) -> Option<Color> {
+/// (phantom/filled workspaces), which makes their border blend with the
+/// background. An index past the end of the list falls back to `fallback`
+/// (upstream: theme primary), it does not wrap.
+fn resolve_ws_color(colors: &[Color], monitor_id: Option<i128>, fallback: Color) -> Option<Color> {
     monitor_id.map(|mid| {
-        let idx = mid.unsigned_abs() as usize;
-        colors[idx % colors.len()]
+        colors
+            .get(mid.unsigned_abs() as usize)
+            .copied()
+            .unwrap_or(fallback)
     })
 }
 
@@ -307,23 +324,63 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
         )
         .on_scroll({
             let config = config.clone();
-            move |_dx, dy, _source| {
-                let ws_raw = workspaces.get();
+            let accum = std::cell::Cell::new(0.0f32);
+            move |_dx, dy, source| {
+                use crate::config::InvertScrollDirection as Inv;
+                // Per-source inversion, then a small accumulator so trackpads
+                // don't switch on every pixel event (upstream: sensibility 3)
+                let inverted = match source {
+                    ScrollSource::Wheel => {
+                        matches!(config.invert_scroll_direction, Some(Inv::All | Inv::Mouse))
+                    }
+                    _ => matches!(
+                        config.invert_scroll_direction,
+                        Some(Inv::All | Inv::Trackpad)
+                    ),
+                };
+                let dy = if inverted { -dy } else { dy };
+                let acc = accum.get() + dy;
+                if acc.abs() < 3.0 {
+                    accum.set(acc);
+                    return;
+                }
+                accum.set(0.0);
+                let up = acc > 0.0;
+
                 let mons = monitors.get();
-                let ui_ws = calculate_ui_workspaces(&config, &ws_raw, &mons);
                 let current_id = active_ws_id.get();
 
-                let next = if dy > 0.0 {
-                    // Scroll up → previous workspace (lower id)
-                    current_id
-                        .and_then(|cur| ui_ws.iter().filter(|w| w.id < cur).max_by_key(|w| w.id))
-                } else {
-                    // Scroll down → next workspace (higher id)
-                    current_id
-                        .and_then(|cur| ui_ws.iter().filter(|w| w.id > cur).min_by_key(|w| w.id))
-                };
+                if enable_vdesks {
+                    // Navigate whole virtual desktops via the vdesk dispatcher
+                    let mc = mons.len().max(1) as i32;
+                    let Some(active) = current_id else { return };
+                    let cur_vdesk = ((active - 1) / mc) + 1;
+                    let target = if up { cur_vdesk - 1 } else { cur_vdesk + 1 };
+                    if target >= 1 {
+                        svc_scroll.send(CompositorCommand::CustomDispatch(
+                            "vdesk".to_string(),
+                            target.to_string(),
+                        ));
+                    }
+                    return;
+                }
 
-                if let Some(next) = next {
+                // Navigate by position in the displayed (sorted) list, skipping
+                // special workspaces — never off the ends
+                let ws_raw = workspaces.get();
+                let ui_ws = calculate_ui_workspaces(&config, &ws_raw, &mons);
+                let normals: Vec<&UiWorkspace> = ui_ws.iter().filter(|w| !w.is_special).collect();
+                let Some(pos) = normals.iter().position(|w| Some(w.id) == current_id) else {
+                    return;
+                };
+                let next = if up {
+                    pos.checked_sub(1).and_then(|p| normals.get(p))
+                } else {
+                    normals.get(pos + 1)
+                };
+                if let Some(next) = next
+                    && Some(next.id) != current_id
+                {
                     svc_scroll.send(CompositorCommand::FocusWorkspace(next.id));
                 }
             }
@@ -341,22 +398,27 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                 let id = uw.id;
                 let label = uw.name;
                 let is_special = uw.is_special;
-                let colors = colors.clone();
+                let colors = if is_special {
+                    special_workspace_colors()
+                } else {
+                    colors.clone()
+                };
                 let svc = svc_children.clone();
 
                 {
+                    let theme_primary = theme.primary;
                     // Per-pill reactive memos
                     let ws_color = create_memo({
                         let colors = colors.clone();
                         move || {
                             if enable_vdesks {
                                 // Virtual desktops always have a color
-                                resolve_ws_color(&colors, Some(id as i128))
+                                resolve_ws_color(&colors, Some(id as i128), theme_primary)
                             } else {
                                 // Look up current monitor_id from live workspace data
                                 let ws = workspaces.get();
                                 let mid = ws.iter().find(|w| w.id == id).and_then(|w| w.monitor_id);
-                                resolve_ws_color(&colors, mid)
+                                resolve_ws_color(&colors, mid, theme_primary)
                             }
                         }
                     });
@@ -423,19 +485,29 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                         )
                         .overflow(Overflow::Hidden)
                         .child(
-                            text(label)
+                            text(label.clone())
                                 .color(move || pill_text_color(theme, ws_color.get(), empty.get()))
                                 .font_size(10)
                                 .nowrap(),
                         )
-                        .on_click(move || {
-                            if enable_vdesks {
-                                svc.send(CompositorCommand::CustomDispatch(
-                                    "vdesk".to_string(),
-                                    id.to_string(),
-                                ));
-                            } else {
-                                svc.send(CompositorCommand::FocusWorkspace(id));
+                        .on_click({
+                            let special_name = label.clone();
+                            move || {
+                                if is_special {
+                                    // Specials toggle by name, not by focus id
+                                    svc.send(CompositorCommand::ToggleSpecialWorkspace(
+                                        special_name.clone(),
+                                    ));
+                                } else if displayed.get() == Displayed::Active {
+                                    // Already focused: nothing to do
+                                } else if enable_vdesks {
+                                    svc.send(CompositorCommand::CustomDispatch(
+                                        "vdesk".to_string(),
+                                        id.to_string(),
+                                    ));
+                                } else {
+                                    svc.send(CompositorCommand::FocusWorkspace(id));
+                                }
                             }
                         })
                         .hover_state(|s| s.lighter(0.1).alpha(0.7).transform(Transform::scale(1.1)))
@@ -456,8 +528,12 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                         })
                         .animate_transform(Transition::spring(SpringConfig::SNAPPY));
 
-                    if is_special {
-                        // Special workspaces: shrink to content, padding varies by state
+                    // Only plain numbered workspaces get the fixed-width
+                    // treatment; named ones shrink to their label (upstream
+                    // switches on "all ascii digits" the same way)
+                    let is_numeric = !label.is_empty() && label.chars().all(|c| c.is_ascii_digit());
+                    if is_special || !is_numeric {
+                        // Shrink to content, padding varies by state
                         pill = pill.padding(move || -> Padding {
                             let px = match displayed.get() {
                                 Displayed::Active => 12.0,
@@ -472,7 +548,7 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                             }
                         });
                     } else {
-                        // Normal workspaces: fixed width based on state
+                        // Numbered workspaces: fixed width based on state
                         pill = pill
                             .width(move || displayed.get().width())
                             .animate_width(Transition::spring(SpringConfig::BOUNCY));

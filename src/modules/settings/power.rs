@@ -222,14 +222,14 @@ pub fn peripherals_view(data: ServiceSignal<UPowerService>) -> impl Widget {
     })
 }
 
-/// Power actions menu
+/// Power actions menu. Commands come from config and run through
+/// `bash -c` (upstream launcher semantics); the menu stays open, like
+/// upstream. Hibernate only appears when hibernate_cmd is set.
 pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
-    let close1 = close_menu.clone();
-    let close2 = close_menu.clone();
-    let close3 = close_menu.clone();
-    let close4 = close_menu.clone();
-    let close5 = close_menu.clone();
+    let cfg = with_context::<crate::config::Config, _>(|c| c.settings.clone()).unwrap();
+    // Upstream keeps the menu open after power actions
+    let _ = close_menu;
 
     container()
         .width(fill())
@@ -237,67 +237,39 @@ pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
         .child(power_action_btn(
             theme,
             StaticIcon::Suspend,
-            "Suspend",
-            move || {
-                let _ = std::process::Command::new("systemctl")
-                    .arg("suspend")
-                    .spawn();
-                close1();
-            },
+            crate::t!("settings-power-suspend"),
+            cfg.suspend_cmd.clone(),
         ))
-        .child(power_action_btn(
-            theme,
-            StaticIcon::Hibernate,
-            "Hibernate",
-            move || {
-                let _ = std::process::Command::new("systemctl")
-                    .arg("hibernate")
-                    .spawn();
-                close2();
-            },
-        ))
+        .maybe_child(cfg.hibernate_cmd.clone().map(|cmd| {
+            power_action_btn(
+                theme,
+                StaticIcon::Hibernate,
+                crate::t!("settings-power-hibernate"),
+                cmd,
+            )
+        }))
         .child(power_action_btn(
             theme,
             StaticIcon::Reboot,
-            "Reboot",
-            move || {
-                let _ = std::process::Command::new("systemctl")
-                    .arg("reboot")
-                    .spawn();
-                close3();
-            },
+            crate::t!("settings-power-reboot"),
+            cfg.reboot_cmd.clone(),
         ))
         .child(power_action_btn(
             theme,
             StaticIcon::Power,
-            "Shutdown",
-            move || {
-                let _ = std::process::Command::new("systemctl")
-                    .arg("poweroff")
-                    .spawn();
-                close4();
-            },
+            crate::t!("settings-power-shutdown"),
+            cfg.shutdown_cmd.clone(),
         ))
+        .child(crate::components::divider())
         .child(power_action_btn(
             theme,
             StaticIcon::Logout,
-            "Logout",
-            move || {
-                let _ = std::process::Command::new("loginctl")
-                    .arg("terminate-user")
-                    .arg(std::env::var("USER").unwrap_or_default())
-                    .spawn();
-                close5();
-            },
+            crate::t!("settings-power-logout"),
+            cfg.logout_cmd.clone(),
         ))
 }
 
-fn power_action_btn(
-    theme: ThemeColors,
-    ic: StaticIcon,
-    label: &'static str,
-    on_click: impl Fn() + 'static,
-) -> impl Widget {
+fn power_action_btn(theme: ThemeColors, ic: StaticIcon, label: String, cmd: String) -> impl Widget {
     button()
         .kind(ButtonKind::Transparent)
         .fill_width(true)
@@ -311,5 +283,5 @@ fn power_action_btn(
                 .child(icon().kind(ic).color(theme.text).font_size(14))
                 .child(text(label).color(theme.text).font_size(14)),
         )
-        .on_click(on_click)
+        .on_click(move || crate::utils::launcher::execute_command(&cmd))
 }

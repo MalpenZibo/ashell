@@ -162,18 +162,21 @@ pub fn vpn_quick_setting(
             })
         })
         .on_toggle(move || {
+            // Toggle the first ACTIVE vpn off (upstream semantics), not the
+            // first known one
             let vpn = data.with(|s| {
                 let x = s.as_ref()?;
-                if !has_active_vpn(&x.active_connections) {
-                    return None;
-                }
+                let active_name = x.active_connections.iter().find_map(|ac| match ac {
+                    ActiveConnectionInfo::Vpn { name, .. } => Some(name.clone()),
+                    _ => None,
+                })?;
                 x.known_connections.iter().find_map(|k| match k {
-                    KnownConnection::Vpn(v) => Some(v.clone()),
+                    KnownConnection::Vpn(v) if v.name == active_name => Some(v.clone()),
                     _ => None,
                 })
             });
             match vpn {
-                // Active: toggle first known VPN off
+                // Active: toggle it off
                 Some(v) => svc_toggle.send(NetworkCommand::ToggleVpn(v)),
                 // Inactive: open the submenu
                 None => on_submenu_for_toggle(),
@@ -187,6 +190,7 @@ pub fn vpn_quick_setting(
 pub fn wifi_submenu(
     data: ServiceSignal<NetworkService>,
     svc: Service<NetworkCommand>,
+    settings: super::SettingsSignals,
 ) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
 
@@ -251,7 +255,8 @@ pub fn wifi_submenu(
                 }
             }
 
-            // Then other visible APs not in known list
+            // Then other visible APs not in known list; connecting asks for
+            // a password (secured) or confirmation (open network)
             let known_ssids: Vec<_> = known_list
                 .iter()
                 .filter_map(|kc| match kc {
@@ -266,11 +271,23 @@ pub fn wifi_submenu(
                 let ssid = ap.ssid.clone();
                 let strength = ap.strength;
                 let is_public = ap.public;
+                let dialog = settings.network_dialog;
+                let password = settings.dialog_password;
+                let show_password = settings.dialog_show_password;
                 col = col.child(
                     selectable_item()
                         .kind(strength_to_icon(strength, is_public))
-                        .label(ssid)
-                        .selected(false),
+                        .label(ssid.clone())
+                        .selected(false)
+                        .on_click(move || {
+                            password.set(String::new());
+                            show_password.set(false);
+                            dialog.set(Some(if is_public {
+                                super::NetworkDialog::OpenNetwork { ssid: ssid.clone() }
+                            } else {
+                                super::NetworkDialog::Password { ssid: ssid.clone() }
+                            }));
+                        }),
                 );
             }
             Some(col)
@@ -284,16 +301,30 @@ pub fn vpn_submenu(
 ) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
 
-    let mut col = container().width(fill()).layout(Flex::column().spacing(4));
+    // Reactive: added/removed VPN profiles appear while the submenu is open
+    container().width(fill()).child(move || {
+        let mut known_list: Vec<_> = data.with(|s| {
+            s.as_ref()
+                .map(|x| {
+                    x.known_connections
+                        .iter()
+                        .filter_map(|k| match k {
+                            KnownConnection::Vpn(v) => Some(v.clone()),
+                            _ => None,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        });
+        known_list.sort_by_key(|v| v.name.clone());
 
-    // Build VPN rows from the known list (static at menu open time)
-    let known_list = data.with(|s| {
-        s.as_ref()
-            .map(|x| x.known_connections.clone())
-            .unwrap_or_default()
-    });
-    for kc in &known_list {
-        if let KnownConnection::Vpn(vpn) = kc {
+        let mut col = container()
+            .width(fill())
+            .height(at_most(300))
+            .scrollable(ScrollAxis::Vertical)
+            .layout(Flex::column().spacing(4));
+
+        for vpn in known_list {
             let vpn_name = vpn.name.clone();
             let vpn_clone = vpn.clone();
             let svc = svc.clone();
@@ -328,9 +359,8 @@ pub fn vpn_submenu(
                     ),
             );
         }
-    }
-
-    col.child(crate::components::divider())
+        Some(col)
+    })
 }
 
 fn strength_to_icon(strength: u8, public: bool) -> StaticIcon {
@@ -351,4 +381,149 @@ fn strength_to_icon(strength: u8, public: bool) -> StaticIcon {
             _ => StaticIcon::WifiLock5,
         }
     }
+}
+
+/// Full-menu takeover for connecting to a new network: password entry for
+/// secured APs, a warning for open ones (upstream password_dialog).
+pub fn network_dialog_view(
+    settings: super::SettingsSignals,
+    dialog: super::NetworkDialog,
+) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
+    let data = settings.network_data;
+    let svc = settings.network_svc.clone();
+    let dialog_sig = settings.network_dialog;
+    let password = settings.dialog_password;
+    let show_password = settings.dialog_show_password;
+
+    let (title, body, ssid, warning_only) = match &dialog {
+        super::NetworkDialog::Password { ssid } => (
+            crate::t!("password-dialog-authentication-required-title"),
+            crate::t!("password-dialog-insert-password", ssid = ssid.clone()),
+            ssid.clone(),
+            false,
+        ),
+        super::NetworkDialog::OpenNetwork { ssid } => (
+            crate::t!("password-dialog-open-network-title"),
+            crate::t!("password-dialog-open-network-warning", ssid = ssid.clone()),
+            ssid.clone(),
+            true,
+        ),
+    };
+
+    let connect = {
+        let svc = svc.clone();
+        let ssid = ssid.clone();
+        move || {
+            let pw = password.with(|p| p.clone());
+            let pw = if warning_only || pw.is_empty() {
+                None
+            } else {
+                Some(pw)
+            };
+            let ap = data.with(|s| {
+                s.as_ref().and_then(|x| {
+                    x.wireless_access_points
+                        .iter()
+                        .find(|ap| ap.ssid == ssid)
+                        .cloned()
+                })
+            });
+            match ap {
+                Some(ap) => svc.send(NetworkCommand::SelectAccessPoint((ap, pw))),
+                None => log::warn!(
+                    "Unable to confirm dialog: access point '{ssid}' no longer available"
+                ),
+            }
+            password.set(String::new());
+            dialog_sig.set(None);
+        }
+    };
+    let connect_submit = connect.clone();
+
+    let mut col = container()
+        .width(fill())
+        .layout(Flex::column().spacing(12))
+        .child(text(title).color(theme.text).font_size(16))
+        .child(text(body).color(theme.text).font_size(12));
+
+    if !warning_only {
+        col = col.child(
+            container()
+                .width(fill())
+                .layout(
+                    Flex::row()
+                        .spacing(8)
+                        .cross_alignment(CrossAlignment::Center),
+                )
+                .child(
+                    container()
+                        .width(fill())
+                        .padding([6, 8])
+                        .corner_radius(8)
+                        .background(theme.background.lighter(0.1))
+                        // Rebuilt on visibility toggle; the text itself lives
+                        // in the signal so it survives
+                        .child(move || {
+                            let connect_submit = connect_submit.clone();
+                            Some(
+                                text_input(password)
+                                    .password(!show_password.get())
+                                    .text_color(theme.text)
+                                    .font_size(13)
+                                    .on_submit(move |_| connect_submit()),
+                            )
+                        }),
+                )
+                .child(
+                    icon_button()
+                        .icon(move || -> IconKind {
+                            if show_password.get() {
+                                StaticIcon::EyeOpened.into()
+                            } else {
+                                StaticIcon::EyeClosed.into()
+                            }
+                        })
+                        .kind(ButtonKind::Transparent)
+                        .on_click(move || show_password.update(|v| *v = !*v)),
+                ),
+        );
+    }
+
+    col.child(
+        container()
+            .width(fill())
+            .layout(
+                Flex::row()
+                    .spacing(8)
+                    .main_alignment(MainAlignment::End)
+                    .cross_alignment(CrossAlignment::Center),
+            )
+            .child(
+                crate::components::button()
+                    .kind(ButtonKind::Transparent)
+                    .content(
+                        text(crate::t!("password-dialog-cancel"))
+                            .color(theme.text)
+                            .font_size(13),
+                    )
+                    .on_click(move || {
+                        password.set(String::new());
+                        dialog_sig.set(None);
+                    }),
+            )
+            .child(
+                crate::components::button()
+                    .content(
+                        text(crate::t!("password-dialog-confirm"))
+                            .color(theme.text)
+                            .font_size(13),
+                    )
+                    .on_click(move || {
+                        if warning_only || !password.with(|p| p.is_empty()) {
+                            connect();
+                        }
+                    }),
+            ),
+    )
 }

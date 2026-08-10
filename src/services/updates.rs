@@ -85,7 +85,8 @@ pub fn start_updates_service(
 ) -> Service<UpdatesCmd> {
     let check_cmd = config.check_cmd;
     let update_cmd = config.update_cmd;
-    let interval = config.interval;
+    // Background polls never run more often than once a minute (upstream)
+    let interval = config.interval.max(60);
 
     create_service::<UpdatesCmd, _, _>(move |mut rx, ctx| {
         let check_cmd = check_cmd.clone();
@@ -122,7 +123,8 @@ pub fn start_updates_service(
                         }
                     }
                     _ = tokio::time::sleep(Duration::from_secs(interval)) => {
-                        writers.is_checking.set(true);
+                        // Background polls don't flash the checking spinner
+                        // (upstream only shows it for explicit CheckNow)
                         let updates = check_updates_now(&check_cmd).await;
                         writers.set(UpdatesData { updates, is_checking: false });
                     }

@@ -124,18 +124,25 @@ pub fn menu_view(
         // Divider
         .child(crate::components::divider())
         // Action buttons
-        .child({
+        .child(container().width(fill()).child({
             let svc_update = svc_update.clone();
             let close_menu_update = close_menu_update.clone();
-            button()
-                .kind(ButtonKind::Transparent)
-                .fill_width(true)
-                .content(text("Update").color(theme.text).font_size(14))
-                .on_click(move || {
-                    svc_update.send(UpdatesCmd::RunUpdate);
-                    close_menu_update();
+            // The update button only appears while updates are pending
+            move || {
+                let svc_update = svc_update.clone();
+                let close_menu_update = close_menu_update.clone();
+                (!updates.with(|u| u.is_empty())).then(move || {
+                    button()
+                        .kind(ButtonKind::Transparent)
+                        .fill_width(true)
+                        .content(text("Update").color(theme.text).font_size(14))
+                        .on_click(move || {
+                            svc_update.send(UpdatesCmd::RunUpdate);
+                            close_menu_update();
+                        })
                 })
-        })
+            }
+        }))
         .child({
             let svc_check = svc.clone();
             button()

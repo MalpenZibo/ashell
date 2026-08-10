@@ -306,7 +306,11 @@ fn add_module(
                 let wr = create_widget_ref();
                 let s_menu = s.clone();
                 let close = close_menu_fn(menu);
-                let content = move || settings::menu_view(s_menu.clone(), close.clone()).into_any();
+                let content = move || {
+                    // Submenus always start collapsed when the menu opens
+                    s_menu.submenu.set(None);
+                    settings::menu_view(s_menu.clone(), close.clone()).into_any()
+                };
                 group.child(
                     container().widget_ref(wr).child(
                         module_item()

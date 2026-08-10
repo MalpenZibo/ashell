@@ -26,6 +26,15 @@ pub enum SubMenu {
     Peripherals,
 }
 
+/// WiFi connection dialog replacing the settings menu content.
+#[derive(Clone, PartialEq)]
+pub enum NetworkDialog {
+    /// Secured network: ask for a password.
+    Password { ssid: String },
+    /// Open network: confirm connecting without encryption.
+    OpenNetwork { ssid: String },
+}
+
 pub struct SettingsSignals {
     pub audio_data: services::compat::ServiceSignal<services::audio::AudioService>,
     pub audio_svc: Service<services::audio::AudioCommand>,
@@ -40,6 +49,9 @@ pub struct SettingsSignals {
     pub idle_inhibitor_data: services::idle_inhibitor::IdleInhibitorDataSignals,
     pub idle_inhibitor_svc: Service<services::idle_inhibitor::IdleInhibitorCmd>,
     pub submenu: RwSignal<Option<SubMenu>>,
+    pub network_dialog: RwSignal<Option<NetworkDialog>>,
+    pub dialog_password: RwSignal<String>,
+    pub dialog_show_password: RwSignal<bool>,
 }
 
 impl Clone for SettingsSignals {
@@ -58,16 +70,33 @@ impl Clone for SettingsSignals {
             idle_inhibitor_data: self.idle_inhibitor_data,
             idle_inhibitor_svc: self.idle_inhibitor_svc.clone(),
             submenu: self.submenu,
+            network_dialog: self.network_dialog,
+            dialog_password: self.dialog_password,
+            dialog_show_password: self.dialog_show_password,
         }
     }
 }
 
 pub fn create() -> SettingsSignals {
+    let network_dialog = create_signal(None::<NetworkDialog>);
+    let dialog_password = create_signal(String::new());
+    let dialog_show_password = create_signal(false);
+
     let (audio_data, audio_svc) = services::compat::run_service::<services::audio::AudioService>();
     let (brightness_data, brightness_svc) =
         services::compat::run_service::<services::brightness::BrightnessService>();
+    // A NetworkManager agent can ask for a password mid-connection; the
+    // event opens the dialog (upstream: Action::RequestPasswordForSSID)
+    let dialog_w = network_dialog.writer();
     let (network_data, network_svc) =
-        services::compat::run_service::<services::network::NetworkService>();
+        services::compat::run_service_hooked::<services::network::NetworkService>(move |ev| {
+            if let services::compat::ServiceEvent::Update(
+                services::network::NetworkEvent::RequestPasswordForSSID(ssid),
+            ) = ev
+            {
+                dialog_w.set(Some(NetworkDialog::Password { ssid: ssid.clone() }));
+            }
+        });
     let (bluetooth_data, bluetooth_svc) =
         services::compat::run_service::<services::bluetooth::BluetoothService>();
     let (upower_data, upower_svc) =
@@ -89,6 +118,9 @@ pub fn create() -> SettingsSignals {
         idle_inhibitor_data,
         idle_inhibitor_svc,
         submenu,
+        network_dialog,
+        dialog_password,
+        dialog_show_password,
     }
 }
 
@@ -282,19 +314,26 @@ pub fn menu_view(
     settings: SettingsSignals,
     close_menu: impl Fn() + 'static + Clone,
 ) -> impl Widget {
+    // The WiFi password / open-network dialog takes over the whole menu
+    let dialog_settings = settings.clone();
+    container().width(fill()).child(move || {
+        let settings = dialog_settings.clone();
+        let close_menu = close_menu.clone();
+        match settings.network_dialog.get() {
+            Some(dialog) => Some(network::network_dialog_view(settings, dialog).into_any()),
+            None => Some(menu_body(settings, close_menu).into_any()),
+        }
+    })
+}
+
+fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone) -> impl Widget {
     let submenu = settings.submenu;
 
     let settings2 = settings.clone();
     let settings3 = settings.clone();
     let close_menu2 = close_menu.clone();
 
-    let lock_cmd = with_context::<Config, _>(|c| {
-        c.settings
-            .lock_cmd
-            .clone()
-            .unwrap_or_else(|| "loginctl lock-session".to_string())
-    })
-    .unwrap();
+    let lock_cmd = with_context::<Config, _>(|c| c.settings.lock_cmd.clone()).unwrap();
 
     container()
         .width(fill())
@@ -317,20 +356,29 @@ pub fn menu_view(
                                 .spacing(4)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(icon_button().icon(StaticIcon::Lock).on_click(move || {
-                            let _ = std::process::Command::new("bash")
-                                .arg("-c")
-                                .arg(&lock_cmd)
-                                .spawn();
-                            close();
+                        .maybe_child(lock_cmd.map(|cmd| {
+                            icon_button().icon(StaticIcon::Lock).on_click(move || {
+                                crate::utils::launcher::execute_command(&cmd);
+                                close();
+                            })
                         }))
-                        .child(icon_button().icon(StaticIcon::Power).on_click(move || {
-                            submenu.set(if submenu.get() == Some(SubMenu::Power) {
-                                None
-                            } else {
-                                Some(SubMenu::Power)
-                            });
-                        }))
+                        .child(
+                            icon_button()
+                                .icon(move || -> crate::components::IconKind {
+                                    if submenu.get() == Some(SubMenu::Power) {
+                                        StaticIcon::Close.into()
+                                    } else {
+                                        StaticIcon::Power.into()
+                                    }
+                                })
+                                .on_click(move || {
+                                    submenu.set(if submenu.get() == Some(SubMenu::Power) {
+                                        None
+                                    } else {
+                                        Some(SubMenu::Power)
+                                    });
+                                }),
+                        )
                 })
         })
         // Power submenu (conditionally shown)
@@ -412,7 +460,11 @@ pub fn menu_view(
         // WiFi submenu
         .child(submenu_wrapper(
             move || submenu.get() == Some(SubMenu::WiFi),
-            network::wifi_submenu(settings3.network_data, settings3.network_svc.clone()),
+            network::wifi_submenu(
+                settings3.network_data,
+                settings3.network_svc.clone(),
+                settings3.clone(),
+            ),
         ))
         // Bluetooth submenu
         .child(submenu_wrapper(

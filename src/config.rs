@@ -194,6 +194,14 @@ pub enum WorkspaceVisibilityMode {
     MonitorSpecificExclusive,
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum InvertScrollDirection {
+    #[default]
+    All,
+    Mouse,
+    Trackpad,
+}
+
 #[derive(Deserialize, Clone, Default, Debug)]
 #[serde(default)]
 pub struct WorkspacesModuleConfig {
@@ -204,6 +212,7 @@ pub struct WorkspacesModuleConfig {
     pub max_workspaces: Option<u32>,
     pub workspace_names: Vec<String>,
     pub enable_virtual_desktops: bool,
+    pub invert_scroll_direction: Option<InvertScrollDirection>,
 }
 
 // ---------------------------------------------------------------------------
@@ -496,10 +505,12 @@ pub struct SettingsCustomButton {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SettingsModuleConfig {
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     pub lock_cmd: Option<String>,
     pub shutdown_cmd: String,
     pub suspend_cmd: String,
-    pub hibernate_cmd: String,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub hibernate_cmd: Option<String>,
     pub reboot_cmd: String,
     pub logout_cmd: String,
     pub battery_format: SettingsFormat,
@@ -528,7 +539,7 @@ impl Default for SettingsModuleConfig {
             lock_cmd: None,
             shutdown_cmd: "shutdown now".to_string(),
             suspend_cmd: "systemctl suspend".to_string(),
-            hibernate_cmd: "systemctl hibernate".to_string(),
+            hibernate_cmd: None,
             reboot_cmd: "systemctl reboot".to_string(),
             logout_cmd: "loginctl kill-user $(whoami)".to_string(),
             battery_format: SettingsFormat::IconAndPercentage,
