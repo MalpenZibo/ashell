@@ -8,7 +8,7 @@ use crate::{
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        audio::{AudioCommand, AudioService, ChannelVolumesExt, DevicePortType, Port},
+        audio::{AudioCommand, AudioEvent, AudioService, ChannelVolumesExt, DevicePortType, Port},
     },
     t,
     theme::use_theme,
@@ -57,6 +57,8 @@ pub enum Action {
 pub struct AudioSettingsConfig {
     pub sinks_more_cmd: Option<String>,
     pub sources_more_cmd: Option<String>,
+    pub sink_post_switch_cmd: Option<String>,
+    pub source_post_switch_cmd: Option<String>,
     pub volume_step: u8,
     pub max_volume: u8,
     pub indicator_format: SettingsFormat,
@@ -64,9 +66,12 @@ pub struct AudioSettingsConfig {
 }
 
 impl AudioSettingsConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         sinks_more_cmd: Option<String>,
         sources_more_cmd: Option<String>,
+        sink_post_switch_cmd: Option<String>,
+        source_post_switch_cmd: Option<String>,
         volume_step: u8,
         max_volume: u8,
         indicator_format: SettingsFormat,
@@ -75,6 +80,8 @@ impl AudioSettingsConfig {
         Self {
             sinks_more_cmd,
             sources_more_cmd,
+            sink_post_switch_cmd,
+            source_post_switch_cmd,
             volume_step,
             max_volume,
             indicator_format,
@@ -86,6 +93,8 @@ impl AudioSettingsConfig {
 pub struct AudioSettings {
     config: AudioSettingsConfig,
     service: Option<AudioService>,
+    pending_sink_switch: bool,
+    pending_source_switch: bool,
 }
 
 pub struct SubmenuEntry {
@@ -106,6 +115,8 @@ impl AudioSettings {
         Self {
             config,
             service: None,
+            pending_sink_switch: false,
+            pending_source_switch: false,
         }
     }
 
@@ -219,7 +230,31 @@ impl AudioSettings {
                 }
                 ServiceEvent::Update(data) => {
                     if let Some(service) = self.service.as_mut() {
+                        let post_switch = match &data {
+                            AudioEvent::ServerInfo(info) => {
+                                let sink_changed = self.pending_sink_switch
+                                    && info.default_sink != service.server_info.default_sink;
+                                let source_changed = self.pending_source_switch
+                                    && info.default_source != service.server_info.default_source;
+                                self.pending_sink_switch = false;
+                                self.pending_source_switch = false;
+                                (sink_changed, source_changed)
+                            }
+                            _ => (false, false),
+                        };
+
                         service.update(data);
+
+                        if post_switch.0
+                            && let Some(cmd) = &self.config.sink_post_switch_cmd
+                        {
+                            crate::utils::launcher::execute_command(cmd);
+                        }
+                        if post_switch.1
+                            && let Some(cmd) = &self.config.source_post_switch_cmd
+                        {
+                            crate::utils::launcher::execute_command(cmd);
+                        }
 
                         if !service.has_multiple_sinks() {
                             return Action::CloseSubMenu;
@@ -255,7 +290,11 @@ impl AudioSettings {
             }
             Message::DefaultSinkChanged(name, port) => {
                 if let Some(service) = self.service.as_mut() {
-                    let _ = service.command(AudioCommand::DefaultSink(name, port));
+                    let is_noop = name == service.server_info.default_sink && port.is_none();
+                    if !is_noop {
+                        self.pending_sink_switch = true;
+                        let _ = service.command(AudioCommand::DefaultSink(name, port));
+                    }
                 }
                 Action::None
             }
@@ -281,7 +320,11 @@ impl AudioSettings {
             }
             Message::DefaultSourceChanged(name, port) => {
                 if let Some(service) = self.service.as_mut() {
-                    let _ = service.command(AudioCommand::DefaultSource(name, port));
+                    let is_noop = name == service.server_info.default_source && port.is_none();
+                    if !is_noop {
+                        self.pending_source_switch = true;
+                        let _ = service.command(AudioCommand::DefaultSource(name, port));
+                    }
                 }
                 Action::None
             }
