@@ -209,12 +209,12 @@ fn submenu_view(
     svc: Service<AudioCommand>,
     sinks: bool,
 ) -> impl Widget {
-    container()
-        .width(fill())
-        .layout(Flex::column().spacing(4))
-        .child(move || {
-            // Collect owned route facts out of the signal borrow first
-            let routes: Vec<(String, StaticIcon, String, Option<String>, bool)> = data.with(|s| {
+    // Memo cutoff: the service snapshot notifies on EVERY audio event
+    // (volume ticks included) — the row list must rebuild only when the
+    // routes actually change.
+    let routes_memo = create_memo(
+        move || -> Vec<(String, StaticIcon, String, Option<String>, bool)> {
+            data.with(|s| {
                 let Some(s) = s.as_ref() else {
                     return Vec::new();
                 };
@@ -239,7 +239,14 @@ fn submenu_view(
                         )
                     })
                     .collect()
-            });
+            })
+        },
+    );
+    container()
+        .width(fill())
+        .layout(Flex::column().spacing(4))
+        .child(move || {
+            let routes = routes_memo.get();
 
             let mut col = container().width(fill()).layout(Flex::column().spacing(2));
             for (label, ic, device_name, port_name, is_active) in routes {

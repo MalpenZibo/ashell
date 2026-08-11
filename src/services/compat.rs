@@ -7,7 +7,9 @@
 //! `command()` returning a `Task`. This module provides those exact API
 //! shapes, and [`run_service`] drives them from a guido `create_service`
 //! task: events fold into the service value via `update()`, and every
-//! change is published to a guido signal as a [`Versioned`] snapshot.
+//! change is published to a guido signal with `set_always` (services have
+//! no meaningful equality — every publish notifies; memos cut off at the
+//! consumer edge).
 //!
 //! Cancellation is inherited from guido: `create_service` aborts the task
 //! on owner cleanup, and everything here is polled by that task — no
@@ -15,7 +17,6 @@
 
 use std::any::TypeId;
 use std::future::Future;
-use std::ops::Deref;
 
 use futures::channel::mpsc;
 use futures::future::BoxFuture;
@@ -135,39 +136,21 @@ pub mod svg {
     }
 }
 
-/// A service snapshot with a version counter, so it can live in a guido
-/// signal without the service type implementing `PartialEq` (services hold
-/// proxies and channel handles; equality is meaningless — the version says
-/// "something changed").
-#[derive(Debug, Clone)]
-pub struct Versioned<S> {
-    version: u64,
-    service: S,
-}
-
-impl<S> PartialEq for Versioned<S> {
-    fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-    }
-}
-
-impl<S> Deref for Versioned<S> {
-    type Target = S;
-
-    fn deref(&self) -> &Self::Target {
-        &self.service
-    }
-}
-
 /// Reactive handle to a running upstream-style service: `None` until the
 /// service emits `Init`.
-pub type ServiceSignal<S> = RwSignal<Option<Versioned<S>>>;
+///
+/// Snapshots are published with `set_always` — services hold proxies and
+/// channel handles, so equality is meaningless and every publish must
+/// notify. Fine-grained cutoff belongs to `create_memo` at the consumer
+/// edge (extract the value you render; the memo's `PartialEq` stops the
+/// propagation when it didn't change).
+pub type ServiceSignal<S> = RwSignal<Option<S>>;
 
 /// Drive an upstream-style service from a guido service task.
 ///
 /// Subscribes to the service's event stream, folds events into the service
-/// value via `update()`, publishes every change as a versioned snapshot,
-/// and executes `command()` tasks (their resulting events feed back into
+/// value via `update()`, publishes every change as an always-notifying
+/// snapshot, and executes `command()` tasks (their resulting events feed back into
 /// the same loop, like iced's runtime does).
 /// Bench-only gate: ASHELL_BENCH_ONLY=NameA,NameB runs only the services
 /// whose type name contains one of the given fragments.
@@ -200,7 +183,7 @@ where
     S::UpdateEvent: Send + 'static,
     S::Error: Send + std::fmt::Debug + 'static,
 {
-    let signal = create_signal(None::<Versioned<S>>);
+    let signal = create_signal(None::<S>);
     let writer = signal.writer();
 
     if let Ok(only) = std::env::var("ASHELL_BENCH_ONLY") {
@@ -213,7 +196,6 @@ where
     let _svc = create_service::<(), _, _>(move |_rx, _ctx| async move {
         let mut events = S::subscribe().0;
         let mut service: Option<S> = None;
-        let mut version = 0u64;
 
         while let Some(event) = events.next().await {
             hook(&event);
@@ -221,21 +203,13 @@ where
                 ServiceEvent::Init(s) => {
                     service = Some(s.clone());
                     log::debug!("publish {}", std::any::type_name::<S>());
-                    version += 1;
-                    writer.set(Some(Versioned {
-                        version,
-                        service: s,
-                    }));
+                    writer.set_always(Some(s));
                 }
                 ServiceEvent::Update(update) => {
                     if let Some(s) = service.as_mut() {
                         s.update(update);
                         log::debug!("publish {}", std::any::type_name::<S>());
-                        version += 1;
-                        writer.set(Some(Versioned {
-                            version,
-                            service: s.clone(),
-                        }));
+                        writer.set_always(Some(s.clone()));
                     }
                 }
                 ServiceEvent::Error(err) => {
@@ -261,7 +235,7 @@ where
     S::Command: Send + 'static,
     S::Error: Send + std::fmt::Debug + 'static,
 {
-    let signal = create_signal(None::<Versioned<S>>);
+    let signal = create_signal(None::<S>);
     let writer = signal.writer();
 
     if let Ok(only) = std::env::var("ASHELL_BENCH_ONLY") {
@@ -279,15 +253,10 @@ where
         // Results of command() tasks re-enter the event loop here
         let (task_tx, mut task_rx) = tokio::sync::mpsc::unbounded_channel::<ServiceEvent<S>>();
         let mut service: Option<S> = None;
-        let mut version = 0u64;
 
-        let mut publish = move |s: S| {
+        let publish = move |s: S| {
             log::debug!("publish {}", std::any::type_name::<S>());
-            version += 1;
-            writer.set(Some(Versioned {
-                version,
-                service: s,
-            }));
+            writer.set_always(Some(s));
         };
 
         loop {
