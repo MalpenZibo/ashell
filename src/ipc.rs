@@ -279,27 +279,21 @@ fn init_listener() -> Option<tokio::net::UnixListener> {
     }
 }
 
-/// An IPC command with a version counter so it can live in a guido signal
-/// (every received command is distinct, even two identical volume-ups).
-#[derive(Debug, Clone)]
-pub struct VersionedCmd {
-    version: u64,
-    pub cmd: IpcCommand,
-}
+/// Commands queued for the main-thread dispatcher.
+///
+/// An event stream must not lose emissions, so it lives in a real queue —
+/// the signal next to it is only a wakeup pulse (`set_always`): the
+/// dispatcher drains the whole queue per pulse, so a burst of volume-ups
+/// is processed command by command instead of coalescing in a signal slot.
+pub type IpcQueue = std::sync::Arc<std::sync::Mutex<std::collections::VecDeque<IpcCommand>>>;
 
-impl PartialEq for VersionedCmd {
-    fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-    }
-}
-
-/// Serve IPC commands on the Unix socket, publishing each into `writer`.
-/// Lives inside a guido service task; aborting the task stops the server.
-pub async fn serve(writer: guido::prelude::WriteSignal<Option<VersionedCmd>>) {
+/// Serve IPC commands on the Unix socket, queueing each and pulsing the
+/// dispatcher. Lives inside a guido service task; aborting the task stops
+/// the server.
+pub async fn serve(queue: IpcQueue, pulse: guido::prelude::WriteSignal<()>) {
     let Some(listener) = init_listener() else {
         return;
     };
-    let mut version = 0u64;
     loop {
         match listener.accept().await {
             Ok((stream, _)) => {
@@ -316,8 +310,8 @@ pub async fn serve(writer: guido::prelude::WriteSignal<Option<VersionedCmd>>) {
                     }
                 };
                 if let Some(cmd) = request {
-                    version += 1;
-                    writer.set(Some(VersionedCmd { version, cmd }));
+                    queue.lock().unwrap().push_back(cmd);
+                    pulse.set_always(());
                 }
             }
             Err(e) => {

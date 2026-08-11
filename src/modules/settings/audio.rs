@@ -8,7 +8,7 @@ use crate::theme::ThemeColors;
 
 use super::SubMenu;
 
-const NORMAL_VOLUME: u32 = libpulse_binding::volume::Volume::NORMAL.0;
+pub(super) const NORMAL_VOLUME: u32 = libpulse_binding::volume::Volume::NORMAL.0;
 
 fn to_percent(raw: u32) -> i32 {
     (raw as f32 / NORMAL_VOLUME as f32 * 100.0).round() as i32

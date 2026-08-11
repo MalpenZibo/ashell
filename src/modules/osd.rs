@@ -21,9 +21,8 @@ pub enum OsdKind {
     IdleInhibitor,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct OsdShow {
-    version: u64,
     pub kind: OsdKind,
     /// Normalized value (may exceed 1.0 for volume overdrive).
     pub value: f32,
@@ -33,19 +32,12 @@ pub struct OsdShow {
     pub flag: bool,
 }
 
-impl PartialEq for OsdShow {
-    fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-    }
-}
-
 /// On-screen display: transient overlay surface at the bottom of the screen,
 /// auto-hidden after the configured timeout. Triggered by IPC commands only,
 /// like upstream.
 #[derive(Clone)]
 pub struct OsdTrigger {
     show: RwSignal<Option<OsdShow>>,
-    counter: Rc<Cell<u64>>,
     enabled: bool,
 }
 
@@ -54,10 +46,8 @@ impl OsdTrigger {
         if !self.enabled {
             return;
         }
-        let version = self.counter.get() + 1;
-        self.counter.set(version);
-        self.show.set(Some(OsdShow {
-            version,
+        // Trigger write: two identical flashes are two flashes
+        self.show.set_always(Some(OsdShow {
             kind,
             value,
             scale,
@@ -71,7 +61,6 @@ pub fn create() -> OsdTrigger {
     let show = create_signal(None::<OsdShow>);
     let trigger = OsdTrigger {
         show,
-        counter: Rc::new(Cell::new(0)),
         enabled: config.enabled,
     };
     if !config.enabled {
@@ -82,13 +71,17 @@ pub fn create() -> OsdTrigger {
     let surface: Rc<RefCell<Option<SurfaceHandle>>> = Rc::new(RefCell::new(None));
     let expired = create_signal(0u64);
     let expired_w = expired.writer();
+    // Stale-timer guard, private to this module: each show() re-arms the
+    // hide timer; only the newest one may close the surface
+    let generation = Rc::new(Cell::new(0u64));
 
     // Show: create the surface if needed, (re)arm the hide timer
     let slot = surface.clone();
+    let show_gen = generation.clone();
     create_effect(move || {
-        let Some(s) = show.get() else {
+        if show.get().is_none() {
             return;
-        };
+        }
         if slot.borrow().is_none() {
             *slot.borrow_mut() = Some(spawn_surface(
                 SurfaceConfig::new()
@@ -104,10 +97,11 @@ pub fn create() -> OsdTrigger {
                 move || osd_view(show, config, theme),
             ));
         }
-        let version = s.version;
+        let g = show_gen.get() + 1;
+        show_gen.set(g);
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(config.timeout)).await;
-            expired_w.set(version);
+            expired_w.set(g);
         });
     })
     .detach();
@@ -116,8 +110,7 @@ pub fn create() -> OsdTrigger {
     let slot = surface;
     create_effect(move || {
         let v = expired.get();
-        let current = show.with_untracked(|s| s.as_ref().map(|s| s.version));
-        if current == Some(v)
+        if v == generation.get()
             && let Some(h) = slot.borrow_mut().take()
         {
             h.close();

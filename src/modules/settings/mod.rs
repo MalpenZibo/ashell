@@ -573,3 +573,165 @@ fn idle_inhibitor_quick_setting(
         .active(move || inhibited.get())
         .on_toggle(move || svc_toggle.send(services::idle_inhibitor::IdleInhibitorCmd::Toggle))
 }
+
+/// Execute an IPC command through the settings services, flashing the OSD.
+///
+/// Mirrors upstream's `self.settings.volume_adjust(...)` delegation: the
+/// module that owns the state owns the command math. `ToggleVisibility`
+/// is not a settings command and is handled by the caller.
+pub fn handle_ipc_command(
+    cmd: &crate::ipc::IpcCommand,
+    settings: Option<&SettingsSignals>,
+    osd: &crate::modules::osd::OsdTrigger,
+    volume_step: u8,
+    max_volume: u8,
+) {
+    use crate::ipc::IpcCommand;
+    use crate::modules::osd::OsdKind;
+    use audio::NORMAL_VOLUME;
+
+    let Some(s) = settings else {
+        log::warn!("IPC command {cmd} ignored: settings services not running (no Settings module)");
+        return;
+    };
+    let no_osd = cmd.no_osd();
+    let show = |kind, value, scale, flag| {
+        if !no_osd {
+            osd.show(kind, value, scale, flag);
+        }
+    };
+
+    let vol_max = NORMAL_VOLUME * u32::from(max_volume.clamp(1, 200)) / 100;
+    let vol_scale = (vol_max as f32 / NORMAL_VOLUME as f32).max(1.0);
+    let step = u32::from(volume_step.clamp(1, 50)) * (NORMAL_VOLUME / 100);
+    let mic_step = 5 * (NORMAL_VOLUME / 100);
+
+    match cmd {
+        IpcCommand::VolumeUp { .. } | IpcCommand::VolumeDown { .. } => {
+            let Some((cur, muted)) = s.audio_data.with(|a| {
+                a.as_ref().map(|x| {
+                    (
+                        x.sink_slider.value(),
+                        x.active_sink().map(|d| d.is_mute).unwrap_or(false),
+                    )
+                })
+            }) else {
+                return;
+            };
+            let new = if matches!(cmd, IpcCommand::VolumeUp { .. }) {
+                (cur + step).min(vol_max)
+            } else {
+                cur.saturating_sub(step)
+            };
+            s.audio_svc
+                .send(crate::services::audio::AudioCommand::SinkVolume(new));
+            show(
+                OsdKind::Volume,
+                new as f32 / NORMAL_VOLUME as f32,
+                vol_scale,
+                muted,
+            );
+        }
+        IpcCommand::VolumeToggleMute { .. } => {
+            let Some((cur, muted)) = s.audio_data.with(|a| {
+                a.as_ref().map(|x| {
+                    (
+                        x.sink_slider.value(),
+                        x.active_sink().map(|d| d.is_mute).unwrap_or(false),
+                    )
+                })
+            }) else {
+                return;
+            };
+            s.audio_svc
+                .send(crate::services::audio::AudioCommand::ToggleSinkMute);
+            show(
+                OsdKind::Volume,
+                cur as f32 / NORMAL_VOLUME as f32,
+                vol_scale,
+                !muted,
+            );
+        }
+        IpcCommand::MicrophoneUp { .. } | IpcCommand::MicrophoneDown { .. } => {
+            let Some((cur, muted)) = s.audio_data.with(|a| {
+                a.as_ref().map(|x| {
+                    (
+                        x.source_slider.value(),
+                        x.active_source().map(|d| d.is_mute).unwrap_or(false),
+                    )
+                })
+            }) else {
+                return;
+            };
+            let new = if matches!(cmd, IpcCommand::MicrophoneUp { .. }) {
+                (cur + mic_step).min(NORMAL_VOLUME)
+            } else {
+                cur.saturating_sub(mic_step)
+            };
+            s.audio_svc
+                .send(crate::services::audio::AudioCommand::SourceVolume(new));
+            show(
+                OsdKind::Microphone,
+                new as f32 / NORMAL_VOLUME as f32,
+                1.0,
+                muted,
+            );
+        }
+        IpcCommand::MicrophoneToggleMute { .. } => {
+            let Some((cur, muted)) = s.audio_data.with(|a| {
+                a.as_ref().map(|x| {
+                    (
+                        x.source_slider.value(),
+                        x.active_source().map(|d| d.is_mute).unwrap_or(false),
+                    )
+                })
+            }) else {
+                return;
+            };
+            s.audio_svc
+                .send(crate::services::audio::AudioCommand::ToggleSourceMute);
+            show(
+                OsdKind::Microphone,
+                cur as f32 / NORMAL_VOLUME as f32,
+                1.0,
+                !muted,
+            );
+        }
+        IpcCommand::BrightnessUp { .. } | IpcCommand::BrightnessDown { .. } => {
+            let Some((cur, max)) = s
+                .brightness_data
+                .with(|b| b.as_ref().map(|x| (x.current.value(), x.max)))
+            else {
+                return;
+            };
+            if max == 0 {
+                return;
+            }
+            let step = (5 * max / 100).max(1);
+            let new = if matches!(cmd, IpcCommand::BrightnessUp { .. }) {
+                (cur + step).min(max)
+            } else {
+                cur.saturating_sub(step)
+            };
+            s.brightness_svc
+                .send(crate::services::brightness::BrightnessCommand(new));
+            show(OsdKind::Brightness, new as f32 / max as f32, 1.0, false);
+        }
+        IpcCommand::ToggleAirplaneMode { .. } => {
+            let airplane = s
+                .network_data
+                .with(|n| n.as_ref().is_some_and(|x| x.airplane_mode));
+            s.network_svc
+                .send(crate::services::network::NetworkCommand::ToggleAirplaneMode);
+            show(OsdKind::Airplane, 0.0, 1.0, !airplane);
+        }
+        IpcCommand::ToggleIdleInhibitor { .. } => {
+            let inhibited = s.idle_inhibitor_data.inhibited.get_untracked();
+            s.idle_inhibitor_svc
+                .send(crate::services::idle_inhibitor::IdleInhibitorCmd::Toggle);
+            show(OsdKind::IdleInhibitor, 0.0, 1.0, !inhibited);
+        }
+        // Not a settings command — the caller toggles the bar directly
+        IpcCommand::ToggleVisibility => {}
+    }
+}
