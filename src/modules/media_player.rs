@@ -161,20 +161,17 @@ fn amplitude_color(theme: &ThemeColors, v: f32) -> Color {
     }
 }
 
-/// Row of bottom-aligned gradient bars; bar count adapts to the measured
-/// width like upstream's canvas.
-fn visualizer_view(
-    bars: RwSignal<Vec<f32>>,
-    opacity: f32,
-    max_bar_width: f32,
-    width: impl Fn() -> f32 + 'static,
-) -> impl Widget {
+/// Row of bottom-aligned gradient bars filling the space it is given; the
+/// bar count adapts to the resulting width like upstream's canvas.
+fn visualizer_view(bars: RwSignal<Vec<f32>>, opacity: f32, max_bar_width: f32) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
+    // Self-measure: the number of bars follows the width the layout ends up
+    // giving us, so it can only be known after a layout pass
     let wr = create_widget_ref();
 
     container()
         .widget_ref(wr)
-        .width(move || width().max(BAR_MIN_WIDTH))
+        .width(fill())
         .height(fill())
         .layout(
             Flex::row()
@@ -303,9 +300,7 @@ pub fn view(
                     .width(BESIDE_WIDTH)
                     .height(fill())
                     .padding([2, 0])
-                    .child(visualizer_view(bars, 1.0, BESIDE_BAR_MAX_WIDTH, || {
-                        BESIDE_WIDTH
-                    }))
+                    .child(visualizer_view(bars, 1.0, BESIDE_BAR_MAX_WIDTH))
             };
             let side_row = |a: AnyWidget, b: AnyWidget| {
                 container()
@@ -336,24 +331,19 @@ pub fn view(
                     } else {
                         row.into_any()
                     };
-                    let content_wr = create_widget_ref();
                     container()
                         .height(fill())
-                        .layout(Overlay::new())
+                        .layout(ZStack::new())
+                        // Follows both axes: as wide as the content below it
                         .child(
                             container()
+                                .width(fill())
                                 .height(fill())
                                 .padding([2, 0])
-                                .child(visualizer_view(bars, 0.35, BG_BAR_MAX_WIDTH, move || {
-                                    content_wr.rect().get().width
-                                })),
+                                .child(visualizer_view(bars, 0.35, BG_BAR_MAX_WIDTH)),
                         )
-                        .child(
-                            container()
-                                .widget_ref(content_wr)
-                                .height(fill())
-                                .child(content),
-                        )
+                        // Fills the bar height, leads the width
+                        .child(container().height(fill()).child(content))
                         .into_any()
                 }
                 Some(MediaPlayerVisualizer::Before) if viz_active.get() => {
@@ -571,19 +561,19 @@ pub fn menu_view(
                     .child(controls);
 
                 col = col.child(if menu_visualizer && card.playing && has_bars.get() {
-                    let card_wr = create_widget_ref();
                     container()
                         .width(fill())
-                        .layout(Overlay::new())
+                        .layout(ZStack::new())
+                        // Follows the card body behind it
                         .child(
                             container()
+                                .width(fill())
+                                .height(fill())
                                 .corner_radius(16)
                                 .overflow(Overflow::Hidden)
-                                .child(visualizer_view(bars, 0.25, BG_BAR_MAX_WIDTH, move || {
-                                    card_wr.rect().get().width
-                                })),
+                                .child(visualizer_view(bars, 0.25, BG_BAR_MAX_WIDTH)),
                         )
-                        .child(card_body.widget_ref(card_wr))
+                        .child(card_body)
                         .into_any()
                 } else {
                     card_body.into_any()

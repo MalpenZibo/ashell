@@ -132,30 +132,29 @@ pub fn view(handle: CustomHandle) -> impl Widget {
                     .is_some_and(|re| data.with(|d| re.0.is_match(&d.alt)))
             });
 
-            let icon_wr = create_widget_ref();
             let icon_stack = container()
-                .layout(Overlay::new())
+                .layout(ZStack::new())
                 .child(
                     container()
-                        .widget_ref(icon_wr)
                         .padding([0, 1])
                         .child(icon().kind(move || icon_kind.get()).color(theme.text)),
                 )
-                .child(container().child(move || {
-                    show_alert.get().then(|| {
-                        let w = icon_wr.rect().get().width;
-                        container()
-                            .width(w.max(4.0))
-                            .layout(Flex::row().main_alignment(MainAlignment::End))
-                            .child(
+                // Follows the icon, so the dot lands on its top-right corner
+                .child(
+                    container()
+                        .width(fill())
+                        .height(fill())
+                        .layout(Flex::row().main_alignment(MainAlignment::End))
+                        .child(move || {
+                            show_alert.get().then(|| {
                                 container()
                                     .width(4)
                                     .height(4)
                                     .corner_radius(2)
-                                    .background(theme.danger),
-                            )
-                    })
-                }));
+                                    .background(theme.danger)
+                            })
+                        }),
+                );
 
             let mut row = container()
                 .height(fill())
