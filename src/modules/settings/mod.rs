@@ -87,6 +87,10 @@ impl NetworkDialogState {
     }
 }
 
+fn focus_password_input() -> Task<Message> {
+    iced::widget::focus::<Message>(password_dialog::PASSWORD_INPUT_ID).into()
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Network(network::Message),
@@ -115,7 +119,7 @@ pub enum Action {
     None,
     Command(Task<Message>),
     CloseMenu(SurfaceId),
-    RequestKeyboard(SurfaceId),
+    RequestKeyboardWithCommand(SurfaceId, Task<Message>),
     ReleaseKeyboard(SurfaceId),
     ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
     OpenTooltipMenu(SurfaceId, MenuType, ButtonUIRef),
@@ -295,12 +299,12 @@ impl Settings {
                 network::Action::RequestPasswordForSSID(ssid) => {
                     self.network_dialog = Some(NetworkDialogState::new_password_dialog(ssid));
                     self.network_dialog_show_password = false;
-                    Action::None
+                    Action::Command(focus_password_input())
                 }
                 network::Action::RequestPassword(id, ssid) => {
                     self.network_dialog = Some(NetworkDialogState::new_password_dialog(ssid));
                     self.network_dialog_show_password = false;
-                    Action::RequestKeyboard(id)
+                    Action::RequestKeyboardWithCommand(id, focus_password_input())
                 }
                 network::Action::ConfirmOpenNetwork(ssid) => {
                     self.network_dialog = Some(NetworkDialogState::new_warning_dialog(ssid));

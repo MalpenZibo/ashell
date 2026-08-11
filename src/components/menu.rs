@@ -245,7 +245,9 @@ impl Menu {
 
     pub fn request_keyboard<Message: 'static>(&self) -> Task<Message> {
         if let Some(open) = &self.open {
-            set_keyboard_interactivity(open.id, KeyboardInteractivity::OnDemand)
+            // Exclusive grabs keyboard focus on Hyprland immediately, so keystrokes
+            // reach the dialog without requiring a mouse click first.
+            set_keyboard_interactivity(open.id, KeyboardInteractivity::Exclusive)
         } else {
             Task::none()
         }
