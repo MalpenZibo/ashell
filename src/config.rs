@@ -1143,7 +1143,10 @@ pub struct ModuleAppearance {
     pub spacing: SpaceSize,
     pub grouping: ModuleGroup,
     pub padding: SpaceSize,
-    pub border: BorderAppearance
+    pub border: Option<BorderAppearance>,
+    pub background: Option<BackgroundAppearanceColor>,
+    pub opacity: Option<f32>,
+    pub text_color: AppearanceColor,
 }
 
 impl Default for ModuleAppearance {
@@ -1152,7 +1155,10 @@ impl Default for ModuleAppearance {
             spacing: SpaceSize::Xxs,
             padding: SpaceSize::None,
             grouping: ModuleGroup::default(),
-            border: BorderAppearance::default()
+            border: None,
+            background: None,
+            opacity: None,
+            text_color: AppearanceColor::Simple(HexColor::rgb(169, 177, 214)),
         }
     }
 }

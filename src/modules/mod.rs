@@ -3,7 +3,7 @@ use crate::{
     components::{
         ModuleItem, ModuleResult, animated_size, menu::MenuType, module_group, module_item,
     },
-    config::{ModuleDef, ModuleGroup, ModuleName},
+    config::{ModuleAppearance, ModuleDef, ModuleGroup, ModuleName},
     theme::use_theme,
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
@@ -148,7 +148,7 @@ impl App {
     fn build_module_item<'a>(
         &'a self,
         id: SurfaceId,
-        _module_name: &'a ModuleName, // we can use to customise more in the future
+        module_appearance: Option<ModuleAppearance>,
         content: Element<'a, Message>,
         action: Option<OnModulePress>,
     ) -> Element<'a, Message> {
@@ -160,7 +160,7 @@ impl App {
             content
         };
 
-        let item = module_item(content);
+        let item = module_item(content, module_appearance);
 
         self.apply_module_action(item, action, id).into()
     }
@@ -173,28 +173,33 @@ impl App {
         let module_appearance = use_theme(|t| t.module_appearance()(module_name));
         let grouping = module_appearance.grouping;
 
-        self.get_module_view(id, module_name).map(|module_result| {
-            let ModuleResult {
-                action,
-                view: content,
-            } = module_result;
+        self.get_module_view(id, module_name)
+            .map(move |module_result| {
+                let ModuleResult {
+                    action,
+                    view: content,
+                } = module_result;
 
-            match grouping {
-                ModuleGroup::Individual => {
-                    let content = content.map_elements(|child| {
-                        // maybe we could further edit individuals
-                        self.build_module_item(id, module_name, child, action.clone())
-                    });
+                match grouping {
+                    ModuleGroup::Individual => {
+                        let content = content.map_elements(|child| {
+                            // maybe we could further edit individuals
+                            self.build_module_item(
+                                id,
+                                Some(module_appearance),
+                                child,
+                                action.clone(),
+                            )
+                        });
 
-                    content.into_element()
+                        content.into_element()
+                    }
+                    ModuleGroup::None | ModuleGroup::Combined => {
+                        let item = self.build_module_item(id, None, content.into_element(), action);
+                        module_group(item, module_appearance)
+                    }
                 }
-                ModuleGroup::None | ModuleGroup::Combined => {
-                    let item =
-                        self.build_module_item(id, module_name, content.into_element(), action);
-                    module_group(item, &module_appearance)
-                }
-            }
-        })
+            })
     }
 
     fn group_module_wrapper<'a>(
@@ -202,7 +207,7 @@ impl App {
         id: SurfaceId,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
-        let (module_apperance, default_appearance) =
+        let (module_appearance, default_appearance) =
             use_theme(|t| (t.module_appearance(), t.module));
 
         let module_items: Vec<_> = group
@@ -222,21 +227,25 @@ impl App {
                     view: content,
                 } = module_result;
 
-                let appearance = module_apperance(module_name);
+                let appearance = module_appearance(module_name);
 
                 let grouping = appearance.grouping;
 
                 match grouping {
                     ModuleGroup::Individual => {
                         let content = content.map_elements(|child| {
-                            self.build_module_item(id, module_name, child, action.clone())
+                            self.build_module_item(id, Some(appearance), child, action.clone())
                         });
 
                         content.into_element()
                     }
                     ModuleGroup::Combined | ModuleGroup::None => {
-                        let item =
-                            self.build_module_item(id, module_name, content.into_element(), action);
+                        let item = self.build_module_item(
+                            id,
+                            Some(appearance),
+                            content.into_element(),
+                            action,
+                        );
                         // module_group(item, module_appearance)
                         // we should allow more customisation but for now leave it
                         item
@@ -247,7 +256,7 @@ impl App {
 
         let row = Row::with_children(items);
 
-        Some(module_group(row.into(), &default_appearance))
+        Some(module_group(row.into(), default_appearance))
     }
 
     fn get_module_view<'a>(

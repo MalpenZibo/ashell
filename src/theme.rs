@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::{cell::RefCell, collections::HashMap};
 
+use crate::config::BorderAppearance;
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
@@ -732,45 +733,86 @@ impl AshellTheme {
 
     /// Module button style: transparent base with hover highlight.
     /// The module-group background is handled by `module_group`, not the button.
-    pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style + use<> {
+    pub fn module_button_style(
+        &self,
+        appearance: Option<ModuleAppearance>,
+    ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let (theme_radius, border, _module_padding, module_opacity) = (
             self.radius,
             self.bar.module_border,
             self.space.xxs,
             self.bar.opacity.module,
         );
-        let radius = border.radius.resolve(theme_radius);
+
+        let border = appearance.and_then(|a| a.border).map_or_else(
+            || Border {
+                width: 0.0,
+                radius: border.radius.resolve(theme_radius),
+                color: Color::TRANSPARENT,
+            },
+            |BorderAppearance {
+                 radius,
+                 width,
+                 color,
+             }| {
+                Border {
+                    width,
+                    color: color.get_base(),
+                    radius: radius.resolve(theme_radius),
+                }
+            },
+        );
 
         let btn_opacity = self.bar.opacity.button;
         move |theme, status| {
+            let opacity = appearance.and_then(|a| a.opacity).unwrap_or(module_opacity);
+
+            let background = Some(appearance.and_then(|a| a.background).map_or_else(
+                || theme.palette().background.scale_alpha(opacity).into(),
+                |background| background.get_base().scale_alpha(opacity).into(),
+            ));
+
+            let text_color = appearance.map_or_else(
+                || theme.palette().text,
+                |appearance| appearance.text_color.get_base(),
+            );
+
             let mut base = button::Style {
-                background: Some(
-                    theme
-                        .palette()
-                        .background
-                        .scale_alpha(module_opacity)
-                        .into(),
-                ),
-                border: Border {
-                    width: 0.0,
-                    radius,
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
+                background,
+                border,
+                text_color,
+
                 ..button::Style::default()
             };
+
             match status {
                 Status::Active => base,
                 Status::Hovered => {
                     base.background = Some(
-                        theme
-                            .extended_palette()
-                            .background
-                            .weak
-                            .color
-                            .scale_alpha(btn_opacity)
+                        appearance
+                            .and_then(|a| a.background)
+                            .map_or_else(
+                                || {
+                                    theme
+                                        .extended_palette()
+                                        .background
+                                        .weak
+                                        .color
+                                        .scale_alpha(btn_opacity)
+                                },
+                                |background| {
+                                    background
+                                        .get_pair(BackgroundLevel::Weak, background.get_base())
+                                        .map_or_else(
+                                            || theme.extended_palette().background.weak.color,
+                                            |c| c.color,
+                                        )
+                                        .scale_alpha(btn_opacity)
+                                },
+                            )
                             .into(),
                     );
+
                     base
                 }
                 _ => base,
