@@ -130,7 +130,7 @@ pub fn finish_menu_close(target: SurfaceId) {
         // Deferred disposal: the popup's widgets stay alive until the Close
         // command is processed; disposing now would leave live closures
         // reading dead signals
-        guido::reactive::retire_owner(owner);
+        guido::reactive::dispose_owner(owner);
     }
 }
 
@@ -234,7 +234,7 @@ fn menu_toggle(
         // protocol sees destroy-then-create in order.
         if let Some((popup, _open, owner)) = OPEN_POPUP.with(|slot| slot.borrow_mut().take()) {
             popup.close();
-            guido::reactive::retire_owner(owner);
+            guido::reactive::dispose_owner(owner);
             menu.active_menu.set(None);
         }
         let Some(bar) = menu.bar_sid.get_untracked() else {
@@ -294,7 +294,7 @@ fn menu_toggle(
                         if let Some((p, _, owner)) = slot.as_ref()
                             && p.id() == popup_id
                         {
-                            guido::reactive::retire_owner(*owner);
+                            guido::reactive::dispose_owner(*owner);
                             *slot = None;
                         }
                     });
