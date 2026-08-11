@@ -69,10 +69,6 @@ pub struct MenuCtx {
     pub active_menu: RwSignal<Option<MenuType>>,
     /// The bar surface popups anchor to (set once after add_surface).
     pub bar_sid: RwSignal<Option<SurfaceId>>,
-    /// Written from a delayed tokio task so the popup closes only after
-    /// the collapse animation has played; carries the popup the close was
-    /// scheduled for (see finish_menu_close).
-    pub pending_close_writer: WriteSignal<Option<SurfaceId>>,
 }
 
 // The one open menu popup, its open/collapse animation signal, and the
@@ -85,47 +81,32 @@ thread_local! {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Time the collapse animation gets before the popup surface is closed
-/// (120ms ease-out close + a small margin).
-const MENU_CLOSE_ANIM: std::time::Duration = std::time::Duration::from_millis(140);
-/// Delay before flipping the open signal so the first frame renders
-/// collapsed and the expand animation actually plays.
-const MENU_OPEN_DELAY: std::time::Duration = std::time::Duration::from_millis(30);
+/// Clear the menu slot: called at the start of every app run, because a
+/// config-reload restart resets guido's arenas but not this module's
+/// thread_local — a stale PopupHandle/OwnerId here would act on recycled
+/// ids belonging to the new run.
+pub fn reset_menu_state() {
+    OPEN_POPUP.with(|slot| slot.borrow_mut().take());
+}
 
-/// Begin closing the open menu: play the collapse animation, then let the
-/// deferred pending_close effect destroy the popup. Used as the `close`
-/// callback handed to menu views (power actions, etc.).
+/// Begin closing the open menu: flip the collapse animation; the reverse
+/// transition's on_complete destroys the popup when it settles. Used as
+/// the `close` callback handed to menu views (power actions, etc.).
 pub fn close_menu_fn(menu: MenuCtx) -> impl Fn() + Clone + 'static {
     move || {
-        let target =
-            OPEN_POPUP.with(|slot| slot.borrow().as_ref().map(|(p, open, _)| (p.id(), *open)));
-        let Some((popup_id, open_sig)) = target else {
+        let open = OPEN_POPUP.with(|slot| slot.borrow().as_ref().map(|(_, open, _)| *open));
+        let Some(open_sig) = open else {
             return;
         };
         open_sig.set(false);
         menu.active_menu.set(None);
-        let writer = menu.pending_close_writer;
-        tokio::spawn(async move {
-            tokio::time::sleep(MENU_CLOSE_ANIM).await;
-            // Targeted: if another popup replaced this one in the meantime,
-            // this deferred close must not touch it
-            writer.set(Some(popup_id));
-        });
     }
 }
 
-/// Destroy the open menu popup (after the collapse animation). Called by
-/// the pending_close effect in main.rs.
-pub fn finish_menu_close(target: SurfaceId) {
-    let popup = OPEN_POPUP.with(|slot| {
-        let mut slot = slot.borrow_mut();
-        if slot.as_ref().is_some_and(|(p, _, _)| p.id() == target) {
-            slot.take()
-        } else {
-            None
-        }
-    });
-    if let Some((popup, _, owner)) = popup {
+/// Destroy whatever popup is in the slot, now. Called by the collapse
+/// animation's on_complete and by menu switches.
+fn close_open_popup_now() {
+    if let Some((popup, _, owner)) = OPEN_POPUP.with(|slot| slot.borrow_mut().take()) {
         popup.close();
         // Deferred disposal: the popup's widgets stay alive until the Close
         // command is processed; disposing now would leave live closures
@@ -189,6 +170,7 @@ fn menu_shell(content: AnyWidget, open: RwSignal<bool>, origin: TransformOrigin)
     if blur.enabled(menu_opacity) {
         shell = shell.background_blur();
     }
+    let collapsed = Transform::scale_xy(1.0, 0.0);
     shell
         .padding(16)
         .overflow(Overflow::Hidden)
@@ -200,12 +182,16 @@ fn menu_shell(content: AnyWidget, open: RwSignal<bool>, origin: TransformOrigin)
             }
         })
         .transform_origin(origin)
-        .animate_transform(
-            // Open: quick spring; close: upstream's 100ms-class easeOutCubic
-            Transition::spring(SpringConfig::SNAPPY).reverse(Transition::new(
-                120,
-                TimingFunction::CubicBezier(0.215, 0.61, 0.355, 1.0),
-            )),
+        .animate_transform_from(
+            // ENTER plays from collapsed on first layout: `open` starts
+            // true, no delay timer. The close is the reverse transition;
+            // its on_complete destroys the popup — the animation itself is
+            // the source of truth for "the collapse has finished".
+            collapsed,
+            Transition::spring(SpringConfig::SNAPPY).reverse(
+                Transition::new(120, TimingFunction::CubicBezier(0.215, 0.61, 0.355, 1.0))
+                    .on_complete(close_open_popup_now),
+            ),
         )
         .child(content)
 }
@@ -256,15 +242,16 @@ fn menu_toggle(
         // stops at the bar padding and the menu would overlap the bar
         let mut anchor_rect = wr.rect().get_untracked();
         anchor_rect.y = 0.0;
-        anchor_rect.height = 34.0;
+        anchor_rect.height = crate::BAR_HEIGHT as f32;
 
         // Everything reactive the popup needs lives in its own owner scope,
         // disposed when the popup goes away — never in whatever scope this
         // callback happened to run under (an effect re-run would dispose the
         // open signal and leave the menu stuck collapsed and invisible).
         let ((popup, open_sig), owner_id) = guido::reactive::owner::with_owner(move || {
-            // Starts collapsed; flipped just after mapping so the expand plays
-            let open_sig = create_signal(false);
+            // `open` starts TRUE: the shell's enter transition plays from
+            // collapsed on its own — no delay timer, no flip task
+            let open_sig = create_signal(true);
             let mut popup_config = PopupConfig::new(width)
                 .anchor_rect(anchor_rect)
                 .anchor(direction)
@@ -276,11 +263,6 @@ fn menu_toggle(
             }
             let popup = spawn_popup(bar, popup_config, move || {
                 menu_shell(content(), open_sig, origin)
-            });
-            let open_writer = open_sig.writer();
-            tokio::spawn(async move {
-                tokio::time::sleep(MENU_OPEN_DELAY).await;
-                open_writer.set(true);
             });
 
             // Reset state when the compositor dismisses the popup (outside

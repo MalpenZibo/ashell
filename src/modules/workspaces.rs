@@ -595,21 +595,9 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                             }
                         })
                         .hover_state(|s| s.lighter(0.1).alpha(0.7).transform(Transform::scale(1.1)))
-                        .animate_border_width(Transition {
-                            duration_ms: 150.0,
-                            timing: TimingFunction::EaseInOut,
-                            delay_ms: 0.0,
-                        })
-                        .animate_border_color(Transition {
-                            duration_ms: 150.0,
-                            timing: TimingFunction::EaseInOut,
-                            delay_ms: 0.0,
-                        })
-                        .animate_background(Transition {
-                            duration_ms: 150.0,
-                            timing: TimingFunction::EaseInOut,
-                            delay_ms: 0.0,
-                        })
+                        .animate_border_width(Transition::new(150, TimingFunction::EaseInOut))
+                        .animate_border_color(Transition::new(150, TimingFunction::EaseInOut))
+                        .animate_background(Transition::new(150, TimingFunction::EaseInOut))
                         .animate_transform(Transition::spring(SpringConfig::SNAPPY));
 
                     // Only plain numbered workspaces get the fixed-width

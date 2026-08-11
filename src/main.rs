@@ -107,6 +107,10 @@ enum CliCommand {
     },
 }
 
+/// Bar height in logical pixels — the single source for the surface
+/// size, its exclusive zone, and the popup anchor rect in modules.
+pub const BAR_HEIGHT: u32 = 34;
+
 #[tokio::main]
 async fn main() {
     use clap::Parser;
@@ -133,6 +137,10 @@ async fn main() {
     config_watcher::ensure_config_dir(&config_path);
 
     loop {
+        // A restart resets guido's arenas but not this crate's statics:
+        // clear the menu slot so a menu left open across a config reload
+        // can't act on recycled ids of the new run
+        modules::reset_menu_state();
         load_font(NERD_FONT.to_vec());
         load_font(NERD_FONT_MONO.to_vec());
         load_font(CUSTOM_FONT.to_vec());
@@ -287,21 +295,10 @@ async fn main() {
 
             // Menu state — menus are xdg popups anchored to the bar; the
             // compositor positions and dismisses them (no overlay surface)
-            let pending_close = create_signal(None::<SurfaceId>);
             let menu = MenuCtx {
                 active_menu: create_signal(None::<MenuType>),
                 bar_sid: create_signal(None::<SurfaceId>),
-                pending_close_writer: pending_close.writer(),
             };
-
-            // Destroy the menu popup once its collapse animation played
-            create_effect(move || {
-                if let Some(target) = pending_close.get() {
-                    modules::finish_menu_close(target);
-                    pending_close.set(None);
-                }
-            })
-            .detach();
 
             // Sync the sysinfo wide-refresh flag with the open menu
             create_effect({
@@ -338,7 +335,6 @@ async fn main() {
             };
             let data = std::rc::Rc::new(data);
             let active_menu = menu.active_menu;
-            let pending_close_writer = menu.pending_close_writer;
             let bar_ids: std::rc::Rc<std::cell::RefCell<Vec<SurfaceId>>> = Default::default();
 
             let make_bar = {
@@ -351,13 +347,12 @@ async fn main() {
                     let bar_menu = MenuCtx {
                         active_menu,
                         bar_sid,
-                        pending_close_writer,
                     };
                     let mut sc = SurfaceConfig::new()
-                        .height(34)
+                        .height(BAR_HEIGHT)
                         .anchor(position_anchor | Anchor::LEFT | Anchor::RIGHT)
                         .layer(bar_layer)
-                        .exclusive_zone(34u32)
+                        .exclusive_zone(BAR_HEIGHT)
                         .background_color(bar_bg)
                         .keyboard_interactivity(KeyboardInteractivity::None)
                         .namespace("ashell");
@@ -463,7 +458,11 @@ async fn main() {
             create_effect(move || {
                 let visible = bar_visible.get();
                 for id in bar_ids.borrow().iter() {
-                    surface_handle(*id).set_exclusive_zone(if visible { 34 } else { 0 });
+                    surface_handle(*id).set_exclusive_zone(if visible {
+                        BAR_HEIGHT as i32
+                    } else {
+                        0
+                    });
                 }
             })
             .detach();
