@@ -81,17 +81,6 @@ thread_local! {
     static OPEN_POPUP: std::cell::RefCell<
         Option<(PopupHandle, RwSignal<bool>, guido::reactive::owner::OwnerId)>,
     > = const { std::cell::RefCell::new(None) };
-    // Owners of popups the compositor dismissed: disposed at the next menu
-    // interaction (disposing from inside the dismissal effect would free the
-    // running closure).
-    static RETIRED_POPUP_OWNERS: std::cell::RefCell<Vec<guido::reactive::owner::OwnerId>> =
-        const { std::cell::RefCell::new(Vec::new()) };
-}
-
-fn dispose_retired_popup_owners() {
-    for owner in RETIRED_POPUP_OWNERS.with(|v| v.borrow_mut().split_off(0)) {
-        guido::reactive::owner::dispose_owner(owner);
-    }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -141,7 +130,7 @@ pub fn finish_menu_close(target: SurfaceId) {
         // Deferred disposal: the popup's widgets stay alive until the Close
         // command is processed; disposing now would leave live closures
         // reading dead signals
-        RETIRED_POPUP_OWNERS.with(|v| v.borrow_mut().push(owner));
+        guido::reactive::retire_owner(owner);
     }
 }
 
@@ -228,7 +217,6 @@ fn menu_toggle(
     content: impl Fn() -> AnyWidget + Clone + 'static,
 ) -> impl Fn() + 'static {
     move || {
-        dispose_retired_popup_owners();
         // Untracked reads: this callback can be invoked from any context
         // (event dispatch, effects) and must never register subscriptions
         let was_open = menu.active_menu.get_untracked().as_ref() == Some(&mt);
@@ -246,7 +234,7 @@ fn menu_toggle(
         // protocol sees destroy-then-create in order.
         if let Some((popup, _open, owner)) = OPEN_POPUP.with(|slot| slot.borrow_mut().take()) {
             popup.close();
-            RETIRED_POPUP_OWNERS.with(|v| v.borrow_mut().push(owner));
+            guido::reactive::retire_owner(owner);
             menu.active_menu.set(None);
         }
         let Some(bar) = menu.bar_sid.get_untracked() else {
@@ -306,7 +294,7 @@ fn menu_toggle(
                         if let Some((p, _, owner)) = slot.as_ref()
                             && p.id() == popup_id
                         {
-                            RETIRED_POPUP_OWNERS.with(|v| v.borrow_mut().push(*owner));
+                            guido::reactive::retire_owner(*owner);
                             *slot = None;
                         }
                     });
