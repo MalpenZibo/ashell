@@ -633,6 +633,10 @@ pub struct SettingsModuleConfig {
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub audio_sources_more_cmd: Option<String>,
     #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub audio_sink_post_switch_cmd: Option<String>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub audio_source_post_switch_cmd: Option<String>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     pub wifi_more_cmd: Option<String>,
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub vpn_more_cmd: Option<String>,
@@ -669,6 +673,8 @@ impl Default for SettingsModuleConfig {
             brightness_indicator_format: SettingsFormat::Icon,
             audio_sinks_more_cmd: Default::default(),
             audio_sources_more_cmd: Default::default(),
+            audio_sink_post_switch_cmd: Default::default(),
+            audio_source_post_switch_cmd: Default::default(),
             wifi_more_cmd: Default::default(),
             vpn_more_cmd: Default::default(),
             bluetooth_more_cmd: Default::default(),

@@ -105,7 +105,7 @@ pub enum Message {
     CustomButton(String),
     CustomButtonsStatus(Vec<(String, Option<bool>)>),
     MenuOpened,
-    ConfigReloaded(SettingsModuleConfig),
+    ConfigReloaded(Box<SettingsModuleConfig>),
     AudioTooltipHover(ButtonUIRef, SurfaceId),
     BluetoothTooltipHover(ButtonUIRef, SurfaceId),
     WifiTooltipHover(ButtonUIRef, SurfaceId),
@@ -218,6 +218,8 @@ impl Settings {
             audio: AudioSettings::new(AudioSettingsConfig::new(
                 config.audio_sinks_more_cmd,
                 config.audio_sources_more_cmd,
+                config.audio_sink_post_switch_cmd,
+                config.audio_source_post_switch_cmd,
                 config.volume_step,
                 config.max_volume,
                 config.audio_indicator_format,
@@ -519,6 +521,8 @@ impl Settings {
                     .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
                         config.audio_sinks_more_cmd,
                         config.audio_sources_more_cmd,
+                        config.audio_sink_post_switch_cmd,
+                        config.audio_source_post_switch_cmd,
                         config.volume_step,
                         config.max_volume,
                         config.audio_indicator_format,
