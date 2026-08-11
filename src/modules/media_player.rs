@@ -551,32 +551,35 @@ pub fn menu_view(
                     }))
                     .child(buttons);
 
-                let card_body = container()
+                let card_content = container()
                     .width(fill())
                     .padding(12)
-                    .corner_radius(16)
-                    .background(theme.background.lighter(0.05))
                     .layout(Flex::column().spacing(12))
                     .child(metadata_row)
                     .child(controls);
 
+                // Card chrome. The visualizer goes BETWEEN the background and
+                // the content — behind the card it would be invisible.
+                let card_chrome = container()
+                    .width(fill())
+                    .corner_radius(16)
+                    .background(theme.background.lighter(0.05));
+
                 col = col.child(if menu_visualizer && card.playing && has_bars.get() {
-                    container()
-                        .width(fill())
+                    card_chrome
+                        .overflow(Overflow::Hidden)
                         .layout(ZStack::new())
-                        // Follows the card body behind it
+                        // Follows the content, which leads the card height
                         .child(
                             container()
                                 .width(fill())
                                 .height(fill())
-                                .corner_radius(16)
-                                .overflow(Overflow::Hidden)
                                 .child(visualizer_view(bars, 0.25, BG_BAR_MAX_WIDTH)),
                         )
-                        .child(card_body)
+                        .child(card_content)
                         .into_any()
                 } else {
-                    card_body.into_any()
+                    card_chrome.child(card_content).into_any()
                 });
             }
 
