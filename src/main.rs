@@ -357,7 +357,7 @@ async fn main() {
                         .height(34)
                         .anchor(position_anchor | Anchor::LEFT | Anchor::RIGHT)
                         .layer(bar_layer)
-                        .exclusive_zone(Some(34))
+                        .exclusive_zone(34u32)
                         .background_color(bar_bg)
                         .keyboard_interactivity(KeyboardInteractivity::None)
                         .namespace("ashell");

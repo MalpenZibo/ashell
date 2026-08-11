@@ -18,43 +18,13 @@ use crate::theme::ThemeColors;
 const TOAST_WIDTH: u32 = 360;
 const CARD_ICON_SIZE: f32 = 36.0;
 
-/// Versioned snapshot of the notification list (folded on the service task,
-/// published to the UI thread).
-#[derive(Clone, Default)]
-pub struct NotifList {
-    version: u64,
-    pub items: VecDeque<Notification>,
-}
-
-impl PartialEq for NotifList {
-    fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-    }
-}
-
-#[derive(Clone)]
-struct ReceivedToast {
-    version: u64,
-    id: u32,
-    timeout_ms: Option<u64>,
-}
-
-impl PartialEq for ReceivedToast {
-    fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-    }
-}
-
-#[derive(Clone, PartialEq)]
-struct ExpiredToast {
-    version: u64,
-    id: u32,
-}
-
 #[derive(Clone, Copy)]
 pub struct NotificationsHandle {
     pub data: ServiceSignal<NotificationsService>,
-    pub list: RwSignal<NotifList>,
+    /// The notification list, newest first (`set_always`: upstream's
+    /// `Notification` has no equality).
+    pub list: RwSignal<VecDeque<Notification>>,
+    /// Ids of the toasts currently on screen, oldest first.
     pub toasts: RwSignal<Vec<u32>>,
     expanded_groups: RwSignal<HashSet<String>>,
 }
@@ -75,54 +45,103 @@ fn toast_timeout_ms(n: &Notification, config_ms: u64) -> Option<u64> {
 pub fn create() -> NotificationsHandle {
     let config = with_context::<Config, _>(|c| c.notifications.clone()).unwrap_or_default();
 
-    let list = create_signal(NotifList::default());
-    let received = create_signal(None::<ReceivedToast>);
+    let list = create_signal(VecDeque::<Notification>::new());
+    let toasts = create_signal(Vec::<u32>::new());
     let list_w = list.writer();
-    let recv_w = received.writer();
+    let toasts_w = toasts.writer();
+
+    // Raw daemon events cross from the service hook into the manager task
+    let (ev_tx, mut ev_rx) = tokio::sync::mpsc::unbounded_channel::<NotificationEvent>();
+    let data = run_readonly_service_hooked::<NotificationsService>(move |ev| {
+        if let ServiceEvent::Update(ev) = ev {
+            let _ = ev_tx.send(ev.clone());
+        }
+    });
 
     let blocklist = config.blocklist.clone();
     let toast_enabled = config.toast;
     let toast_default_ms = config.toast_timeout;
+    let limit = config.toast_limit;
 
-    // The fold lives on the service task; the UI only sees snapshots.
-    let mut items: VecDeque<Notification> = VecDeque::new();
-    let mut version = 0u64;
-    let data = run_readonly_service_hooked::<NotificationsService>(move |ev| {
-        let ServiceEvent::Update(ev) = ev else {
-            return;
-        };
-        match ev {
-            NotificationEvent::Received(n) => {
-                if blocklist.iter().any(|re| re.0.is_match(&n.app_name)) {
-                    return;
+    // The manager task owns the whole timeline: the list fold, the toast
+    // queue, and the expiry deadlines. ONE sleeper on the earliest
+    // deadline, recomputed on every change — a re-shown notification just
+    // gets a new deadline, so stale timers cannot exist and the UI renders
+    // pure state.
+    let _mgr = create_service::<(), _, _>(move |_rx, _ctx| async move {
+        use tokio::time::{Instant, sleep_until};
+        let mut items: VecDeque<Notification> = VecDeque::new();
+        let mut live: Vec<u32> = Vec::new();
+        let mut deadlines: HashMap<u32, Instant> = HashMap::new();
+
+        loop {
+            let next = deadlines.values().min().copied();
+            tokio::select! {
+                ev = ev_rx.recv() => {
+                    let Some(ev) = ev else { break };
+                    match ev {
+                        NotificationEvent::Received(n) => {
+                            if blocklist.iter().any(|re| re.0.is_match(&n.app_name)) {
+                                continue;
+                            }
+                            let id = n.id;
+                            items.retain(|x| x.id != id);
+                            items.push_front((*n).clone());
+                            list_w.set_always(items.clone());
+
+                            if toast_enabled {
+                                live.retain(|&x| x != id);
+                                deadlines.remove(&id);
+                                if limit == 0 {
+                                    live.clear();
+                                    deadlines.clear();
+                                } else {
+                                    while live.len() >= limit {
+                                        let dropped = live.remove(0);
+                                        deadlines.remove(&dropped);
+                                    }
+                                    live.push(id);
+                                    if let Some(ms) = toast_timeout_ms(&n, toast_default_ms) {
+                                        deadlines.insert(
+                                            id,
+                                            Instant::now() + Duration::from_millis(ms),
+                                        );
+                                    }
+                                }
+                                toasts_w.set(live.clone());
+                            }
+                        }
+                        NotificationEvent::Closed(id) => {
+                            items.retain(|x| x.id != id);
+                            list_w.set_always(items.clone());
+                            live.retain(|&x| x != id);
+                            deadlines.remove(&id);
+                            toasts_w.set(live.clone());
+                        }
+                    }
                 }
-                items.retain(|x| x.id != n.id);
-                items.push_front((**n).clone());
-                version += 1;
-                list_w.set(NotifList {
-                    version,
-                    items: items.clone(),
-                });
-                if toast_enabled {
-                    recv_w.set(Some(ReceivedToast {
-                        version,
-                        id: n.id,
-                        timeout_ms: toast_timeout_ms(n, toast_default_ms),
-                    }));
+                _ = async {
+                    match next {
+                        Some(d) => sleep_until(d).await,
+                        None => std::future::pending().await,
+                    }
+                } => {
+                    let now = Instant::now();
+                    let expired: Vec<u32> = deadlines
+                        .iter()
+                        .filter(|(_, d)| **d <= now)
+                        .map(|(id, _)| *id)
+                        .collect();
+                    for id in expired {
+                        deadlines.remove(&id);
+                        live.retain(|&x| x != id);
+                    }
+                    toasts_w.set(live.clone());
                 }
-            }
-            NotificationEvent::Closed(id) => {
-                items.retain(|x| x.id != *id);
-                version += 1;
-                list_w.set(NotifList {
-                    version,
-                    items: items.clone(),
-                });
             }
         }
     });
 
-    let toasts = create_signal(Vec::<u32>::new());
     let handle = NotificationsHandle {
         data,
         list,
@@ -131,60 +150,6 @@ pub fn create() -> NotificationsHandle {
     };
 
     if config.toast {
-        let expired = create_signal(None::<ExpiredToast>);
-        let expired_w = expired.writer();
-        // Latest toast generation per id, so a stale timer can't dismiss a
-        // re-shown notification early.
-        let generations: Rc<RefCell<HashMap<u32, u64>>> = Rc::new(RefCell::new(HashMap::new()));
-
-        let limit = config.toast_limit;
-        let gens = generations.clone();
-        create_effect(move || {
-            let Some(r) = received.get() else {
-                return;
-            };
-            toasts.update(|t| {
-                t.retain(|&x| x != r.id);
-                if limit == 0 {
-                    t.clear();
-                    return;
-                }
-                while t.len() >= limit {
-                    t.remove(0);
-                }
-                t.push(r.id);
-            });
-            if limit == 0 {
-                return;
-            }
-            gens.borrow_mut().insert(r.id, r.version);
-            if let Some(ms) = r.timeout_ms {
-                let (version, id) = (r.version, r.id);
-                tokio::spawn(async move {
-                    tokio::time::sleep(Duration::from_millis(ms)).await;
-                    expired_w.set(Some(ExpiredToast { version, id }));
-                });
-            }
-        })
-        .detach();
-
-        let gens = generations.clone();
-        create_effect(move || {
-            if let Some(e) = expired.get()
-                && gens.borrow().get(&e.id) == Some(&e.version)
-            {
-                toasts.update(|t| t.retain(|&x| x != e.id));
-            }
-        })
-        .detach();
-
-        // Toasts of notifications closed through the daemon disappear too
-        create_effect(move || {
-            let ids: HashSet<u32> = list.with(|l| l.items.iter().map(|n| n.id).collect());
-            toasts.update(|t| t.retain(|x| ids.contains(x)));
-        })
-        .detach();
-
         spawn_toast_layer(handle, config);
     }
 
@@ -203,9 +168,10 @@ fn spawn_toast_layer(handle: NotificationsHandle, config: NotificationsModuleCon
     };
 
     let surface: Rc<RefCell<Option<SurfaceHandle>>> = Rc::new(RefCell::new(None));
-    let content_wr = create_widget_ref();
 
-    // Surface exists only while at least one toast is queued
+    // Surface exists only while at least one toast is queued; auto_height
+    // follows the stack's natural size (measured by guido, no rect
+    // round-trip)
     let slot = surface.clone();
     let view_config = config.clone();
     create_effect(move || {
@@ -216,30 +182,17 @@ fn spawn_toast_layer(handle: NotificationsHandle, config: NotificationsModuleCon
             *slot_ref = Some(spawn_surface(
                 SurfaceConfig::new()
                     .width(TOAST_WIDTH)
-                    .height(1)
+                    .height(content())
                     .anchor(anchor)
                     .layer(Layer::Overlay)
                     .margin(8, 8, 8, 8)
-                    .exclusive_zone(Some(0))
                     .keyboard_interactivity(KeyboardInteractivity::None)
                     .background_color(Color::TRANSPARENT)
                     .namespace("ashell-toast"),
-                move || toast_view(handle, view_config.clone(), theme, content_wr),
+                move || toast_view(handle, view_config.clone(), theme),
             ));
         } else if !has_toasts && let Some(h) = slot_ref.take() {
             h.close();
-        }
-    })
-    .detach();
-
-    // Track the measured content height
-    let slot = surface;
-    create_effect(move || {
-        let rect = content_wr.rect().get();
-        if let Some(h) = &*slot.borrow()
-            && rect.height > 0.0
-        {
-            h.set_size(TOAST_WIDTH, rect.height.ceil() as u32);
         }
     })
     .detach();
@@ -249,17 +202,15 @@ fn toast_view(
     handle: NotificationsHandle,
     config: NotificationsModuleConfig,
     theme: ThemeColors,
-    content_wr: WidgetRef,
 ) -> impl Widget {
     container()
         .width(fill())
-        .widget_ref(content_wr)
         .layout(Flex::column().spacing(8))
         .children(move || {
             let ids = handle.toasts.get();
             handle.list.with(|l| {
                 ids.iter()
-                    .filter_map(|id| l.items.iter().find(|n| n.id == *id))
+                    .filter_map(|id| l.iter().find(|n| n.id == *id))
                     .map(|n| {
                         notification_card(handle, n, &config, theme, true)
                             .corner_radius(16)
@@ -391,7 +342,7 @@ fn notification_card(
 
 pub fn view(handle: NotificationsHandle) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
-    let has_notifications = create_memo(move || handle.list.with(|l| !l.items.is_empty()));
+    let has_notifications = create_memo(move || handle.list.with(|l| !l.is_empty()));
 
     container().child(move || {
         Some(
@@ -423,7 +374,7 @@ pub fn menu_view(handle: NotificationsHandle) -> impl Widget {
                 )
                 .child(text("Notifications").color(theme.text).font_size(16))
                 .child(container().child(move || {
-                    let has = handle.list.with(|l| !l.items.is_empty());
+                    let has = handle.list.with(|l| !l.is_empty());
                     has.then(|| {
                         icon_button()
                             .icon(StaticIcon::Delete)
@@ -431,7 +382,7 @@ pub fn menu_view(handle: NotificationsHandle) -> impl Widget {
                             .kind(ButtonKind::Transparent)
                             .on_click(move || {
                                 let ids: Vec<u32> =
-                                    handle.list.with(|l| l.items.iter().map(|n| n.id).collect());
+                                    handle.list.with(|l| l.iter().map(|n| n.id).collect());
                                 for id in ids {
                                     close_by_id(handle, id);
                                 }
@@ -442,7 +393,7 @@ pub fn menu_view(handle: NotificationsHandle) -> impl Widget {
         .child(crate::components::divider())
         .child(move || {
             let config = config.clone();
-            if handle.list.with(|l| l.items.is_empty()) {
+            if handle.list.with(|l| l.is_empty()) {
                 return Some(
                     container()
                         .width(fill())
@@ -464,7 +415,6 @@ pub fn menu_view(handle: NotificationsHandle) -> impl Widget {
                     let mut col = col;
                     let expanded = handle.expanded_groups.get();
                     let groups = l
-                        .items
                         .iter()
                         .sorted_by(|a, b| a.app_name.cmp(&b.app_name))
                         .chunk_by(|n| n.app_name.clone());
@@ -538,7 +488,7 @@ pub fn menu_view(handle: NotificationsHandle) -> impl Widget {
             } else {
                 col = handle.list.with(|l| {
                     let mut col = col;
-                    for n in &l.items {
+                    for n in l {
                         col = col.child(
                             notification_card(handle, n, &config, theme, false)
                                 .corner_radius(12)

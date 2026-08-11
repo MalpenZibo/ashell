@@ -90,7 +90,6 @@ pub fn create() -> OsdTrigger {
                     .anchor(Anchor::BOTTOM)
                     .layer(Layer::Overlay)
                     .margin(0, 0, 48, 0)
-                    .exclusive_zone(Some(0))
                     .keyboard_interactivity(KeyboardInteractivity::None)
                     .background_color(Color::TRANSPARENT)
                     .namespace("ashell-osd"),
