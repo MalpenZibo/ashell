@@ -107,6 +107,7 @@ impl Config {
                     bar_appearance.opacity.module = 0.;
                     bar_appearance.module_border.width = 0.;
                     bar_appearance.inset = 8.;
+                    bar_appearance.opacity.background = 1.;
                 }
                 BarSurface::Transparent => {
                     bar_appearance.opacity.background = 0.;
@@ -1136,20 +1137,22 @@ pub enum ModuleGroup {
     None,       // no containers
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Copy, Clone, Debug)]
 #[serde(default)]
 pub struct ModuleAppearance {
     pub spacing: SpaceSize,
     pub grouping: ModuleGroup,
     pub padding: SpaceSize,
+    pub border: BorderAppearance
 }
 
 impl Default for ModuleAppearance {
     fn default() -> Self {
         Self {
-            spacing: SpaceSize::Xs,
+            spacing: SpaceSize::Xxs,
             padding: SpaceSize::None,
             grouping: ModuleGroup::default(),
+            border: BorderAppearance::default()
         }
     }
 }
@@ -1255,23 +1258,13 @@ impl Default for Appearance {
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
             module: ModuleAppearance::default(),
-            modules: HashMap::from([
-                (ModuleName::Settings, ModuleAppearance::default()),
-                (
-                    ModuleName::SystemInfo,
-                    ModuleAppearance {
-                        spacing: SpaceSize::Xxs,
-                        ..Default::default()
-                    },
-                ),
-                (
-                    ModuleName::Workspaces,
-                    ModuleAppearance {
-                        spacing: SpaceSize::Xxs,
-                        ..Default::default()
-                    },
-                ),
-            ]),
+            modules: HashMap::from([(
+                ModuleName::Settings,
+                ModuleAppearance {
+                    spacing: SpaceSize::Xs,
+                    ..Default::default()
+                },
+            )]),
             background_color: BackgroundAppearanceColor::Complete {
                 base: HexColor::rgb(26, 27, 38),
                 weakest: None,
@@ -1346,18 +1339,18 @@ impl<'de> Deserialize<'de> for ModuleName {
                 E: serde::de::Error,
             {
                 Ok(match value {
-                    "Updates" => ModuleName::Updates,
-                    "Workspaces" => ModuleName::Workspaces,
-                    "WindowTitle" => ModuleName::WindowTitle,
-                    "SystemInfo" => ModuleName::SystemInfo,
-                    "KeyboardLayout" => ModuleName::KeyboardLayout,
-                    "KeyboardSubmap" => ModuleName::KeyboardSubmap,
-                    "Tray" => ModuleName::Tray,
-                    "Notifications" => ModuleName::Notifications,
-                    "Tempo" => ModuleName::Tempo,
-                    "Privacy" => ModuleName::Privacy,
-                    "Settings" => ModuleName::Settings,
-                    "MediaPlayer" => ModuleName::MediaPlayer,
+                    "updates" | "Updates" => ModuleName::Updates,
+                    "workspaces" | "Workspaces" => ModuleName::Workspaces,
+                    "window_title" | "WindowTitle" => ModuleName::WindowTitle,
+                    "system_info" | "SystemInfo" => ModuleName::SystemInfo,
+                    "keyboard_layout" | "KeyboardLayout" => ModuleName::KeyboardLayout,
+                    "keyboard_submap" | "KeyboardSubmap" => ModuleName::KeyboardSubmap,
+                    "tray" | "Tray" => ModuleName::Tray,
+                    "notifications" | "Notifications" => ModuleName::Notifications,
+                    "tempo" | "Tempo" => ModuleName::Tempo,
+                    "privacy" | "Privacy" => ModuleName::Privacy,
+                    "settings" | "Settings" => ModuleName::Settings,
+                    "media_player" | "MediaPlayer" => ModuleName::MediaPlayer,
                     other => ModuleName::Custom(other.to_string()),
                 })
             }

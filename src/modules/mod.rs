@@ -170,11 +170,7 @@ impl App {
         id: SurfaceId,
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
-        let (module_appearances, module_appearance) =
-            use_theme(|t| (t.modules.clone(), t.module.clone()));
-        let module_appearance = module_appearances
-            .get(module_name)
-            .unwrap_or(&module_appearance);
+        let module_appearance = use_theme(|t| t.module_appearance()(module_name));
         let grouping = module_appearance.grouping;
 
         self.get_module_view(id, module_name).map(|module_result| {
@@ -195,7 +191,7 @@ impl App {
                 ModuleGroup::None | ModuleGroup::Combined => {
                     let item =
                         self.build_module_item(id, module_name, content.into_element(), action);
-                    module_group(item, module_appearance)
+                    module_group(item, &module_appearance)
                 }
             }
         })
@@ -206,8 +202,8 @@ impl App {
         id: SurfaceId,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
-        let (module_appearances, module_appearance) =
-            use_theme(|t| (t.modules.clone(), t.module.clone()));
+        let (module_apperance, default_appearance) =
+            use_theme(|t| (t.module_appearance(), t.module));
 
         let module_items: Vec<_> = group
             .iter()
@@ -226,11 +222,9 @@ impl App {
                     view: content,
                 } = module_result;
 
-                let module_appearance = module_appearances
-                    .get(module_name)
-                    .unwrap_or(&module_appearance);
+                let appearance = module_apperance(module_name);
 
-                let grouping = module_appearance.grouping;
+                let grouping = appearance.grouping;
 
                 match grouping {
                     ModuleGroup::Individual => {
@@ -252,9 +246,8 @@ impl App {
             .collect::<Vec<_>>();
 
         let row = Row::with_children(items);
-        // println!("group for {:?}", group);
 
-        Some(module_group(row.into(), &module_appearance))
+        Some(module_group(row.into(), &default_appearance))
     }
 
     fn get_module_view<'a>(

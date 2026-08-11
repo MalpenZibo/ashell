@@ -4,7 +4,7 @@ use crate::{
         icons::{StaticIcon, icon},
     },
     config::{
-        CpuFormat, DiskFormat, MemoryFormat, ModuleAppearance, ModuleName, SystemInfoIndicator,
+        CpuFormat, DiskFormat, MemoryFormat, ModuleName, SystemInfoIndicator,
         SystemInfoModuleConfig, SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
     },
     i18n::{UnitSystem, unit_system},
@@ -638,12 +638,9 @@ impl SystemInfo {
     }
 
     pub fn view<'a>(&'a self) -> ModuleView<'a, Message> {
-        let (theme_space, module_appearances) = use_theme(|t| (t.space, t.modules.clone()));
-        let binding = &ModuleAppearance::default();
-        let module_appearance = module_appearances
-            .get(&ModuleName::SystemInfo)
-            .unwrap_or(binding);
-        let space_sizing = module_appearance.spacing;
+        let (theme_space, appearance) =
+            use_theme(|t| (t.space, t.module_appearance()(&ModuleName::SystemInfo)));
+        let space_sizing = appearance.spacing;
 
         let space = theme_space.resolve(space_sizing);
 
@@ -785,8 +782,7 @@ impl SystemInfo {
         ModuleView::new(ModuleContent::Row(
             ModuleRow::with_children(indicators)
                 .spacing(space)
-                .align_y(Alignment::Center)
-                .height(Length::Fill),
+                .align_y(Alignment::Center),
         ))
     }
 

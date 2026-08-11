@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{cell::RefCell, collections::HashMap};
 
 use crate::{
@@ -158,7 +159,7 @@ pub struct AshellTheme {
     pub iced_theme: Theme,
     pub space: Space,
 
-    pub modules: HashMap<ModuleName, ModuleAppearance>,
+    pub modules: Arc<HashMap<ModuleName, ModuleAppearance>>,
     pub module: ModuleAppearance,
 
     pub bar: BarAppearance,
@@ -294,6 +295,7 @@ fn base_theme_from_appearance(
     bar_position: Position,
     animations_enabled: bool,
 ) -> AshellTheme {
+    println!("called");
     AshellTheme {
         space: Space::default(),
         radius: Radius::default(),
@@ -303,7 +305,7 @@ fn base_theme_from_appearance(
         bar: appearance.bar,
         menu: appearance.menu,
 
-        modules: appearance.modules.clone(),
+        modules: Arc::new(appearance.modules.clone()),
         module: ModuleAppearance::default(),
 
         workspace_colors: appearance.workspace_colors.clone(),
@@ -773,6 +775,14 @@ impl AshellTheme {
                 }
                 _ => base,
             }
+        }
+    }
+
+    pub fn module_appearance(&self) -> impl Fn(&ModuleName) -> ModuleAppearance + use<> {
+        let modules = Arc::clone(&self.modules);
+        move |module_name| {
+            let module = modules.get(module_name);
+            module.copied().unwrap_or_default()
         }
     }
 }

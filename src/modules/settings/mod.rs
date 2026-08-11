@@ -754,11 +754,9 @@ impl Settings {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> ModuleView<'a, Message> {
-        let (theme_space, spacing_size) = use_theme(|t| {
-            let module_appearance = t.modules.get(&ModuleName::Settings).unwrap_or(&t.module);
-            (t.space, module_appearance.spacing)
-        });
-        let space = theme_space.resolve(spacing_size);
+        let (theme_space, appearance) =
+            use_theme(|t| (t.space, t.module_appearance()(&ModuleName::Settings)));
+        let space = theme_space.resolve(appearance.spacing);
 
         let mut row: Vec<Element<'a, Message>> = Vec::with_capacity(self.indicators.len());
 

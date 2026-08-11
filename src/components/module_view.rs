@@ -97,8 +97,8 @@ impl<'a, Msg: 'a> ModuleRow<'a, Msg> {
         Self {
             children: Vec::new(),
             spacing: 0.0,
-            align_y: Vertical::Top,
-            height: Length::Shrink,
+            align_y: Vertical::Center,
+            height: Length::Fill,
         }
     }
 
@@ -119,8 +119,8 @@ impl<'a, Msg: 'a> ModuleRow<'a, Msg> {
         Self {
             children: Vec::with_capacity(capacity),
             spacing: 0.0,
-            align_y: Vertical::Top,
-            height: Length::Shrink,
+            align_y: Vertical::Center,
+            height: Length::Fill,
         }
     }
 
