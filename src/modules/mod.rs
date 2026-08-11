@@ -232,10 +232,22 @@ fn menu_toggle(
         // Untracked reads: this callback can be invoked from any context
         // (event dispatch, effects) and must never register subscriptions
         let was_open = menu.active_menu.get_untracked().as_ref() == Some(&mt);
-        // Whatever happens, the previous popup goes away (animated)
-        close_menu_fn(menu)();
         if was_open {
+            // Plain close: play the collapse animation, deferred destroy
+            close_menu_fn(menu)();
             return;
+        }
+        // A NEW popup is about to be created (menu switch, or reopen during
+        // the close animation): destroy the previous one IMMEDIATELY, no
+        // animation. xdg-shell requires a new grab to nest under the
+        // currently grabbed popup — a still-mapped previous menu makes the
+        // compositor kill the connection (not_the_topmost_popup). The Close
+        // command is processed before the CreatePopup pushed below, so the
+        // protocol sees destroy-then-create in order.
+        if let Some((popup, _open, owner)) = OPEN_POPUP.with(|slot| slot.borrow_mut().take()) {
+            popup.close();
+            RETIRED_POPUP_OWNERS.with(|v| v.borrow_mut().push(owner));
+            menu.active_menu.set(None);
         }
         let Some(bar) = menu.bar_sid.get_untracked() else {
             return;
@@ -383,10 +395,16 @@ fn add_module(
                 // DEBUG: auto-open shortly after startup
                 if std::env::var("ASHELL_DEBUG_OPEN_SETTINGS").is_ok() {
                     let trigger = menu_toggle(MenuType::Settings, wr, menu, content.clone());
+                    // Value = delay in seconds (default 3) so menu-switch
+                    // sequences can be scripted (tempo at 3s, settings later)
+                    let delay = std::env::var("ASHELL_DEBUG_OPEN_SETTINGS")
+                        .ok()
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(3u64);
                     let opened = create_signal(false);
                     let w = opened.writer();
                     tokio::spawn(async move {
-                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
                         w.set(true);
                     });
                     create_effect(move || {
@@ -496,6 +514,28 @@ fn add_module(
                 let wr = create_widget_ref();
                 let content = move || tempo::menu_view(t).into_any();
                 // DEBUG: auto-open the tempo menu shortly after startup
+                // DEBUG: advance the calendar one month shortly after the
+                // menu opens (month-change reposition repro)
+                if std::env::var("ASHELL_DEBUG_NEXT_MONTH").is_ok() {
+                    let step = create_signal(false);
+                    let w = step.writer();
+                    tokio::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+                        w.set(true);
+                    });
+                    create_effect(move || {
+                        if step.get() {
+                            let cur = t
+                                .selected_date
+                                .get_untracked()
+                                .unwrap_or_else(|| t.date.get_untracked().date_naive());
+                            eprintln!("[repro] advancing month from {cur}");
+                            t.selected_date
+                                .set(cur.checked_add_months(chrono::Months::new(1)));
+                        }
+                    })
+                    .detach();
+                }
                 if std::env::var("ASHELL_DEBUG_OPEN_TEMPO").is_ok() {
                     let trigger = menu_toggle(MenuType::Tempo, wr, menu, content.clone());
                     let step = create_signal(0u32);
