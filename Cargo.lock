@@ -195,6 +195,7 @@ dependencies = [
  "chrono-tz",
  "clap",
  "env_logger",
+ "fontdb",
  "freedesktop-icons",
  "futures",
  "guido",

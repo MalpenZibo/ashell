@@ -14,12 +14,29 @@ use guido::prelude::*;
 use modules::{MenuCtx, MenuType, ModuleData, modules_in_config};
 use services::compositor::{CompositorState, CompositorStateSignals, start_compositor_service};
 
+fn load_system_font(family: &str) -> Option<Vec<u8>> {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+    let id = db.query(&fontdb::Query {
+        families: &[fontdb::Family::Name(family)],
+        ..Default::default()
+    })?;
+    db.with_face_data(id, |data, _| data.to_vec())
+}
+
+fn warn_unsupported(cfg: &config::Config) {
+    if cfg.appearance.scale_factor != 1.0 {
+        log::warn!("appearance.scale_factor is not supported; the compositor scale is used");
+    }
+    if cfg.appearance.menu.backdrop != 0.0 {
+        log::warn!("appearance.menu.backdrop is not supported; menus are compositor popups");
+    }
+}
+
 pub mod theme {
     use guido::prelude::Color;
 
     use crate::config::Appearance;
-
-    const DEFAULT_YELLOW: Color = Color::rgb(249.0 / 255.0, 226.0 / 255.0, 175.0 / 255.0);
 
     #[derive(Clone, Copy)]
     pub struct ThemeColors {
@@ -38,7 +55,7 @@ pub mod theme {
             primary: appearance.primary_color.base(),
             success: appearance.success_color.base(),
             danger: appearance.danger_color.base(),
-            warning: appearance.danger_color.weak().unwrap_or(DEFAULT_YELLOW),
+            warning: appearance.warning_color.base(),
         }
     }
 }
@@ -127,8 +144,6 @@ async fn main() {
         }
     }
 
-    env_logger::init();
-
     // -c/--config-path, then ASHELL_CONFIG_PATH (bench harness), then default
     let custom_config = args
         .config_path
@@ -147,6 +162,15 @@ async fn main() {
 
         let cfg = config::load_config(&config_path);
 
+        static LOGGER: std::sync::Once = std::sync::Once::new();
+        LOGGER.call_once(|| {
+            env_logger::Builder::from_env(
+                env_logger::Env::default().default_filter_or(&cfg.log_level),
+            )
+            .init();
+            warn_unsupported(&cfg);
+        });
+
         // The embedded nerd fonts are subsets covering only the glyphs in
         // icons.rs; config-defined icons (custom modules, custom buttons)
         // can use any glyph, so pull in the full system font for those
@@ -156,19 +180,15 @@ async fn main() {
             .any(|m| m.icon.is_some() || m.icons.is_some())
             || !cfg.settings.custom_buttons.is_empty();
         if needs_full_nerd {
-            match std::process::Command::new("fc-match")
-                .args(["--format=%{file}", "Symbols Nerd Font"])
-                .output()
-                .ok()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                .filter(|p| !p.is_empty())
-                .and_then(|p| std::fs::read(p).ok())
-            {
+            match load_system_font("Symbols Nerd Font") {
                 Some(bytes) => load_font(bytes),
                 None => log::warn!(
                     "config uses custom nerd-font glyphs but no system \"Symbols Nerd Font\" was found; they may render blank"
                 ),
             }
+        }
+        if let Some(font) = &cfg.appearance.font_name {
+            set_default_font_family(FontFamily::Name(font.clone()));
         }
         let theme_colors = theme::init(&cfg.appearance);
         i18n::init_localizer(i18n::Localizer::resolve(
@@ -276,7 +296,6 @@ async fn main() {
             });
             let bar_visible = create_signal(true);
             {
-                let settings = settings;
                 let osd = osd.clone();
                 let volume_step = cfg.settings.volume_step;
                 let max_volume = cfg.settings.max_volume;
