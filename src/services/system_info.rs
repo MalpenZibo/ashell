@@ -1,8 +1,6 @@
 use crate::config::{SystemInfoIndicator, SystemInfoModuleConfig};
 use guido::prelude::*;
 use itertools::Itertools;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use sysinfo::{Components, Disks, Networks, System};
 
@@ -317,7 +315,7 @@ fn resolve_sensor_label(
 pub fn start_system_info_service(
     writers: SystemInfoDataWriters,
     config: SystemInfoModuleConfig,
-    menu_open: Arc<AtomicBool>,
+    mut menu_open: tokio::sync::watch::Receiver<bool>,
 ) {
     let bar_scope = RefreshScope::from_indicators(&config.indicators);
 
@@ -350,8 +348,11 @@ pub fn start_system_info_service(
         }
 
         while ctx.is_running() {
-            let open = menu_open.load(Ordering::Relaxed);
-            let scope = if open { RefreshScope::ALL } else { bar_scope };
+            let scope = if *menu_open.borrow_and_update() {
+                RefreshScope::ALL
+            } else {
+                bar_scope
+            };
 
             // Missing sensor (typo or hotplug): rescan the component list
             // and re-resolve occasionally (~once a minute), never per tick.
@@ -379,16 +380,16 @@ pub fn start_system_info_service(
             writers.set(data.clone());
             last_check = Some(Instant::now());
 
-            // Sleep in slices so an opening menu gets a full refresh right
-            // away instead of showing stale disk/network data. Slice count
-            // follows the configured interval (default 5s).
-            for _ in 0..(config.interval.max(1) * 2) {
-                tokio::time::sleep(Duration::from_millis(500)).await;
-                if !ctx.is_running() {
-                    return;
-                }
-                if !open && menu_open.load(Ordering::Relaxed) {
-                    break;
+            // One sleep, cut short the moment the menu opens (or closes) —
+            // the watcher wakes us instead of us polling a flag twice a
+            // second for the whole interval.
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(config.interval.max(1))) => {}
+                changed = menu_open.changed() => {
+                    // Sender gone: the scope that owns this service is gone
+                    if changed.is_err() {
+                        return;
+                    }
                 }
             }
         }

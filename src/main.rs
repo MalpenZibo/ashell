@@ -188,15 +188,23 @@ async fn main() {
             // Only create expensive services for modules actually in the config
             let needed = modules_in_config(&cfg.modules);
 
+            // Menu state — menus are xdg popups anchored to the bar; the
+            // compositor positions and dismisses them (no overlay surface)
+            let menu = MenuCtx {
+                active_menu: create_signal(None::<MenuType>),
+                bar_sid: create_signal(None::<SurfaceId>),
+            };
+
             // While the system-info menu is open the sysinfo sampling widens
             // to all domains (disks, network); closed, only the configured
-            // bar indicators are refreshed. Synced by an effect further down
-            // once the menu state exists.
-            let sysinfo_menu_open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            // bar indicators are refreshed. The service watches the memo, so
+            // it wakes the moment the menu opens instead of polling a flag.
+            let sysinfo_wide =
+                create_memo(move || matches!(menu.active_menu.get(), Some(MenuType::SystemInfo)));
 
             let system_info = needed
                 .contains(&ModuleName::SystemInfo)
-                .then(|| modules::system_info::create(sysinfo_menu_open.clone()));
+                .then(|| modules::system_info::create(sysinfo_wide.watch()));
 
             let updates = (needed.contains(&ModuleName::Updates) && cfg.updates.is_some())
                 .then(modules::updates::create);
@@ -292,25 +300,6 @@ async fn main() {
                 })
                 .detach();
             }
-
-            // Menu state — menus are xdg popups anchored to the bar; the
-            // compositor positions and dismisses them (no overlay surface)
-            let menu = MenuCtx {
-                active_menu: create_signal(None::<MenuType>),
-                bar_sid: create_signal(None::<SurfaceId>),
-            };
-
-            // Sync the sysinfo wide-refresh flag with the open menu
-            create_effect({
-                let flag = sysinfo_menu_open.clone();
-                move || {
-                    flag.store(
-                        matches!(menu.active_menu.get(), Some(MenuType::SystemInfo)),
-                        std::sync::atomic::Ordering::Relaxed,
-                    );
-                }
-            })
-            .detach();
 
             // Bar surfaces: one per configured output (hotplug-aware), or a
             // single compositor-placed bar for Outputs::Active

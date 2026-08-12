@@ -31,7 +31,7 @@ fn format_speed(kbps: u32) -> String {
 /// `menu_open` widens the sysinfo refresh to all domains while the menu is
 /// displayed; with the menu closed only the domains needed by the configured
 /// bar indicators are sampled.
-pub fn create(menu_open: std::sync::Arc<std::sync::atomic::AtomicBool>) -> SystemInfoDataSignals {
+pub fn create(menu_open: tokio::sync::watch::Receiver<bool>) -> SystemInfoDataSignals {
     let config = expect_context::<Config>().system_info;
     let info = SystemInfoDataSignals::new(SystemInfoData::default());
     start_system_info_service(info.writers(), config, menu_open);

@@ -1,8 +1,6 @@
 pub mod calendar;
 pub mod weather;
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, Local, NaiveDate};
@@ -59,21 +57,16 @@ pub fn create() -> TempoHandle {
     // Time tick: 1s only while the active format renders seconds, otherwise
     // wake at the minute boundary (the port's battery-friendly clock cadence,
     // vs upstream's fixed 5s poll).
-    let format_idx_mirror = Arc::new(AtomicUsize::new(0));
-    {
-        let mirror = format_idx_mirror.clone();
-        let format_index = handle.format_index;
-        create_effect(move || {
-            mirror.store(format_index.get(), Ordering::Relaxed);
-        })
-        .detach();
-    }
+    // The tick cadence follows the active format; watching it means a switch
+    // between a seconds format and a minutes one takes effect at once
+    // instead of at the next wake-up (up to a minute later).
+    let mut format_idx = handle.format_index.watch();
     let date_w = handle.date.writer();
     let tick_config = config.clone();
     let _tick = create_service::<(), _, _>(move |_rx, _ctx| async move {
         loop {
             date_w.set(Local::now());
-            let idx = format_idx_mirror.load(Ordering::Relaxed);
+            let idx = *format_idx.borrow_and_update();
             let sleep_ms = if has_seconds(current_format(&tick_config, idx)) {
                 1000
             } else {
@@ -81,7 +74,14 @@ pub fn create() -> TempoHandle {
                 let now = Local::now();
                 (60 - u64::from(now.second())).max(1) * 1000 + 50
             };
-            tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_millis(sleep_ms)) => {}
+                changed = format_idx.changed() => {
+                    if changed.is_err() {
+                        return;
+                    }
+                }
+            }
         }
     });
 
