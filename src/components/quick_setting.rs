@@ -82,7 +82,6 @@ pub fn quick_setting(
 
     // Add chevron button if there's a submenu action (only visible when active)
     if let Some(on_sub) = on_submenu {
-        let on_sub = on_sub;
         inner = inner.child(move || {
             if !active.get() {
                 return None;

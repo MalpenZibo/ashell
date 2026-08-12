@@ -176,6 +176,12 @@ pub fn view(handle: CustomHandle) -> impl Widget {
             if let Some(cmd) = def.command.clone() {
                 row = row.on_click(move || execute_command(&cmd));
             }
+            if let Some(cmd) = def.on_right_click.clone() {
+                row = row.on_right_click(move || execute_command(&cmd));
+            }
+            if let Some(cmd) = def.on_middle_click.clone() {
+                row = row.on_middle_click(move || execute_command(&cmd));
+            }
             let (up, down) = (def.on_scroll_up.clone(), def.on_scroll_down.clone());
             if up.is_some() || down.is_some() {
                 let accum = std::cell::Cell::new(0.0f32);
@@ -192,9 +198,6 @@ pub fn view(handle: CustomHandle) -> impl Widget {
                     }
                 });
             }
-            // on_right_click / on_middle_click need right/middle button
-            // support in guido containers; unwired until then.
-
             row.into_any()
         }
     }

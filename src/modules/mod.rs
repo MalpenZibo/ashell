@@ -150,8 +150,14 @@ pub fn modules_in_config(modules: &Modules) -> HashSet<ModuleName> {
 /// Common popup chrome around a menu view: background, radius, padding and
 /// the expand/collapse animation (spring open, ease-out close) scaling from
 /// the bar edge. No fill-height — auto-height popups size to the content.
-fn menu_shell(content: AnyWidget, open: RwSignal<bool>, origin: TransformOrigin) -> Container {
+fn menu_shell(
+    content: AnyWidget,
+    open: RwSignal<bool>,
+    origin: TransformOrigin,
+    close: Callback,
+) -> Container {
     let theme = expect_context::<crate::theme::ThemeColors>();
+    let esc_closes = with_context::<Config, _>(|c| c.enable_esc_key).unwrap_or(false);
     let (menu_opacity, blur) =
         with_context::<Config, _>(|c| (c.appearance.menu.opacity, c.appearance.blur))
             .unwrap_or((1.0, crate::config::BlurMode::Never));
@@ -169,6 +175,13 @@ fn menu_shell(content: AnyWidget, open: RwSignal<bool>, origin: TransformOrigin)
         .corner_radius(16);
     if blur.enabled(menu_opacity) {
         shell = shell.background_blur();
+    }
+    if esc_closes {
+        shell = shell.on_key_down(move |key, _| {
+            if key == Key::Escape {
+                close.run();
+            }
+        });
     }
     let collapsed = Transform::scale_xy(1.0, 0.0);
     shell
@@ -261,8 +274,9 @@ fn menu_toggle(
             if std::env::var("ASHELL_DEBUG_NO_GRAB").is_err() {
                 popup_config = popup_config.grab();
             }
+            let close = close_menu_fn(menu);
             let popup = spawn_popup(bar, popup_config, move || {
-                menu_shell(content(), open_sig, origin)
+                menu_shell(content(), open_sig, origin, close)
             });
 
             // Reset state when the compositor dismisses the popup (outside
@@ -361,28 +375,6 @@ fn add_module(
                     s_menu.submenu.set(None);
                     settings::menu_view(s_menu, close).into_any()
                 };
-                // DEBUG: auto-open shortly after startup
-                if std::env::var("ASHELL_DEBUG_OPEN_SETTINGS").is_ok() {
-                    let trigger = menu_toggle(MenuType::Settings, wr, menu, content);
-                    // Value = delay in seconds (default 3) so menu-switch
-                    // sequences can be scripted (tempo at 3s, settings later)
-                    let delay = std::env::var("ASHELL_DEBUG_OPEN_SETTINGS")
-                        .ok()
-                        .and_then(|v| v.parse().ok())
-                        .unwrap_or(3u64);
-                    let opened = create_signal(false);
-                    let w = opened.writer();
-                    tokio::spawn(async move {
-                        tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
-                        w.set(true);
-                    });
-                    create_effect(move || {
-                        if opened.get() {
-                            trigger();
-                        }
-                    })
-                    .detach();
-                }
                 group.child(
                     container().widget_ref(wr).child(
                         module_item()
@@ -482,58 +474,6 @@ fn add_module(
             if let Some(t) = data.tempo {
                 let wr = create_widget_ref();
                 let content = move || tempo::menu_view(t).into_any();
-                // DEBUG: auto-open the tempo menu shortly after startup
-                // DEBUG: advance the calendar one month shortly after the
-                // menu opens (month-change reposition repro)
-                if std::env::var("ASHELL_DEBUG_NEXT_MONTH").is_ok() {
-                    let step = create_signal(false);
-                    let w = step.writer();
-                    tokio::spawn(async move {
-                        tokio::time::sleep(std::time::Duration::from_secs(6)).await;
-                        w.set(true);
-                    });
-                    create_effect(move || {
-                        if step.get() {
-                            let cur = t
-                                .selected_date
-                                .get_untracked()
-                                .unwrap_or_else(|| t.date.get_untracked().date_naive());
-                            eprintln!("[repro] advancing month from {cur}");
-                            t.selected_date
-                                .set(cur.checked_add_months(chrono::Months::new(1)));
-                        }
-                    })
-                    .detach();
-                }
-                if std::env::var("ASHELL_DEBUG_OPEN_TEMPO").is_ok() {
-                    let trigger = menu_toggle(MenuType::Tempo, wr, menu, content);
-                    let step = create_signal(0u32);
-                    let w = step.writer();
-                    // With ASHELL_DEBUG_REOPEN_TEMPO: open at 3s, close at
-                    // 6s, reopen at 8s — cold vs warm open comparison
-                    let reopen = std::env::var("ASHELL_DEBUG_REOPEN_TEMPO").is_ok();
-                    tokio::spawn(async move {
-                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                        w.set(1);
-                        if reopen {
-                            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                            w.set(2);
-                            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                            w.set(3);
-                        }
-                    });
-                    create_effect(move || {
-                        if step.get() > 0 {
-                            eprintln!(
-                                "[open-probe] t={} menu_toggle step {}",
-                                crate::utils::debug_wall_ms(),
-                                step.get()
-                            );
-                            trigger();
-                        }
-                    })
-                    .detach();
-                }
                 group.child(
                     container().height(fill()).widget_ref(wr).child(
                         module_item()

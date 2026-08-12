@@ -125,7 +125,6 @@ pub fn menu_view(
         .child(crate::components::divider())
         // Action buttons
         .child(container().width(fill()).child({
-            let svc_update = svc_update;
             // The update button only appears while updates are pending
             move || {
                 let svc_update = svc_update;

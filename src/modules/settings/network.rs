@@ -238,7 +238,6 @@ pub fn wifi_submenu(
                     let ssid = ap.ssid.clone();
                     let strength = ap.strength;
                     let ap_clone = ap.clone();
-                    let svc = svc;
                     let is_connected = ap.state == DeviceState::Activated;
                     col = col.child(
                         selectable_item()
@@ -327,8 +326,7 @@ pub fn vpn_submenu(
         for vpn in known_list {
             let vpn_name = vpn.name.clone();
             let vpn_clone = vpn.clone();
-            let svc = svc;
-            let name_for_active = vpn_name.clone();
+                let name_for_active = vpn_name.clone();
 
             col = col.child(
                 container()
@@ -412,7 +410,6 @@ pub fn network_dialog_view(
     };
 
     let connect = {
-        let svc = svc;
         let ssid = ssid.clone();
         move || {
             let pw = password.with(|p| p.clone());

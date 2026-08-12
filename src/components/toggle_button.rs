@@ -7,7 +7,6 @@ use crate::theme::ThemeColors;
 pub fn toggle_button(active: bool, #[prop(callback)] on_toggle: ()) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
 
-    let on_toggle = on_toggle;
     let hovered = create_signal(false);
 
     container()

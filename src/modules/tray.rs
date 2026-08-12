@@ -63,7 +63,6 @@ fn tray_button(
     let wr = create_widget_ref();
     let content = {
         let name = name.clone();
-        let svc = svc;
         move || menu_view(name.clone(), items, svc, close_menu_fn(menu)).into_any()
     };
     let toggle = menu_toggle(MenuType::Tray(name.clone()), wr, menu, content);
