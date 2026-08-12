@@ -375,7 +375,7 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
     let bg_pair = background_pair();
     let enable_vdesks = config.enable_virtual_desktops;
 
-    let svc_scroll = svc.clone();
+    let svc_scroll = svc;
     let svc_children = svc;
 
     let workspaces = state.workspaces;
@@ -469,7 +469,7 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                 } else {
                     colors.clone()
                 };
-                let svc = svc_children.clone();
+                let svc = svc_children;
 
                 {
                     let primary_pair = pair_from(

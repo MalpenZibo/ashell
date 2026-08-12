@@ -22,9 +22,6 @@ pub fn quick_setting(
 ) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
 
-    let on_toggle = on_toggle.clone();
-    let on_submenu = on_submenu.clone();
-
     // Build inner content: [title column (fill)] [optional chevron]
     let mut inner = container()
         .layout(
@@ -85,9 +82,8 @@ pub fn quick_setting(
 
     // Add chevron button if there's a submenu action (only visible when active)
     if let Some(on_sub) = on_submenu {
-        let on_sub = on_sub.clone();
+        let on_sub = on_sub;
         inner = inner.child(move || {
-            let on_sub = on_sub.clone();
             if !active.get() {
                 return None;
             }
@@ -99,7 +95,7 @@ pub fn quick_setting(
                         .height(24)
                         .corner_radius(24)
                         .on_hover(move |h| hovered.set(h))
-                        .on_click(move || on_sub())
+                        .on_click(move || on_sub.run())
                         .pressed_state(|s| s.ripple())
                         .background(move || {
                             if hovered.get() {
@@ -153,7 +149,7 @@ pub fn quick_setting(
         .content(inner);
 
     if let Some(on_toggle) = on_toggle {
-        btn = btn.on_click(move || on_toggle());
+        btn = btn.on_click(move || on_toggle.run());
     }
 
     btn

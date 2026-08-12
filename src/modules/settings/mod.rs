@@ -35,6 +35,7 @@ pub enum NetworkDialog {
     OpenNetwork { ssid: String },
 }
 
+#[derive(Clone, Copy)]
 pub struct SettingsSignals {
     pub audio_data: services::compat::ServiceSignal<services::audio::AudioService>,
     pub audio_svc: Service<services::audio::AudioCommand>,
@@ -52,29 +53,6 @@ pub struct SettingsSignals {
     pub network_dialog: RwSignal<Option<NetworkDialog>>,
     pub dialog_password: RwSignal<String>,
     pub dialog_show_password: RwSignal<bool>,
-}
-
-impl Clone for SettingsSignals {
-    fn clone(&self) -> Self {
-        Self {
-            audio_data: self.audio_data,
-            audio_svc: self.audio_svc.clone(),
-            brightness_data: self.brightness_data,
-            brightness_svc: self.brightness_svc.clone(),
-            network_data: self.network_data,
-            network_svc: self.network_svc.clone(),
-            bluetooth_data: self.bluetooth_data,
-            bluetooth_svc: self.bluetooth_svc.clone(),
-            upower_data: self.upower_data,
-            upower_svc: self.upower_svc.clone(),
-            idle_inhibitor_data: self.idle_inhibitor_data,
-            idle_inhibitor_svc: self.idle_inhibitor_svc.clone(),
-            submenu: self.submenu,
-            network_dialog: self.network_dialog,
-            dialog_password: self.dialog_password,
-            dialog_show_password: self.dialog_show_password,
-        }
-    }
 }
 
 pub fn create() -> SettingsSignals {
@@ -310,15 +288,11 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
 }
 
 /// Menu view: full settings panel content
-pub fn menu_view(
-    settings: SettingsSignals,
-    close_menu: impl Fn() + 'static + Clone,
-) -> impl Widget {
+pub fn menu_view(settings: SettingsSignals, close_menu: Callback) -> impl Widget {
     // The WiFi password / open-network dialog takes over the whole menu
-    let dialog_settings = settings.clone();
+    let dialog_settings = settings;
     container().width(fill()).child(move || {
-        let settings = dialog_settings.clone();
-        let close_menu = close_menu.clone();
+        let settings = dialog_settings;
         match settings.network_dialog.get() {
             Some(dialog) => Some(network::network_dialog_view(settings, dialog).into_any()),
             None => Some(menu_body(settings, close_menu).into_any()),
@@ -326,12 +300,12 @@ pub fn menu_view(
     })
 }
 
-fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone) -> impl Widget {
+fn menu_body(settings: SettingsSignals, close_menu: Callback) -> impl Widget {
     let submenu = settings.submenu;
 
-    let settings2 = settings.clone();
-    let settings3 = settings.clone();
-    let close_menu2 = close_menu.clone();
+    let settings2 = settings;
+    let settings3 = settings;
+    let close_menu2 = close_menu;
 
     let lock_cmd = with_context::<Config, _>(|c| c.settings.lock_cmd.clone()).unwrap();
 
@@ -340,7 +314,7 @@ fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone)
         .layout(Flex::column().spacing(12))
         // Header: battery info + power buttons
         .child({
-            let close = close_menu.clone();
+            let close = close_menu;
             container()
                 .width(fill())
                 .layout(
@@ -359,7 +333,7 @@ fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone)
                         .maybe_child(lock_cmd.map(|cmd| {
                             icon_button().icon(StaticIcon::Lock).on_click(move || {
                                 crate::utils::launcher::execute_command(&cmd);
-                                close();
+                                close.run();
                             })
                         }))
                         .child(
@@ -384,7 +358,7 @@ fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone)
         // Power submenu (conditionally shown)
         .child(submenu_wrapper(
             move || submenu.get() == Some(SubMenu::Power),
-            power::power_actions(close_menu2.clone()),
+            power::power_actions(close_menu2),
         ))
         // Peripherals submenu (conditionally shown)
         .child(submenu_wrapper(
@@ -394,34 +368,34 @@ fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone)
         // Audio: sink slider (with chevron for device selection)
         .child(audio::sink_slider(
             settings.audio_data,
-            settings.audio_svc.clone(),
+            settings.audio_svc,
             submenu,
         ))
         // Sinks submenu
         .child(submenu_wrapper(
             move || submenu.get() == Some(SubMenu::Sinks),
-            audio::sinks_submenu(settings.audio_data, settings.audio_svc.clone()),
+            audio::sinks_submenu(settings.audio_data, settings.audio_svc),
         ))
         // Audio: source slider (with chevron for device selection)
         .child(audio::source_slider(
             settings.audio_data,
-            settings.audio_svc.clone(),
+            settings.audio_svc,
             submenu,
         ))
         // Sources submenu
         .child(submenu_wrapper(
             move || submenu.get() == Some(SubMenu::Sources),
-            audio::sources_submenu(settings.audio_data, settings.audio_svc.clone()),
+            audio::sources_submenu(settings.audio_data, settings.audio_svc),
         ))
         // Brightness slider
         .child(brightness::slider_view(
             settings.brightness_data,
-            settings.brightness_svc.clone(),
+            settings.brightness_svc,
         ))
         // Quick Settings Grid (2 columns)
         // Row 1: WiFi | Bluetooth
         .child(move || {
-            let settings = settings2.clone();
+            let settings = settings2;
             Some(
                 container()
                     .width(fill())
@@ -432,7 +406,7 @@ fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone)
                             .layout(Flex::row().spacing(8))
                             .child(network::wifi_quick_setting(
                                 settings.network_data,
-                                settings.network_svc.clone(),
+                                settings.network_svc,
                                 move || {
                                     submenu.set(if submenu.get() == Some(SubMenu::WiFi) {
                                         None
@@ -444,7 +418,7 @@ fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone)
                             ))
                             .child(bluetooth::bt_quick_setting(
                                 settings.bluetooth_data,
-                                settings.bluetooth_svc.clone(),
+                                settings.bluetooth_svc,
                                 move || {
                                     submenu.set(if submenu.get() == Some(SubMenu::Bluetooth) {
                                         None
@@ -460,21 +434,17 @@ fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone)
         // WiFi submenu
         .child(submenu_wrapper(
             move || submenu.get() == Some(SubMenu::WiFi),
-            network::wifi_submenu(
-                settings3.network_data,
-                settings3.network_svc.clone(),
-                settings3.clone(),
-            ),
+            network::wifi_submenu(settings3.network_data, settings3.network_svc, settings3),
         ))
         // Bluetooth submenu
         .child(submenu_wrapper(
             move || submenu.get() == Some(SubMenu::Bluetooth),
-            bluetooth::bt_submenu(settings3.bluetooth_data, settings3.bluetooth_svc.clone()),
+            bluetooth::bt_submenu(settings3.bluetooth_data, settings3.bluetooth_svc),
         ))
         // Row 2: VPN | Airplane
         .child({
             let net_data = settings3.network_data;
-            let net_svc = settings3.network_svc.clone();
+            let net_svc = settings3.network_svc;
             move || {
                 Some(
                     container()
@@ -482,7 +452,7 @@ fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone)
                         .layout(Flex::row().spacing(8))
                         .child(network::vpn_quick_setting(
                             net_data,
-                            net_svc.clone(),
+                            net_svc,
                             move || {
                                 submenu.set(if submenu.get() == Some(SubMenu::Vpn) {
                                     None
@@ -492,29 +462,29 @@ fn menu_body(settings: SettingsSignals, close_menu: impl Fn() + 'static + Clone)
                             },
                             move || submenu.get() == Some(SubMenu::Vpn),
                         ))
-                        .child(network::airplane_quick_setting(net_data, net_svc.clone())),
+                        .child(network::airplane_quick_setting(net_data, net_svc)),
                 )
             }
         })
         // VPN submenu
         .child(submenu_wrapper(
             move || submenu.get() == Some(SubMenu::Vpn),
-            network::vpn_submenu(settings3.network_data, settings3.network_svc.clone()),
+            network::vpn_submenu(settings3.network_data, settings3.network_svc),
         ))
         // Row 3: Idle Inhibitor | Power Profile
         .child({
             let inhibitor_data = settings3.idle_inhibitor_data;
-            let inhibitor_svc = settings3.idle_inhibitor_svc.clone();
+            let inhibitor_svc = settings3.idle_inhibitor_svc;
             let up_data = settings3.upower_data;
-            let up_svc = settings3.upower_svc.clone();
+            let up_svc = settings3.upower_svc;
             move || {
-                let inhibitor_svc = inhibitor_svc.clone();
+                let inhibitor_svc = inhibitor_svc;
                 Some(
                     container()
                         .width(fill())
                         .layout(Flex::row().spacing(8))
                         .child(idle_inhibitor_quick_setting(inhibitor_data, inhibitor_svc))
-                        .child(power::power_profile_quick_setting(up_data, up_svc.clone())),
+                        .child(power::power_profile_quick_setting(up_data, up_svc)),
                 )
             }
         })
@@ -558,7 +528,7 @@ fn idle_inhibitor_quick_setting(
     svc: Service<services::idle_inhibitor::IdleInhibitorCmd>,
 ) -> impl Widget {
     let inhibited = data.inhibited;
-    let svc_toggle = svc.clone();
+    let svc_toggle = svc;
 
     quick_setting()
         .kind(move || {

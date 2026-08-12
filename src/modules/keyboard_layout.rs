@@ -22,7 +22,7 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
     });
 
     container().child(move || {
-        let svc = svc.clone();
+        let svc = svc;
         label.get().map(|l| {
             container()
                 .padding([0, 4])

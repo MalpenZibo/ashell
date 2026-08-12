@@ -72,7 +72,7 @@ pub fn wifi_quick_setting(
     on_submenu: impl Fn() + 'static,
     expanded: impl Fn() -> bool + 'static,
 ) -> impl Widget {
-    let svc_toggle = svc.clone();
+    let svc_toggle = svc;
     let wifi_enabled = move || data.with(|s| s.as_ref().is_some_and(|x| x.wifi_enabled));
 
     quick_setting()
@@ -110,7 +110,7 @@ pub fn airplane_quick_setting(
     svc: Service<NetworkCommand>,
 ) -> impl Widget {
     let airplane = move || data.with(|s| s.as_ref().is_some_and(|x| x.airplane_mode));
-    let svc_toggle = svc.clone();
+    let svc_toggle = svc;
 
     quick_setting()
         .kind(move || StaticIcon::Airplane)
@@ -137,7 +137,7 @@ pub fn vpn_quick_setting(
     on_submenu: impl Fn() + 'static + Clone,
     expanded: impl Fn() -> bool + 'static,
 ) -> impl Widget {
-    let svc_toggle = svc.clone();
+    let svc_toggle = svc;
     let on_submenu_for_toggle = on_submenu.clone();
 
     quick_setting()
@@ -207,7 +207,7 @@ pub fn wifi_submenu(
                 )
                 .child(text("WiFi Networks").color(theme.text).font_size(14))
                 .child({
-                    let svc_scan = svc.clone();
+                    let svc_scan = svc;
                     icon_button()
                         .icon(StaticIcon::Refresh)
                         .size(ButtonSize::Small)
@@ -238,7 +238,7 @@ pub fn wifi_submenu(
                     let ssid = ap.ssid.clone();
                     let strength = ap.strength;
                     let ap_clone = ap.clone();
-                    let svc = svc.clone();
+                    let svc = svc;
                     let is_connected = ap.state == DeviceState::Activated;
                     col = col.child(
                         selectable_item()
@@ -327,7 +327,7 @@ pub fn vpn_submenu(
         for vpn in known_list {
             let vpn_name = vpn.name.clone();
             let vpn_clone = vpn.clone();
-            let svc = svc.clone();
+            let svc = svc;
             let name_for_active = vpn_name.clone();
 
             col = col.child(
@@ -391,7 +391,7 @@ pub fn network_dialog_view(
 ) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let data = settings.network_data;
-    let svc = settings.network_svc.clone();
+    let svc = settings.network_svc;
     let dialog_sig = settings.network_dialog;
     let password = settings.dialog_password;
     let show_password = settings.dialog_show_password;
@@ -412,7 +412,7 @@ pub fn network_dialog_view(
     };
 
     let connect = {
-        let svc = svc.clone();
+        let svc = svc;
         let ssid = ssid.clone();
         move || {
             let pw = password.with(|p| p.clone());

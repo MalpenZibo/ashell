@@ -53,8 +53,8 @@ pub fn sink_slider(
     svc: Service<AudioCommand>,
     submenu: RwSignal<Option<SubMenu>>,
 ) -> impl Widget {
-    let svc_change = svc.clone();
-    let svc_mute = svc.clone();
+    let svc_change = svc;
+    let svc_mute = svc;
 
     slider()
         .value(move || {
@@ -65,12 +65,8 @@ pub fn sink_slider(
             })
         })
         .kind(move || -> IconKind {
-            data.with(|s| {
-                s.as_ref()
-                    .map(|x| sink_icon(x))
-                    .unwrap_or(StaticIcon::Speaker0)
-            })
-            .into()
+            data.with(|s| s.as_ref().map(sink_icon).unwrap_or(StaticIcon::Speaker0))
+                .into()
         })
         .muted(move || {
             data.with(|s| {
@@ -97,8 +93,8 @@ pub fn source_slider(
     svc: Service<AudioCommand>,
     submenu: RwSignal<Option<SubMenu>>,
 ) -> impl Widget {
-    let svc_change = svc.clone();
-    let svc_mute = svc.clone();
+    let svc_change = svc;
+    let svc_mute = svc;
 
     slider()
         .value(move || {
@@ -109,12 +105,8 @@ pub fn source_slider(
             })
         })
         .kind(move || -> IconKind {
-            data.with(|s| {
-                s.as_ref()
-                    .map(|x| source_icon(x))
-                    .unwrap_or(StaticIcon::Mic0)
-            })
-            .into()
+            data.with(|s| s.as_ref().map(source_icon).unwrap_or(StaticIcon::Mic0))
+                .into()
         })
         .muted(move || {
             data.with(|s| {
@@ -142,12 +134,8 @@ pub fn sink_indicator(data: ServiceSignal<AudioService>, format: SettingsFormat)
 
     bar_indicator()
         .kind(move || -> IconKind {
-            data.with(|s| {
-                s.as_ref()
-                    .map(|x| sink_icon(x))
-                    .unwrap_or(StaticIcon::Speaker0)
-            })
-            .into()
+            data.with(|s| s.as_ref().map(sink_icon).unwrap_or(StaticIcon::Speaker0))
+                .into()
         })
         .label(move || {
             Some(format!(
@@ -169,12 +157,8 @@ pub fn source_indicator(data: ServiceSignal<AudioService>, format: SettingsForma
 
     bar_indicator()
         .kind(move || -> IconKind {
-            data.with(|s| {
-                s.as_ref()
-                    .map(|x| source_icon(x))
-                    .unwrap_or(StaticIcon::Mic0)
-            })
-            .into()
+            data.with(|s| s.as_ref().map(source_icon).unwrap_or(StaticIcon::Mic0))
+                .into()
         })
         .label(move || {
             Some(format!(
@@ -250,7 +234,7 @@ fn submenu_view(
 
             let mut col = container().width(fill()).layout(Flex::column().spacing(2));
             for (label, ic, device_name, port_name, is_active) in routes {
-                let svc = svc.clone();
+                let svc = svc;
                 col = col.child(
                     selectable_item()
                         .kind(ic)

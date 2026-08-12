@@ -242,8 +242,8 @@ async fn main() {
                 compositor_state,
                 compositor_svc,
                 system_info,
-                updates: updates.clone(),
-                settings: settings.clone(),
+                updates,
+                settings,
                 tray,
                 privacy,
                 media_player,
@@ -268,7 +268,7 @@ async fn main() {
             });
             let bar_visible = create_signal(true);
             {
-                let settings = settings.clone();
+                let settings = settings;
                 let osd = osd.clone();
                 let volume_step = cfg.settings.volume_step;
                 let max_volume = cfg.settings.max_volume;

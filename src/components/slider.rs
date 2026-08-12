@@ -24,11 +24,6 @@ pub fn slider(
     let track_ref = create_widget_ref();
     let dragging = create_signal(false);
 
-    let on_change_down = on_change.clone();
-    let on_change_move = on_change.clone();
-    let on_change_scroll = on_change.clone();
-    let on_chevron = on_chevron.clone();
-
     let mut row = container()
         .width(fill())
         .layout(
@@ -38,10 +33,10 @@ pub fn slider(
         )
         // Mute icon
         .child({
-            if let Some(on_mute) = on_mute_toggle.clone() {
+            if let Some(on_mute) = on_mute_toggle {
                 icon_button()
                     .icon(move || kind.get())
-                    .on_click(move || on_mute())
+                    .on_click(move || on_mute.run())
                     .into_any()
             } else {
                 container()
@@ -62,22 +57,22 @@ pub fn slider(
                 .layout(Flex::row().cross_alignment(CrossAlignment::Center))
                 .on_mouse_down(move |x, _y| {
                     dragging.set(true);
-                    if let Some(ref on_change) = on_change_down {
+                    if let Some(on_change) = on_change {
                         let w = track_ref.rect().get().width;
                         if w > 0.0 {
                             let pct = (x / w * 100.0).clamp(0.0, 100.0).round() as i32;
-                            on_change(pct);
+                            on_change.run(pct);
                         }
                     }
                 })
                 .on_pointer_move(move |x, _y| {
                     if dragging.get()
-                        && let Some(ref on_change) = on_change_move
+                        && let Some(on_change) = on_change
                     {
                         let w = track_ref.rect().get().width;
                         if w > 0.0 {
                             let pct = (x / w * 100.0).clamp(0.0, 100.0).round() as i32;
-                            on_change(pct);
+                            on_change.run(pct);
                         }
                     }
                 })
@@ -85,11 +80,11 @@ pub fn slider(
                     dragging.set(false);
                 })
                 .on_scroll(move |_dx, dy, _src| {
-                    if let Some(ref on_change) = on_change_scroll {
+                    if let Some(on_change) = on_change {
                         let cur = value.get();
                         let step = if dy > 0.0 { -5 } else { 5 };
                         let new_val = (cur + step).clamp(0, 100);
-                        on_change(new_val);
+                        on_change.run(new_val);
                     }
                 })
                 // Thumb clearance: the fill resolves against the inner width
@@ -127,7 +122,7 @@ pub fn slider(
                     }
                     .into()
                 })
-                .on_click(move || on_chev()),
+                .on_click(move || on_chev.run()),
         );
     }
 

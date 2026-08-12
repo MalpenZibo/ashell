@@ -76,7 +76,7 @@ pub fn power_profile_quick_setting(
         data.with(|s| s.as_ref().map(|x| x.power_profile))
             .unwrap_or_default()
     });
-    let svc_toggle = svc.clone();
+    let svc_toggle = svc;
 
     quick_setting()
         .kind(move || StaticIcon::from(profile.get()))
@@ -224,7 +224,7 @@ pub fn peripherals_view(data: ServiceSignal<UPowerService>) -> impl Widget {
 /// Power actions menu. Commands come from config and run through
 /// `bash -c` (upstream launcher semantics); the menu stays open, like
 /// upstream. Hibernate only appears when hibernate_cmd is set.
-pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
+pub fn power_actions(close_menu: Callback) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let cfg = with_context::<crate::config::Config, _>(|c| c.settings.clone()).unwrap();
     // Upstream keeps the menu open after power actions

@@ -37,7 +37,7 @@ pub fn slider_view(
     // Derive percentage signal
     let pct = create_signal(0i32);
     create_effect(move || {
-        pct.set(data.with(|s| s.as_ref().map(|s| percent(s)).unwrap_or(0)));
+        pct.set(data.with(|s| s.as_ref().map(percent).unwrap_or(0)));
     })
     .detach();
 

@@ -86,7 +86,7 @@ pub fn button(
         .padding([0, pad])
         .corner_radius(radius)
         .squircle()
-        .on_click_option(on_click.clone())
+        .on_click_option(on_click)
         .on_hover(move |h| hovered.set(h))
         .pressed_state(|s| s.ripple())
         .background(move || {
@@ -167,7 +167,7 @@ pub fn icon_button(
         .height(size)
         .width(size)
         .corner_radius(size)
-        .on_click_option(on_click.clone())
+        .on_click_option(on_click)
         .pressed_state(|s| s.ripple())
         .hover_state(|c| c.lighter(0.1))
         .background(move || {

@@ -30,7 +30,7 @@ pub fn module_group(
         // No inner spacing: items carry their own horizontal padding
         // (upstream Row default)
         .layout(Flex::row().cross_alignment(CrossAlignment::Center))
-        .on_click_option(on_click.clone());
+        .on_click_option(on_click);
     if !solid && blur.enabled(opacity) {
         c = c.background_blur();
     }

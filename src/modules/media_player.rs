@@ -435,10 +435,10 @@ pub fn menu_view(
                 .layout(Flex::column().spacing(8));
 
             for card in cards {
-                let svc_prev = svc.clone();
-                let svc_play = svc.clone();
-                let svc_next = svc.clone();
-                let svc_vol = svc.clone();
+                let svc_prev = svc;
+                let svc_play = svc;
+                let svc_next = svc;
+                let svc_vol = svc;
                 let (s1, s2, s3, s4) = (
                     card.service.clone(),
                     card.service.clone(),

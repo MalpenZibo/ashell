@@ -15,7 +15,7 @@ pub fn bt_quick_setting(
     on_submenu: impl Fn() + 'static,
     expanded: impl Fn() -> bool + 'static,
 ) -> impl Widget {
-    let svc_toggle = svc.clone();
+    let svc_toggle = svc;
 
     quick_setting()
         .kind(move || {
@@ -97,7 +97,7 @@ pub fn bt_submenu(
                         }),
                 )
                 .child({
-                    let svc_scan = svc.clone();
+                    let svc_scan = svc;
                     icon_button()
                         .icon(move || -> IconKind {
                             if discovering() {
@@ -156,8 +156,8 @@ pub fn bt_submenu(
                     .unwrap_or_else(|| device.name.clone());
                 let path = device.path.clone();
                 let remove_path = device.path.clone();
-                let svc_disconnect = svc.clone();
-                let svc_remove = svc.clone();
+                let svc_disconnect = svc;
+                let svc_remove = svc;
                 col = col.child(
                     selectable_item()
                         .kind(StaticIcon::BluetoothConnected)
@@ -175,8 +175,8 @@ pub fn bt_submenu(
                 let name = device.name.clone();
                 let path = device.path.clone();
                 let remove_path = device.path.clone();
-                let svc_connect = svc.clone();
-                let svc_remove = svc.clone();
+                let svc_connect = svc;
+                let svc_remove = svc;
                 col = col.child(
                     selectable_item()
                         .kind(StaticIcon::Bluetooth)
@@ -199,7 +199,7 @@ pub fn bt_submenu(
                 for device in discovered {
                     let name = device.name.clone();
                     let path = device.path.clone();
-                    let svc = svc.clone();
+                    let svc = svc;
                     col = col.child(
                         selectable_item()
                             .kind(StaticIcon::Bluetooth)

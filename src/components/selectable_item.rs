@@ -22,7 +22,6 @@ pub fn selectable_item(
     let theme = expect_context::<ThemeColors>();
 
     let selected = selected.get();
-    let on_click = on_click.clone();
 
     let content_row = container()
         .width(fill())
@@ -63,7 +62,7 @@ pub fn selectable_item(
             .content(content_row);
 
         if let Some(cb) = on_click {
-            btn = btn.on_click(move || cb());
+            btn = btn.on_click(move || cb.run());
         }
 
         btn.into_any()

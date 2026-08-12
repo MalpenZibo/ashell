@@ -41,7 +41,7 @@ pub fn view(items: RwSignal<Vec<TrayItem>>, svc: Service<TrayCmd>, menu: MenuCtx
                 })
             },
             |name| hash_key(name),
-            move |name| tray_button(name, items, svc.clone(), menu, theme),
+            move |name| tray_button(name, items, svc, menu, theme),
         ))
 }
 
@@ -63,8 +63,8 @@ fn tray_button(
     let wr = create_widget_ref();
     let content = {
         let name = name.clone();
-        let svc = svc.clone();
-        move || menu_view(name.clone(), items, svc.clone(), close_menu_fn(menu)).into_any()
+        let svc = svc;
+        move || menu_view(name.clone(), items, svc, close_menu_fn(menu)).into_any()
     };
     let toggle = menu_toggle(MenuType::Tray(name.clone()), wr, menu, content);
 
@@ -134,7 +134,7 @@ fn menu_view(
     name: String,
     items: RwSignal<Vec<TrayItem>>,
     svc: Service<TrayCmd>,
-    close: impl Fn() + Clone + 'static,
+    close: Callback,
 ) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let open_submenus = create_signal(Vec::<i32>::new());
@@ -149,7 +149,7 @@ fn menu_view(
             .scrollable(ScrollAxis::Vertical)
             .layout(Flex::column().spacing(4));
         for voice in renderable_children(&menu_layout.2) {
-            col = col.child(menu_voice(&name, voice, open_submenus, &svc, &close, theme));
+            col = col.child(menu_voice(&name, voice, open_submenus, &svc, close, theme));
         }
         Some(col)
     })
@@ -160,7 +160,7 @@ fn menu_voice(
     layout: &Layout,
     open_submenus: RwSignal<Vec<i32>>,
     svc: &Service<TrayCmd>,
-    close: &(impl Fn() + Clone + 'static),
+    close: Callback,
     theme: ThemeColors,
 ) -> AnyWidget {
     let id = layout.0;
@@ -174,7 +174,7 @@ fn menu_voice(
             ..
         } if toggle_type == "checkmark" => {
             let on_toggle = {
-                let svc = svc.clone();
+                let svc = *svc;
                 let name = name.to_owned();
                 move || svc.send(TrayCmd::MenuClick(name.clone(), id))
             };
@@ -230,7 +230,7 @@ fn menu_voice(
                         ),
                 )
                 .on_click({
-                    let svc = svc.clone();
+                    let svc = *svc;
                     let name = name.to_owned();
                     move || {
                         let mut opening = false;
@@ -269,16 +269,15 @@ fn menu_voice(
         LayoutProps {
             label: Some(label), ..
         } if !label.is_empty() => {
-            let svc = svc.clone();
+            let svc = *svc;
             let name = name.to_owned();
-            let close = close.clone();
             button()
                 .kind(ButtonKind::Transparent)
                 .fill_width(true)
                 .content(text(label.replace('_', "")).color(theme.text).font_size(13))
                 .on_click(move || {
                     svc.send(TrayCmd::MenuClick(name.clone(), id));
-                    close();
+                    close.run();
                 })
                 .into_any()
         }

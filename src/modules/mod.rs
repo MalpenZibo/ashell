@@ -92,15 +92,15 @@ pub fn reset_menu_state() {
 /// Begin closing the open menu: flip the collapse animation; the reverse
 /// transition's on_complete destroys the popup when it settles. Used as
 /// the `close` callback handed to menu views (power actions, etc.).
-pub fn close_menu_fn(menu: MenuCtx) -> impl Fn() + Clone + 'static {
-    move || {
+pub fn close_menu_fn(menu: MenuCtx) -> Callback {
+    Callback::new(move || {
         let open = OPEN_POPUP.with(|slot| slot.borrow().as_ref().map(|(_, open, _)| *open));
         let Some(open_sig) = open else {
             return;
         };
         open_sig.set(false);
         menu.active_menu.set(None);
-    }
+    })
 }
 
 /// Destroy whatever popup is in the slot, now. Called by the collapse
@@ -208,7 +208,7 @@ fn menu_toggle(
         let was_open = menu.active_menu.get_untracked().as_ref() == Some(&mt);
         if was_open {
             // Plain close: play the collapse animation, deferred destroy
-            close_menu_fn(menu)();
+            close_menu_fn(menu).run();
             return;
         }
         // A NEW popup is about to be created (menu switch, or reopen during
@@ -307,10 +307,9 @@ fn add_module(
 ) -> ModuleGroup {
     match name {
         ModuleName::Clock => group.child(module_item().child(clock::view())),
-        ModuleName::Workspaces => group.child(module_item().child(workspaces::view(
-            data.compositor_state,
-            data.compositor_svc.clone(),
-        ))),
+        ModuleName::Workspaces => group.child(
+            module_item().child(workspaces::view(data.compositor_state, data.compositor_svc)),
+        ),
         ModuleName::WindowTitle => {
             let state = data.compositor_state;
             group.child(container().child(move || {
@@ -338,9 +337,9 @@ fn add_module(
         ModuleName::Updates => {
             if let Some((d, svc)) = &data.updates {
                 let wr = create_widget_ref();
-                let (d, svc) = (*d, svc.clone());
+                let (d, svc) = (*d, *svc);
                 let close = close_menu_fn(menu);
-                let content = move || updates::menu_view(d, svc.clone(), close.clone()).into_any();
+                let content = move || updates::menu_view(d, svc, close).into_any();
                 group.child(
                     container().widget_ref(wr).child(
                         module_item()
@@ -355,16 +354,16 @@ fn add_module(
         ModuleName::Settings => {
             if let Some(s) = &data.settings {
                 let wr = create_widget_ref();
-                let s_menu = s.clone();
+                let s_menu = *s;
                 let close = close_menu_fn(menu);
                 let content = move || {
                     // Submenus always start collapsed when the menu opens
                     s_menu.submenu.set(None);
-                    settings::menu_view(s_menu.clone(), close.clone()).into_any()
+                    settings::menu_view(s_menu, close).into_any()
                 };
                 // DEBUG: auto-open shortly after startup
                 if std::env::var("ASHELL_DEBUG_OPEN_SETTINGS").is_ok() {
-                    let trigger = menu_toggle(MenuType::Settings, wr, menu, content.clone());
+                    let trigger = menu_toggle(MenuType::Settings, wr, menu, content);
                     // Value = delay in seconds (default 3) so menu-switch
                     // sequences can be scripted (tempo at 3s, settings later)
                     let delay = std::env::var("ASHELL_DEBUG_OPEN_SETTINGS")
@@ -388,7 +387,7 @@ fn add_module(
                     container().widget_ref(wr).child(
                         module_item()
                             .on_click(menu_toggle(MenuType::Settings, wr, menu, content))
-                            .child(settings::view(s.clone())),
+                            .child(settings::view(*s)),
                     ),
                 )
             } else {
@@ -397,7 +396,7 @@ fn add_module(
         }
         ModuleName::Tray => {
             if let Some((items, svc)) = &data.tray {
-                let (items, svc) = (*items, svc.clone());
+                let (items, svc) = (*items, *svc);
                 let blocklist =
                     with_context::<Config, _>(|c| c.tray.blocklist.clone()).unwrap_or_default();
                 // Hidden entirely while no (non-blocklisted) item is registered
@@ -406,7 +405,7 @@ fn add_module(
                         l.iter()
                             .any(|item| !blocklist.iter().any(|re| re.0.is_match(&item.name)))
                     });
-                    any_visible.then(|| tray::view(items, svc.clone(), menu))
+                    any_visible.then(|| tray::view(items, svc, menu))
                 }))
             } else {
                 group
@@ -421,11 +420,11 @@ fn add_module(
         }
         ModuleName::KeyboardLayout => group.child(module_item().child(keyboard_layout::view(
             data.compositor_state,
-            data.compositor_svc.clone(),
+            data.compositor_svc,
         ))),
         ModuleName::MediaPlayer => {
             if let Some(mp) = &data.media_player {
-                let (mp_data, mp_svc, mp_bars) = (mp.data, mp.svc.clone(), mp.bars);
+                let (mp_data, mp_svc, mp_bars) = (mp.data, mp.svc, mp.bars);
                 let config =
                     with_context::<Config, _>(|c| c.media_player.clone()).unwrap_or_default();
 
@@ -456,7 +455,7 @@ fn add_module(
                 let menu_config = config.clone();
                 let wr = create_widget_ref();
                 let content = move || {
-                    media_player::menu_view(mp_data, mp_svc.clone(), mp_bars, menu_config.clone())
+                    media_player::menu_view(mp_data, mp_svc, mp_bars, menu_config.clone())
                         .into_any()
                 };
                 // The whole module (and its click handler) hides while no
@@ -507,7 +506,7 @@ fn add_module(
                     .detach();
                 }
                 if std::env::var("ASHELL_DEBUG_OPEN_TEMPO").is_ok() {
-                    let trigger = menu_toggle(MenuType::Tempo, wr, menu, content.clone());
+                    let trigger = menu_toggle(MenuType::Tempo, wr, menu, content);
                     let step = create_signal(0u32);
                     let w = step.writer();
                     // With ASHELL_DEBUG_REOPEN_TEMPO: open at 3s, close at

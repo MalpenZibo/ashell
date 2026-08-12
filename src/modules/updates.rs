@@ -66,13 +66,13 @@ pub fn view(data: UpdatesDataSignals) -> impl Widget {
 pub fn menu_view(
     data: UpdatesDataSignals,
     svc: Service<UpdatesCmd>,
-    close_menu: impl Fn() + 'static + Clone,
+    close_menu: Callback,
 ) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let updates = data.updates;
     let is_checking = data.is_checking;
-    let svc_update = svc.clone();
-    let close_menu_update = close_menu.clone();
+    let svc_update = svc;
+    let close_menu_update = close_menu;
 
     container()
         .width(fill())
@@ -125,12 +125,10 @@ pub fn menu_view(
         .child(crate::components::divider())
         // Action buttons
         .child(container().width(fill()).child({
-            let svc_update = svc_update.clone();
-            let close_menu_update = close_menu_update.clone();
+            let svc_update = svc_update;
             // The update button only appears while updates are pending
             move || {
-                let svc_update = svc_update.clone();
-                let close_menu_update = close_menu_update.clone();
+                let svc_update = svc_update;
                 (!updates.with(|u| u.is_empty())).then(move || {
                     button()
                         .kind(ButtonKind::Transparent)
@@ -138,13 +136,13 @@ pub fn menu_view(
                         .content(text("Update").color(theme.text).font_size(14))
                         .on_click(move || {
                             svc_update.send(UpdatesCmd::RunUpdate);
-                            close_menu_update();
+                            close_menu_update.run();
                         })
                 })
             }
         }))
         .child({
-            let svc_check = svc.clone();
+            let svc_check = svc;
             button()
                 .kind(ButtonKind::Transparent)
                 .fill_width(true)

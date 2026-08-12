@@ -2,8 +2,6 @@ use guido::prelude::*;
 
 #[component]
 pub fn module_item(#[prop(callback)] on_click: (), #[prop(children)] children: ()) -> impl Widget {
-    let on_click = on_click.clone();
-
     let mut c = container()
         .height(fill())
         .padding([0, 8])
@@ -13,7 +11,7 @@ pub fn module_item(#[prop(callback)] on_click: (), #[prop(children)] children: (
     if let Some(click_fn) = on_click {
         let hovered = create_signal(false);
         c = c
-            .on_click(move || click_fn())
+            .on_click(move || click_fn.run())
             .on_hover(move |h| hovered.set(h))
             .background(move || {
                 if hovered.get() {
