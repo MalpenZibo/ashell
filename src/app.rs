@@ -588,12 +588,11 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar_surface, opacity, menu, animations_enabled, bar_radius, blur) =
+                let (space, bar_surface, menu, animations_enabled, bar_radius, blur) =
                     use_theme(|t| {
                         (
                             t.space,
                             t.bar_surface,
-                            t.opacity,
                             t.menu,
                             t.animations_enabled,
                             t.bar_border_radius(),
@@ -620,7 +619,7 @@ impl App {
                 let bar_style = move |t: &Theme| container::Style {
                     background: match bar_surface {
                         BarSurface::Solid => Some({
-                            let bg = t.palette().background.scale_alpha(opacity);
+                            let bg = t.palette().background;
                             if menu_is_open {
                                 darken_color(bg, menu.backdrop)
                             } else {

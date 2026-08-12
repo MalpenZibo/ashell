@@ -110,33 +110,30 @@ margin = "sm"              # all edges
 
 ### Opacity
 
-The `opacity` field sets the opacity of the status bar components. The value
-should be a float between `0.0` (fully transparent) and `1.0` (fully opaque,
-the default).
+The `opacity` field sets the opacity of every surface ashell draws — the bar,
+menus, notifications and the OSD. The value should be a float between `0.0`
+(fully transparent) and `1.0` (fully opaque, the default).
+
+It is applied once, to the theme's palette, so every background colour carries
+it while text and icons stay fully opaque and readable.
 
 ```toml
-[appearance.bar]
+[appearance]
 opacity = 0.8
 ```
 
-## Menu Opacity
+## Menu Backdrop
 
-It's also possible to define the opacity of status bar menus and whether they
-should include a backdrop effect.
+The `backdrop` effect darkens whatever is behind an open menu, making it stand
+out from the content around it. The value should be a float between `0.0`
+(disabled) and `1.0` (fully darkened).
 
-The `backdrop` effect darkens whatever is behind an open menu, so the menu stands
-out from the content around it. It is drawn by ashell and involves no blur — see
-[Blur](#blur) for that. The value should be a float between `0.0` (disabled) and
-`1.0` (fully dark).
+It is drawn by ashell and involves no blur — see [Blur](#blur) for that.
 
-**Default values:**
-
-- `menu.opacity`: `1.0` (fully opaque)
-- `menu.backdrop`: `0.0` (disabled)
+**Default value:** `menu.backdrop`: `0.0` (disabled)
 
 ```toml
 [appearance.menu]
-opacity = 0.7
 backdrop = 0.3
 ```
 
@@ -150,7 +147,7 @@ no-op on compositors that do not support that protocol.
 
 | Value | Behaviour |
 | --- | --- |
-| `"auto"` (default) | Ask for blur when `bar.opacity` or `menu.opacity` is below `1.0` |
+| `"auto"` (default) | Ask for blur when `opacity` is below `1.0` |
 | `"always"` | Ask for blur regardless of opacity |
 | `"never"` | Never ask |
 
@@ -158,18 +155,12 @@ no-op on compositors that do not support that protocol.
 for the effect exactly when the effect can show. Use `"never"` if you want
 translucent surfaces without blur.
 
-This is different from `menu.backdrop`, which is an ashell-drawn darkening
-applied only behind open menus. `blur` affects the wallpaper behind the surface
-itself and requires compositor support.
-
 ### Example
 
 ```toml
 [appearance]
-blur = "auto"
-
-[appearance.bar]
 opacity = 0.8
+blur = "auto"
 ```
 
 ### Compositor setup

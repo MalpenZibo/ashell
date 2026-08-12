@@ -301,28 +301,21 @@ impl App {
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
-        let (space, menu_opacity, radius, bar_surface, bar_position, menu_backdrop, blur) =
-            use_theme(|t| {
-                (
-                    t.space,
-                    t.menu.opacity,
-                    t.radius,
-                    t.bar_surface,
-                    t.bar_position,
-                    t.menu.backdrop,
-                    t.blur,
-                )
-            });
+        let (space, radius, bar_surface, bar_position, menu_backdrop, blur) = use_theme(|t| {
+            (
+                t.space,
+                t.radius,
+                t.bar_surface,
+                t.bar_position,
+                t.menu.backdrop,
+                t.blur,
+            )
+        });
 
         let menu_style = move |theme: &Theme| Style {
-            background: Some(theme.palette().background.scale_alpha(menu_opacity).into()),
+            background: Some(theme.palette().background.into()),
             border: Border {
-                color: theme
-                    .extended_palette()
-                    .background
-                    .weakest
-                    .color
-                    .scale_alpha(menu_opacity),
+                color: theme.extended_palette().background.weakest.color,
                 width: 1.,
                 radius: radius.lg.into(),
             },

@@ -463,7 +463,7 @@ impl Notifications {
         style: NotificationStyle,
         urgency: Urgency,
     ) -> impl Fn(&Theme, iced::widget::button::Status) -> iced::widget::button::Style + use<> {
-        let (radius, menu_opacity) = use_theme(|t| (t.radius, t.menu.opacity));
+        let radius = use_theme(|t| t.radius);
         move |iced_theme: &Theme, status| {
             let mut border = match style {
                 NotificationStyle::Toast => Border::default()
@@ -496,38 +496,19 @@ impl Notifications {
                 border,
                 ..iced::widget::button::Style::default()
             };
-            match status {
-                iced::widget::button::Status::Hovered => {
-                    if style == NotificationStyle::Toast {
-                        button_style.background = Some(
-                            iced_theme
-                                .extended_palette()
-                                .background
-                                .weak
-                                .color
-                                .scale_alpha(menu_opacity)
-                                .into(),
-                        );
-                    } else {
-                        button_style.background = Some(
-                            iced_theme
-                                .extended_palette()
-                                .background
-                                .strong
-                                .color
-                                .scale_alpha(menu_opacity)
-                                .into(),
-                        );
-                    }
+            let bg = if style == NotificationStyle::Toast {
+                iced_theme.extended_palette().background.base.color
+            } else {
+                iced_theme.extended_palette().background.weak.color
+            };
+            button_style.background = Some(
+                if matches!(status, iced::widget::button::Status::Hovered) {
+                    crate::theme::hovered(iced_theme, bg)
+                } else {
+                    bg
                 }
-                _ => {
-                    button_style.background = if style == NotificationStyle::Toast {
-                        Some(iced_theme.palette().background.into())
-                    } else {
-                        Some(iced_theme.extended_palette().background.weak.color.into())
-                    }
-                }
-            }
+                .into(),
+            );
             button_style
         }
     }

@@ -14,7 +14,6 @@ pub struct AshellTheme {
     pub bar_surface: BarSurface,                              // transparent or solid
     pub bar_radius: BarRadius,                                // per-corner radius (CSS shorthand)
     pub bar_margin: BarMargin,                                // per-edge margin (CSS shorthand)
-    pub opacity: f32,                                         // Bar opacity (0.0-1.0)
     pub menu: MenuAppearance,                                 // Menu-specific styling
     pub workspace_colors: Vec<AppearanceColor>,               // Per-workspace color cycling
     pub special_workspace_colors: Option<Vec<AppearanceColor>>, // Special workspace colors
@@ -127,7 +126,6 @@ impl AshellTheme {
             bar_surface: appearance.bar.surface,
             bar_radius: appearance.bar.radius,
             bar_margin: appearance.bar.margin,
-            opacity: appearance.bar.opacity,
             // ...
         }
     }
