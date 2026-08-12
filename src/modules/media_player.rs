@@ -31,7 +31,6 @@ use iced::{
 use std::any::TypeId;
 
 const VISUALIZER_BAR_COUNT: usize = 32;
-const VISUALIZER_FRAMERATE: u32 = 60;
 
 const VISUALIZER_BAR_MIN_WIDTH: f32 = 2.0;
 const VISUALIZER_BAR_GAP: f32 = 2.0;
@@ -153,6 +152,7 @@ pub enum Message {
     Event(ServiceEvent<MprisPlayerService>),
     ConfigReloaded(MediaPlayerModuleConfig),
     Bars(Vec<f32>),
+    MenuOpened,
 }
 
 pub enum Action {
@@ -189,8 +189,10 @@ impl MediaPlayer {
         self.active_player().map(|p| p.state) == Some(PlaybackStatus::Playing)
     }
 
-    fn visualizer_enabled(&self) -> bool {
-        self.config.indicator_visualizer.is_some() || self.config.menu_visualizer
+    /// `menu_visualizer` only draws inside the menu, so it must not keep cava
+    /// running — and re-rendering every bar surface — while the menu is closed.
+    fn visualizer_enabled(&self, menu_open: bool) -> bool {
+        self.config.indicator_visualizer.is_some() || (self.config.menu_visualizer && menu_open)
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -227,15 +229,23 @@ impl MediaPlayer {
                 self.bars = bars;
                 Action::None
             }
+            Message::MenuOpened => {
+                // With only `menu_visualizer` enabled, cava stops when the menu
+                // closes, so the last frame would sit frozen behind the card
+                // until a fresh frame arrives. Drop it instead.
+                if !self.visualizer_enabled(false) {
+                    self.bars.clear();
+                }
+                Action::None
+            }
         }
     }
 
     pub fn menu_view<'a>(&'a self, is_closing: bool) -> Element<'a, Message> {
-        let (space, font_size, opacity, radius, palette) = use_theme(|theme| {
+        let (space, font_size, radius, palette) = use_theme(|theme| {
             (
                 theme.space,
                 theme.font_size,
-                theme.opacity,
                 theme.radius,
                 theme.iced_theme.palette(),
             )
@@ -385,12 +395,7 @@ impl MediaPlayer {
                         container(body)
                             .style(move |app_theme: &Theme| container::Style {
                                 background: Background::Color(
-                                    app_theme
-                                        .extended_palette()
-                                        .background
-                                        .weak
-                                        .color
-                                        .scale_alpha(opacity),
+                                    app_theme.extended_palette().background.weak.color,
                                 )
                                 .into(),
                                 border: Border::default().rounded(radius.lg),
@@ -554,8 +559,8 @@ impl MediaPlayer {
         })
     }
 
-    pub fn subscription(&self) -> Subscription<Message> {
-        let cava = (self.visualizer_enabled() && self.is_playing())
+    pub fn subscription(&self, menu_open: bool) -> Subscription<Message> {
+        let cava = (self.visualizer_enabled(menu_open) && self.is_playing())
             .then(|| self.cava_subscription().map(Message::Bars));
         Subscription::batch(
             [
@@ -570,74 +575,100 @@ impl MediaPlayer {
     fn cava_subscription(&self) -> Subscription<Vec<f32>> {
         struct Cava;
 
-        Subscription::run_with(TypeId::of::<Cava>(), |_| {
-            channel(16, async move |mut output| {
-                let cava_config = format!(
-                    "[general]\nbars = {VISUALIZER_BAR_COUNT}\nframerate = {VISUALIZER_FRAMERATE}\n\n\
-                 [output]\nmethod = raw\nraw_target = /dev/stdout\ndata_format = ascii\nascii_max_range = 1000\n\n\
-                 [smoothing]\nmonstercat = 1\n"
-                );
-
-                let config_path = std::env::temp_dir().join("ashell_cava.cfg");
-                if let Err(e) = tokio::fs::write(&config_path, &cava_config).await {
-                    log::error!("cava: failed to write config: {e}");
-                    return;
-                }
-
-                let mut child = match tokio::process::Command::new("cava")
-                    .arg("-p")
-                    .arg(&config_path)
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::piped())
-                    .kill_on_drop(true)
-                    .spawn()
-                {
-                    Ok(c) => c,
-                    Err(e) => {
-                        log::warn!("cava: failed to spawn process: {e}");
-                        return;
-                    }
-                };
-
-                let stdout = match child.stdout.take() {
-                    Some(s) => s,
-                    None => {
-                        log::error!("cava: no stdout");
-                        return;
-                    }
-                };
-                let stderr = child.stderr.take();
-
-                use tokio::io::{AsyncBufReadExt, BufReader};
-                let reader = BufReader::new(stdout);
-                let mut lines = reader.lines();
-
-                while let Ok(Some(line)) = lines.next_line().await {
-                    let bars: Vec<f32> = line
-                        .split(';')
-                        .filter(|s| !s.is_empty())
-                        .filter_map(|s| s.trim().parse::<f32>().ok())
-                        .map(|v| v / 1000.0)
-                        .collect();
-
-                    if !bars.is_empty() {
-                        let _ = output.send(bars).await;
-                    }
-                }
-
-                // stdout closed: cava exited on its own. Surface why, so a rejected
-                // config or an incompatible version is not a silent no-op.
-                if let Ok(status) = child.wait().await
-                    && !status.success()
-                {
-                    let mut err = String::new();
-                    if let Some(mut stderr) = stderr {
-                        use tokio::io::AsyncReadExt;
-                        let _ = stderr.read_to_string(&mut err).await;
-                    }
-                    log::warn!("cava exited ({status}): {}", err.trim());
-                }
-            })
-        })
+        // The framerate is part of the subscription id so that a config reload
+        // restarts cava instead of leaving the old process at the old rate.
+        Subscription::run_with(
+            (TypeId::of::<Cava>(), self.config.visualizer_framerate),
+            |(_, framerate)| cava_stream(*framerate),
+        )
     }
+}
+
+/// One cava process, decoded into normalized bar frames.
+fn cava_stream(framerate: u32) -> impl iced::futures::Stream<Item = Vec<f32>> {
+    channel(16, async move |mut output| {
+        let cava_config = format!(
+            "[general]\nbars = {VISUALIZER_BAR_COUNT}\nframerate = {framerate}\n\n\
+             [output]\nmethod = raw\nraw_target = /dev/stdout\ndata_format = ascii\nascii_max_range = 1000\n\n\
+             [smoothing]\nmonstercat = 1\n"
+        );
+
+        let config_path = std::env::temp_dir().join("ashell_cava.cfg");
+        if let Err(e) = tokio::fs::write(&config_path, &cava_config).await {
+            log::error!("cava: failed to write config: {e}");
+            return;
+        }
+
+        let mut child = match tokio::process::Command::new("cava")
+            .arg("-p")
+            .arg(&config_path)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!("cava: failed to spawn process: {e}");
+                return;
+            }
+        };
+
+        let stdout = match child.stdout.take() {
+            Some(s) => s,
+            None => {
+                log::error!("cava: no stdout");
+                return;
+            }
+        };
+        let stderr = child.stderr.take();
+
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        let reader = BufReader::new(stdout);
+        let mut lines = reader.lines();
+
+        // cava emits at its configured framerate regardless of what the
+        // audio is doing, so silence and the tail of the monstercat
+        // decay produce long runs of identical frames. Every frame that
+        // reaches the runtime rebuilds `view()` and presents on *every*
+        // output, so drop the ones that cannot look any different.
+        let mut last_sent: Option<Vec<u8>> = None;
+
+        while let Ok(Some(line)) = lines.next_line().await {
+            let bars: Vec<f32> = line
+                .split(';')
+                .filter(|s| !s.is_empty())
+                .filter_map(|s| s.trim().parse::<f32>().ok())
+                .map(|v| v / 1000.0)
+                .collect();
+
+            if bars.is_empty() {
+                continue;
+            }
+
+            let quantized: Vec<u8> = bars
+                .iter()
+                .map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8)
+                .collect();
+            if last_sent.as_ref() == Some(&quantized) {
+                continue;
+            }
+            last_sent = Some(quantized);
+
+            let _ = output.send(bars).await;
+        }
+
+        // stdout closed: cava exited on its own. Surface why, so a rejected
+        // config or an incompatible version is not a silent no-op.
+        if let Ok(status) = child.wait().await
+            && !status.success()
+        {
+            let mut err = String::new();
+            if let Some(mut stderr) = stderr {
+                use tokio::io::AsyncReadExt;
+                let _ = stderr.read_to_string(&mut err).await;
+            }
+            log::warn!("cava exited ({status}): {}", err.trim());
+        }
+    })
 }

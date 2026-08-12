@@ -586,6 +586,18 @@ impl Outputs {
             .any(|(_, shell_info, _)| shell_info.as_ref().is_some_and(|si| si.menu.is_open()))
     }
 
+    /// True while a menu of `menu_type` is open on any output.
+    pub fn menu_of_type_is_open(&self, menu_type: &MenuType) -> bool {
+        self.entries.iter().any(|(_, shell_info, _)| {
+            shell_info.as_ref().is_some_and(|si| {
+                si.menu
+                    .open
+                    .as_ref()
+                    .is_some_and(|open| &open.menu_type == menu_type)
+            })
+        })
+    }
+
     pub fn menu_is_closing(&self, id: SurfaceId) -> bool {
         self.entries.iter().any(|(_, shell_info, _)| {
             shell_info

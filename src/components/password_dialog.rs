@@ -6,8 +6,11 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, SurfaceId,
+    id::Id,
     widget::{column, row, space, text, text_input},
 };
+
+pub const PASSWORD_INPUT_ID: Id = Id::new("network-password-input");
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -57,6 +60,7 @@ pub fn view<'a>(
         (!warning_only).then_some(
             row!(
                 text_input("", current_password)
+                    .id(PASSWORD_INPUT_ID)
                     .secure(!show_password)
                     .size(font_size.md)
                     .padding([space.xs, space.md])

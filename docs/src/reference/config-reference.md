@@ -34,13 +34,13 @@ Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"
 [appearance]
 font_name = "JetBrains Mono"   # Optional custom font
 scale_factor = 1.0              # DPI scale factor
+opacity = 1.0                   # 0.0-1.0, every surface ashell draws
 blur = "auto"                   # auto|always|never, compositor blur
 
 [appearance.bar]
 surface = "transparent"         # "transparent" or "solid"
 radius = "none"                 # none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
 margin = "none"                 # none|xxs..xxl, CSS margin shorthand
-opacity = 0.9                   # 0.0-1.0
 ```
 
 ### Colors
@@ -64,7 +64,6 @@ Available color fields: `background`, `text`, `primary`, `secondary`, `success`,
 
 ```toml
 [appearance.menu]
-opacity = 0.95
 backdrop = 0.3                  # darkening drawn behind an open menu
 ```
 
@@ -195,10 +194,11 @@ indicator_format = "IconAndText"     # "Text", "IconAndText", or "Icon"
 indicator_fields = ["Artist", "Title"]
 max_text_length = 100
 indicator_visualizer = "Background"  # "Background", "Before", or "After"; omit to disable
-menu_visualizer = false              # bars behind the menu cards
+menu_visualizer = false              # bars behind the menu cards; cava runs only while the menu is open
+visualizer_framerate = 30            # cava frames per second, clamped to 1-144
 ```
 
-**Dependencies:** Any MPRIS-compatible media player (e.g., Spotify, Firefox, VLC, Strawberry). No extra system package is needed.
+**Dependencies:** Any MPRIS-compatible media player (e.g., Spotify, Firefox, VLC, Strawberry). No extra system package is needed. The visualizer additionally needs `cava` on `$PATH`.
 
 ## Custom Modules
 

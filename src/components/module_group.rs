@@ -10,14 +10,14 @@ use iced::{
 /// - `Transparent` → wrap in a container with background color + rounded border,
 ///   using `blur_container` when compositor blur is enabled
 pub fn module_group<'a, Msg: 'static>(content: Element<'a, Msg>) -> Element<'a, Msg> {
-    let (bar_surface, opacity, radius, blur) =
-        use_theme(|theme| (theme.bar_surface, theme.opacity, theme.radius, theme.blur));
+    let (bar_surface, radius, blur) =
+        use_theme(|theme| (theme.bar_surface, theme.radius, theme.blur));
 
     match bar_surface {
         BarSurface::Solid => content,
         BarSurface::Transparent => {
             let style = move |iced_theme: &iced::Theme| container::Style {
-                background: Some(iced_theme.palette().background.scale_alpha(opacity).into()),
+                background: Some(iced_theme.palette().background.into()),
                 border: Border {
                     width: 0.0,
                     radius: radius.lg.into(),

@@ -91,6 +91,7 @@ impl Config {
         }
         self.system_info.validate();
         self.settings.validate();
+        self.media_player.validate();
     }
 }
 
@@ -751,6 +752,7 @@ pub struct MediaPlayerModuleConfig {
     pub max_text_length: u32,
     pub indicator_visualizer: Option<MediaPlayerVisualizer>,
     pub menu_visualizer: bool,
+    pub visualizer_framerate: u32,
 }
 
 impl Default for MediaPlayerModuleConfig {
@@ -761,6 +763,25 @@ impl Default for MediaPlayerModuleConfig {
             max_text_length: 100,
             indicator_visualizer: None,
             menu_visualizer: false,
+            visualizer_framerate: Self::DEFAULT_VISUALIZER_FRAMERATE,
+        }
+    }
+}
+
+impl MediaPlayerModuleConfig {
+    const DEFAULT_VISUALIZER_FRAMERATE: u32 = 30;
+    const MAX_VISUALIZER_FRAMERATE: u32 = 144;
+
+    fn validate(&mut self) {
+        let clamped = self
+            .visualizer_framerate
+            .clamp(1, Self::MAX_VISUALIZER_FRAMERATE);
+        if clamped != self.visualizer_framerate {
+            warn!(
+                "MediaPlayerModuleConfig.visualizer_framerate is {}, setting to {clamped}",
+                self.visualizer_framerate
+            );
+            self.visualizer_framerate = clamped;
         }
     }
 }
@@ -1029,42 +1050,18 @@ impl From<BarMargin> for (i32, i32, i32, i32) {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq)]
 #[serde(default)]
 pub struct BarAppearance {
     pub surface: BarSurface,
-    #[serde(deserialize_with = "opacity_deserializer")]
-    pub opacity: f32,
     pub radius: BarRadius,
     pub margin: BarMargin,
 }
 
-impl Default for BarAppearance {
-    fn default() -> Self {
-        Self {
-            surface: BarSurface::default(),
-            opacity: default_opacity(),
-            radius: BarRadius::default(),
-            margin: BarMargin::default(),
-        }
-    }
-}
-
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Default, Clone, Copy, Debug)]
 #[serde(default)]
 pub struct MenuAppearance {
-    #[serde(deserialize_with = "opacity_deserializer")]
-    pub opacity: f32,
     pub backdrop: f32,
-}
-
-impl Default for MenuAppearance {
-    fn default() -> Self {
-        Self {
-            opacity: default_opacity(),
-            backdrop: f32::default(),
-        }
-    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -1073,6 +1070,10 @@ pub struct Appearance {
     pub font_name: Option<String>,
     #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
+    /// Opacity of every surface ashell draws. Applied once, to the palette, so
+    /// every background colour carries it and every text colour does not.
+    #[serde(deserialize_with = "opacity_deserializer")]
+    pub opacity: f32,
     pub bar: BarAppearance,
     pub menu: MenuAppearance,
     pub background_color: BackgroundAppearanceColor,
@@ -1162,6 +1163,7 @@ impl Default for Appearance {
         Self {
             font_name: None,
             scale_factor: 1.0,
+            opacity: default_opacity(),
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
             background_color: BackgroundAppearanceColor::Complete {

@@ -281,6 +281,12 @@ impl App {
                             },
                         );
                     }
+                    MenuType::MediaPlayer
+                        if !self.outputs.menu_of_type_is_open(&MenuType::MediaPlayer) =>
+                    {
+                        self.media_player
+                            .update(modules::media_player::Message::MenuOpened);
+                    }
                     _ => {}
                 };
                 cmd.push(self.outputs.toggle_menu(
@@ -375,7 +381,12 @@ impl App {
                     self.outputs
                         .close_menu(id, None, self.general_config.enable_esc_key)
                 }
-                modules::settings::Action::RequestKeyboard(id) => self.outputs.request_keyboard(id),
+                modules::settings::Action::RequestKeyboardWithCommand(id, task) => {
+                    Task::batch(vec![
+                        task.map(Message::Settings),
+                        self.outputs.request_keyboard(id),
+                    ])
+                }
                 modules::settings::Action::ReleaseKeyboard(id) => self.outputs.release_keyboard(id),
                 modules::settings::Action::ReleaseKeyboardWithCommand(id, task) => {
                     Task::batch(vec![
@@ -576,12 +587,11 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar_surface, opacity, menu, animations_enabled, bar_radius, blur) =
+                let (space, bar_surface, menu, animations_enabled, bar_radius, blur) =
                     use_theme(|t| {
                         (
                             t.space,
                             t.bar_surface,
-                            t.opacity,
                             t.menu,
                             t.animations_enabled,
                             t.bar_border_radius(),
@@ -599,7 +609,7 @@ impl App {
                 let bar_style = move |t: &Theme| container::Style {
                     background: match bar_surface {
                         BarSurface::Solid => Some({
-                            let bg = t.palette().background.scale_alpha(opacity);
+                            let bg = t.palette().background;
                             if menu_is_open {
                                 darken_color(bg, menu.backdrop)
                             } else {
@@ -712,18 +722,25 @@ impl App {
                 _ => Message::None,
             }),
             iced::output_events().map(Message::OutputEvent),
-            listen_with(move |evt, _, _| match evt {
-                iced::event::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
-                    debug!("Keyboard event received: {key:?}");
-                    if matches!(key, keyboard::Key::Named(keyboard::key::Named::Escape)) {
-                        debug!("ESC key pressed, closing all menus");
-                        Some(Message::CloseAllMenus)
-                    } else {
-                        None
+            // Only listen while Escape can close a menu; an idle listener
+            // subscription still receives every interaction event and would
+            // overflow iced's fixed-size event channel for nothing.
+            if self.general_config.enable_esc_key && self.outputs.menu_is_open() {
+                listen_with(|evt, _, _| match evt {
+                    iced::event::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
+                        debug!("Keyboard event received: {key:?}");
+                        if matches!(key, keyboard::Key::Named(keyboard::key::Named::Escape)) {
+                            debug!("ESC key pressed, closing all menus");
+                            Some(Message::CloseAllMenus)
+                        } else {
+                            None
+                        }
                     }
-                }
-                _ => None,
-            }),
+                    _ => None,
+                })
+            } else {
+                Subscription::none()
+            },
             Subscription::run(|| match signal_hook_tokio::Signals::new([libc::SIGUSR1]) {
                 Ok(signals) => signals
                     .filter_map(|sig| {
