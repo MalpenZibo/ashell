@@ -382,7 +382,12 @@ impl App {
                     self.outputs
                         .close_menu(id, None, self.general_config.enable_esc_key)
                 }
-                modules::settings::Action::RequestKeyboard(id) => self.outputs.request_keyboard(id),
+                modules::settings::Action::RequestKeyboardWithCommand(id, task) => {
+                    Task::batch(vec![
+                        task.map(Message::Settings),
+                        self.outputs.request_keyboard(id),
+                    ])
+                }
                 modules::settings::Action::ReleaseKeyboard(id) => self.outputs.release_keyboard(id),
                 modules::settings::Action::ReleaseKeyboardWithCommand(id, task) => {
                     Task::batch(vec![
