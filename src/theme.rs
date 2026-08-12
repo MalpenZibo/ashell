@@ -161,7 +161,7 @@ pub struct AshellTheme {
     pub space: Space,
 
     pub modules: Arc<HashMap<ModuleName, ModuleAppearance>>,
-    pub module: ModuleAppearance,
+    pub grouped: ModuleAppearance,
 
     pub bar: BarAppearance,
 
@@ -307,7 +307,7 @@ fn base_theme_from_appearance(
         menu: appearance.menu,
 
         modules: Arc::new(appearance.modules.clone()),
-        module: ModuleAppearance::default(),
+        grouped: appearance.grouped,
 
         workspace_colors: appearance.workspace_colors.clone(),
         special_workspace_colors: appearance.special_workspace_colors.clone(),
@@ -772,10 +772,9 @@ impl AshellTheme {
                 |background| background.get_base().scale_alpha(opacity).into(),
             ));
 
-            let text_color = appearance.map_or_else(
-                || theme.palette().text,
-                |appearance| appearance.text_color.get_base(),
-            );
+            let text_color = appearance
+                .and_then(|a| a.text_color)
+                .map_or_else(|| theme.palette().text, |text_color| text_color.get_base());
 
             let mut base = button::Style {
                 background,

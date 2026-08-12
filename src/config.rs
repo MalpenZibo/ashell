@@ -1146,7 +1146,7 @@ pub struct ModuleAppearance {
     pub border: Option<BorderAppearance>,
     pub background: Option<BackgroundAppearanceColor>,
     pub opacity: Option<f32>,
-    pub text_color: AppearanceColor,
+    pub text_color: Option<AppearanceColor>,
 }
 
 impl Default for ModuleAppearance {
@@ -1158,7 +1158,7 @@ impl Default for ModuleAppearance {
             border: None,
             background: None,
             opacity: None,
-            text_color: AppearanceColor::Simple(HexColor::rgb(169, 177, 214)),
+            text_color: None,
         }
     }
 }
@@ -1181,7 +1181,7 @@ pub struct Appearance {
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 
     pub modules: HashMap<ModuleName, ModuleAppearance>,
-    pub module: ModuleAppearance,
+    pub grouped: ModuleAppearance,
     /// Blur the wallpaper behind ashell's translucent surfaces via
     /// `ext-background-effect-v1`. No-op where the protocol is unsupported.
     pub blur: BlurMode,
@@ -1263,7 +1263,7 @@ impl Default for Appearance {
             scale_factor: 1.0,
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
-            module: ModuleAppearance::default(),
+            grouped: ModuleAppearance::default(),
             modules: HashMap::from([(
                 ModuleName::Settings,
                 ModuleAppearance {

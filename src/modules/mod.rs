@@ -194,9 +194,21 @@ impl App {
 
                         content.into_element()
                     }
-                    ModuleGroup::None | ModuleGroup::Combined => {
-                        let item = self.build_module_item(id, None, content.into_element(), action);
+                    ModuleGroup::Combined => {
+                        let item_appearance = ModuleAppearance {
+                            opacity: Some(0.),
+                            ..module_appearance
+                        };
+                        let item = self.build_module_item(
+                            id,
+                            Some(item_appearance),
+                            content.into_element(),
+                            action,
+                        );
                         module_group(item, module_appearance)
+                    }
+                    ModuleGroup::None => {
+                        self.build_module_item(id, None, content.into_element(), action)
                     }
                 }
             })
@@ -207,8 +219,8 @@ impl App {
         id: SurfaceId,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
-        let (module_appearance, default_appearance) =
-            use_theme(|t| (t.module_appearance(), t.module));
+        let (theme_space, module_appearance, group_appearance) =
+            use_theme(|t| (t.space, t.module_appearance(), t.grouped));
 
         let module_items: Vec<_> = group
             .iter()
@@ -239,7 +251,7 @@ impl App {
 
                         content.into_element()
                     }
-                    ModuleGroup::Combined | ModuleGroup::None => {
+                    ModuleGroup::Combined => {
                         let item = self.build_module_item(
                             id,
                             Some(appearance),
@@ -250,13 +262,17 @@ impl App {
                         // we should allow more customisation but for now leave it
                         item
                     }
+                    ModuleGroup::None => {
+                        self.build_module_item(id, Some(appearance), content.into_element(), action)
+                    }
                 }
             })
             .collect::<Vec<_>>();
 
-        let row = Row::with_children(items);
+        let spacing = theme_space.resolve(group_appearance.spacing);
+        let row = Row::with_children(items).spacing(spacing);
 
-        Some(module_group(row.into(), default_appearance))
+        Some(module_group(row.into(), group_appearance))
     }
 
     fn get_module_view<'a>(
