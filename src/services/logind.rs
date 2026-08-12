@@ -1,3 +1,4 @@
+#![allow(dead_code)] // upstream verbatim
 use super::compat::{Subscription, channel};
 use super::{ReadOnlyService, ServiceEvent};
 use futures::{SinkExt, StreamExt};

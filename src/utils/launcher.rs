@@ -19,23 +19,3 @@ fn run_command(cmd: String, context: &'static str) {
 pub fn execute_command(command: &str) {
     run_command(command.to_owned(), "execute");
 }
-
-pub fn suspend(cmd: &str) {
-    run_command(cmd.to_owned(), "suspend");
-}
-
-pub fn hibernate(cmd: &str) {
-    run_command(cmd.to_owned(), "hibernate");
-}
-
-pub fn shutdown(cmd: &str) {
-    run_command(cmd.to_owned(), "shutdown");
-}
-
-pub fn reboot(cmd: &str) {
-    run_command(cmd.to_owned(), "reboot");
-}
-
-pub fn logout(cmd: &str) {
-    run_command(cmd.to_owned(), "logout");
-}

@@ -1,3 +1,4 @@
+#![allow(dead_code)] // upstream verbatim
 use crate::components::icons::StaticIcon;
 use log::{debug, info, warn};
 use std::os::fd::{AsFd, AsRawFd, FromRawFd};

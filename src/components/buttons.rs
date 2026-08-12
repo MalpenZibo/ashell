@@ -9,11 +9,6 @@ pub enum ButtonHierarchy {
     Secondary,
     #[allow(dead_code)]
     Danger,
-    Custom {
-        bg: Color,
-        hover: Color,
-        fg: Color,
-    },
 }
 
 impl ButtonHierarchy {
@@ -22,7 +17,6 @@ impl ButtonHierarchy {
             Self::Primary => theme.primary,
             Self::Secondary => theme.background.lighter(0.1),
             Self::Danger => theme.danger,
-            Self::Custom { bg, .. } => *bg,
         }
     }
 
@@ -31,7 +25,6 @@ impl ButtonHierarchy {
             Self::Primary => theme.primary.lighter(0.1),
             Self::Secondary => theme.background.lighter(0.2),
             Self::Danger => theme.danger.lighter(0.1),
-            Self::Custom { hover, .. } => *hover,
         }
     }
 
@@ -40,7 +33,6 @@ impl ButtonHierarchy {
             Self::Primary => theme.background,
             Self::Secondary => theme.text,
             Self::Danger => theme.background,
-            Self::Custom { fg, .. } => *fg,
         }
     }
 }

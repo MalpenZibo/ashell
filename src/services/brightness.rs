@@ -1,3 +1,4 @@
+#![allow(dead_code)] // upstream verbatim
 use super::compat::{Subscription, Task, channel};
 use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{services::throttle::ThrottleExt, utils::remote_value::Remote};

@@ -20,12 +20,13 @@ use std::future::Future;
 
 use futures::channel::mpsc;
 use futures::future::BoxFuture;
-use futures::stream::{BoxStream, Stream, StreamExt};
+use futures::stream::{BoxStream, FuturesUnordered, Stream, StreamExt};
 use guido::prelude::*;
 
 /// Event stream item produced by a service's `subscribe()` — identical to
 /// upstream ashell's.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Error is produced by upstream service code
 pub enum ServiceEvent<S: ReadOnlyService> {
     Init(S),
     Update(S::UpdateEvent),
@@ -152,8 +153,28 @@ pub type ServiceSignal<S> = RwSignal<Option<S>>;
 /// value via `update()`, publishes every change as an always-notifying
 /// snapshot, and executes `command()` tasks (their resulting events feed back into
 /// the same loop, like iced's runtime does).
-/// Bench-only gate: ASHELL_BENCH_ONLY=NameA,NameB runs only the services
-/// whose type name contains one of the given fragments.
+fn fold<S>(event: ServiceEvent<S>, service: &mut Option<S>, publish: impl Fn(S))
+where
+    S: ReadOnlyService + Clone,
+    S::Error: std::fmt::Debug,
+{
+    match event {
+        ServiceEvent::Init(s) => {
+            *service = Some(s.clone());
+            publish(s);
+        }
+        ServiceEvent::Update(update) => {
+            if let Some(s) = service.as_mut() {
+                s.update(update);
+                publish(s.clone());
+            }
+        }
+        ServiceEvent::Error(err) => {
+            log::error!("service {} error: {err:?}", std::any::type_name::<S>());
+        }
+    }
+}
+
 pub fn run_service<S>() -> (ServiceSignal<S>, guido::prelude::Service<S::Command>)
 where
     S: Service + Clone + Send + 'static,
@@ -186,36 +207,14 @@ where
     let signal = create_signal(None::<S>);
     let writer = signal.writer();
 
-    if let Ok(only) = std::env::var("ASHELL_BENCH_ONLY") {
-        let name = std::any::type_name::<S>();
-        if !only.split(',').any(|frag| name.contains(frag)) {
-            return signal;
-        }
-    }
-
     let _svc = create_service::<(), _, _>(move |_rx, _ctx| async move {
         let mut events = S::subscribe().0;
         let mut service: Option<S> = None;
+        let publish = move |s: S| writer.set_always(Some(s));
 
         while let Some(event) = events.next().await {
             hook(&event);
-            match event {
-                ServiceEvent::Init(s) => {
-                    service = Some(s.clone());
-                    log::debug!("publish {}", std::any::type_name::<S>());
-                    writer.set_always(Some(s));
-                }
-                ServiceEvent::Update(update) => {
-                    if let Some(s) = service.as_mut() {
-                        s.update(update);
-                        log::debug!("publish {}", std::any::type_name::<S>());
-                        writer.set_always(Some(s.clone()));
-                    }
-                }
-                ServiceEvent::Error(err) => {
-                    log::error!("service {} error: {err:?}", std::any::type_name::<S>());
-                }
-            }
+            fold(event, &mut service, publish);
         }
     });
 
@@ -238,26 +237,12 @@ where
     let signal = create_signal(None::<S>);
     let writer = signal.writer();
 
-    if let Ok(only) = std::env::var("ASHELL_BENCH_ONLY") {
-        let name = std::any::type_name::<S>();
-        if !only.split(',').any(|frag| name.contains(frag)) {
-            return (
-                signal,
-                create_service::<S::Command, _, _>(|_rx, _ctx| async {}),
-            );
-        }
-    }
-
     let svc = create_service::<S::Command, _, _>(move |mut rx, _ctx| async move {
         let mut events = S::subscribe().0;
-        // Results of command() tasks re-enter the event loop here
-        let (task_tx, mut task_rx) = tokio::sync::mpsc::unbounded_channel::<ServiceEvent<S>>();
         let mut service: Option<S> = None;
-
-        let publish = move |s: S| {
-            log::debug!("publish {}", std::any::type_name::<S>());
-            writer.set_always(Some(s));
-        };
+        let publish = move |s: S| writer.set_always(Some(s));
+        // Driven here rather than spawned, so they end with this service
+        let mut tasks = FuturesUnordered::new();
 
         loop {
             let event = tokio::select! {
@@ -265,7 +250,7 @@ where
                     Some(ev) => ev,
                     None => break,
                 },
-                Some(ev) = task_rx.recv() => ev,
+                Some(ev) = tasks.next() => ev,
                 cmd = rx.recv() => match cmd {
                     Some(cmd) => {
                         if let Some(s) = service.as_mut() {
@@ -273,10 +258,7 @@ where
                             // command() may mutate the service synchronously
                             publish(s.clone());
                             if let Task(TaskInner::Perform(fut)) = task {
-                                let task_tx = task_tx.clone();
-                                tokio::spawn(async move {
-                                    let _ = task_tx.send(fut.await);
-                                });
+                                tasks.push(fut);
                             }
                         }
                         continue;
@@ -286,22 +268,7 @@ where
             };
 
             hook(&event);
-
-            match event {
-                ServiceEvent::Init(s) => {
-                    service = Some(s.clone());
-                    publish(s);
-                }
-                ServiceEvent::Update(update) => {
-                    if let Some(s) = service.as_mut() {
-                        s.update(update);
-                        publish(s.clone());
-                    }
-                }
-                ServiceEvent::Error(err) => {
-                    log::error!("service {} error: {err:?}", std::any::type_name::<S>());
-                }
-            }
+            fold(event, &mut service, publish);
         }
     });
 
