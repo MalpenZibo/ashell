@@ -10,13 +10,19 @@ Commented-out lines show the default; uncomment and change to customize.
 ```toml
 # ── General ───────────────────────────────────────────────────────────────────
 
-log_level = "warn"
 # language = "en-US"        # UI language; defaults to $LC_MESSAGES / $LANG
 # region   = "it-IT"        # date format + unit system; defaults to $LC_TIME / $LANG
 # outputs = "All"            # "All" (default), "Active", or { Targets = ["eDP-1"] }
 position = "Top"             # "Top" (default) or "Bottom"
 # layer = "Bottom"           # "Bottom" (default), "Top", or "Overlay"
 # enable_esc_key = false     # Pressing Escape closes open menus
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+
+[logging]
+# level = "warn"             # (default) "error", "warn", "info", or "debug"; supports per-module filters
+# target = "file"            # (default) "file", "stdout", or "stderr"
+# directory = "~/.local/log" # (default: $XDG_RUNTIME_DIR/ashell) supports ~ and $VAR
 
 # ── Modules ───────────────────────────────────────────────────────────────────
 
