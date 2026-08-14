@@ -1438,10 +1438,20 @@ fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
 
     info!("Decoding config file {path:?}");
 
-    let res = toml::from_str::<Config>(&content);
+    let de =
+        toml::Deserializer::parse(&content).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
+    let mut unknown_fields = Vec::new();
+    let res = serde_ignored::deserialize(de, |path| {
+        unknown_fields.push(path.to_string());
+    });
 
     match res {
         Ok(config) => {
+            for field in &unknown_fields {
+                let msg = format!("Unknown configuration field ignored: {field}");
+                warn!("{msg}");
+                eprintln!("ashell: warning: {msg}");
+            }
             info!("Config file loaded successfully");
             let mut config: Config = config;
             config.validate();
