@@ -236,7 +236,7 @@ pub enum UPowerEvent {
     UpdatePeripherals(Vec<Peripheral>),
     NoBattery,
     UpdatePowerProfile(PowerProfile),
-    UpdateKbdBrightness(i32),
+    UpdateKbdBrightness(u32),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -287,9 +287,9 @@ impl From<PowerProfile> for StaticIcon {
 
 #[derive(Default, Debug, Clone)]
 pub struct KbdBacklight {
-    pub max: i32,
-    pub current: Remote<i32>,
-    pub retained: Option<i32>,
+    pub max: u32,
+    pub current: Remote<u32>,
+    pub retained: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -431,24 +431,31 @@ impl UPowerService {
         Ok(profile)
     }
 
+    fn unsigned(value: i32) -> u32 {
+        u32::try_from(value).unwrap_or_else(|error| {
+            warn!("Received negative keyboard backlight value: {error}");
+            0
+        })
+    }
+
     async fn initialize_kbd_backlight_data(conn: &zbus::Connection) -> Option<KbdBacklight> {
         let proxy = KbdBacklightProxy::new(conn).await.ok()?;
-        let max = proxy.get_max_brightness().await.ok()?;
-        let mut current = Remote::<i32>::default();
-        current.receive(proxy.get_brightness().await.ok()?);
+        let max = Self::unsigned(proxy.get_max_brightness().await.ok()?);
+        let mut current = Remote::<u32>::default();
+        current.receive(Self::unsigned(proxy.get_brightness().await.ok()?));
         Some(KbdBacklight {
-            max,
+            max: max as u32,
             current,
             retained: None,
         })
     }
 
-    pub fn set_kbd_backlight(&self, brightness: i32) {
+    pub fn set_kbd_backlight(&self, brightness: u32) {
         let conn = self.conn.clone();
         tokio::spawn(async move {
             match KbdBacklightProxy::new(&conn).await {
                 Ok(proxy) => {
-                    let _ = proxy.set_brightness(brightness).await;
+                    let _ = proxy.set_brightness(brightness as i32).await;
                 }
                 Err(err) => error!("Failed to set brightness {err}"),
             }
@@ -790,7 +797,10 @@ impl UPowerService {
                 .filter_map({
                     |brightness_changed| async move {
                         match brightness_changed.args() {
-                            Ok(args) => Some(UPowerEvent::UpdateKbdBrightness(*args.value())),
+                            Ok(args) => {
+                                let value = Self::unsigned(*args.value());
+                                Some(UPowerEvent::UpdateKbdBrightness(value))
+                            }
                             Err(err) => {
                                 error!("Failed to fetch keyboard backlight: {err}");
                                 None

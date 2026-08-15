@@ -4,10 +4,9 @@ use crate::{
     components::{
         ButtonKind, IconPosition, divider, format_indicator,
         icons::{StaticIcon, icon},
-        quick_setting_button, styled_button,
+        quick_setting_button, slider_control, styled_button,
     },
     config::{PeripheralIndicators, SettingsFormat},
-    modules::settings::SubMenu,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         upower::{BatteryData, BatteryStatus, PowerProfile, UPowerCommand, UPowerService},
@@ -19,7 +18,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    slider,
+    mouse::ScrollDelta,
     widget::{Column, Row, column, container, row, text},
 };
 
@@ -54,20 +53,18 @@ pub enum Message {
     TogglePowerProfile,
     ToggleChargeLimit,
     ToggleKbdBacklight,
-    ToggleKbdBacklightMenu,
     Suspend,
     Hibernate,
     Reboot,
     Shutdown,
     Logout,
-    KbdBacklightChanged(remote_value::Message<i32>),
+    KbdBacklightChanged(remote_value::Message<u32>),
     ConfigReloaded(PowerSettingsConfig),
 }
 
 pub enum Action {
     None,
     TogglePeripheralMenu,
-    ToggleKbdBacklightMenu,
     Command(Task<Message>),
 }
 
@@ -160,7 +157,6 @@ impl PowerSettings {
                     Action::None
                 }
             }
-            Message::ToggleKbdBacklightMenu => Action::ToggleKbdBacklightMenu,
             Message::TogglePowerProfile => match self.service.as_mut() {
                 Some(service) => Action::Command(
                     service
@@ -571,48 +567,36 @@ impl PowerSettings {
         })
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn kbd_backlight_quick_setting_button<'a>(
-        &'a self,
-        current_submenu: Option<SubMenu>,
-    ) -> Option<(Element<'a, Message>, Option<(bool, Element<'a, Message>)>)> {
-        let kbd_backlight = self.service.as_ref()?.kbd_backlight.as_ref()?;
-        let is_on = kbd_backlight.current.value() != 0;
-        Some((
-            quick_setting_button(
-                if is_on {
+    pub fn kbd_backlight_slider<'a>(&'a self) -> Option<Element<'a, Message>> {
+        let backlight = self.service.as_ref()?.kbd_backlight.as_ref()?;
+        let current = backlight.current.value();
+        Some(
+            slider_control(
+                if current != 0 {
                     StaticIcon::KeyboardBacklightOn
                 } else {
                     StaticIcon::KeyboardBacklightOff
                 },
-                t!("settings-kbd-backlight"),
-                None,
-                is_on,
-                Message::ToggleKbdBacklight,
-                None,
-                Some((
-                    SubMenu::KbdBacklight,
-                    current_submenu,
-                    Message::ToggleKbdBacklightMenu,
-                )),
-            ),
-            Some((
-                current_submenu == Some(SubMenu::KbdBacklight),
-                container(
-                    Element::<'a, remote_value::Message<i32>>::from(
-                        slider(
-                            0..=kbd_backlight.max,
-                            kbd_backlight.current.value(),
-                            remote_value::Message::Request,
-                        )
-                        .on_release(remote_value::Message::Timeout),
-                    )
-                    .map(Message::KbdBacklightChanged),
-                )
-                .padding([use_theme(|t| t.space.xs), 0.0])
-                .into(),
-            )),
-        ))
+                0..=backlight.max,
+                current,
+                Message::KbdBacklightChanged,
+                move |delta| {
+                    let y = match delta {
+                        ScrollDelta::Lines { y, .. } => y,
+                        ScrollDelta::Pixels { y, .. } => y,
+                    };
+                    let step = (5 * backlight.max / 100).max(1);
+                    let new = if y > 0.0 {
+                        (current + step).min(backlight.max)
+                    } else {
+                        current.saturating_sub(step)
+                    };
+                    Message::KbdBacklightChanged(remote_value::Message::RequestAndTimeout(new))
+                },
+            )
+            .on_icon_press(Message::ToggleKbdBacklight)
+            .into(),
+        )
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

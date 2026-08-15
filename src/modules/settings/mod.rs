@@ -135,7 +135,6 @@ pub enum SubMenu {
     Wifi,
     Vpn,
     Bluetooth,
-    KbdBacklight,
 }
 
 impl Settings {
@@ -270,10 +269,6 @@ impl Settings {
                 power::Action::None => Action::None,
                 power::Action::TogglePeripheralMenu => {
                     self.toggle_submenu_to(SubMenu::PeripheralMenu);
-                    Action::None
-                }
-                power::Action::ToggleKbdBacklightMenu => {
-                    self.toggle_submenu_to(SubMenu::KbdBacklight);
                     Action::None
                 }
                 power::Action::Command(task) => Action::Command(task.map(Message::Power)),
@@ -674,14 +669,6 @@ impl Settings {
                     self.power
                         .charge_limit_quick_setting_button()
                         .map(|(button, _)| (button.map(Message::Power), None)),
-                    self.power
-                        .kbd_backlight_quick_setting_button(self.sub_menu)
-                        .map(|(button, submenu)| {
-                            (
-                                button.map(Message::Power),
-                                submenu.map(|(expanded, e)| (expanded, e.map(Message::Power))),
-                            )
-                        }),
                 ]
                 .into_iter()
                 .flatten()
@@ -765,6 +752,11 @@ impl Settings {
                 .push(audio_sinks_group)
                 .push(audio_sources_group)
                 .push(self.brightness.slider().map(|e| e.map(Message::Brightness)))
+                .push(
+                    self.power
+                        .kbd_backlight_slider()
+                        .map(|e| e.map(Message::Power)),
+                )
                 .push(quick_settings)
                 .spacing(space.md)
                 .into()
