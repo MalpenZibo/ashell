@@ -644,6 +644,7 @@ pub struct SettingsModuleConfig {
     pub indicators: Vec<SettingsIndicator>,
     #[serde(rename = "CustomButton")]
     pub custom_buttons: Vec<SettingsCustomButton>,
+    pub keyboard_backlight_slider: bool,
 }
 
 impl Default for SettingsModuleConfig {
@@ -686,6 +687,7 @@ impl Default for SettingsModuleConfig {
                 SettingsIndicator::Battery,
             ],
             custom_buttons: Default::default(),
+            keyboard_backlight_slider: Default::default(),
         }
     }
 }

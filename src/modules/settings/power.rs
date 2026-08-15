@@ -80,6 +80,7 @@ pub struct PowerSettingsConfig {
     pub peripheral_indicators: PeripheralIndicators,
     pub peripheral_battery_format: SettingsFormat,
     pub peripheral_expanded_by_default: bool,
+    pub keyboard_backlight_slider: bool,
 }
 
 impl PowerSettingsConfig {
@@ -95,6 +96,7 @@ impl PowerSettingsConfig {
         peripheral_indicators: PeripheralIndicators,
         peripheral_battery_format: SettingsFormat,
         peripheral_expanded_by_default: bool,
+        keyboard_backlight_slider: bool,
     ) -> Self {
         Self {
             suspend_cmd,
@@ -107,6 +109,7 @@ impl PowerSettingsConfig {
             peripheral_indicators,
             peripheral_battery_format,
             peripheral_expanded_by_default,
+            keyboard_backlight_slider,
         }
     }
 }
@@ -568,6 +571,9 @@ impl PowerSettings {
     }
 
     pub fn kbd_backlight_slider<'a>(&'a self) -> Option<Element<'a, Message>> {
+        if !self.config.keyboard_backlight_slider {
+            return None;
+        }
         let backlight = self.service.as_ref()?.kbd_backlight.as_ref()?;
         let current = backlight.current.value();
         Some(

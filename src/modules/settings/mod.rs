@@ -214,6 +214,7 @@ impl Settings {
                 config.peripheral_indicators,
                 config.peripheral_battery_format,
                 config.peripheral_expanded_by_default,
+                config.keyboard_backlight_slider,
             )),
             audio: AudioSettings::new(AudioSettingsConfig::new(
                 config.audio_sinks_more_cmd,
@@ -514,6 +515,7 @@ impl Settings {
                         config.peripheral_indicators,
                         config.peripheral_battery_format,
                         config.peripheral_expanded_by_default,
+                        config.keyboard_backlight_slider,
                     )));
                 self.audio
                     .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
