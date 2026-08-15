@@ -90,11 +90,15 @@ fn close_notification_by_id_task(connection: Option<Connection>, id: u32) -> Tas
     )
 }
 
-fn delayed_toast_message(delay: Duration, id: u32, msg: fn(u32) -> Message) -> Task<Message> {
+fn delayed_toast_message(
+    delay: Duration,
+    key: ToastKey,
+    msg: fn(ToastKey) -> Message,
+) -> Task<Message> {
     Task::perform(
         async move {
             tokio::time::sleep(delay).await;
-            id
+            key
         },
         msg,
     )
@@ -121,10 +125,10 @@ pub enum Message {
     GroupCleared(String, Vec<u32>),
     Event(ServiceEvent<NotificationsService>),
     ToggleGroup(String),
-    ExpireToast(u32),
+    ExpireToast(ToastKey),
     DismissToast(u32),
-    StartCollapse(u32),
-    DismissAnimationComplete(u32),
+    StartCollapse(ToastKey),
+    DismissAnimationComplete(ToastKey),
     ToastResized(Size),
 }
 
@@ -155,14 +159,21 @@ enum DismissPhase {
     Collapsing,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ToastKey {
+    notification_id: u32,
+    generation: u64,
+}
+
 pub struct Notifications {
     config: NotificationsModuleConfig,
     connection: Option<Connection>,
     notifications: VecDeque<Notification>,
     expanded_groups: HashSet<String>,
     blocklist: Vec<crate::config::RegexCfg>,
-    toasts: VecDeque<u32>,
-    dismiss_phases: HashMap<u32, DismissPhase>,
+    toasts: VecDeque<ToastKey>,
+    dismiss_phases: HashMap<ToastKey, DismissPhase>,
+    next_toast_generation: u64,
     animations_enabled: bool,
 }
 
@@ -177,6 +188,7 @@ impl Notifications {
             blocklist,
             toasts: VecDeque::new(),
             dismiss_phases: HashMap::new(),
+            next_toast_generation: 0,
             animations_enabled,
         }
     }
@@ -211,15 +223,42 @@ impl Notifications {
 
     fn remove_toast(&mut self, id: u32) -> bool {
         let had_toasts = !self.toasts.is_empty();
-        self.toasts.retain(|&toast_id| toast_id != id);
+        self.toasts.retain(|key| key.notification_id != id);
+        self.dismiss_phases
+            .retain(|key, _| key.notification_id != id);
+        had_toasts
+    }
+
+    fn remove_toast_key(&mut self, key: ToastKey) -> bool {
+        let had_toasts = !self.toasts.is_empty();
+        self.toasts.retain(|toast_key| *toast_key != key);
+        self.dismiss_phases.remove(&key);
         had_toasts
     }
 
     fn remove_toasts(&mut self, ids: &[u32]) -> bool {
         let had_toasts = !self.toasts.is_empty();
         let ids: HashSet<u32> = ids.iter().copied().collect();
-        self.toasts.retain(|toast_id| !ids.contains(toast_id));
+        self.toasts
+            .retain(|key| !ids.contains(&key.notification_id));
+        self.dismiss_phases
+            .retain(|key, _| !ids.contains(&key.notification_id));
         had_toasts
+    }
+
+    fn toast_key(&self, id: u32) -> Option<ToastKey> {
+        self.toasts
+            .iter()
+            .find(|key| key.notification_id == id)
+            .copied()
+    }
+
+    fn next_toast_key(&mut self, notification_id: u32) -> ToastKey {
+        self.next_toast_generation = self.next_toast_generation.wrapping_add(1);
+        ToastKey {
+            notification_id,
+            generation: self.next_toast_generation,
+        }
     }
 
     fn notification_ids_for_app(&self, app_name: &str) -> Vec<u32> {
@@ -259,14 +298,19 @@ impl Notifications {
                     return Action::None;
                 }
 
+                // A replacement reuses the notification ID but starts a new
+                // toast lifetime. Remove the old lifetime so its delayed
+                // messages cannot affect the replacement.
+                self.remove_toast(notification.id);
+
                 while self.toasts.len() >= self.config.toast_limit {
                     if let Some(evicted) = self.toasts.pop_front() {
                         self.dismiss_phases.remove(&evicted);
                     }
                 }
-                self.toasts.push_back(notification.id);
+                let toast_key = self.next_toast_key(notification.id);
+                self.toasts.push_back(toast_key);
 
-                let notification_id = notification.id;
                 // Critical notifications are persistent per the freedesktop
                 // spec: they must be acknowledged by the user.
                 let timeout = if notification.urgency == Urgency::Critical {
@@ -279,7 +323,7 @@ impl Notifications {
                     Task::perform(
                         async move {
                             tokio::time::sleep(timeout).await;
-                            notification_id
+                            toast_key
                         },
                         Message::ExpireToast,
                     )
@@ -291,7 +335,11 @@ impl Notifications {
             }
             NotificationEvent::Closed(id) => {
                 let id = *id;
-                if self.dismiss_phases.contains_key(&id) {
+                if self
+                    .dismiss_phases
+                    .keys()
+                    .any(|key| key.notification_id == id)
+                {
                     return Action::None;
                 }
                 let was_showing = self.remove_toast(id);
@@ -303,7 +351,16 @@ impl Notifications {
     fn apply_update_event(&mut self, update_event: NotificationEvent) {
         match update_event {
             NotificationEvent::Received(notification) => {
-                self.notifications.push_front(*notification);
+                let notification = *notification;
+                if let Some(existing) = self
+                    .notifications
+                    .iter_mut()
+                    .find(|existing| existing.id == notification.id)
+                {
+                    *existing = notification;
+                } else {
+                    self.notifications.push_front(notification);
+                }
             }
             NotificationEvent::Closed(id) => {
                 if let Some(pos) = self.notifications.iter().position(|n| n.id == id) {
@@ -320,7 +377,7 @@ impl Notifications {
                 self.blocklist = config.blocklist.clone();
                 self.config = config;
                 if hide {
-                    self.toasts.clear();
+                    self.clear_toasts();
                     Action::Hide(Task::none())
                 } else {
                     Action::None
@@ -389,16 +446,16 @@ impl Notifications {
                 }
                 Action::None
             }
-            Message::ExpireToast(id) => {
-                if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
+            Message::ExpireToast(key) => {
+                if self.toasts.contains(&key) && !self.dismiss_phases.contains_key(&key) {
                     if !self.animations_enabled {
-                        let had_toasts = self.remove_toast(id);
+                        let had_toasts = self.remove_toast_key(key);
                         return self.hide_toasts_if_empty(had_toasts);
                     }
-                    self.dismiss_phases.insert(id, DismissPhase::Sliding);
+                    self.dismiss_phases.insert(key, DismissPhase::Sliding);
                     Action::Task(delayed_toast_message(
                         SLIDE_ANIMATION,
-                        id,
+                        key,
                         Message::StartCollapse,
                     ))
                 } else {
@@ -408,47 +465,51 @@ impl Notifications {
             Message::CloseNotificationById(id) => {
                 let connection = self.connection.clone();
                 let had_toasts = self.remove_toast(id);
-                self.dismiss_phases.remove(&id);
 
                 let task = close_notification_by_id_task(connection, id);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
             Message::DismissToast(id) => {
-                if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
+                if let Some(key) = self.toast_key(id)
+                    && !self.dismiss_phases.contains_key(&key)
+                {
                     let connection = self.connection.clone();
                     let action_key = self.find_first_action_key(id);
                     let invoke_task = invoke_and_close_task(connection, id, action_key);
                     if !self.animations_enabled {
-                        let had_toasts = self.remove_toast(id);
+                        let had_toasts = self.remove_toast_key(key);
                         let hide_action =
                             self.hide_toasts_if_empty_with_task(had_toasts, invoke_task);
                         return hide_action;
                     }
-                    self.dismiss_phases.insert(id, DismissPhase::Sliding);
+                    self.dismiss_phases.insert(key, DismissPhase::Sliding);
                     Action::Task(Task::batch(vec![
                         invoke_task,
-                        delayed_toast_message(SLIDE_ANIMATION, id, Message::StartCollapse),
+                        delayed_toast_message(SLIDE_ANIMATION, key, Message::StartCollapse),
                     ]))
                 } else {
                     Action::None
                 }
             }
-            Message::StartCollapse(id) => {
-                if self.dismiss_phases.get(&id) == Some(&DismissPhase::Sliding) {
-                    self.dismiss_phases.insert(id, DismissPhase::Collapsing);
+            Message::StartCollapse(key) => {
+                if self.dismiss_phases.get(&key) == Some(&DismissPhase::Sliding) {
+                    self.dismiss_phases.insert(key, DismissPhase::Collapsing);
                     Action::Task(delayed_toast_message(
                         COLLAPSE_ANIMATION,
-                        id,
+                        key,
                         Message::DismissAnimationComplete,
                     ))
                 } else {
                     Action::None
                 }
             }
-            Message::DismissAnimationComplete(id) => {
-                self.dismiss_phases.remove(&id);
-                let had_toasts = self.remove_toast(id);
-                self.hide_toasts_if_empty(had_toasts)
+            Message::DismissAnimationComplete(key) => {
+                if self.dismiss_phases.get(&key) == Some(&DismissPhase::Collapsing) {
+                    let had_toasts = self.remove_toast_key(key);
+                    self.hide_toasts_if_empty(had_toasts)
+                } else {
+                    Action::None
+                }
             }
             Message::ToastResized(size) => Action::UpdateToastInputRegion(size),
         }
@@ -683,9 +744,9 @@ impl Notifications {
 
         let mut toast_column = column!().spacing(space.sm);
 
-        for &toast_id in &self.toasts {
-            if let Some(notification) = self.find_notification(toast_id) {
-                let phase = self.dismiss_phases.get(&toast_id).copied();
+        for &toast_key in &self.toasts {
+            if let Some(notification) = self.find_notification(toast_key.notification_id) {
+                let phase = self.dismiss_phases.get(&toast_key).copied();
                 let is_dismissing = phase.is_some();
                 let is_collapsing = phase == Some(DismissPhase::Collapsing);
                 toast_column = toast_column.push(
@@ -704,10 +765,10 @@ impl Notifications {
                             }
                         })
                         .animated(self.animations_enabled)
-                        .key(toast_id as u64),
+                        .key(toast_key.notification_id as u64),
                     )
                     .animated(self.animations_enabled)
-                    .key(toast_id as u64),
+                    .key(toast_key.notification_id as u64),
                 );
             }
         }
