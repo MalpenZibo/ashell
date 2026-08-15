@@ -431,20 +431,12 @@ impl UPowerService {
         Ok(profile)
     }
 
-    fn unsigned(value: i32) -> u32 {
-        u32::try_from(value).unwrap_or_else(|error| {
-            warn!("Received negative keyboard backlight value: {error}");
-            0
-        })
-    }
-
     async fn initialize_kbd_backlight_data(conn: &zbus::Connection) -> Option<KbdBacklight> {
         let proxy = KbdBacklightProxy::new(conn).await.ok()?;
-        let max = Self::unsigned(proxy.get_max_brightness().await.ok()?);
         let mut current = Remote::<u32>::default();
-        current.receive(Self::unsigned(proxy.get_brightness().await.ok()?));
+        current.receive(Self::safe_cast(proxy.get_brightness().await.ok()?));
         Some(KbdBacklight {
-            max: max as u32,
+            max: Self::safe_cast(proxy.get_max_brightness().await.ok()?),
             current,
             retained: None,
         })
@@ -460,6 +452,15 @@ impl UPowerService {
                 Err(err) => error!("Failed to set brightness {err}"),
             }
         });
+    }
+
+    // DBUS Exposes keyboard backlight as a signed integer
+    // Here we clamp it to 0 in case negative value is sent
+    fn safe_cast(value: i32) -> u32 {
+        u32::try_from(value).unwrap_or_else(|error| {
+            warn!("Received negative keyboard backlight value: {error}");
+            0
+        })
     }
 
     async fn initialize_system_battery_data(
@@ -798,7 +799,7 @@ impl UPowerService {
                     |brightness_changed| async move {
                         match brightness_changed.args() {
                             Ok(args) => {
-                                let value = Self::unsigned(*args.value());
+                                let value = Self::safe_cast(*args.value());
                                 Some(UPowerEvent::UpdateKbdBrightness(value))
                             }
                             Err(err) => {

@@ -151,7 +151,7 @@ impl PowerSettings {
                         0
                     };
                     self.update(Message::KbdBacklightChanged(
-                        remote_value::Message::Request(new_value),
+                        remote_value::Message::RequestAndTimeout(new_value),
                     ))
                 } else {
                     Action::None
