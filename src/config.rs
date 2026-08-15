@@ -91,6 +91,7 @@ impl Config {
         }
         self.system_info.validate();
         self.settings.validate();
+        self.media_player.validate();
     }
 
     fn translate_deprecated(&mut self) {
@@ -777,6 +778,7 @@ pub struct MediaPlayerModuleConfig {
     pub max_text_length: u32,
     pub indicator_visualizer: Option<MediaPlayerVisualizer>,
     pub menu_visualizer: bool,
+    pub visualizer_framerate: u32,
 }
 
 impl Default for MediaPlayerModuleConfig {
@@ -787,6 +789,25 @@ impl Default for MediaPlayerModuleConfig {
             max_text_length: 100,
             indicator_visualizer: None,
             menu_visualizer: false,
+            visualizer_framerate: Self::DEFAULT_VISUALIZER_FRAMERATE,
+        }
+    }
+}
+
+impl MediaPlayerModuleConfig {
+    const DEFAULT_VISUALIZER_FRAMERATE: u32 = 30;
+    const MAX_VISUALIZER_FRAMERATE: u32 = 144;
+
+    fn validate(&mut self) {
+        let clamped = self
+            .visualizer_framerate
+            .clamp(1, Self::MAX_VISUALIZER_FRAMERATE);
+        if clamped != self.visualizer_framerate {
+            warn!(
+                "MediaPlayerModuleConfig.visualizer_framerate is {}, setting to {clamped}",
+                self.visualizer_framerate
+            );
+            self.visualizer_framerate = clamped;
         }
     }
 }
@@ -1577,10 +1598,20 @@ fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
 
     info!("Decoding config file {path:?}");
 
-    let res = toml::from_str::<Config>(&content);
+    let de =
+        toml::Deserializer::parse(&content).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
+    let mut unknown_fields = Vec::new();
+    let res = serde_ignored::deserialize(de, |path| {
+        unknown_fields.push(path.to_string());
+    });
 
     match res {
         Ok(config) => {
+            for field in &unknown_fields {
+                let msg = format!("Unknown configuration field ignored: {field}");
+                warn!("{msg}");
+                eprintln!("ashell: warning: {msg}");
+            }
             info!("Config file loaded successfully");
             let mut config: Config = config;
             config.validate();

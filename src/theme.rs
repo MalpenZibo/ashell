@@ -185,10 +185,36 @@ impl Default for AshellTheme {
     }
 }
 
+/// Not scaled by the configured opacity: the colour underneath already carries
+/// it, and scaling here would paint that background twice.
+const HOVER_OVERLAY: f32 = 0.04;
+
+/// Straight-alpha "a over b", so only one layer ends up painted.
+fn over(a: Color, b: Color) -> Color {
+    let alpha = a.a + b.a * (1.0 - a.a);
+    if alpha <= f32::EPSILON {
+        return Color::TRANSPARENT;
+    }
+    let channel = |ca: f32, cb: f32| (ca * a.a + cb * b.a * (1.0 - a.a)) / alpha;
+    Color {
+        r: channel(a.r, b.r),
+        g: channel(a.g, b.g),
+        b: channel(a.b, b.b),
+        a: alpha,
+    }
+}
+
+/// `color` with the hover overlay composited in, so hovering paints one layer
+/// rather than stacking a second one and washing out the translucency.
+pub fn hovered(theme: &Theme, color: Color) -> Color {
+    over(theme.palette().text.scale_alpha(HOVER_OVERLAY), color)
+}
+
 fn build_iced_theme(appearance: &Appearance) -> Theme {
     Theme::custom_with_fn(
         "local".to_string(),
         Palette {
+            // The one colour here that is paint; the accents are read as ink.
             background: appearance.background_color.get_base(),
             text: appearance.text_color.get_base(),
             primary: appearance.primary_color.get_base(),
@@ -296,7 +322,6 @@ fn base_theme_from_appearance(
     bar_position: Position,
     animations_enabled: bool,
 ) -> AshellTheme {
-    println!("called");
     AshellTheme {
         space: Space::default(),
         radius: Radius::default(),
@@ -443,6 +468,7 @@ impl AshellTheme {
                     text_color: palette.text,
                     ..button::Style::default()
                 },
+                // Transparent at rest, so hover adds an overlay, not a background.
                 (ButtonKind::Outline, Status::Hovered) => button::Style {
                     background: Some(base_bg.scale_alpha(btn_opacity).into()),
                     border: Border {
@@ -529,6 +555,7 @@ impl AshellTheme {
             };
             match status {
                 Status::Active => base,
+                // Transparent at rest, so hover adds an overlay, not a background.
                 Status::Hovered => {
                     base.background = Some(
                         theme
@@ -786,6 +813,7 @@ impl AshellTheme {
 
             match status {
                 Status::Active => base,
+                // The group pill already carries the opacity; overlay on it.
                 Status::Hovered => {
                     base.background = Some(
                         appearance

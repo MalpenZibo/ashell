@@ -29,7 +29,7 @@ depends = ["libwayland-client0", "libpipewire-0.3-0t64", "libpulse0"]
 depends = ["libwayland-client", "pipewire-libs", "pulseaudio-libs"]
 
 [dependencies]
-iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.3.1", features = [
+iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.4.0", features = [
   "tokio",
   "advanced",
   "wgpu",
@@ -59,6 +59,7 @@ hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
 udev = { version = "0.9", features = ["send", "sync"] }
 toml = "1"
+serde_ignored = "0.1"
 freedesktop-icons = "0.4"
 linicon-theme = "1.2.0"
 serde_json = "1"

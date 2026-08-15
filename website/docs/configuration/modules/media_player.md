@@ -54,12 +54,21 @@ the field to disable it.
 | `After`      | Draws the bars after (to the right of) the content.           |
 
 `menu_visualizer` (bool, default `false`) draws the bars as the background of
-the currently playing card in the media menu.
+the currently playing card in the media menu. Because those bars are only
+visible while the menu is up, `cava` runs only while the media menu is open —
+unless `indicator_visualizer` is also set, which keeps it running whenever a
+player is playing.
+
+`visualizer_framerate` (integer, default `30`, clamped to `1`–`144`) sets how
+many frames per second CAVA produces. Every frame redraws the bar on every
+monitor, so raising this measurably increases CPU use; lower it if the bar
+feels sluggish while the visualizer is active.
 
 ```toml
 [media_player]
 indicator_visualizer = "Background"
 menu_visualizer = true
+visualizer_framerate = 30
 ```
 
 The bars are coloured with a gradient built from the active theme palette
@@ -69,6 +78,8 @@ CAVA visualizes the system audio output, not the individual stream of the
 active player (MPRIS carries only metadata and playback controls, not audio
 samples). The visualizer is therefore shown only while a player is playing,
 and `cava` is started on demand and stopped again while playback is paused.
+Frames that are visually identical to the previous one are discarded rather
+than redrawn, so silence costs nothing.
 
 > **Requires** `cava` to be installed and available on your `$PATH`. If `cava`
 > is missing the visualizer stays hidden.
@@ -89,4 +100,5 @@ indicator_format = "Text"
 indicator_fields = ["Title"]
 indicator_visualizer = "Background"
 menu_visualizer = true
+visualizer_framerate = 30
 ```

@@ -245,7 +245,9 @@ impl Menu {
 
     pub fn request_keyboard<Message: 'static>(&self) -> Task<Message> {
         if let Some(open) = &self.open {
-            set_keyboard_interactivity(open.id, KeyboardInteractivity::OnDemand)
+            // Exclusive grabs keyboard focus on Hyprland immediately, so keystrokes
+            // reach the dialog without requiring a mouse click first.
+            set_keyboard_interactivity(open.id, KeyboardInteractivity::Exclusive)
         } else {
             Task::none()
         }
@@ -299,15 +301,15 @@ impl App {
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
-        let (space, menu_opacity, radius, bar_inset, bar_position, menu_backdrop, blur) =
+        let (space, radius, bar_inset, bar_position, menu_backdrop, menu_opacity, blur) =
             use_theme(|t| {
                 (
                     t.space,
-                    t.menu.opacity,
                     t.radius,
                     t.bar.inset,
                     t.bar_position,
                     t.menu.backdrop,
+                    t.menu.opacity,
                     t.blur,
                 )
             });
@@ -315,12 +317,7 @@ impl App {
         let menu_style = move |theme: &Theme| Style {
             background: Some(theme.palette().background.scale_alpha(menu_opacity).into()),
             border: Border {
-                color: theme
-                    .extended_palette()
-                    .background
-                    .weakest
-                    .color
-                    .scale_alpha(menu_opacity),
+                color: theme.extended_palette().background.weakest.color,
                 width: 1.,
                 radius: radius.lg.into(),
             },
