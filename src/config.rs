@@ -318,6 +318,7 @@ pub enum DiskFormat {
 pub enum MemoryFormat {
     #[default]
     Percentage,
+    Amount,
     Fraction,
 }
 

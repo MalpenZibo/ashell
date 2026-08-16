@@ -88,7 +88,7 @@ alert_threshold = 80
 [system_info.memory]
 warn_threshold = 70
 alert_threshold = 85
-# format = "Percentage"   # (default) or "Fraction"
+# format = "Percentage"   # (default), "Amount" or "Fraction"
 
 [system_info.temperature]
 # warn_threshold = 60     # (default: None, auto 60°C / 140°F based on unit system)
