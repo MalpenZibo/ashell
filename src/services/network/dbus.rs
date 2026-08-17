@@ -549,7 +549,7 @@ impl NetworkDbus<'_> {
                                 name: String::from_utf8_lossy(&access_point.ssid().await?)
                                     .into_owned(),
                                 strength: access_point.strength().await.unwrap_or_default(),
-                                band: super::frequency_band(freq),
+                                frequency: freq,
                             });
                         }
                     }

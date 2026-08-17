@@ -145,7 +145,7 @@ pub enum ActiveConnectionInfo {
     WiFi {
         name: String,
         strength: u8,
-        band: Option<&'static str>,
+        frequency: u32,
     },
     Vpn {
         name: String,

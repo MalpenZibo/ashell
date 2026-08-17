@@ -387,8 +387,8 @@ impl NetworkSettings {
                     ActiveConnectionInfo::WiFi {
                         name,
                         strength,
-                        band,
-                    } => Some((name, strength, *band, c.get_icon())),
+                        frequency,
+                    } => Some((name, strength, *frequency, c.get_icon())),
                     _ => None,
                 });
 
@@ -405,7 +405,9 @@ impl NetworkSettings {
                             sub_menu,
                             Message::ToggleWifiMenu,
                         )),
-                        active_connection.and_then(|(_, _, band, _)| band.map(|b| b.to_string())),
+                        active_connection.and_then(|(_, _, freq, _)| {
+                            frequency_band(freq).map(|b| b.to_string())
+                        }),
                     ),
                     service.wifi_enabled.then_some((
                         sub_menu == Some(SubMenu::Wifi),
@@ -573,8 +575,6 @@ impl NetworkSettings {
                             styled_button(
                                 Element::from(
                                     container({
-                                        let primary = use_theme(|t| t.iced_theme.palette().primary);
-                                        let font_size = use_theme(|t| t.font_size);
                                         row!(
                                             icon(if ac.public {
                                                 ActiveConnectionInfo::get_wifi_icon(ac.strength)
@@ -585,8 +585,8 @@ impl NetworkSettings {
                                             text(ac.ssid.as_str()).width(Length::Fill),
                                             text(frequency_band(ac.frequency).unwrap_or(""))
                                                 .size(font_size.xs)
-                                                .style(move |_theme: &Theme| text::Style {
-                                                    color: Some(primary),
+                                                .style(|theme: &Theme| text::Style {
+                                                    color: Some(theme.palette().primary),
                                                 }),
                                         )
                                         .align_y(Alignment::Center)
@@ -731,7 +731,7 @@ impl NetworkSettings {
     pub fn connected_wifi_band(&self) -> Option<&'static str> {
         self.service.as_ref().and_then(|service| {
             service.active_connections.iter().find_map(|c| match c {
-                ActiveConnectionInfo::WiFi { band, .. } => *band,
+                ActiveConnectionInfo::WiFi { frequency, .. } => frequency_band(*frequency),
                 _ => None,
             })
         })
