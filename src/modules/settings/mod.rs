@@ -940,8 +940,8 @@ impl Settings {
             MenuType::WifiTooltip => {
                 if let Some(label) = self.network.connected_wifi_label() {
                     let band = self.network.connected_wifi_band();
-                    let font_size = use_theme(|t| t.font_size);
-                    let primary = use_theme(|t| t.iced_theme.palette().primary);
+                    let (font_size, primary) =
+                        use_theme(|t| (t.font_size, t.iced_theme.palette().primary));
                     let mut r = row![StaticIcon::Wifi4.to_text(), iced::widget::text(label)]
                         .spacing(space.xs);
                     if let Some(b) = band {
