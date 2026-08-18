@@ -40,7 +40,7 @@ blur = "auto"                   # auto|always|never, compositor blur
 [appearance.bar]
 surface = "transparent"         # "transparent" or "solid"
 radius = "none"                 # none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
-margin = "none"                 # none|xxs..xxl, CSS margin shorthand
+margin = "none"                 # none|xxs..xxl|number(pixels), CSS margin shorthand
 ```
 
 ### Colors

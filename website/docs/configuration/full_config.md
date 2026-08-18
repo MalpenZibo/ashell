@@ -214,7 +214,7 @@ workspace_colors = [ "#7aa2f7", "#9ece6a" ]
 [appearance.bar]
 surface = "transparent"  # (default) or "solid"
 # radius = "none"          # (default) none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
-# margin = "none"          # (default) none|xxs|xs|sm|md|lg|xl|xxl, CSS margin shorthand
+# margin = "none"          # (default) none|xxs|xs|sm|md|lg|xl|xxl|number(pixels), CSS margin shorthand
 
 [appearance.menu]
 # backdrop = 0.0   # (default) darkening drawn behind an open menu
