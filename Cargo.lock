@@ -171,6 +171,7 @@ dependencies = [
  "shellexpand",
  "signal-hook",
  "signal-hook-tokio",
+ "swayipc-types",
  "sysinfo",
  "tokio",
  "tokio-stream",
@@ -4363,6 +4364,17 @@ dependencies = [
  "skrifa 0.44.0",
  "yazi",
  "zeno",
+]
+
+[[package]]
+name = "swayipc-types"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a29165dc67819a052bd67962b6c9de7c5d4461f0e8d224eb0f7cdd26cf05a650"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

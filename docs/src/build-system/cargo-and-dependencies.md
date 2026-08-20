@@ -29,6 +29,7 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 |-------|---------|---------|
 | `hyprland` | 0.4.0-beta.2 | Hyprland IPC client |
 | `niri-ipc` | 25.11.0 | Niri IPC client |
+| `swayipc-types` | 2 | Sway/i3 IPC message and reply types |
 
 ### System Integration
 

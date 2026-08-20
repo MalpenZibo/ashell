@@ -6,6 +6,7 @@ pub mod generic;
 pub mod hyprland;
 pub mod mangowc;
 pub mod niri;
+pub mod sway;
 pub mod types;
 
 pub use self::types::{
@@ -63,6 +64,7 @@ async fn broadcaster_event_loop(tx: broadcast::Sender<ServiceEvent<CompositorSer
         CompositorChoice::Hyprland => hyprland::run_listener(&tx).await,
         CompositorChoice::Niri => niri::run_listener(&tx).await,
         CompositorChoice::Mango => mangowc::run_listener(&tx).await,
+        CompositorChoice::Sway => sway::run_listener(&tx).await,
         CompositorChoice::Generic => generic::run_listener(&tx).await,
     };
 
@@ -80,6 +82,8 @@ fn detect_backend() -> Option<CompositorChoice> {
             Some(CompositorChoice::Niri)
         } else if mangowc::is_available() {
             Some(CompositorChoice::Mango)
+        } else if sway::is_available() {
+            Some(CompositorChoice::Sway)
         } else if generic::is_available() {
             log::info!(
                 "No dedicated compositor detected; using the generic Wayland backend. \
@@ -175,6 +179,7 @@ async fn execute_command(
         CompositorChoice::Hyprland => hyprland::execute_command(command).await,
         CompositorChoice::Niri => niri::execute_command(command).await,
         CompositorChoice::Mango => mangowc::execute_command(command).await,
+        CompositorChoice::Sway => sway::execute_command(command).await,
         CompositorChoice::Generic => generic::execute_command(command).await,
     }
     .map_err(|e| e.to_string())

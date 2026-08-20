@@ -81,6 +81,9 @@ inotify = { version = "0.11.1", default-features = false, features = [
 ] }
 pin-project-lite = "0.2.16"
 niri-ipc = "26.4"
+# sway/i3 IPC message and reply types; the socket handling lives in the backend
+# so it stays on tokio (swayipc-async is built on the smol reactor)
+swayipc-types = "2"
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
   "rustls",

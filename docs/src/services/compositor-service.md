@@ -1,6 +1,6 @@
 # Compositor Service and Abstraction Layer
 
-The compositor service (`src/services/compositor/`) abstracts over multiple Wayland compositors, with dedicated backends for Hyprland, Niri, and MangoWC and a generic Wayland fallback for other compositors.
+The compositor service (`src/services/compositor/`) abstracts over multiple Wayland compositors, with dedicated backends for Hyprland, Niri, MangoWC, and Sway and a generic Wayland fallback for other compositors.
 
 ## Architecture
 
@@ -11,6 +11,7 @@ services/compositor/
 ├── hyprland.rs  # Hyprland IPC integration
 ├── niri.rs      # Niri IPC integration
 ├── mangowc.rs   # MangoWC integration (via the `mmsg` IPC CLI)
+├── sway.rs      # Sway integration (i3 IPC over $SWAYSOCK)
 └── generic.rs   # Generic Wayland fallback (ext-workspace / wlr-foreign-toplevel)
 ```
 
@@ -27,6 +28,8 @@ fn detect_backend() -> Option<CompositorChoice> {
         Some(CompositorChoice::Niri)
     } else if mangowc::is_available() {   // Probes the `mmsg` IPC CLI
         Some(CompositorChoice::Mango)
+    } else if sway::is_available() {      // Checks SWAYSOCK
+        Some(CompositorChoice::Sway)
     } else if generic::is_available() {   // ext-workspace / wlr-foreign-toplevel
         Some(CompositorChoice::Generic)
     } else {
@@ -125,3 +128,23 @@ Drives MangoWC through its `mmsg` IPC CLI:
 - Maps MangoWC tags onto workspaces; since several tags can be active at once,
   it reports them all via `CompositorState::active_workspace_ids`
 - Sends commands by shelling out to `mmsg -s`
+
+### Sway (`sway.rs`)
+
+Speaks the i3 IPC protocol directly over the socket named by `$SWAYSOCK`, using
+the `swayipc-types` crate for the message and reply types (the socket handling
+stays in the backend so it runs on tokio; `swayipc-async` is built on the smol
+reactor):
+- One connection is subscribed to events and read from a dedicated task, because
+  `read_exact` is not cancel safe and a half-read frame would desync the stream
+- Event payloads are never decoded: any event coalesces into a full resync, so
+  new sway event variants cannot break the backend
+- A second, long-lived connection issues the five requests a resync needs
+  (`GET_WORKSPACES`, `GET_OUTPUTS`, `GET_TREE`, `GET_INPUTS`, `GET_BINDING_STATE`)
+  and is reconnected on failure; a failed resync warns and waits for the next
+  event instead of ending the listener
+- Workspace ids come from a registry that keeps a numbered workspace's sway
+  number as its id (the workspaces module uses the id to index
+  `workspace_names`) and hands named workspaces an id from a high range
+- Per-monitor visibility comes from `Output::current_workspace`, since
+  `Workspace::focused` is global
