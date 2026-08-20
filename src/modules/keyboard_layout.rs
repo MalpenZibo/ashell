@@ -1,11 +1,13 @@
 use crate::{
-    config::KeyboardLayoutModuleConfig,
+    config::{KeyboardLayoutModuleConfig, Orientation},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         compositor::{CompositorCommand, CompositorService},
     },
+    theme::use_theme,
 };
 use iced::{Element, Subscription, Task, widget::text};
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -71,12 +73,24 @@ impl KeyboardLayout {
             None => active_layout.clone(),
         };
 
+        // In vertical bar, truncate to 3 grapheme clusters to fit the narrow bar.
+        let orientation = use_theme(|t| t.orientation);
+        let display_label = if orientation == Orientation::Vertical {
+            truncate_graphemes(&label, 3)
+        } else {
+            label
+        };
+
         // Returns plain text matching original implementation style.
         // (Assuming parent container or mouse area handles interactions if any)
-        Some(text(label).into())
+        Some(text(display_label).into())
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
         CompositorService::subscribe().map(Message::ServiceEvent)
     }
+}
+
+fn truncate_graphemes(s: &str, max: usize) -> String {
+    s.graphemes(true).take(max).collect()
 }

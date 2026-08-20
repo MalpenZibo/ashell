@@ -1,5 +1,8 @@
 use crate::{
-    components::icons::IconKind, config::SettingsFormat, theme::use_theme, utils::IndicatorState,
+    components::icons::IconKind,
+    config::{Orientation, SettingsFormat},
+    theme::use_theme,
+    utils::IndicatorState,
 };
 use iced::{
     Alignment, Element, Theme,
@@ -46,9 +49,16 @@ impl<'a, Msg: 'static + Clone> FormatIndicator<'a, Msg> {
 
 impl<'a, Msg: 'static + Clone> From<FormatIndicator<'a, Msg>> for Element<'a, Msg> {
     fn from(fi: FormatIndicator<'a, Msg>) -> Self {
-        let space = use_theme(|theme| theme.space);
+        let (space, orientation) = use_theme(|theme| (theme.space, theme.orientation));
 
-        let content = match fi.format {
+        // In vertical bar, force icon-only to fit the narrow bar.
+        let effective_format = if orientation == Orientation::Vertical {
+            SettingsFormat::Icon
+        } else {
+            fi.format
+        };
+
+        let content = match effective_format {
             SettingsFormat::Icon => fi.icon.to_text().into(),
             SettingsFormat::Percentage | SettingsFormat::Time | SettingsFormat::Name => {
                 fi.label_element

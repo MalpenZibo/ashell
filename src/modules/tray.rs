@@ -5,7 +5,7 @@ use crate::{
         ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
         styled_button,
     },
-    config::{TrayClickAction, TrayModuleConfig},
+    config::{Orientation, TrayClickAction, TrayModuleConfig},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -258,11 +258,12 @@ impl TrayModule {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
-        let (space, font_size, button_style) = use_theme(|theme| {
+        let (space, font_size, button_style, orientation) = use_theme(|theme| {
             (
                 theme.space,
                 theme.font_size,
                 theme.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary),
+                theme.orientation,
             )
         });
         let button_style = std::sync::Arc::new(button_style);
@@ -271,48 +272,54 @@ impl TrayModule {
             .as_ref()
             .filter(|s| s.data.iter().any(|item| !self.is_blocklisted(&item.name)))
             .map(|service| {
-                Into::<Element<_>>::into(
-                    Row::with_children(
-                        service
-                            .data
-                            .iter()
-                            .filter(|item| !self.is_blocklisted(&item.name))
-                            .map(|item| {
-                                let name = item.name.to_owned();
-                                let button_style = button_style.clone();
-                                let icon_content: Element<'_, Message> = match &item.icon {
-                                    Some(TrayIcon::Image(handle)) => Image::new(handle.clone())
-                                        .height(Length::Fixed(font_size.md - 2.0))
-                                        .into(),
-                                    Some(TrayIcon::Svg(handle)) => Svg::new(handle.clone())
-                                        .height(Length::Fixed(font_size.md + 2.))
-                                        .width(Length::Fixed(font_size.md + 2.))
-                                        .content_fit(iced::ContentFit::Cover)
-                                        .into(),
-                                    _ => icon(StaticIcon::Point).into(),
-                                };
-                                let open_app = Message::Activate(name.clone());
-                                let toggle_menu = move |r| Message::ToggleMenu(name.clone(), id, r);
+                let children = service
+                    .data
+                    .iter()
+                    .filter(|item| !self.is_blocklisted(&item.name))
+                    .map(|item| {
+                        let name = item.name.to_owned();
+                        let button_style = button_style.clone();
+                        let icon_content: Element<'_, Message> = match &item.icon {
+                            Some(TrayIcon::Image(handle)) => Image::new(handle.clone())
+                                .height(Length::Fixed(font_size.md - 2.0))
+                                .into(),
+                            Some(TrayIcon::Svg(handle)) => Svg::new(handle.clone())
+                                .height(Length::Fixed(font_size.md + 2.))
+                                .width(Length::Fixed(font_size.md + 2.))
+                                .content_fit(iced::ContentFit::Cover)
+                                .into(),
+                            _ => icon(StaticIcon::Point).into(),
+                        };
+                        let open_app = Message::Activate(name.clone());
+                        let toggle_menu = move |r| Message::ToggleMenu(name.clone(), id, r);
 
-                                let mut btn = position_button(icon_content);
-                                btn = match &self.right_click {
-                                    None => btn.on_press_with_position(toggle_menu.clone()),
-                                    Some(TrayClickAction::Open) => btn
-                                        .on_press_with_position(toggle_menu.clone())
-                                        .on_right_press(open_app.clone()),
-                                    Some(TrayClickAction::Menu) => btn
-                                        .on_press(open_app.clone())
-                                        .on_right_press_with_position(toggle_menu.clone()),
-                                };
-                                btn.padding(space.xxs)
-                                    .style(move |t, s| button_style(t, s))
-                                    .into()
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                    .padding([2.0, 0.])
-                    .align_y(Alignment::Center),
-                )
+                        let mut btn = position_button(icon_content);
+                        btn = match &self.right_click {
+                            None => btn.on_press_with_position(toggle_menu.clone()),
+                            Some(TrayClickAction::Open) => btn
+                                .on_press_with_position(toggle_menu.clone())
+                                .on_right_press(open_app.clone()),
+                            Some(TrayClickAction::Menu) => btn
+                                .on_press(open_app.clone())
+                                .on_right_press_with_position(toggle_menu.clone()),
+                        };
+                        btn.padding(space.xxs)
+                            .style(move |t, s| button_style(t, s))
+                            .into()
+                    })
+                    .collect::<Vec<_>>();
+
+                let content: Element<'_, Message> = match orientation {
+                    Orientation::Horizontal => Row::with_children(children)
+                        .padding([2.0, 0.])
+                        .align_y(Alignment::Center)
+                        .into(),
+                    Orientation::Vertical => Column::with_children(children)
+                        .padding([0., 2.0])
+                        .align_x(Alignment::Center)
+                        .into(),
+                };
+                content
             })
     }
 

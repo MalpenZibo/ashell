@@ -1,8 +1,8 @@
 use crate::{
     components::icons::icon,
     config::{
-        AppearanceColor, InvertScrollDirection, WorkspaceIndicatorFormat, WorkspaceVisibilityMode,
-        WorkspacesModuleConfig,
+        AppearanceColor, InvertScrollDirection, Orientation, WorkspaceIndicatorFormat,
+        WorkspaceVisibilityMode, WorkspacesModuleConfig,
     },
     outputs::Outputs,
     services::{
@@ -16,11 +16,12 @@ use crate::{
 };
 use iced::{
     Element, Length, Subscription, SurfaceId, alignment,
-    widget::{Image, MouseArea, Row, Svg, button, container, text},
+    widget::{Column, Image, MouseArea, Row, Svg, button, container, text},
 };
 use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Displayed {
@@ -512,185 +513,207 @@ impl Workspaces {
     pub fn view<'a>(&'a self, id: SurfaceId, outputs: &Outputs) -> Element<'a, Message> {
         let monitor_name = outputs.get_monitor_name(id);
 
-        let row = use_theme(|theme| {
-            Row::with_children(
-                self.ui_workspaces
-                    .iter()
-                    .filter_map(|w| {
-                        // Compare canonical compositor names by equality, not
-                        // substring containment. Both `monitor_name` (the
-                        // bar's surface output) and `w.monitor` (the workspace's
-                        // home output) come from the compositor as canonical
-                        // names, so equality is the correct relation. Using
-                        // `.contains()` falsely matches any pair where one
-                        // name is a substring of the other — most commonly
-                        // `eDP-1` vs `DP-1`, causing the laptop bar to leak
-                        // the external monitor's workspaces in and stop
-                        // tracking its own focused workspace.
-                        let monitor_matches = monitor_name.is_none_or(|n| n == w.monitor.as_str());
-                        let show = match self.config.visibility_mode {
-                            WorkspaceVisibilityMode::All => true,
-                            WorkspaceVisibilityMode::MonitorSpecific => {
-                                monitor_matches || !outputs.has_name(&w.monitor)
-                            }
-                            WorkspaceVisibilityMode::MonitorSpecificExclusive => monitor_matches,
+        let (content, _orientation) = use_theme(|theme| {
+            let orientation = theme.orientation;
+            let children: Vec<Element<'a, Message>> = self
+                .ui_workspaces
+                .iter()
+                .filter_map(|w| {
+                    // Compare canonical compositor names by equality, not
+                    // substring containment. Both `monitor_name` (the
+                    // bar's surface output) and `w.monitor` (the workspace's
+                    // home output) come from the compositor as canonical
+                    // names, so equality is the correct relation. Using
+                    // `.contains()` falsely matches any pair where one
+                    // name is a substring of the other — most commonly
+                    // `eDP-1` vs `DP-1`, causing the laptop bar to leak
+                    // the external monitor's workspaces in and stop
+                    // tracking its own focused workspace.
+                    let monitor_matches = monitor_name.is_none_or(|n| n == w.monitor.as_str());
+                    let show = match self.config.visibility_mode {
+                        WorkspaceVisibilityMode::All => true,
+                        WorkspaceVisibilityMode::MonitorSpecific => {
+                            monitor_matches || !outputs.has_name(&w.monitor)
+                        }
+                        WorkspaceVisibilityMode::MonitorSpecificExclusive => monitor_matches,
+                    };
+
+                    if show {
+                        let empty = w.windows == 0;
+                        let urgent = w.has_urgent;
+                        let active = w.displayed == Displayed::Active;
+                        let color_index = if self.config.enable_virtual_desktops {
+                            Some(w.id as i128)
+                        } else {
+                            w.monitor_id
                         };
 
-                        if show {
-                            let empty = w.windows == 0;
-                            let urgent = w.has_urgent;
-                            let active = w.displayed == Displayed::Active;
-                            let color_index = if self.config.enable_virtual_desktops {
-                                Some(w.id as i128)
+                        let color = color_index.map(|i| {
+                            let colors = if w.id < 0 {
+                                theme
+                                    .special_workspace_colors
+                                    .as_ref()
+                                    .unwrap_or(&theme.workspace_colors)
                             } else {
-                                w.monitor_id
+                                &theme.workspace_colors
                             };
+                            colors.get(i as usize).copied()
+                        });
 
-                            let color = color_index.map(|i| {
-                                let colors = if w.id < 0 {
-                                    theme
-                                        .special_workspace_colors
-                                        .as_ref()
-                                        .unwrap_or(&theme.workspace_colors)
+                        {
+                            let mut name = w.name.clone();
+                            let icons = w.icons.clone().unwrap_or_default();
+                            let has_icons = !icons.is_empty();
+                            let on_press = if w.id > 0 {
+                                Message::ChangeWorkspace(w.id)
+                            } else {
+                                Message::ToggleSpecialWorkspace(w.id)
+                            };
+                            let font_size = theme.font_size.xs;
+                            let height = theme.space.md;
+
+                            // In vertical bar: NameAndIcons → icons only; Name → truncate to 3 graphemes.
+                            if orientation == Orientation::Vertical {
+                                if self.config.indicator_format
+                                    == WorkspaceIndicatorFormat::NameAndIcons
+                                    && has_icons
+                                {
+                                    name = String::new();
                                 } else {
-                                    &theme.workspace_colors
-                                };
-                                colors.get(i as usize).copied()
-                            });
-
-                            {
-                                let name = w.name.clone();
-                                let icons = w.icons.clone().unwrap_or_default();
-                                let has_icons = !icons.is_empty();
-                                let on_press = if w.id > 0 {
-                                    Message::ChangeWorkspace(w.id)
-                                } else {
-                                    Message::ToggleSpecialWorkspace(w.id)
-                                };
-                                let font_size = theme.font_size.xs;
-                                let height = theme.space.md;
-
-                                // Numbered workspaces animate to a fixed width; icon
-                                // and named workspaces size to their content instead.
-                                let numbered = w.id > 0
-                                    && !has_icons
-                                    && !w.name.is_empty()
-                                    && w.name.chars().all(|c| c.is_ascii_digit());
-
-                                Some(if numbered {
-                                    let target_width = match (&w.displayed, urgent) {
-                                        (Displayed::Active, _) => theme.space.xl,
-                                        (Displayed::Visible, _) | (Displayed::Hidden, true) => {
-                                            theme.space.lg
-                                        }
-                                        (Displayed::Hidden, false) => theme.space.md,
-                                    };
-
-                                    if theme.animations_enabled {
-                                        AnimationBuilder::new(target_width, move |width| {
-                                            let name = name.clone();
-                                            let icons = icons.clone();
-                                            let on_press = on_press.clone();
-                                            use_theme(move |theme| {
-                                                workspace_button(
-                                                    theme,
-                                                    name.clone(),
-                                                    icons.clone(),
-                                                    font_size,
-                                                    empty,
-                                                    urgent,
-                                                    active,
-                                                    color,
-                                                    Length::Fixed(width),
-                                                    0.0,
-                                                    height,
-                                                    on_press.clone(),
-                                                )
-                                            })
-                                        })
-                                        .animates_layout(true)
-                                        .animation(Easing::EASE.very_quick())
-                                        .into()
-                                    } else {
-                                        workspace_button(
-                                            theme,
-                                            name,
-                                            icons,
-                                            font_size,
-                                            empty,
-                                            urgent,
-                                            active,
-                                            color,
-                                            Length::Fixed(target_width),
-                                            0.0,
-                                            height,
-                                            on_press,
-                                        )
-                                    }
-                                } else {
-                                    let target_padding = match (&w.displayed, urgent) {
-                                        (Displayed::Active, _) => theme.space.md,
-                                        (Displayed::Visible, _) | (Displayed::Hidden, true) => {
-                                            theme.space.sm
-                                        }
-                                        (Displayed::Hidden, false) => theme.space.xs,
-                                    };
-
-                                    if theme.animations_enabled {
-                                        AnimationBuilder::new(target_padding, move |padding| {
-                                            let name = name.clone();
-                                            let icons = icons.clone();
-                                            let on_press = on_press.clone();
-                                            use_theme(move |theme| {
-                                                workspace_button(
-                                                    theme,
-                                                    name.clone(),
-                                                    icons.clone(),
-                                                    font_size,
-                                                    empty,
-                                                    urgent,
-                                                    active,
-                                                    color,
-                                                    Length::Shrink,
-                                                    padding,
-                                                    height,
-                                                    on_press.clone(),
-                                                )
-                                            })
-                                        })
-                                        .animates_layout(true)
-                                        .animation(Easing::EASE.very_quick())
-                                        .into()
-                                    } else {
-                                        workspace_button(
-                                            theme,
-                                            name,
-                                            icons,
-                                            font_size,
-                                            empty,
-                                            urgent,
-                                            active,
-                                            color,
-                                            Length::Shrink,
-                                            target_padding,
-                                            height,
-                                            on_press,
-                                        )
-                                    }
-                                })
+                                    name = truncate_graphemes(&name, 3);
+                                }
                             }
-                        } else {
-                            None
+
+                            // Numbered workspaces animate to a fixed width; icon
+                            // and named workspaces size to their content instead.
+                            let numbered = w.id > 0
+                                && !has_icons
+                                && !w.name.is_empty()
+                                && w.name.chars().all(|c| c.is_ascii_digit());
+
+                            Some(if numbered {
+                                let target_width = match (&w.displayed, urgent) {
+                                    (Displayed::Active, _) => theme.space.xl,
+                                    (Displayed::Visible, _) | (Displayed::Hidden, true) => {
+                                        theme.space.lg
+                                    }
+                                    (Displayed::Hidden, false) => theme.space.md,
+                                };
+
+                                if theme.animations_enabled {
+                                    AnimationBuilder::new(target_width, move |width| {
+                                        let name = name.clone();
+                                        let icons = icons.clone();
+                                        let on_press = on_press.clone();
+                                        use_theme(move |theme| {
+                                            workspace_button(
+                                                theme,
+                                                name.clone(),
+                                                icons.clone(),
+                                                font_size,
+                                                empty,
+                                                urgent,
+                                                active,
+                                                color,
+                                                Length::Fixed(width),
+                                                0.0,
+                                                height,
+                                                on_press.clone(),
+                                            )
+                                        })
+                                    })
+                                    .animates_layout(true)
+                                    .animation(Easing::EASE.very_quick())
+                                    .into()
+                                } else {
+                                    workspace_button(
+                                        theme,
+                                        name,
+                                        icons,
+                                        font_size,
+                                        empty,
+                                        urgent,
+                                        active,
+                                        color,
+                                        Length::Fixed(target_width),
+                                        0.0,
+                                        height,
+                                        on_press,
+                                    )
+                                }
+                            } else {
+                                let target_padding = match (&w.displayed, urgent) {
+                                    (Displayed::Active, _) => theme.space.md,
+                                    (Displayed::Visible, _) | (Displayed::Hidden, true) => {
+                                        theme.space.sm
+                                    }
+                                    (Displayed::Hidden, false) => theme.space.xs,
+                                };
+
+                                if theme.animations_enabled {
+                                    AnimationBuilder::new(target_padding, move |padding| {
+                                        let name = name.clone();
+                                        let icons = icons.clone();
+                                        let on_press = on_press.clone();
+                                        use_theme(move |theme| {
+                                            workspace_button(
+                                                theme,
+                                                name.clone(),
+                                                icons.clone(),
+                                                font_size,
+                                                empty,
+                                                urgent,
+                                                active,
+                                                color,
+                                                Length::Shrink,
+                                                padding,
+                                                height,
+                                                on_press.clone(),
+                                            )
+                                        })
+                                    })
+                                    .animates_layout(true)
+                                    .animation(Easing::EASE.very_quick())
+                                    .into()
+                                } else {
+                                    workspace_button(
+                                        theme,
+                                        name,
+                                        icons,
+                                        font_size,
+                                        empty,
+                                        urgent,
+                                        active,
+                                        color,
+                                        Length::Shrink,
+                                        target_padding,
+                                        height,
+                                        on_press,
+                                    )
+                                }
+                            })
                         }
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .spacing(theme.space.xxs)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            let content: Element<'a, Message> = match orientation {
+                Orientation::Horizontal => {
+                    Row::with_children(children).spacing(theme.space.xxs).into()
+                }
+                Orientation::Vertical => Column::with_children(children)
+                    .spacing(theme.space.xxs)
+                    .into(),
+            };
+
+            (content, orientation)
         });
 
         let scroll_monitor = monitor_name.map(str::to_owned);
 
-        MouseArea::new(row)
+        MouseArea::new(content)
             .on_scroll(move |direction| {
                 let scroll = |dir: i32| Message::Scroll(dir, scroll_monitor.clone());
                 match direction {
@@ -744,4 +767,8 @@ impl Workspaces {
     pub fn subscription(&self) -> Subscription<Message> {
         CompositorService::subscribe().map(|event| Message::ServiceEvent(Box::new(event)))
     }
+}
+
+fn truncate_graphemes(s: &str, max: usize) -> String {
+    s.graphemes(true).take(max).collect()
 }

@@ -6,17 +6,17 @@ use std::time::Duration;
 use chrono::{DateTime, Local, NaiveDate};
 use iced::{
     Element, Length, Row, Subscription,
-    alignment::Vertical,
+    alignment::{Horizontal, Vertical},
     futures::SinkExt,
     stream::channel,
-    widget::{container, text},
+    widget::{Column, container, text},
 };
 use log::{debug, warn};
 
 use self::weather::{Location, WeatherData, fetch_location, fetch_weather_data};
 use crate::{
     components::MenuSize,
-    config::{TempoModuleConfig, WeatherIndicator},
+    config::{Orientation, TempoModuleConfig, WeatherIndicator},
     i18n::{language_subtag, unit_system},
     theme::use_theme,
 };
@@ -165,19 +165,45 @@ impl Tempo {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space = use_theme(|t| t.space);
-        let display_text = self.time_str(self.current_format(), self.current_timezone_index, None);
+        let (space, orientation) = use_theme(|t| (t.space, t.orientation));
 
-        Row::with_capacity(2)
-            .push(self.weather_indicator())
-            .push(text(display_text))
-            .align_y(Vertical::Center)
-            .spacing(space.sm)
-            .into()
+        let display_text = if orientation == Orientation::Vertical {
+            // In vertical bar: split time into HH and MM on two lines.
+            // If the format already contains \n, use it verbatim.
+            let format = self.current_format();
+            if format.contains('\n') {
+                self.time_str(format, self.current_timezone_index, None)
+            } else {
+                // Determine 12h vs 24h based on format markers.
+                let is_12h =
+                    format.contains("%I") || format.contains("%l") || format.contains("%p");
+                let (hour_fmt, min_fmt) = if is_12h { ("%I", "%p") } else { ("%H", "%M") };
+                let hour = self.time_str(hour_fmt, self.current_timezone_index, None);
+                let min = self.time_str(min_fmt, self.current_timezone_index, None);
+                format!("{hour}\n{min}")
+            }
+        } else {
+            self.time_str(self.current_format(), self.current_timezone_index, None)
+        };
+
+        match orientation {
+            Orientation::Horizontal => Row::with_capacity(2)
+                .push(self.weather_indicator())
+                .push(text(display_text))
+                .align_y(Vertical::Center)
+                .spacing(space.sm)
+                .into(),
+            Orientation::Vertical => Column::with_capacity(2)
+                .push(self.weather_indicator())
+                .push(text(display_text))
+                .align_x(Horizontal::Center)
+                .spacing(space.sm)
+                .into(),
+        }
     }
 
     pub fn weather_indicator(&'_ self) -> Option<Element<'_, Message>> {
-        let (font_size, space) = use_theme(|t| (t.font_size, t.space));
+        let (font_size, space, orientation) = use_theme(|t| (t.font_size, t.space, t.orientation));
         if self.config.weather_location.is_none()
             || self.config.weather_indicator == WeatherIndicator::None
         {
@@ -188,22 +214,29 @@ impl Tempo {
             .as_ref()
             .zip(self.location.as_ref())
             .map(|(data, _)| {
-                Row::new()
-                    .push(
-                        weather_icon(data.current.weather_code, data.current.is_day > 0)
-                            .width(Length::Fixed(font_size.sm)),
-                    )
-                    .push(
-                        (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
-                            .then(|| {
-                                text(format!("{}{temp}", data.current.temperature_2m))
-                                    .align_y(Vertical::Center)
-                                    .size(font_size.sm)
-                            }),
-                    )
-                    .align_y(Vertical::Center)
-                    .spacing(space.xxs)
-                    .into()
+                // In vertical bar: icon only (no temperature text).
+                let show_temp = orientation == Orientation::Horizontal
+                    && self.config.weather_indicator == WeatherIndicator::IconAndTemperature;
+
+                let icon_el = weather_icon(data.current.weather_code, data.current.is_day > 0)
+                    .width(Length::Fixed(font_size.sm));
+
+                match orientation {
+                    Orientation::Horizontal => Row::new()
+                        .push(icon_el)
+                        .push(show_temp.then(|| {
+                            text(format!("{}{temp}", data.current.temperature_2m))
+                                .align_y(Vertical::Center)
+                                .size(font_size.sm)
+                        }))
+                        .align_y(Vertical::Center)
+                        .spacing(space.xxs)
+                        .into(),
+                    Orientation::Vertical => Column::new()
+                        .push(icon_el)
+                        .align_x(Horizontal::Center)
+                        .into(),
+                }
             })
     }
 

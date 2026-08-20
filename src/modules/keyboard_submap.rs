@@ -1,5 +1,10 @@
-use crate::services::{ReadOnlyService, ServiceEvent, compositor::CompositorService};
+use crate::{
+    config::Orientation,
+    services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
+    theme::use_theme,
+};
 use iced::{Element, Subscription, widget::text};
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -34,7 +39,13 @@ impl KeyboardSubmap {
         let submap = self.service.as_ref()?.submap.as_ref()?;
 
         if !submap.is_empty() {
-            Some(text(submap).into())
+            let orientation = use_theme(|t| t.orientation);
+            let display = if orientation == Orientation::Vertical {
+                truncate_graphemes(submap, 3)
+            } else {
+                submap.clone()
+            };
+            Some(text(display).into())
         } else {
             None
         }
@@ -43,4 +54,8 @@ impl KeyboardSubmap {
     pub fn subscription(&self) -> Subscription<Message> {
         CompositorService::subscribe().map(Message::ServiceEvent)
     }
+}
+
+fn truncate_graphemes(s: &str, max: usize) -> String {
+    s.graphemes(true).take(max).collect()
 }

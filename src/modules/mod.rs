@@ -5,7 +5,7 @@ use crate::{
     components::animated_size,
     components::menu::MenuType,
     components::{module_group, module_item},
-    config::{ModuleDef, ModuleName},
+    config::{ModuleDef, ModuleName, Orientation},
     theme::use_theme,
 };
 use iced::{
@@ -294,12 +294,19 @@ impl App {
                     .map(Message::Workspaces),
                 None,
             )),
-            ModuleName::WindowTitle => self.window_title.get_value().map(|title| {
-                (
-                    self.window_title.view(title).map(Message::WindowTitle),
-                    None,
-                )
-            }),
+            ModuleName::WindowTitle => {
+                // In vertical bar, window title is hidden (text doesn't fit).
+                if use_theme(|t| t.orientation) == Orientation::Vertical {
+                    None
+                } else {
+                    self.window_title.get_value().map(|title| {
+                        (
+                            self.window_title.view(title).map(Message::WindowTitle),
+                            None,
+                        )
+                    })
+                }
+            }
             ModuleName::SystemInfo => Some((
                 self.system_info.view().map(Message::SystemInfo),
                 Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),

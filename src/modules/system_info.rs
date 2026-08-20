@@ -3,8 +3,8 @@ use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
     config::{
-        CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
-        SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
+        CpuFormat, DiskFormat, MemoryFormat, Orientation, SystemInfoIndicator,
+        SystemInfoModuleConfig, SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
     },
     i18n::{UnitSystem, unit_system},
     t,
@@ -488,15 +488,48 @@ impl SystemInfo {
         threshold: Option<(V, V, V)>,
         prefix: Option<String>,
     ) -> Element<'a, Message> {
-        let label = if let Some(prefix) = prefix {
-            format!("{prefix} {display}{unit}")
+        let (spacing, animations_enabled, orientation, font_size) = use_theme(|t| {
+            (
+                t.space.xxs,
+                t.animations_enabled,
+                t.orientation,
+                t.font_size,
+            )
+        });
+
+        // In vertical bar: drop unit suffix, use font_size.xs, stack icon over value.
+        let label = if orientation == Orientation::Vertical {
+            if let Some(prefix) = prefix {
+                format!("{prefix} {display}")
+            } else {
+                format!("{display}")
+            }
         } else {
-            format!("{display}{unit}")
+            if let Some(prefix) = prefix {
+                format!("{prefix} {display}{unit}")
+            } else {
+                format!("{display}{unit}")
+            }
         };
-        let (spacing, animations_enabled) = use_theme(|t| (t.space.xxs, t.animations_enabled));
+
+        let text_size = if orientation == Orientation::Vertical {
+            font_size.xs
+        } else {
+            font_size.md
+        };
 
         let Some((value, warn_threshold, alert_threshold)) = threshold else {
-            return container(row!(icon(info_icon), text(label)).spacing(spacing)).into();
+            let content: Element<'a, Message> = if orientation == Orientation::Vertical {
+                column!(icon(info_icon), text(label).size(text_size))
+                    .spacing(spacing)
+                    .align_x(Alignment::Center)
+                    .into()
+            } else {
+                row!(icon(info_icon), text(label).size(text_size))
+                    .spacing(spacing)
+                    .into()
+            };
+            return container(content).into();
         };
 
         // 0.0 = normal, 1.0 = warning, 2.0 = danger. Animating through the
@@ -512,7 +545,17 @@ impl SystemInfo {
 
         if animations_enabled {
             AnimationBuilder::new(target, move |t| {
-                container(row!(icon(info_icon), text(label.clone())).spacing(spacing))
+                let content: Element<'a, Message> = if orientation == Orientation::Vertical {
+                    column!(icon(info_icon), text(label.clone()).size(text_size))
+                        .spacing(spacing)
+                        .align_x(Alignment::Center)
+                        .into()
+                } else {
+                    row!(icon(info_icon), text(label.clone()).size(text_size))
+                        .spacing(spacing)
+                        .into()
+                };
+                container(content)
                     .style(move |theme: &Theme| container::Style {
                         text_color: Some(severity_color(theme, t)),
                         ..Default::default()
@@ -522,7 +565,17 @@ impl SystemInfo {
             .animation(Easing::EASE.quick())
             .into()
         } else {
-            container(row!(icon(info_icon), text(label)).spacing(spacing))
+            let content: Element<'a, Message> = if orientation == Orientation::Vertical {
+                column!(icon(info_icon), text(label).size(text_size))
+                    .spacing(spacing)
+                    .align_x(Alignment::Center)
+                    .into()
+            } else {
+                row!(icon(info_icon), text(label).size(text_size))
+                    .spacing(spacing)
+                    .into()
+            };
+            container(content)
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(severity_color(theme, target)),
                     ..Default::default()
@@ -637,7 +690,6 @@ impl SystemInfo {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space = use_theme(|t| t.space);
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
                 StaticIcon::Cpu,
@@ -773,10 +825,18 @@ impl SystemInfo {
             }),
         });
 
-        Row::with_children(indicators)
-            .align_y(Alignment::Center)
-            .spacing(space.xxs)
-            .into()
+        let (spacing, orientation) = use_theme(|t| (t.space.xxs, t.orientation));
+        let content: Element<'_, Message> = match orientation {
+            Orientation::Horizontal => Row::with_children(indicators)
+                .align_y(Alignment::Center)
+                .spacing(spacing)
+                .into(),
+            Orientation::Vertical => Column::with_children(indicators)
+                .align_x(Alignment::Center)
+                .spacing(spacing)
+                .into(),
+        };
+        content
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

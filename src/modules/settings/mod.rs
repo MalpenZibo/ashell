@@ -13,7 +13,9 @@ use crate::{
         menu::MenuType,
         password_dialog, position_button, quick_setting_button, sub_menu_wrapper,
     },
-    config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
+    config::{
+        Orientation, Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig,
+    },
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -761,8 +763,9 @@ impl Settings {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
-        let space = use_theme(|t| t.space);
-        let mut row = Row::with_capacity(self.indicators.len());
+        let (space, orientation) = use_theme(|t| (t.space, t.orientation));
+
+        let mut elements: Vec<Element<'a, Message>> = Vec::new();
 
         for indicator in &self.indicators {
             let element: Option<Element<'a, Message>> = match indicator {
@@ -809,22 +812,21 @@ impl Settings {
                     for (index, element) in peripherals.into_iter().enumerate() {
                         let element = element.map(Message::Power);
                         if self.enable_tooltips {
-                            row = row.push(
-                                position_button(element)
-                                    .width(Length::Shrink)
-                                    .height(Length::Shrink)
-                                    .padding(0)
-                                    .style(transparent_button_style)
-                                    .on_hover_with_position(move |ui_ref| {
-                                        Message::PeripheralBatteryTooltipHover(ui_ref, id, index)
-                                    })
-                                    .on_unhover(Message::TooltipUnhover(
-                                        id,
-                                        MenuType::PeripheralBatteryTooltip(index),
-                                    )),
-                            );
+                            let btn = position_button(element)
+                                .width(Length::Shrink)
+                                .height(Length::Shrink)
+                                .padding(0)
+                                .style(transparent_button_style)
+                                .on_hover_with_position(move |ui_ref| {
+                                    Message::PeripheralBatteryTooltipHover(ui_ref, id, index)
+                                })
+                                .on_unhover(Message::TooltipUnhover(
+                                    id,
+                                    MenuType::PeripheralBatteryTooltip(index),
+                                ));
+                            elements.push(btn.into());
                         } else {
-                            row = row.push(element);
+                            elements.push(element);
                         }
                     }
                     None
@@ -860,22 +862,24 @@ impl Settings {
                 };
 
                 if let Some((hover_msg, menu_type)) = tooltip_config {
-                    row = row.push(
-                        position_button(element)
-                            .width(Length::Shrink)
-                            .height(Length::Shrink)
-                            .padding(0)
-                            .style(transparent_button_style)
-                            .on_hover_with_position(move |ui_ref| hover_msg(ui_ref, id))
-                            .on_unhover(Message::TooltipUnhover(id, menu_type)),
-                    );
+                    let btn = position_button(element)
+                        .width(Length::Shrink)
+                        .height(Length::Shrink)
+                        .padding(0)
+                        .style(transparent_button_style)
+                        .on_hover_with_position(move |ui_ref| hover_msg(ui_ref, id))
+                        .on_unhover(Message::TooltipUnhover(id, menu_type));
+                    elements.push(btn.into());
                 } else {
-                    row = row.push(element);
+                    elements.push(element);
                 }
             }
         }
 
-        row.spacing(space.xs).into()
+        match orientation {
+            Orientation::Horizontal => Row::with_children(elements).spacing(space.xs).into(),
+            Orientation::Vertical => Column::with_children(elements).spacing(space.xs).into(),
+        }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

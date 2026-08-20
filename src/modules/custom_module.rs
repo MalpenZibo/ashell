@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{DynamicIcon, StaticIcon, icon},
-    config::CustomModuleDef,
+    config::{CustomModuleDef, Orientation},
     theme::use_theme,
     utils::launcher::execute_command,
 };
@@ -24,6 +24,7 @@ use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
 };
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Clone)]
 pub struct Custom {
@@ -120,7 +121,7 @@ impl Custom {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space = use_theme(|theme| theme.space);
+        let (space, orientation) = use_theme(|theme| (theme.space, theme.orientation));
         match self.config.r#type {
             crate::config::CustomModuleType::Text => self
                 .data
@@ -128,7 +129,12 @@ impl Custom {
                 .as_ref()
                 .and_then(|text_content| {
                     if !text_content.is_empty() {
-                        Some(text(text_content.clone()).into())
+                        let display = if orientation == Orientation::Vertical {
+                            truncate_graphemes(text_content, 3)
+                        } else {
+                            text_content.clone()
+                        };
+                        Some(text(display).into())
                     } else {
                         None
                     }
@@ -180,18 +186,23 @@ impl Custom {
                     padded_icon_container.into() // No alert, just the padded icon
                 };
 
-                let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {
-                    if !text_content.is_empty() {
-                        Some(text(text_content.clone()))
-                    } else {
-                        None
-                    }
-                });
-
-                if let Some(text_element) = maybe_text_element {
-                    row![icon_with_alert, text_element].spacing(space.xs).into()
-                } else {
+                // In vertical bar, button type stays icon-only (no text).
+                if orientation == Orientation::Vertical {
                     icon_with_alert
+                } else {
+                    let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {
+                        if !text_content.is_empty() {
+                            Some(text(text_content.clone()))
+                        } else {
+                            None
+                        }
+                    });
+
+                    if let Some(text_element) = maybe_text_element {
+                        row![icon_with_alert, text_element].spacing(space.xs).into()
+                    } else {
+                        icon_with_alert
+                    }
                 }
             }
         }
@@ -269,4 +280,8 @@ impl Custom {
             Subscription::none()
         }
     }
+}
+
+fn truncate_graphemes(s: &str, max: usize) -> String {
+    s.graphemes(true).take(max).collect()
 }

@@ -4,6 +4,7 @@ use crate::{
     components::{ButtonSize, MenuSize},
     config::{
         MediaPlayerFormat, MediaPlayerModuleConfig, MediaPlayerTextField, MediaPlayerVisualizer,
+        Orientation,
     },
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -469,10 +470,34 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
-        let (space, font_size, palette) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.iced_theme.palette()));
+        let (space, font_size, palette, orientation) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.font_size,
+                theme.iced_theme.palette(),
+                theme.orientation,
+            )
+        });
         self.active_player().map(|player| {
-            let has_text = self.config.indicator_format != MediaPlayerFormat::Icon;
+            // In vertical bar: force icon format, disable beside visualizer.
+            let is_vertical = orientation == Orientation::Vertical;
+            let effective_format = if is_vertical {
+                MediaPlayerFormat::Icon
+            } else {
+                self.config.indicator_format
+            };
+            let effective_visualizer = if is_vertical {
+                match self.config.indicator_visualizer {
+                    Some(MediaPlayerVisualizer::Before) | Some(MediaPlayerVisualizer::After) => {
+                        None
+                    }
+                    other => other,
+                }
+            } else {
+                self.config.indicator_visualizer
+            };
+
+            let has_text = effective_format != MediaPlayerFormat::Icon;
             let label = || {
                 container(
                     text(self.indicator_text(player))
@@ -482,7 +507,7 @@ impl MediaPlayer {
                 .clip(true)
             };
 
-            let content = match self.config.indicator_format {
+            let content = match effective_format {
                 MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote)],
                 MediaPlayerFormat::Text => row![label()],
                 MediaPlayerFormat::IconAndText => row![icon(StaticIcon::MusicNote), label()],
@@ -514,7 +539,7 @@ impl MediaPlayer {
                 .padding(space.xxs)
             };
 
-            match self.config.indicator_visualizer {
+            match effective_visualizer {
                 Some(MediaPlayerVisualizer::Background) if active => {
                     let base: Element<'_, Message> = if has_text {
                         content.into()

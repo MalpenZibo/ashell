@@ -3,7 +3,7 @@ use crate::{
     components::icons::{StaticIcon, icon},
     components::spinning_icon::spinning_icon,
     components::{IconPosition, MenuSize, styled_button},
-    config::UpdatesModuleConfig,
+    config::{Orientation, UpdatesModuleConfig},
     t,
     theme::use_theme,
 };
@@ -170,8 +170,14 @@ impl Updates {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let (space, font_size, animated) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.animations_enabled));
+        let (space, font_size, animated, orientation) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.font_size,
+                theme.animations_enabled,
+                theme.orientation,
+            )
+        });
         let is_checking = matches!(self.state, State::Checking);
         let icon_element: Element<'_, Message> = if is_checking {
             spinning_icon(font_size.sm, animated)
@@ -184,15 +190,27 @@ impl Updates {
             .into()
         };
 
-        let mut content = row!(icon_element)
-            .align_y(Alignment::Center)
-            .spacing(space.xxs);
-
-        if !self.updates.is_empty() {
-            content = content.push(text(self.updates.len()));
+        let has_count = !self.updates.is_empty();
+        match orientation {
+            Orientation::Horizontal => {
+                let mut content = row!(icon_element)
+                    .align_y(Alignment::Center)
+                    .spacing(space.xxs);
+                if has_count {
+                    content = content.push(text(self.updates.len()));
+                }
+                content.into()
+            }
+            Orientation::Vertical => {
+                let mut content = column!(icon_element)
+                    .align_x(Alignment::Center)
+                    .spacing(space.xxs);
+                if has_count {
+                    content = content.push(text(self.updates.len()).size(font_size.xs));
+                }
+                content.into()
+            }
         }
-
-        content.into()
     }
 
     pub fn menu_view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
