@@ -25,7 +25,7 @@
 - Active Window (title, class, or initial title/class)
 - Workspaces with naming, color coding, and per-monitor visibility
 - System Information (CPU, RAM, Disk, IP address, Network speed, Temperature) with warn/alert thresholds
-- Keyboard Layout with custom labels (Hyprland/Niri/MangoWC)
+- Keyboard Layout with custom labels (Hyprland/Niri/MangoWC/Wayfire)
 - Keyboard Submap (Hyprland/MangoWC)
 - System Tray with context menus
 - Clock with calendar, weather, timezone cycling, and format cycling (Tempo)

@@ -1,6 +1,6 @@
 # Compositor Service and Abstraction Layer
 
-The compositor service (`src/services/compositor/`) abstracts over multiple Wayland compositors, with dedicated backends for Hyprland, Niri, and MangoWC and a generic Wayland fallback for other compositors.
+The compositor service (`src/services/compositor/`) abstracts over multiple Wayland compositors, with dedicated backends for Hyprland, Niri, MangoWC, and Wayfire and a generic Wayland fallback for other compositors.
 
 ## Architecture
 
@@ -11,6 +11,7 @@ services/compositor/
 ├── hyprland.rs  # Hyprland IPC integration
 ├── niri.rs      # Niri IPC integration
 ├── mangowc.rs   # MangoWC integration (via the `mmsg` IPC CLI)
+├── wayfire.rs   # Wayfire IPC integration (length-prefixed JSON socket)
 └── generic.rs   # Generic Wayland fallback (ext-workspace / wlr-foreign-toplevel)
 ```
 
@@ -27,6 +28,8 @@ fn detect_backend() -> Option<CompositorChoice> {
         Some(CompositorChoice::Niri)
     } else if mangowc::is_available() {   // Probes the `mmsg` IPC CLI
         Some(CompositorChoice::Mango)
+    } else if wayfire::is_available() {   // Checks WAYFIRE_SOCKET
+        Some(CompositorChoice::Wayfire)
     } else if generic::is_available() {   // ext-workspace / wlr-foreign-toplevel
         Some(CompositorChoice::Generic)
     } else {
@@ -125,3 +128,20 @@ Drives MangoWC through its `mmsg` IPC CLI:
 - Maps MangoWC tags onto workspaces; since several tags can be active at once,
   it reports them all via `CompositorState::active_workspace_ids`
 - Sends commands by shelling out to `mmsg -s`
+
+### Wayfire (`wayfire.rs`)
+
+Talks to Wayfire's own IPC socket (`WAYFIRE_SOCKET`, needs the `ipc` and
+`ipc-rules` plugins; workspace switching also needs `vswitch`). The protocol is
+length-prefixed (4-byte little-endian) JSON:
+
+- One connection subscribes to events via `window-rules/events/watch`; a burst of
+  events is coalesced before the state is re-derived, because Wayfire emits
+  several events per user action
+- A second, long-lived connection serves the method calls of a state refresh
+  (`list-outputs`, `list-views`, `get-focused-output`, `get-focused-view`,
+  `wayfire/get-keyboard-state`)
+- Workspaces are a per-output 2D grid, so each (output, grid cell) pair becomes
+  one ashell workspace. Wayfire has no per-workspace view list: views are
+  bucketed into cells from their geometry, which it reports in output-local
+  coordinates relative to the output's current workspace

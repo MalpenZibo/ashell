@@ -7,6 +7,7 @@ pub mod hyprland;
 pub mod mangowc;
 pub mod niri;
 pub mod types;
+pub mod wayfire;
 
 pub use self::types::{
     CompositorChoice, CompositorCommand, CompositorEvent, CompositorService, CompositorState,
@@ -63,6 +64,7 @@ async fn broadcaster_event_loop(tx: broadcast::Sender<ServiceEvent<CompositorSer
         CompositorChoice::Hyprland => hyprland::run_listener(&tx).await,
         CompositorChoice::Niri => niri::run_listener(&tx).await,
         CompositorChoice::Mango => mangowc::run_listener(&tx).await,
+        CompositorChoice::Wayfire => wayfire::run_listener(&tx).await,
         CompositorChoice::Generic => generic::run_listener(&tx).await,
     };
 
@@ -80,10 +82,12 @@ fn detect_backend() -> Option<CompositorChoice> {
             Some(CompositorChoice::Niri)
         } else if mangowc::is_available() {
             Some(CompositorChoice::Mango)
+        } else if wayfire::is_available() {
+            Some(CompositorChoice::Wayfire)
         } else if generic::is_available() {
             log::info!(
                 "No dedicated compositor detected; using the generic Wayland backend. \
-                 If you are on Hyprland or Niri, check that its environment variables are exported."
+                 If you are on Hyprland, Niri, or Wayfire, check that its environment variables are exported."
             );
             Some(CompositorChoice::Generic)
         } else {
@@ -175,6 +179,7 @@ async fn execute_command(
         CompositorChoice::Hyprland => hyprland::execute_command(command).await,
         CompositorChoice::Niri => niri::execute_command(command).await,
         CompositorChoice::Mango => mangowc::execute_command(command).await,
+        CompositorChoice::Wayfire => wayfire::execute_command(command).await,
         CompositorChoice::Generic => generic::execute_command(command).await,
     }
     .map_err(|e| e.to_string())

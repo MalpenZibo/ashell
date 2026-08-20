@@ -17,6 +17,7 @@ feature set, including compositor-specific concepts.
 - **Hyprland**
 - **Niri**
 - **MangoWC**
+- **Wayfire** (requires the `ipc`, `ipc-rules`, and `vswitch` plugins enabled in `wayfire.ini`; detected via the `WAYFIRE_SOCKET` environment variable)
 
 ## Generic Wayland fallback
 
@@ -33,12 +34,12 @@ backs.
 
 ## Feature matrix
 
-| Feature | Hyprland | Niri | MangoWC | Generic Wayland |
-| --- | :---: | :---: | :---: | :---: |
-| Active window * | ✅ | ✅ | ✅ | ✅ |
-| Workspaces | ✅ | ✅ | ✅ | ✅ |
-| Keyboard layout | ✅ | ✅ | ✅ | ❌ |
-| Keyboard submap | ✅ | ❌ | ✅ | ❌ |
+| Feature | Hyprland | Niri | MangoWC | Wayfire | Generic Wayland |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| Active window * | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Workspaces | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Keyboard layout | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Keyboard submap | ✅ | ❌ | ✅ | ❌ | ❌ |
 
 A ❌ means the backend (or the underlying protocol) does not expose that
 feature; the corresponding module is simply unavailable on that compositor.
