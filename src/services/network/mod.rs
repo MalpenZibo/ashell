@@ -2,17 +2,16 @@ use super::{Service, ServiceEvent};
 use crate::services::ReadOnlyService;
 use dbus::ConnectivityState;
 use dbus::NetworkDbus;
-use iced::futures::TryFutureExt;
 use iced::{
     Subscription, Task,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender},
+    futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
     stream::channel,
 };
 use iwd_dbus::IwdDbus;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::{any::TypeId, ops::Deref, time::Duration};
 use tokio::time::sleep;
-use zbus::zvariant::OwnedObjectPath;
+use zbus::{fdo::DBusProxy, names::WellKnownName, zvariant::OwnedObjectPath};
 
 pub mod dbus;
 pub mod iwd_dbus;
@@ -180,10 +179,32 @@ impl Deref for NetworkService {
     }
 }
 
+async fn service_available(conn: &zbus::Connection, name: &'static str) -> bool {
+    let name = WellKnownName::from_static_str_unchecked(name);
+    match DBusProxy::new(conn).await {
+        Ok(proxy) => proxy.name_has_owner(name.into()).await.unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
+async fn select_backend(conn: &zbus::Connection) -> Option<BackendChoice> {
+    if service_available(conn, "org.freedesktop.NetworkManager").await {
+        Some(BackendChoice::NetworkManager)
+    } else if service_available(conn, "net.connman.iwd").await {
+        Some(BackendChoice::Iwd)
+    } else {
+        None
+    }
+}
+
+const BASE_BACKOFF_SECS: u64 = 5;
+const MAX_BACKOFF_SECS: u64 = 30;
+
 enum State {
-    Init,
+    Init { next_backoff_secs: u64 },
     Active(zbus::Connection, BackendChoice),
-    Error,
+    Error { backoff_secs: u64 },
+    Unsupported,
 }
 
 impl ReadOnlyService for NetworkService {
@@ -281,7 +302,9 @@ impl ReadOnlyService for NetworkService {
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
         Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(50, async |mut output| {
-                let mut state = State::Init;
+                let mut state = State::Init {
+                    next_backoff_secs: BASE_BACKOFF_SECS,
+                };
 
                 loop {
                     state = NetworkService::start_listening(state, &mut output).await;
@@ -415,67 +438,50 @@ impl NetworkBackend for BackendChoiceWithConnection {
 impl NetworkService {
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
-            State::Init => match zbus::Connection::system().await {
+            State::Init { next_backoff_secs } => match zbus::Connection::system().await {
                 Ok(conn) => {
-                    // get first backend that is available
-                    info!("Connecting to backend");
-                    let maybe_backend: Result<(NetworkData, BackendChoice), _> =
-                        match NetworkDbus::new(&conn)
-                            .and_then(|nm| async move { nm.initialize_data().await })
-                            .await
-                        {
-                            Ok(data) => {
-                                info!("NetworkManager service initialized");
-                                Ok((data, BackendChoice::NetworkManager))
-                            }
-                            Err(err) => {
-                                info!(
-                                    "Failed to initialize NetworkManager. Falling back to iwd. Error: {err}"
-                                );
-                                match IwdDbus::new(&conn)
-                                    .and_then(|iwd| async move { iwd.initialize_data().await })
-                                    .await
-                                {
-                                    Ok(data) => {
-                                        info!("IWD service initialized");
-                                        Ok((data, BackendChoice::Iwd))
-                                    }
-                                    Err(err) => {
-                                        error!("Failed to initialize network service: {err}");
-                                        Err(err)
+                    info!("Probing network backends");
+                    match select_backend(&conn).await {
+                        Some(choice) => {
+                            let bc = choice.with_connection(conn.clone());
+                            match bc.initialize_data().await {
+                                Ok(data) => {
+                                    info!("Network service initialized ({choice:?})");
+                                    let _ = output
+                                        .send(ServiceEvent::Init(NetworkService {
+                                            data,
+                                            conn: conn.clone(),
+                                            backend_choice: choice,
+                                            pending_scan_devices: Vec::new(),
+                                        }))
+                                        .await;
+                                    State::Active(conn, choice)
+                                }
+                                Err(err) => {
+                                    error!(
+                                        "Failed to initialize network service ({choice:?}): {err}"
+                                    );
+                                    State::Error {
+                                        backoff_secs: next_backoff_secs,
                                     }
                                 }
                             }
-                        };
-                    info!("Connected");
-
-                    match maybe_backend {
-                        Ok((data, choice)) => {
-                            info!("Network service initialized");
-                            let _ = output
-                                .send(ServiceEvent::Init(NetworkService {
-                                    data,
-                                    conn: conn.clone(),
-                                    backend_choice: choice,
-                                    pending_scan_devices: Vec::new(),
-                                }))
-                                .await;
-                            State::Active(conn, choice)
                         }
-                        Err(err) => {
-                            if err.is::<zbus::Error>() {
-                                error!("Failed to connect to system bus: {err}");
-                            } else {
-                                error!("Failed to initialize network service: {err}");
-                            }
-                            State::Error
+                        None => {
+                            warn!(
+                                "No supported network backend found (NetworkManager, iwd); \
+                                 network module disabled. Restart ashell after installing a \
+                                 supported backend."
+                            );
+                            State::Unsupported
                         }
                     }
                 }
                 Err(err) => {
                     error!("Failed to connect to system bus: {err}");
-
-                    State::Error
+                    State::Error {
+                        backoff_secs: next_backoff_secs,
+                    }
                 }
             },
             State::Active(conn, choice) => {
@@ -488,7 +494,9 @@ impl NetworkService {
                             Ok(nm) => nm,
                             Err(e) => {
                                 error!("Failed to create NetworkDbus: {e}");
-                                return State::Error;
+                                return State::Error {
+                                    backoff_secs: BASE_BACKOFF_SECS,
+                                };
                             }
                         };
 
@@ -513,7 +521,9 @@ impl NetworkService {
                             Err(err) => {
                                 error!("Failed to listen for network events: {err}");
 
-                                State::Error
+                                State::Error {
+                                    backoff_secs: BASE_BACKOFF_SECS,
+                                }
                             }
                         }
                     }
@@ -522,7 +532,9 @@ impl NetworkService {
                             Ok(iwd) => iwd,
                             Err(err) => {
                                 error!("Failed to create IwdDbus: {err}");
-                                return State::Error;
+                                return State::Error {
+                                    backoff_secs: BASE_BACKOFF_SECS,
+                                };
                             }
                         };
                         match iwd.subscribe_events().await {
@@ -543,18 +555,26 @@ impl NetworkService {
                             Err(err) => {
                                 error!("Failed to listen for network events: {err}");
 
-                                State::Error
+                                State::Error {
+                                    backoff_secs: BASE_BACKOFF_SECS,
+                                }
                             }
                         }
                     }
                 }
             }
-            State::Error => {
-                error!("Network service error, retrying in 5 seconds");
+            State::Error { backoff_secs } => {
+                error!("Network service error, retrying in {backoff_secs}s");
 
-                sleep(Duration::from_secs(5)).await;
+                sleep(Duration::from_secs(backoff_secs)).await;
 
-                State::Init
+                State::Init {
+                    next_backoff_secs: (backoff_secs * 2).min(MAX_BACKOFF_SECS),
+                }
+            }
+            State::Unsupported => {
+                let _ = pending::<u8>().next().await;
+                State::Unsupported
             }
         }
     }
