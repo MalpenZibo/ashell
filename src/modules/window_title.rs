@@ -1,5 +1,6 @@
 use crate::{
-    config::{WindowTitleConfig, WindowTitleMode},
+    components::rotated_text::{RotatedText, RotationDirection},
+    config::{Orientation, WindowTitleConfig, WindowTitleMode},
     services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
     theme::use_theme,
     utils::truncate_text,
@@ -90,16 +91,24 @@ impl WindowTitle {
         self.value.clone()
     }
 
+    pub fn vertical_enabled(&self) -> bool {
+        self.config.vertical
+    }
+
     pub fn view(&'_ self, title: String) -> Element<'_, Message> {
-        use_theme(|theme| {
-            container(
-                text(title)
-                    .size(theme.font_size.sm)
-                    .wrapping(text::Wrapping::None),
-            )
-            .clip(true)
-            .into()
-        })
+        let (font_size, orientation) = use_theme(|theme| (theme.font_size.sm, theme.orientation));
+
+        // In vertical bar mode with opt-in, use rotated text
+        if orientation == Orientation::Vertical && self.config.vertical {
+            RotatedText::new(title)
+                .size(font_size)
+                .direction(RotationDirection::Clockwise)
+                .into()
+        } else {
+            container(text(title).size(font_size).wrapping(text::Wrapping::None))
+                .clip(true)
+                .into()
+        }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

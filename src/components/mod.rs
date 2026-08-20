@@ -12,6 +12,7 @@ mod module_item;
 pub mod password_dialog;
 mod position_button;
 mod quick_setting_button;
+pub mod rotated_text;
 pub mod slide;
 mod slider_control;
 pub mod spinning_icon;

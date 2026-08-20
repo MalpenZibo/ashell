@@ -295,8 +295,9 @@ impl App {
                 None,
             )),
             ModuleName::WindowTitle => {
-                // In vertical bar, window title is hidden (text doesn't fit).
-                if use_theme(|t| t.orientation) == Orientation::Vertical {
+                // In vertical bar, window title is hidden unless config.vertical is true.
+                let is_vertical = use_theme(|t| t.orientation) == Orientation::Vertical;
+                if is_vertical && !self.window_title.vertical_enabled() {
                     None
                 } else {
                     self.window_title.get_value().map(|title| {

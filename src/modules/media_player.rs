@@ -479,14 +479,16 @@ impl MediaPlayer {
             )
         });
         self.active_player().map(|player| {
-            // In vertical bar: force icon format, disable beside visualizer.
+            // In vertical bar: use rotated text if opt-in, otherwise force icon format.
             let is_vertical = orientation == Orientation::Vertical;
-            let effective_format = if is_vertical {
+            let use_rotated = is_vertical && self.config.vertical;
+
+            let effective_format = if is_vertical && !use_rotated {
                 MediaPlayerFormat::Icon
             } else {
                 self.config.indicator_format
             };
-            let effective_visualizer = if is_vertical {
+            let effective_visualizer = if is_vertical && !use_rotated {
                 match self.config.indicator_visualizer {
                     Some(MediaPlayerVisualizer::Before) | Some(MediaPlayerVisualizer::After) => {
                         None
@@ -498,13 +500,22 @@ impl MediaPlayer {
             };
 
             let has_text = effective_format != MediaPlayerFormat::Icon;
-            let label = || {
-                container(
-                    text(self.indicator_text(player))
-                        .wrapping(text::Wrapping::None)
-                        .size(font_size.sm),
-                )
-                .clip(true)
+            let label = || -> Element<'_, Message> {
+                if use_rotated {
+                    // Use rotated text for vertical bar
+                    crate::components::rotated_text::RotatedText::new(self.indicator_text(player))
+                        .size(font_size.sm)
+                        .direction(crate::components::rotated_text::RotationDirection::Clockwise)
+                        .into()
+                } else {
+                    container(
+                        text(self.indicator_text(player))
+                            .wrapping(text::Wrapping::None)
+                            .size(font_size.sm),
+                    )
+                    .clip(true)
+                    .into()
+                }
             };
 
             let content = match effective_format {

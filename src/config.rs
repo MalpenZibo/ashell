@@ -166,6 +166,8 @@ pub enum WindowTitleMode {
 pub struct WindowTitleConfig {
     pub mode: WindowTitleMode,
     pub truncate_title_after_length: u32,
+    /// Enable rotated text in vertical bar mode (opt-in).
+    pub vertical: bool,
 }
 
 impl Default for WindowTitleConfig {
@@ -173,6 +175,7 @@ impl Default for WindowTitleConfig {
         Self {
             mode: Default::default(),
             truncate_title_after_length: 150,
+            vertical: false,
         }
     }
 }
@@ -752,6 +755,8 @@ pub struct MediaPlayerModuleConfig {
     pub indicator_visualizer: Option<MediaPlayerVisualizer>,
     pub menu_visualizer: bool,
     pub visualizer_framerate: u32,
+    /// Enable rotated text in vertical bar mode (opt-in).
+    pub vertical: bool,
 }
 
 impl Default for MediaPlayerModuleConfig {
@@ -763,6 +768,7 @@ impl Default for MediaPlayerModuleConfig {
             indicator_visualizer: None,
             menu_visualizer: false,
             visualizer_framerate: Self::DEFAULT_VISUALIZER_FRAMERATE,
+            vertical: false,
         }
     }
 }
