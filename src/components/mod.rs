@@ -1,4 +1,5 @@
 mod animated_size;
+mod axis;
 pub mod button;
 mod centerbox;
 pub mod collapsible;
@@ -17,6 +18,7 @@ pub mod spinning_icon;
 mod sub_menu_wrapper;
 
 pub use animated_size::animated_size;
+pub use axis::*;
 pub use button::*;
 pub use centerbox::*;
 pub use collapsible::collapsible;

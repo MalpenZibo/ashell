@@ -1,10 +1,11 @@
 use std::cell::RefCell;
 
 use crate::{
+    components::Axis,
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
         Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarRadius,
-        BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize,
+        BarSurface, MenuAppearance, Orientation, Position, RadiusSize, SpaceSize,
     },
 };
 use iced::{
@@ -162,6 +163,7 @@ pub struct AshellTheme {
     pub radius: Radius,
     pub font_size: FontSize,
     pub bar_position: Position,
+    pub orientation: Orientation,
     pub bar_surface: BarSurface,
     pub bar_radius: BarRadius,
     pub bar_margin: BarMargin,
@@ -383,6 +385,7 @@ fn base_theme_from_appearance(
         radius: Radius::default(),
         font_size: FontSize::default(),
         bar_position,
+        orientation: bar_position.orientation(),
         bar_surface: appearance.bar.surface,
         bar_radius: appearance.bar.radius,
         bar_margin: appearance.bar.margin,
@@ -403,6 +406,16 @@ impl AshellTheme {
         animations: &crate::config::AnimationsConfig,
     ) -> Self {
         base_theme_from_appearance(appearance, position, animations.enabled)
+    }
+
+    /// The bar's axis-aware layout direction.
+    // Used by the axis-aware layout call sites added in subsequent PRs.
+    #[allow(dead_code)]
+    pub fn axis(&self) -> Axis {
+        match self.orientation {
+            Orientation::Horizontal => Axis::Horizontal,
+            Orientation::Vertical => Axis::Vertical,
+        }
     }
 
     pub fn bar_layout(&self) -> BarLayout {

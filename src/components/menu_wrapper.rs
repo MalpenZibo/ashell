@@ -5,12 +5,14 @@ use iced::advanced::{Clipboard, Shell, Widget, mouse};
 use iced::animation::Easing;
 use iced::core::widget::tree;
 use iced::{
-    Animation, Background, Border, Color, Length, Padding, Point, Rectangle, Shadow, Size, Vector,
-    alignment, event, overlay, touch,
+    Alignment, Animation, Background, Border, Color, Length, Padding, Rectangle, Shadow, Size,
+    Vector, event, overlay, touch,
 };
 use std::time::Instant;
 
 use crate::components::menu::ANIMATION_DURATION;
+
+use super::{Axis, BarEdge};
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
@@ -22,11 +24,11 @@ struct State {
 
 #[allow(missing_debug_implementations)]
 pub struct MenuWrapper<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer> {
-    x: f32,
+    cross: f32,
+    anchor: BarEdge,
     content: Element<'a, Message, Theme, Renderer>,
     on_click_outside: Option<Message>,
     padding: Padding,
-    vertical_alignment: alignment::Vertical,
     backdrop: Option<Color>,
     open: bool,
     animated: bool,
@@ -36,12 +38,12 @@ impl<'a, Message, Theme, Renderer> MenuWrapper<'a, Message, Theme, Renderer>
 where
     Renderer: iced::advanced::Renderer,
 {
-    pub fn new(x: f32, content: Element<'a, Message, Theme, Renderer>) -> Self {
+    pub fn new(cross: f32, content: Element<'a, Message, Theme, Renderer>) -> Self {
         MenuWrapper {
-            x,
+            cross,
+            anchor: BarEdge::Top,
             content,
             on_click_outside: None,
-            vertical_alignment: alignment::Vertical::Top,
             padding: Padding::ZERO,
             backdrop: None,
             open: true,
@@ -54,8 +56,8 @@ where
         self
     }
 
-    pub fn align_y(mut self, alignment: impl Into<alignment::Vertical>) -> Self {
-        self.vertical_alignment = alignment.into();
+    pub fn anchor(mut self, anchor: BarEdge) -> Self {
+        self.anchor = anchor;
         self
     }
 
@@ -77,10 +79,6 @@ where
     pub fn animated(mut self, animated: bool) -> Self {
         self.animated = animated;
         self
-    }
-
-    fn slide_from_top(&self) -> bool {
-        matches!(self.vertical_alignment, alignment::Vertical::Top)
     }
 }
 
@@ -135,17 +133,28 @@ where
             },
             |node, size| {
                 let content_size = node.size();
-                let x = f32::min(
-                    f32::max(self.x - content_size.width / 2.0, 8.),
-                    size.width - content_size.width - 8.,
+                let axis = self.anchor.axis();
+
+                // `self.cross` is the button's centre along the clamp axis;
+                // clamp the content to that axis with an 8px inset.
+                let cross_value = f32::min(
+                    f32::max(self.cross - axis.main(content_size) / 2.0, 8.),
+                    axis.main(size) - axis.main(content_size) - 8.,
                 );
-                let node = node.align(
-                    iced::Alignment::Center,
-                    self.vertical_alignment.into(),
-                    size,
-                );
-                let y = node.bounds().y;
-                node.move_to(Point::new(x, y))
+
+                // Pin along the anchored axis. `align` is additive (the node
+                // starts at the padding origin), so the anchor inset travels
+                // through to the final position exactly like before.
+                let (align_x, align_y) =
+                    axis.align(Alignment::Center, self.anchor.anchor_alignment());
+                let aligned = node.align(align_x, align_y, size);
+                let aligned_pos = aligned.bounds().position();
+                let anchor_value = match axis {
+                    Axis::Horizontal => aligned_pos.y,
+                    Axis::Vertical => aligned_pos.x,
+                };
+
+                aligned.move_to(axis.point(cross_value, anchor_value))
             },
         );
 
@@ -295,24 +304,37 @@ where
         let content_bounds = content_layout.bounds();
 
         // Clip-reveal: content is drawn at full size, but a growing clip rect
-        // hides everything past `progress * height`. Anchored to the bar edge
+        // hides everything past `progress * length`. Anchored to the bar edge
         // so the menu "rolls out" from there.
-        let full_height = content_bounds.height;
-        let visible_height = full_height * progress;
-        let clip_bounds = if self.slide_from_top() {
-            Rectangle {
-                x: content_bounds.x,
-                y: content_bounds.y,
-                width: content_bounds.width,
-                height: visible_height,
-            }
-        } else {
-            Rectangle {
-                x: content_bounds.x,
-                y: content_bounds.y + full_height - visible_height,
-                width: content_bounds.width,
-                height: visible_height,
-            }
+        let axis = self.anchor.axis();
+        let is_start = self.anchor.is_start();
+        let full_length = match axis {
+            Axis::Horizontal => content_bounds.height,
+            Axis::Vertical => content_bounds.width,
+        };
+        let visible_length = full_length * progress;
+
+        let (clip_width, clip_height) = match axis {
+            Axis::Horizontal => (content_bounds.width, visible_length),
+            Axis::Vertical => (visible_length, content_bounds.height),
+        };
+        let (clip_x, clip_y) = match (axis, is_start) {
+            (Axis::Horizontal, true) => (content_bounds.x, content_bounds.y),
+            (Axis::Horizontal, false) => (
+                content_bounds.x,
+                content_bounds.y + full_length - visible_length,
+            ),
+            (Axis::Vertical, true) => (content_bounds.x, content_bounds.y),
+            (Axis::Vertical, false) => (
+                content_bounds.x + full_length - visible_length,
+                content_bounds.y,
+            ),
+        };
+        let clip_bounds = Rectangle {
+            x: clip_x,
+            y: clip_y,
+            width: clip_width,
+            height: clip_height,
         };
 
         // The layer clip is invisible to children; `viewport` is what they read.

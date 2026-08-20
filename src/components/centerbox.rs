@@ -1,4 +1,4 @@
-//! Distribute content horizontally.
+//! Distribute content along the bar's main axis.
 use iced::Animation;
 use iced::advanced::layout::{self, Layout, Limits, Node};
 use iced::advanced::overlay;
@@ -6,28 +6,30 @@ use iced::advanced::renderer;
 use iced::advanced::widget::{Operation, Tree, tree};
 use iced::advanced::{Clipboard, Shell, Widget, mouse};
 use iced::animation::Easing;
-use iced::{Alignment, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event};
+use iced::{Alignment, Length, Padding, Pixels, Rectangle, Size, Vector, event};
 use std::time::{Duration, Instant};
+
+use super::Axis;
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
 struct State {
-    center_x_anim: Animation<f32>,
-    last_center_x: f32,
+    center_main_anim: Animation<f32>,
+    last_center_main: f32,
     initialized: bool,
 }
 
 impl State {
     fn new() -> Self {
         Self {
-            center_x_anim: Animation::new(0.0),
-            last_center_x: 0.0,
+            center_main_anim: Animation::new(0.0),
+            last_center_main: 0.0,
             initialized: false,
         }
     }
 }
 
-/// A container that distributes its contents horizontally.
+/// A container that distributes its contents along one axis.
 #[allow(missing_debug_implementations)]
 pub struct Centerbox<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer> {
     spacing: f32,
@@ -36,6 +38,7 @@ pub struct Centerbox<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer
     height: Length,
     align_items: Alignment,
     animated: bool,
+    axis: Axis,
     children: [Element<'a, Message, Theme, Renderer>; 3],
 }
 
@@ -52,18 +55,25 @@ where
             height: Length::Shrink,
             align_items: Alignment::Start,
             animated: true,
+            axis: Axis::Horizontal,
             children,
         }
     }
 
-    /// Enables or disables the x-position animation of the center element.
+    /// Enables or disables the position animation of the center element.
     /// When `false`, the center snaps to its target position instead.
     pub fn animated(mut self, animated: bool) -> Self {
         self.animated = animated;
         self
     }
 
-    /// Sets the horizontal spacing _between_ elements.
+    /// Sets the axis the [`Centerbox`] distributes its children along.
+    pub fn axis(mut self, axis: Axis) -> Self {
+        self.axis = axis;
+        self
+    }
+
+    /// Sets the spacing _between_ elements along the main axis.
     ///
     /// Custom margins per element do not exist in iced. You should use this
     /// method instead! While less flexible, it helps you keep spacing between
@@ -91,7 +101,7 @@ where
         self
     }
 
-    /// Sets the vertical alignment of the contents of the [`Centerbox`] .
+    /// Sets the cross-axis alignment of the contents of the [`Centerbox`].
     pub fn align_items(mut self, align: Alignment) -> Self {
         self.align_items = align;
         self
@@ -138,18 +148,24 @@ where
             .shrink(self.padding);
 
         let total_spacing = self.spacing * 3_i32.saturating_sub(1) as f32;
-        let max_cross = limits.max().height;
+        let max_cross = self.axis.cross(limits.max());
+        let max_main = self.axis.main(limits.max());
 
-        let mut cross = match self.height {
+        let (main_length, cross_length) = match self.axis {
+            Axis::Horizontal => (self.width, self.height),
+            Axis::Vertical => (self.height, self.width),
+        };
+
+        let mut cross = match cross_length {
             Length::Shrink => 0.0,
             _ => max_cross,
         };
 
-        let available = limits.max().width - total_spacing;
+        let available = max_main - total_spacing;
 
         let mut nodes = [Node::default(), Node::default(), Node::default()];
 
-        let mut remaining = match self.width {
+        let mut remaining = match main_length {
             Length::Shrink => 0.0,
             _ => available.max(0.0),
         };
@@ -159,10 +175,13 @@ where
                 let fill_cross_factor = {
                     let size = child.as_widget().size();
 
-                    size.height.fill_factor()
+                    match self.axis {
+                        Axis::Horizontal => size.height.fill_factor(),
+                        Axis::Vertical => size.width.fill_factor(),
+                    }
                 };
 
-                let (max_width, max_height) = (
+                let (child_max_main, child_max_cross) = (
                     remaining,
                     if fill_cross_factor != 0 {
                         cross
@@ -171,13 +190,14 @@ where
                     },
                 );
 
+                let (max_width, max_height) = self.axis.pack(child_max_main, child_max_cross);
                 let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
 
                 let layout = child.as_widget_mut().layout(tree, renderer, &child_limits);
                 let size = layout.size();
 
-                remaining -= size.width;
-                cross = cross.max(size.height);
+                remaining -= self.axis.main(size);
+                cross = cross.max(self.axis.cross(size));
 
                 nodes[i] = layout;
             };
@@ -186,59 +206,70 @@ where
         calculate_edge_layout(2, (&mut self.children[2], &mut tree.children[2]));
         calculate_edge_layout(1, (&mut self.children[1], &mut tree.children[1]));
 
-        nodes[0].move_to_mut(Point::new(self.padding.left, self.padding.top));
-        nodes[0].align_mut(Alignment::Start, self.align_items, Size::new(0.0, cross));
-        nodes[2].move_to_mut(Point::new(
-            limits.max().width + self.padding.right,
-            self.padding.top,
-        ));
-        nodes[2].align_mut(Alignment::End, self.align_items, Size::new(0.0, cross));
+        let (main_before, main_after, cross_before, _) = self.axis.padding_parts(self.padding);
+        let (align_width, align_height) = self.axis.pack(0.0, cross);
+        let align_space = Size::new(align_width, align_height);
+
+        nodes[0].move_to_mut(self.axis.point(main_before, cross_before));
+        {
+            let (h, v) = self.axis.align(Alignment::Start, self.align_items);
+            nodes[0].align_mut(h, v, align_space);
+        }
+        nodes[2].move_to_mut(self.axis.point(max_main + main_after, cross_before));
+        {
+            let (h, v) = self.axis.align(Alignment::End, self.align_items);
+            nodes[2].align_mut(h, v, align_space);
+        }
 
         let half_available = available / 2.0;
-        let half_center_width = nodes[1].size().width / 2.0;
+        let half_center_main = self.axis.main(nodes[1].size()) / 2.0;
+        let first_main = self.axis.main(nodes[0].size());
+        let last_main = self.axis.main(nodes[2].size());
 
-        let target_center_x = if half_available - nodes[0].size().width < half_center_width
-            || half_available - nodes[2].size().width < half_center_width
+        let target_center_main = if half_available - first_main < half_center_main
+            || half_available - last_main < half_center_main
         {
-            self.padding.left
-                + self.spacing
-                + nodes[0].size().width
-                + (available - nodes[0].size().width - nodes[2].size().width) / 2.0
+            main_before + self.spacing + first_main + (available - first_main - last_main) / 2.0
         } else {
-            limits.max().width / 2. + (self.padding.left + self.padding.right) / 2.0
+            max_main / 2. + (main_before + main_after) / 2.0
         };
 
         let state = tree.state.downcast_mut::<State>();
         let now = Instant::now();
 
-        let display_center_x = if !self.animated {
-            state.last_center_x = target_center_x;
+        let display_center_main = if !self.animated {
+            state.last_center_main = target_center_main;
             state.initialized = true;
-            target_center_x
+            target_center_main
         } else if !state.initialized {
-            state.center_x_anim = Animation::new(target_center_x)
+            state.center_main_anim = Animation::new(target_center_main)
                 .duration(Duration::from_millis(100))
                 .easing(Easing::EaseOutCubic);
-            state.last_center_x = target_center_x;
+            state.last_center_main = target_center_main;
             state.initialized = true;
-            target_center_x
-        } else if (target_center_x - state.last_center_x).abs() > 0.5 {
-            state.last_center_x = target_center_x;
-            state.center_x_anim.go_mut(target_center_x, now);
-            state.center_x_anim.interpolate_with(|v| v, now)
-        } else if state.center_x_anim.is_animating(now) {
-            state.center_x_anim.interpolate_with(|v| v, now)
+            target_center_main
+        } else if (target_center_main - state.last_center_main).abs() > 0.5 {
+            state.last_center_main = target_center_main;
+            state.center_main_anim.go_mut(target_center_main, now);
+            state.center_main_anim.interpolate_with(|v| v, now)
+        } else if state.center_main_anim.is_animating(now) {
+            state.center_main_anim.interpolate_with(|v| v, now)
         } else {
-            target_center_x
+            target_center_main
         };
 
-        nodes[1].move_to_mut(Point::new(display_center_x, self.padding.top));
-        nodes[1].align_mut(Alignment::Center, self.align_items, Size::new(0.0, cross));
+        nodes[1].move_to_mut(self.axis.point(display_center_main, cross_before));
+        {
+            let (h, v) = self.axis.align(Alignment::Center, self.align_items);
+            nodes[1].align_mut(h, v, align_space);
+        }
 
-        let main =
-            nodes[0].size().width + nodes[1].size().width + nodes[2].size().width + total_spacing;
+        let main = self.axis.main(nodes[0].size())
+            + self.axis.main(nodes[1].size())
+            + self.axis.main(nodes[2].size())
+            + total_spacing;
 
-        let (intrinsic_width, intrinsic_height) = (main, cross);
+        let (intrinsic_width, intrinsic_height) = self.axis.pack(main, cross);
         let size = limits.resolve(
             self.width,
             self.height,
@@ -293,7 +324,7 @@ where
 
         if let event::Event::Window(iced::core::window::Event::RedrawRequested(now)) = event {
             let state = tree.state.downcast_mut::<State>();
-            if state.center_x_anim.is_animating(*now) {
+            if state.center_main_anim.is_animating(*now) {
                 shell.request_redraw();
                 shell.invalidate_layout();
             }

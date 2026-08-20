@@ -1,4 +1,4 @@
-use crate::config::{Position, get_config};
+use crate::config::get_config;
 use crate::outputs::Outputs;
 use crate::theme::BarLayout;
 use app::App;
@@ -7,7 +7,7 @@ use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
 use iced::{
-    Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings,
+    Font, KeyboardInteractivity, Layer, LayerShellSettings,
     font::{Stretch as FontStretch, Style as FontStyle, Weight as FontWeight},
 };
 use log::{debug, error, info, warn};
@@ -33,7 +33,7 @@ const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Reg
 const NERD_FONT_MONO: &[u8] =
     include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
 const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
-const HEIGHT: f64 = 34.;
+const THICKNESS: f64 = 34.;
 const TMP_FILE_SIZE: u64 = 10 * 1024 * 1024;
 const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")");
 
@@ -243,7 +243,7 @@ fn main() -> iced::Result {
     };
 
     let bar_layout = BarLayout::from_appearance(&config.appearance.bar);
-    let height = Outputs::get_height(bar_layout.surface, config.appearance.scale_factor);
+    let thickness = Outputs::bar_thickness(bar_layout.surface, config.appearance.scale_factor);
 
     let iced_layer = match config.layer {
         config::Layer::Top => Layer::Top,
@@ -257,11 +257,7 @@ fn main() -> iced::Result {
         App::view,
     )
     .layer_shell(LayerShellSettings {
-        anchor: match config.position {
-            Position::Top => Anchor::TOP,
-            Position::Bottom => Anchor::BOTTOM,
-        } | Anchor::LEFT
-            | Anchor::RIGHT,
+        anchor: Outputs::anchor(config.position),
         layer: iced_layer,
         exclusive_zone: Outputs::exclusive_zone(
             bar_layout,
@@ -269,7 +265,7 @@ fn main() -> iced::Result {
             config.appearance.scale_factor,
         ),
         margin: Outputs::margin(bar_layout, config.appearance.scale_factor),
-        size: Some((0, height as u32)),
+        size: Some((0, thickness as u32)),
         keyboard_interactivity: KeyboardInteractivity::None,
         namespace: "ashell-main-layer".into(),
         ..Default::default()

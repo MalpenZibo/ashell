@@ -6,7 +6,7 @@ use iced::{
 use log::debug;
 
 use crate::{
-    HEIGHT,
+    THICKNESS,
     components::ButtonUIRef,
     components::menu::{Menu, MenuType, OpenMenu},
     config::{self, BarSurface, Position},
@@ -141,8 +141,8 @@ impl Outputs {
         Menu::with_animations(self.animations_enabled)
     }
 
-    pub fn get_height(surface: BarSurface, scale_factor: f64) -> f64 {
-        (HEIGHT
+    pub fn bar_thickness(surface: BarSurface, scale_factor: f64) -> f64 {
+        (THICKNESS
             - match surface {
                 BarSurface::Solid => 8.,
                 BarSurface::Transparent => 0.,
@@ -158,12 +158,23 @@ impl Outputs {
         (scale(top), scale(right), scale(bottom), scale(left))
     }
 
+    /// The layer-shell anchor for a bar position: pinned to that edge and
+    /// stretched along the perpendicular axis (LEFT | RIGHT for a top/bottom
+    /// bar; TOP | BOTTOM for a left/right bar).
+    pub fn anchor(position: Position) -> Anchor {
+        (match position {
+            Position::Top => Anchor::TOP,
+            Position::Bottom => Anchor::BOTTOM,
+        }) | Anchor::LEFT
+            | Anchor::RIGHT
+    }
+
     /// Space reserved on the anchored edge: the bar height plus the margin that
     /// pushes the bar away from that edge.
     pub fn exclusive_zone(layout: BarLayout, position: Position, scale_factor: f64) -> i32 {
-        let height = Self::get_height(layout.surface, scale_factor);
+        let thickness = Self::bar_thickness(layout.surface, scale_factor);
         let (top, _, bottom, _) = Self::margin(layout, scale_factor);
-        height as i32
+        thickness as i32
             + match position {
                 Position::Top => top,
                 Position::Bottom => bottom,
@@ -177,7 +188,7 @@ impl Outputs {
         layer: config::Layer,
         scale_factor: f64,
     ) -> (SurfaceId, Task<Message>) {
-        let height = Self::get_height(layout.surface, scale_factor);
+        let thickness = Self::bar_thickness(layout.surface, scale_factor);
 
         let iced_layer = match layer {
             config::Layer::Top => Layer::Top,
@@ -187,17 +198,13 @@ impl Outputs {
 
         let (id, main_task) = new_layer_surface(LayerShellSettings {
             namespace: "ashell-main-layer".to_string(),
-            size: Some((0, height as u32)),
+            size: Some((0, thickness as u32)),
             layer: iced_layer,
             keyboard_interactivity: KeyboardInteractivity::None,
             exclusive_zone: Self::exclusive_zone(layout, position, scale_factor),
             margin: Self::margin(layout, scale_factor),
             output: output_id,
-            anchor: match position {
-                Position::Top => Anchor::TOP,
-                Position::Bottom => Anchor::BOTTOM,
-            } | Anchor::LEFT
-                | Anchor::RIGHT,
+            anchor: Self::anchor(position),
         });
 
         (id, main_task)
@@ -506,14 +513,7 @@ impl Outputs {
                 shell_info.id, position
             );
             shell_info.position = position;
-            tasks.push(set_anchor(
-                shell_info.id,
-                match position {
-                    Position::Top => Anchor::TOP,
-                    Position::Bottom => Anchor::BOTTOM,
-                } | Anchor::LEFT
-                    | Anchor::RIGHT,
-            ));
+            tasks.push(set_anchor(shell_info.id, Self::anchor(position)));
         }
 
         // Handle layer changes - only recreate surfaces when layer actually changes
@@ -552,9 +552,9 @@ impl Outputs {
             );
             shell_info.layout = layout;
             shell_info.scale_factor = scale_factor;
-            let height = Self::get_height(layout.surface, scale_factor);
+            let thickness = Self::bar_thickness(layout.surface, scale_factor);
             tasks.push(Task::batch(vec![
-                set_size(shell_info.id, (0, height as u32)),
+                set_size(shell_info.id, (0, thickness as u32)),
                 set_exclusive_zone(
                     shell_info.id,
                     Self::exclusive_zone(layout, position, scale_factor),
@@ -857,7 +857,7 @@ impl Outputs {
             if *oid == Some(target) {
                 info.as_ref().and_then(|i| {
                     i.output_logical_height.map(|h| {
-                        let bar = Self::get_height(i.layout.surface, i.scale_factor) as u32;
+                        let bar = Self::bar_thickness(i.layout.surface, i.scale_factor) as u32;
                         h.saturating_sub(bar)
                     })
                 })

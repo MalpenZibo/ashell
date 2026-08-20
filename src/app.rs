@@ -1,5 +1,5 @@
 use crate::{
-    HEIGHT,
+    THICKNESS,
     components::{Centerbox, menu::MenuType},
     config::{self, BarSurface, Config, ModuleName, Modules, WorkspaceIndicatorFormat},
     get_log_spec,
@@ -605,9 +605,9 @@ impl App {
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
                     .height(if bar_surface == BarSurface::Transparent {
-                        HEIGHT
+                        THICKNESS
                     } else {
-                        HEIGHT - space.xs as f64
+                        THICKNESS - space.xs as f64
                     } as f32)
                     .padding(if bar_surface == BarSurface::Transparent {
                         [space.xxs, space.xxs]

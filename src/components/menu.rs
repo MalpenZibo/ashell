@@ -1,8 +1,7 @@
 use crate::app::{self, App};
-use crate::components::{self, ButtonUIRef};
+use crate::components::{self, BarEdge, ButtonUIRef};
 use crate::config::{BarSurface, Position};
 use crate::theme::{backdrop_color, use_theme};
-use iced::alignment::Vertical;
 use iced::widget::container::Style;
 use iced::{
     Anchor, Border, Element, KeyboardInteractivity, Layer, LayerShellSettings, Length, OutputId,
@@ -312,6 +311,11 @@ impl App {
             )
         });
 
+        let bar_edge = match bar_position {
+            Position::Top => BarEdge::Top,
+            Position::Bottom => BarEdge::Bottom,
+        };
+
         let menu_style = move |theme: &Theme| Style {
             background: Some(theme.palette().background.into()),
             border: Border {
@@ -342,22 +346,14 @@ impl App {
                     BarSurface::Transparent => 0,
                 };
 
-                Padding::new(0.)
-                    .top(if bar_position == Position::Top {
-                        v_padding
-                    } else {
-                        0
-                    })
-                    .bottom(if bar_position == Position::Bottom {
-                        v_padding
-                    } else {
-                        0
-                    })
+                match bar_edge {
+                    BarEdge::Top => Padding::new(0.).top(v_padding),
+                    BarEdge::Bottom => Padding::new(0.).bottom(v_padding),
+                    BarEdge::Left => Padding::new(0.).left(v_padding),
+                    BarEdge::Right => Padding::new(0.).right(v_padding),
+                }
             })
-            .align_y(match bar_position {
-                Position::Top => Vertical::Top,
-                Position::Bottom => Vertical::Bottom,
-            })
+            .anchor(bar_edge)
             .backdrop(backdrop_color(menu_backdrop))
             .on_click_outside(app::Message::CloseMenu(id))
             .open(!self.outputs.menu_is_closing(id))
