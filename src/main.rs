@@ -243,7 +243,6 @@ fn main() -> iced::Result {
     };
 
     let bar_layout = BarLayout::from_appearance(&config.appearance.bar);
-    let thickness = Outputs::bar_thickness(bar_layout.surface, config.appearance.scale_factor);
 
     let iced_layer = match config.layer {
         config::Layer::Top => Layer::Top,
@@ -265,7 +264,11 @@ fn main() -> iced::Result {
             config.appearance.scale_factor,
         ),
         margin: Outputs::margin(bar_layout, config.appearance.scale_factor),
-        size: Some((0, thickness as u32)),
+        size: Some(Outputs::bar_size(
+            bar_layout,
+            config.position,
+            config.appearance.scale_factor,
+        )),
         keyboard_interactivity: KeyboardInteractivity::None,
         namespace: "ashell-main-layer".into(),
         ..Default::default()

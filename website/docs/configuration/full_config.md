@@ -14,7 +14,7 @@ log_level = "warn"
 # language = "en-US"        # UI language; defaults to $LC_MESSAGES / $LANG
 # region   = "it-IT"        # date format + unit system; defaults to $LC_TIME / $LANG
 # outputs = "All"            # "All" (default), "Active", or { Targets = ["eDP-1"] }
-position = "Top"             # "Top" (default) or "Bottom"
+position = "Top"             # "Top" (default), "Bottom", "Left", or "Right"
 # layer = "Bottom"           # "Bottom" (default), "Top", or "Overlay"
 # enable_esc_key = false     # Pressing Escape closes open menus
 

@@ -1019,7 +1019,7 @@ fn audio_group<'a>(
     let pad = use_theme(|t| t.space.md);
     let mut col = Column::<'a, Message>::with_capacity(2).spacing(0);
     match position {
-        Position::Top => {
+        Position::Top | Position::Left | Position::Right => {
             col = col.push(slider);
             if let Some((expanded, content)) = submenu {
                 col = col.push(collapsible(expanded, content).open_padding_top(pad));

@@ -73,10 +73,6 @@ impl Axis {
 }
 
 /// The screen edge a menu anchors to, mirroring the bar's anchoring edge.
-///
-/// `Left`/`Right` are exercised once `Position::{Left, Right}` land (PR2), so
-/// the problematic variants are allowed until then.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BarEdge {
     Top,

@@ -1,7 +1,7 @@
 use crate::{components::position_button, theme::use_theme};
 use iced::{Alignment, Element, Length, widget::container};
 
-use super::ButtonUIRef;
+use super::{Axis, ButtonUIRef};
 
 /// Builder for a bar module item: content wrapped in a position_button
 /// with optional press, right-press, middle-press, scroll-up, and scroll-down handlers.
@@ -63,21 +63,34 @@ impl<'a, Msg: 'static + Clone> ModuleItem<'a, Msg> {
 
 impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
     fn from(item: ModuleItem<'a, Msg>) -> Self {
-        let (space, module_button_style) =
-            use_theme(|theme| (theme.space, theme.module_button_style()));
+        let (space, module_button_style, axis) =
+            use_theme(|theme| (theme.space, theme.module_button_style(), theme.axis()));
 
         let has_action = item.on_press.is_some() || item.on_press_with_position.is_some();
 
         if has_action {
-            let mut button = position_button(
-                container(item.content)
+            let content = match axis {
+                Axis::Horizontal => container(item.content)
                     .align_y(Alignment::Center)
                     .height(Length::Fill)
                     .clip(true),
-            )
-            .padding([0.0, space.xs])
-            .height(Length::Fill)
-            .style(module_button_style);
+                Axis::Vertical => container(item.content)
+                    .align_x(Alignment::Center)
+                    .width(Length::Fill)
+                    .clip(true),
+            };
+
+            let mut button = position_button(content)
+                .padding(match axis {
+                    Axis::Horizontal => [0.0, space.xs],
+                    Axis::Vertical => [space.xs, 0.0],
+                })
+                .style(module_button_style);
+
+            button = match axis {
+                Axis::Horizontal => button.height(Length::Fill),
+                Axis::Vertical => button.width(Length::Fill),
+            };
 
             if let Some(handler) = item.on_press_with_position {
                 button = button.on_press_with_position(handler);
@@ -100,12 +113,20 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
 
             button.into()
         } else {
-            container(item.content)
-                .padding([0.0, space.xs])
-                .height(Length::Fill)
-                .align_y(Alignment::Center)
-                .clip(true)
-                .into()
+            match axis {
+                Axis::Horizontal => container(item.content)
+                    .padding([0.0, space.xs])
+                    .height(Length::Fill)
+                    .align_y(Alignment::Center)
+                    .clip(true)
+                    .into(),
+                Axis::Vertical => container(item.content)
+                    .padding([space.xs, 0.0])
+                    .width(Length::Fill)
+                    .align_x(Alignment::Center)
+                    .clip(true)
+                    .into(),
+            }
         }
     }
 }

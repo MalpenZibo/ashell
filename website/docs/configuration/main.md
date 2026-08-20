@@ -118,6 +118,20 @@ Configure the bar position and Wayland layer.
 
 - `"Top"` - Bar at top of screen (default)
 - `"Bottom"` - Bar at bottom of screen
+- `"Left"` - Vertical bar on the left edge of the screen
+- `"Right"` - Vertical bar on the right edge of the screen
+
+When the bar is vertical, the `left`, `center` and `right` module
+sections are laid out top-to-bottom and keep their names (so `left` means
+**top**, `center` means **center**, and `right` means **bottom**).
+
+:::note
+
+`bar.radius` corner names stay literal: on a left bar the outer corners are
+`top_right` and `bottom_right`, even though they sit on the right edge of the
+bar in *screen* terms.
+
+:::
 
 ### Layer Options
 
@@ -135,6 +149,11 @@ layer = "Overlay"
 ```toml
 position = "Bottom"
 layer = "Bottom"
+```
+
+```toml
+position = "Left"
+layer = "Top"
 ```
 
 ## Close menu with esc

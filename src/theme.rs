@@ -409,8 +409,6 @@ impl AshellTheme {
     }
 
     /// The bar's axis-aware layout direction.
-    // Used by the axis-aware layout call sites added in subsequent PRs.
-    #[allow(dead_code)]
     pub fn axis(&self) -> Axis {
         match self.orientation {
             Orientation::Horizontal => Axis::Horizontal,

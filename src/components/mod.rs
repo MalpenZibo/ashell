@@ -17,7 +17,7 @@ mod slider_control;
 pub mod spinning_icon;
 mod sub_menu_wrapper;
 
-pub use animated_size::animated_size;
+pub use animated_size::{AnimationAxis, animated_size};
 pub use axis::*;
 pub use button::*;
 pub use centerbox::*;

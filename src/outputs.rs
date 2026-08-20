@@ -162,22 +162,35 @@ impl Outputs {
     /// stretched along the perpendicular axis (LEFT | RIGHT for a top/bottom
     /// bar; TOP | BOTTOM for a left/right bar).
     pub fn anchor(position: Position) -> Anchor {
-        (match position {
-            Position::Top => Anchor::TOP,
-            Position::Bottom => Anchor::BOTTOM,
-        }) | Anchor::LEFT
-            | Anchor::RIGHT
+        match position {
+            Position::Top => Anchor::TOP | Anchor::LEFT | Anchor::RIGHT,
+            Position::Bottom => Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
+            Position::Left => Anchor::LEFT | Anchor::TOP | Anchor::BOTTOM,
+            Position::Right => Anchor::RIGHT | Anchor::TOP | Anchor::BOTTOM,
+        }
     }
 
-    /// Space reserved on the anchored edge: the bar height plus the margin that
-    /// pushes the bar away from that edge.
+    /// Layer-shell surface size: `(0, thickness)` for a horizontal bar and
+    /// `(thickness, 0)` for a vertical one (the zero dimension means "stretch").
+    pub fn bar_size(layout: BarLayout, position: Position, scale_factor: f64) -> (u32, u32) {
+        let thickness = Self::bar_thickness(layout.surface, scale_factor) as u32;
+        match position {
+            Position::Top | Position::Bottom => (0, thickness),
+            Position::Left | Position::Right => (thickness, 0),
+        }
+    }
+
+    /// Space reserved on the anchored edge: the bar thickness plus the margin
+    /// that pushes the bar away from that edge.
     pub fn exclusive_zone(layout: BarLayout, position: Position, scale_factor: f64) -> i32 {
         let thickness = Self::bar_thickness(layout.surface, scale_factor);
-        let (top, _, bottom, _) = Self::margin(layout, scale_factor);
+        let (top, right, bottom, left) = Self::margin(layout, scale_factor);
         thickness as i32
             + match position {
                 Position::Top => top,
                 Position::Bottom => bottom,
+                Position::Left => left,
+                Position::Right => right,
             }
     }
 
@@ -188,8 +201,6 @@ impl Outputs {
         layer: config::Layer,
         scale_factor: f64,
     ) -> (SurfaceId, Task<Message>) {
-        let thickness = Self::bar_thickness(layout.surface, scale_factor);
-
         let iced_layer = match layer {
             config::Layer::Top => Layer::Top,
             config::Layer::Bottom => Layer::Bottom,
@@ -198,7 +209,7 @@ impl Outputs {
 
         let (id, main_task) = new_layer_surface(LayerShellSettings {
             namespace: "ashell-main-layer".to_string(),
-            size: Some((0, thickness as u32)),
+            size: Some(Self::bar_size(layout, position, scale_factor)),
             layer: iced_layer,
             keyboard_interactivity: KeyboardInteractivity::None,
             exclusive_zone: Self::exclusive_zone(layout, position, scale_factor),
@@ -552,9 +563,11 @@ impl Outputs {
             );
             shell_info.layout = layout;
             shell_info.scale_factor = scale_factor;
-            let thickness = Self::bar_thickness(layout.surface, scale_factor);
             tasks.push(Task::batch(vec![
-                set_size(shell_info.id, (0, thickness as u32)),
+                set_size(
+                    shell_info.id,
+                    Self::bar_size(layout, position, scale_factor),
+                ),
                 set_exclusive_zone(
                     shell_info.id,
                     Self::exclusive_zone(layout, position, scale_factor),
@@ -856,9 +869,12 @@ impl Outputs {
         self.entries.iter().find_map(|(_, info, oid)| {
             if *oid == Some(target) {
                 info.as_ref().and_then(|i| {
-                    i.output_logical_height.map(|h| {
-                        let bar = Self::bar_thickness(i.layout.surface, i.scale_factor) as u32;
-                        h.saturating_sub(bar)
+                    i.output_logical_height.map(|h| match i.position {
+                        Position::Top | Position::Bottom => {
+                            let bar = Self::bar_thickness(i.layout.surface, i.scale_factor) as u32;
+                            h.saturating_sub(bar)
+                        }
+                        Position::Left | Position::Right => h,
                     })
                 })
             } else {

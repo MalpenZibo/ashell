@@ -314,6 +314,13 @@ impl App {
         let bar_edge = match bar_position {
             Position::Top => BarEdge::Top,
             Position::Bottom => BarEdge::Bottom,
+            Position::Left => BarEdge::Left,
+            Position::Right => BarEdge::Right,
+        };
+
+        let cross = match bar_position {
+            Position::Top | Position::Bottom => button_ui_ref.position.x,
+            Position::Left | Position::Right => button_ui_ref.position.y,
         };
 
         let menu_style = move |theme: &Theme| Style {
@@ -339,7 +346,7 @@ impl App {
                 .into()
         };
 
-        components::MenuWrapper::new(button_ui_ref.position.x, menu_body)
+        components::MenuWrapper::new(cross, menu_body)
             .padding({
                 let v_padding = match bar_surface {
                     BarSurface::Solid => 2,

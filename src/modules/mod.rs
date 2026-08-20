@@ -1,12 +1,17 @@
 use crate::{
     app::{App, Message},
+    components::AnimationAxis,
+    components::Axis,
     components::animated_size,
     components::menu::MenuType,
     components::{module_group, module_item},
     config::{ModuleDef, ModuleName},
     theme::use_theme,
 };
-use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
+use iced::{
+    Alignment, Element, Length, Subscription, SurfaceId,
+    widget::{Column, Row},
+};
 
 pub mod custom_module;
 pub mod keyboard_layout;
@@ -43,27 +48,44 @@ pub enum OnModulePress {
 
 impl App {
     pub fn modules_section<'a>(&'a self, id: SurfaceId) -> [Element<'a, Message>; 3] {
-        let space = use_theme(|t| t.space);
+        let (space, axis) = use_theme(|t| (t.space, t.axis()));
         [
             &self.general_config.modules.left,
             &self.general_config.modules.center,
             &self.general_config.modules.right,
         ]
-        .map(|modules_def| {
-            let mut row = Row::with_capacity(modules_def.len())
-                .height(Length::Shrink)
-                .align_y(Alignment::Center)
-                .spacing(space.xxs);
+        .map(|modules_def| match axis {
+            Axis::Horizontal => {
+                let mut row = Row::with_capacity(modules_def.len())
+                    .height(Length::Shrink)
+                    .align_y(Alignment::Center)
+                    .spacing(space.xxs);
 
-            for module_def in modules_def {
-                row = row.push(match module_def {
-                    // life parsing of string to module
-                    ModuleDef::Single(module) => self.single_module_wrapper(id, module),
-                    ModuleDef::Group(group) => self.group_module_wrapper(id, group),
-                });
+                for module_def in modules_def {
+                    row = row.push(match module_def {
+                        // life parsing of string to module
+                        ModuleDef::Single(module) => self.single_module_wrapper(id, module),
+                        ModuleDef::Group(group) => self.group_module_wrapper(id, group),
+                    });
+                }
+
+                row.into()
             }
+            Axis::Vertical => {
+                let mut column = Column::with_capacity(modules_def.len())
+                    .width(Length::Shrink)
+                    .align_x(Alignment::Center)
+                    .spacing(space.xxs);
 
-            row.into()
+                for module_def in modules_def {
+                    column = column.push(match module_def {
+                        ModuleDef::Single(module) => self.single_module_wrapper(id, module),
+                        ModuleDef::Group(group) => self.group_module_wrapper(id, group),
+                    });
+                }
+
+                column.into()
+            }
         })
     }
 
@@ -90,7 +112,12 @@ impl App {
         action: Option<OnModulePress>,
     ) -> Element<'a, Message> {
         let content = if use_theme(|t| t.animations_enabled) {
-            animated_size(content).into()
+            animated_size(content)
+                .axis(match use_theme(|t| t.axis()) {
+                    Axis::Horizontal => AnimationAxis::Width,
+                    Axis::Vertical => AnimationAxis::Height,
+                })
+                .into()
         } else {
             content
         };
@@ -175,13 +202,15 @@ impl App {
         if modules.is_empty() {
             None
         } else {
-            let items = Row::with_children(
-                modules
-                    .into_iter()
-                    .map(|(content, action)| self.build_module_item(id, content, action))
-                    .collect::<Vec<_>>(),
-            );
-            Some(module_group(items.into()))
+            let children = modules
+                .into_iter()
+                .map(|(content, action)| self.build_module_item(id, content, action))
+                .collect::<Vec<_>>();
+            let items: Element<'a, Message> = match use_theme(|t| t.axis()) {
+                Axis::Horizontal => Row::with_children(children).into(),
+                Axis::Vertical => Column::with_children(children).into(),
+            };
+            Some(module_group(items))
         }
     }
 

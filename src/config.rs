@@ -1163,12 +1163,12 @@ pub enum Position {
     #[default]
     Top,
     Bottom,
+    Left,
+    Right,
 }
 
 /// Bar orientation derived from [`Position`]. Kept in `config` (and iced-free)
 /// so the deserialized position can express its axis without pulling iced in.
-// `Vertical` is exercised once `Position::{Left, Right}` land (PR2).
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Orientation {
     Horizontal,
@@ -1179,6 +1179,7 @@ impl Position {
     pub fn orientation(self) -> Orientation {
         match self {
             Position::Top | Position::Bottom => Orientation::Horizontal,
+            Position::Left | Position::Right => Orientation::Vertical,
         }
     }
 }
