@@ -205,7 +205,9 @@ impl NetworkDbus<'_> {
     /// sharing is a NetworkManager-only feature.
     pub async fn read_psk(&self, ssid: &str) -> anyhow::Result<PskOutcome> {
         let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
-        let Some(connection_path) = settings.find_wifi_connection_by_ssid(ssid).await? else {
+        let Some((connection_path, all_settings)) =
+            settings.find_wifi_connection_by_ssid(ssid).await?
+        else {
             // Sharing is only offered for the active connection, so a profile
             // always exists; not finding it means we cannot tell whether the
             // network is open, and must not guess.
@@ -218,13 +220,13 @@ impl NetworkDbus<'_> {
             .build()
             .await?;
 
-        // GetSettings returns every non-secret field. Secrets are *never*
-        // included regardless of their `*-flags` value — they only come back
-        // from GetSecrets — so this call is used for key-mgmt and `hidden`
-        // only. Open networks have no "802-11-wireless-security" section at
-        // all; calling GetSecrets on a missing section returns an error rather
-        // than an empty dict, so check here first.
-        let all_settings = connection.get_settings().await?;
+        // `all_settings` comes from GetSettings, which returns every non-secret
+        // field. Secrets are *never* included regardless of their `*-flags`
+        // value — they only come back from GetSecrets — so it serves for
+        // key-mgmt and `hidden` only. Open networks have no
+        // "802-11-wireless-security" section at all; calling GetSecrets on a
+        // missing section returns an error rather than an empty dict, so check
+        // here first.
 
         // Scanners can only find a hidden network if the QR code says so.
         let hidden = all_settings
@@ -664,20 +666,28 @@ impl NetworkDbus<'_> {
     }
 }
 
-/// The raw SSID bytes of a Wi-Fi profile. NM stores the SSID as a byte array
-/// because it is not required to be valid UTF-8, so compare bytes rather than
-/// lossily converting to a `String`.
-fn connection_ssid(settings: &HashMap<String, HashMap<String, OwnedValue>>) -> Option<Vec<u8>> {
-    match settings.get("802-11-wireless")?.get("ssid")?.deref() {
+/// A connection profile as returned by
+/// `org.freedesktop.NetworkManager.Settings.Connection.GetSettings`:
+/// setting name -> property name -> value.
+type ConnectionSettingsMap = HashMap<String, HashMap<String, OwnedValue>>;
+
+/// The SSID of a Wi-Fi profile. NM stores it as a byte array because an SSID is
+/// not required to be valid UTF-8; the lossy conversion is deliberate, since
+/// every SSID elsewhere in this module reaches the UI through the same
+/// `from_utf8_lossy` and the two representations have to compare equal.
+fn connection_ssid(settings: &ConnectionSettingsMap) -> Option<String> {
+    let bytes: Vec<u8> = match settings.get("802-11-wireless")?.get("ssid")?.deref() {
         Value::Array(bytes) => bytes
             .iter()
             .map(|b| match b {
                 Value::U8(b) => Some(*b),
                 _ => None,
             })
-            .collect(),
-        _ => None,
-    }
+            .collect::<Option<Vec<u8>>>()?,
+        _ => return None,
+    };
+
+    Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 fn connection_id(settings: &HashMap<String, HashMap<String, OwnedValue>>) -> Option<String> {
@@ -893,13 +903,16 @@ impl NetworkSettingsDbus<'_> {
     }
 
     /// Finds the stored Wi-Fi profile whose `802-11-wireless.ssid` matches the
-    /// on-air SSID. Unlike [`Self::find_connection`] this does not look at the
-    /// profile *name*: NM auto-suffixes duplicates ("SSID 1") and users are
-    /// free to rename profiles, so the id is not a reliable key for an SSID.
+    /// on-air SSID, returning its path together with the settings already
+    /// fetched to make the match so callers don't have to request them again.
+    ///
+    /// Unlike [`Self::find_connection`] this does not look at the profile
+    /// *name*: NM auto-suffixes duplicates ("SSID 1") and users are free to
+    /// rename profiles, so the id is not a reliable key for an SSID.
     pub async fn find_wifi_connection_by_ssid(
         &self,
         ssid: &str,
-    ) -> anyhow::Result<Option<OwnedObjectPath>> {
+    ) -> anyhow::Result<Option<(OwnedObjectPath, ConnectionSettingsMap)>> {
         let connections = self.list_connections().await?;
 
         for connection in connections {
@@ -908,9 +921,18 @@ impl NetworkSettingsDbus<'_> {
                 .build()
                 .await?;
 
-            let s = connection.get_settings().await?;
-            if connection_ssid(&s).as_deref() == Some(ssid.as_bytes()) {
-                return Ok(Some(connection.inner().path().to_owned().into()));
+            // A single profile we cannot read (permissions, a profile removed
+            // mid-iteration) must not abort the search for the one we want.
+            let Ok(s) = connection.get_settings().await else {
+                warn!(
+                    "find_wifi_connection_by_ssid: failed to get settings for {}",
+                    connection.inner().path()
+                );
+                continue;
+            };
+
+            if connection_ssid(&s).as_deref() == Some(ssid) {
+                return Ok(Some((connection.inner().path().to_owned().into(), s)));
             }
         }
 
