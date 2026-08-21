@@ -9,7 +9,7 @@ use iced::{
     stream::channel,
 };
 use iwd_dbus::IwdDbus;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::{any::TypeId, ops::Deref, time::Duration};
 use tokio::time::sleep;
 use zbus::zvariant::OwnedObjectPath;
@@ -73,6 +73,57 @@ pub enum NetworkEvent {
     ScanRequested(Vec<OwnedObjectPath>),
     ScanCompleted(OwnedObjectPath),
     ScanningNearbyWifi(bool),
+    Psk {
+        ssid: String,
+        outcome: PskOutcome,
+    },
+}
+
+/// Key management of a shareable Wi-Fi network, mapped to the `T:` field of a
+/// `WIFI:` URI. WPA3-only (SAE) access points reject the WPA-PSK configuration
+/// a scanner derives from `T:WPA`, so the two must stay distinct.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WifiSecurity {
+    /// WPA/WPA2 personal (`wpa-psk`, `wpa-psk-sha256`).
+    Wpa,
+    /// WPA3 personal (`sae`).
+    Sae,
+}
+
+impl WifiSecurity {
+    /// The `T:` value for a `WIFI:` URI.
+    pub fn qr_auth_type(self) -> &'static str {
+        match self {
+            WifiSecurity::Wpa => "WPA",
+            WifiSecurity::Sae => "SAE",
+        }
+    }
+}
+
+/// Result of a `ReadPsk` lookup. Distinguishes open, personal, and unsupported
+/// networks from genuine backend errors so the UI can render the right message.
+#[derive(Debug, Clone)]
+pub enum PskOutcome {
+    Password {
+        psk: String,
+        security: WifiSecurity,
+        /// `802-11-wireless.hidden`: the QR code must carry `H:true` for these,
+        /// otherwise a scanner never finds the network.
+        hidden: bool,
+    },
+    Open {
+        hidden: bool,
+    },
+    /// The network uses a shareable scheme but the passphrase is not readable
+    /// (secret owned by an agent, `psk-flags` set to not-saved, or polkit
+    /// denied the request). Distinct from [`PskOutcome::Open`]: claiming a
+    /// secured network needs no password would produce an unusable QR code.
+    PasswordUnavailable,
+    /// Security type that cannot be encoded in a standard `WIFI:` URI
+    /// (e.g. 802.1X enterprise, WEP, OWE). Backends return this rather than
+    /// fabricating a misleading payload.
+    Unsupported,
+    Error(String),
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +133,7 @@ pub enum NetworkCommand {
     ToggleAirplaneMode,
     SelectAccessPoint((AccessPointData, Option<String>)),
     ToggleVpn(Vpn),
+    ReadPsk(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -180,6 +232,12 @@ impl Deref for NetworkService {
     }
 }
 
+impl NetworkService {
+    pub fn is_network_manager(&self) -> bool {
+        matches!(self.backend_choice, BackendChoice::NetworkManager)
+    }
+}
+
 enum State {
     Init,
     Active(zbus::Connection, BackendChoice),
@@ -275,6 +333,7 @@ impl ReadOnlyService for NetworkService {
                 self.data.wireless_access_points = wireless_access_points;
             }
             NetworkEvent::RequestPasswordForSSID(_) => {}
+            NetworkEvent::Psk { .. } => {}
         }
     }
 
@@ -673,6 +732,41 @@ impl Service for NetworkService {
                     },
                 )
             }
+            // Wi-Fi sharing is NetworkManager-only. The UI hides the share
+            // button on other backends, so this arm is only a safety net.
+            NetworkCommand::ReadPsk(ssid) => match self.backend_choice {
+                BackendChoice::NetworkManager => {
+                    let conn = self.conn.clone();
+                    Task::perform(
+                        async move {
+                            let result =
+                                async { NetworkDbus::new(&conn).await?.read_psk(&ssid).await }
+                                    .await;
+
+                            let outcome = match result {
+                                Ok(outcome) => outcome,
+                                Err(err) => {
+                                    warn!("read_psk failed for {ssid}: {err}");
+                                    PskOutcome::Error(err.to_string())
+                                }
+                            };
+
+                            NetworkEvent::Psk { ssid, outcome }
+                        },
+                        ServiceEvent::Update,
+                    )
+                }
+                BackendChoice::Iwd => {
+                    warn!("ReadPsk command: Wi-Fi sharing requires the NetworkManager backend");
+
+                    Task::done(ServiceEvent::Update(NetworkEvent::Psk {
+                        ssid,
+                        outcome: PskOutcome::Error(
+                            "Wi-Fi sharing requires the NetworkManager backend".to_string(),
+                        ),
+                    }))
+                }
+            },
         }
     }
 }

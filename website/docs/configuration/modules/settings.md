@@ -68,6 +68,41 @@ With the `remove_airplane_btn` option you can remove the airplane mode button.
 
 With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
+## Share Wi-Fi
+
+When connected to a Wi-Fi network via NetworkManager, a small QR-code button appears
+next to the active network row in the Wi-Fi sub-menu. Clicking it opens a popup
+showing the SSID, a QR code encoding a standard `WIFI:T:<auth>;S:<ssid>;P:<password>;;`
+payload, and the plaintext password. Scanning the QR code with another device lets it
+join the network without typing the password.
+
+The authentication type follows the connection profile's `key-mgmt`: `WPA` for
+WPA/WPA2 personal and `SAE` for WPA3 personal. Networks marked as hidden also get an
+`H:true;` field, without which a scanner would not find them.
+
+This feature is only available when using the NetworkManager backend. The button is
+hidden when ashell falls back to another backend.
+
+The QR code follows the ZXing WIFI URI format. Note that SSID and password are
+escaped using the ZXing reserved characters (`\ ; , : "`); non-ASCII characters are
+not hex-encoded, so QR scanners may not correctly parse networks whose SSID or
+password contains non-ASCII characters.
+
+Notes and limitations:
+
+- The password is fetched via
+  `org.freedesktop.NetworkManager.Settings.Connection.GetSecrets`, gated by the
+  `org.freedesktop.NetworkManager.settings.modify.system` polkit action. Users in an
+  active local session are implicitly authorized; otherwise polkit may prompt for
+  authentication or deny the request.
+- For open (password-less) networks the QR encodes `WIFI:T:nopass;S:<ssid>;;` and a
+  "no password required" notice is shown.
+- If the passphrase cannot be read — the secret is owned by an agent, stored with
+  `psk-flags` set to not-saved, or polkit denies the request — the dialog says so
+  instead of showing a QR code. A secured network is never presented as open.
+- Authentication methods that a `WIFI:` URI cannot carry (802.1X enterprise, OWE, and
+  static WEP) are reported as unsupported rather than encoded.
+
 ## Tooltips
 
 By default, hovering over the status bar indicators shows a tooltip describing

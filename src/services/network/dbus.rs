@@ -1,6 +1,6 @@
 use crate::services::{
     bluetooth::BluetoothService,
-    network::{NetworkBackend, NetworkData, NetworkEvent},
+    network::{NetworkBackend, NetworkData, NetworkEvent, PskOutcome, WifiSecurity},
 };
 
 use super::{AccessPointData, ActiveConnectionInfo, KnownConnection, Vpn};
@@ -196,6 +196,93 @@ impl NetworkDbus<'_> {
         let nm = NetworkManagerProxy::new(conn).await?;
 
         Ok(Self(nm))
+    }
+
+    /// Reads the stored pre-shared key (passphrase) for the given SSID.
+    /// Returns the typed outcome so the UI can distinguish open networks,
+    /// personal-PSK networks and security types that can't be encoded in a
+    /// `WIFI:` URI. This is not part of [`super::NetworkBackend`]: Wi-Fi
+    /// sharing is a NetworkManager-only feature.
+    pub async fn read_psk(&self, ssid: &str) -> anyhow::Result<PskOutcome> {
+        let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
+        let Some(connection_path) = settings.find_wifi_connection_by_ssid(ssid).await? else {
+            // Sharing is only offered for the active connection, so a profile
+            // always exists; not finding it means we cannot tell whether the
+            // network is open, and must not guess.
+            debug!("read_psk: no stored connection for SSID '{ssid}'");
+            return Ok(PskOutcome::PasswordUnavailable);
+        };
+
+        let connection = ConnectionSettingsProxy::builder(self.0.inner().connection())
+            .path(connection_path)?
+            .build()
+            .await?;
+
+        // GetSettings returns every non-secret field. Secrets are *never*
+        // included regardless of their `*-flags` value — they only come back
+        // from GetSecrets — so this call is used for key-mgmt and `hidden`
+        // only. Open networks have no "802-11-wireless-security" section at
+        // all; calling GetSecrets on a missing section returns an error rather
+        // than an empty dict, so check here first.
+        let all_settings = connection.get_settings().await?;
+
+        // Scanners can only find a hidden network if the QR code says so.
+        let hidden = all_settings
+            .get("802-11-wireless")
+            .and_then(|w| w.get("hidden"))
+            .and_then(|v| match v.deref() {
+                Value::Bool(b) => Some(*b),
+                _ => None,
+            })
+            .unwrap_or(false);
+
+        let Some(security_settings) = all_settings.get("802-11-wireless-security") else {
+            return Ok(PskOutcome::Open { hidden });
+        };
+
+        // key-mgmt is a non-secret field — always present in GetSettings.
+        let key_mgmt = security_settings
+            .get("key-mgmt")
+            .and_then(|v| match v.deref() {
+                Value::Str(s) => Some(s.to_string()),
+                _ => None,
+            });
+
+        // Anything else — 802.1X enterprise, OWE, or key-mgmt=none (static WEP:
+        // NM only writes this section when the link is actually secured, so a
+        // truly open network took the branch above) — has no PSK that a
+        // standard `WIFI:` URI can carry. Say so instead of emitting a
+        // misleading `nopass` or `WPA` payload. Note that WEP cannot be
+        // detected from the wep-key0..3 fields here: GetSettings omits secrets.
+        let security = match key_mgmt.as_deref() {
+            Some("wpa-psk") | Some("wpa-psk-sha256") => WifiSecurity::Wpa,
+            Some("sae") => WifiSecurity::Sae,
+            _ => return Ok(PskOutcome::Unsupported),
+        };
+
+        // The passphrase is only reachable through GetSecrets (polkit-gated).
+        let secrets = connection
+            .get_secrets("802-11-wireless-security")
+            .await
+            .map_err(|e| anyhow::anyhow!("polkit/secret retrieval denied for '{ssid}': {e}"))?;
+
+        let psk = secrets
+            .get("802-11-wireless-security")
+            .and_then(|sec| sec.get("psk"))
+            .and_then(|v| match v.deref() {
+                Value::Str(v) => Some(v.to_string()),
+                _ => None,
+            });
+
+        Ok(match psk {
+            Some(psk) if !psk.is_empty() => PskOutcome::Password {
+                psk,
+                security,
+                hidden,
+            },
+            // Secured, but the secret is agent-owned or flagged not-saved.
+            _ => PskOutcome::PasswordUnavailable,
+        })
     }
 
     pub async fn scan_nearby_wifi_with_devices(&self) -> anyhow::Result<Vec<OwnedObjectPath>> {
@@ -577,6 +664,22 @@ impl NetworkDbus<'_> {
     }
 }
 
+/// The raw SSID bytes of a Wi-Fi profile. NM stores the SSID as a byte array
+/// because it is not required to be valid UTF-8, so compare bytes rather than
+/// lossily converting to a `String`.
+fn connection_ssid(settings: &HashMap<String, HashMap<String, OwnedValue>>) -> Option<Vec<u8>> {
+    match settings.get("802-11-wireless")?.get("ssid")?.deref() {
+        Value::Array(bytes) => bytes
+            .iter()
+            .map(|b| match b {
+                Value::U8(b) => Some(*b),
+                _ => None,
+            })
+            .collect(),
+        _ => None,
+    }
+}
+
 fn connection_id(settings: &HashMap<String, HashMap<String, OwnedValue>>) -> Option<String> {
     settings
         .get("connection")?
@@ -787,6 +890,31 @@ impl NetworkSettingsDbus<'_> {
 
     pub async fn know_connections(&self) -> anyhow::Result<Vec<OwnedObjectPath>> {
         Ok(self.list_connections().await?)
+    }
+
+    /// Finds the stored Wi-Fi profile whose `802-11-wireless.ssid` matches the
+    /// on-air SSID. Unlike [`Self::find_connection`] this does not look at the
+    /// profile *name*: NM auto-suffixes duplicates ("SSID 1") and users are
+    /// free to rename profiles, so the id is not a reliable key for an SSID.
+    pub async fn find_wifi_connection_by_ssid(
+        &self,
+        ssid: &str,
+    ) -> anyhow::Result<Option<OwnedObjectPath>> {
+        let connections = self.list_connections().await?;
+
+        for connection in connections {
+            let connection = ConnectionSettingsProxy::builder(self.inner().connection())
+                .path(connection)?
+                .build()
+                .await?;
+
+            let s = connection.get_settings().await?;
+            if connection_ssid(&s).as_deref() == Some(ssid.as_bytes()) {
+                return Ok(Some(connection.inner().path().to_owned().into()));
+            }
+        }
+
+        Ok(None)
     }
 
     pub async fn find_connection(&self, name: &str) -> anyhow::Result<Option<OwnedObjectPath>> {
@@ -1096,4 +1224,15 @@ trait ConnectionSettings {
     fn update(&self, settings: HashMap<String, HashMap<String, OwnedValue>>) -> Result<()>;
 
     fn get_settings(&self) -> Result<HashMap<String, HashMap<String, OwnedValue>>>;
+
+    /// Returns secrets for the requested setting. Unlike `get_settings`, this
+    /// honours polkit (`org.freedesktop.NetworkManager.settings.modify.system`)
+    /// rather than each key's `*-flags`, so it returns values even when
+    /// `psk-flags` (or similar) is non-zero. For users in an active local
+    /// session this succeeds without prompting; otherwise polkit may pop a
+    /// auth dialog or deny the call.
+    fn get_secrets(
+        &self,
+        setting_name: &str,
+    ) -> Result<HashMap<String, HashMap<String, OwnedValue>>>;
 }
