@@ -47,6 +47,9 @@ pub struct Settings {
     network: NetworkSettings,
     bluetooth: BluetoothSettings,
     idle_inhibitor: Option<IdleInhibitorManager>,
+    dnd: bool,
+    remove_dnd_btn: bool,
+    notifications_module_enabled: bool,
     sub_menu: Option<SubMenu>,
     network_dialog: Option<NetworkDialogState>,
     network_dialog_show_password: bool,
@@ -98,6 +101,7 @@ pub enum Message {
     Audio(audio::Message),
     Brightness(brightness::Message),
     ToggleInhibitIdle,
+    ToggleDnd,
     Lock,
     Power(power::Message),
     ToggleSubMenu(SubMenu),
@@ -124,6 +128,7 @@ pub enum Action {
     ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
     OpenTooltipMenu(SurfaceId, MenuType, ButtonUIRef),
     CloseTooltipMenu(SurfaceId, MenuType),
+    SetDnd(bool),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -200,7 +205,15 @@ impl Settings {
         Action::None
     }
 
-    pub fn new(config: SettingsModuleConfig) -> Self {
+    pub fn set_dnd(&mut self, dnd: bool) {
+        self.dnd = dnd;
+    }
+
+    pub fn set_notifications_module_enabled(&mut self, enabled: bool) {
+        self.notifications_module_enabled = enabled;
+    }
+
+    pub fn new(config: SettingsModuleConfig, notifications_module_enabled: bool) -> Self {
         Settings {
             lock_cmd: config.lock_cmd,
             power: PowerSettings::new(PowerSettingsConfig::new(
@@ -239,6 +252,9 @@ impl Settings {
             } else {
                 IdleInhibitorManager::new()
             },
+            dnd: false,
+            remove_dnd_btn: config.remove_dnd_btn,
+            notifications_module_enabled,
             sub_menu: None,
             network_dialog: None,
             indicators: config.indicators,
@@ -365,6 +381,10 @@ impl Settings {
                     idle_inhibitor.toggle();
                 }
                 Action::None
+            }
+            Message::ToggleDnd => {
+                self.dnd = !self.dnd;
+                Action::SetDnd(self.dnd)
             }
             Message::Lock => {
                 if let Some(lock_cmd) = &self.lock_cmd {
@@ -546,6 +566,7 @@ impl Settings {
                 } else if self.idle_inhibitor.is_none() {
                     self.idle_inhibitor = IdleInhibitorManager::new();
                 }
+                self.remove_dnd_btn = config.remove_dnd_btn;
                 self.indicators = config.indicators;
                 self.custom_buttons = config.custom_buttons;
                 Action::None
@@ -654,6 +675,24 @@ impl Settings {
                                 None,
                                 idle_inhibitor.is_inhibited(),
                                 Message::ToggleInhibitIdle,
+                                None,
+                                None,
+                            ),
+                            None,
+                        )
+                    }),
+                    (!self.remove_dnd_btn && self.notifications_module_enabled).then(|| {
+                        (
+                            quick_setting_button(
+                                if self.dnd {
+                                    StaticIcon::BellOff
+                                } else {
+                                    StaticIcon::Bell
+                                },
+                                t!("settings-dnd"),
+                                None,
+                                self.dnd,
+                                Message::ToggleDnd,
                                 None,
                                 None,
                             ),

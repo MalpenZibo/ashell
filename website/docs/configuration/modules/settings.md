@@ -68,6 +68,11 @@ With the `remove_airplane_btn` option you can remove the airplane mode button.
 
 With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
+With the `remove_dnd_btn` option you can remove the do not disturb button.
+The button is only shown when the [Notifications](notifications.md) module is
+part of the bar layout, since do not disturb only applies while ashell is the
+notification daemon.
+
 ## Tooltips
 
 By default, hovering over the status bar indicators shows a tooltip describing

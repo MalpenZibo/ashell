@@ -121,6 +121,7 @@ pub enum Message {
     GroupCleared(String, Vec<u32>),
     Event(ServiceEvent<NotificationsService>),
     ToggleGroup(String),
+    ToggleDnd,
     ExpireToast(u32),
     DismissToast(u32),
     StartCollapse(u32),
@@ -143,6 +144,7 @@ pub enum Action {
     Show(Task<Message>),
     Hide(Task<Message>),
     UpdateToastInputRegion(Size),
+    SetDnd(bool),
 }
 
 // Must match the widget durations so task delays align with animation end.
@@ -164,6 +166,7 @@ pub struct Notifications {
     toasts: VecDeque<u32>,
     dismiss_phases: HashMap<u32, DismissPhase>,
     animations_enabled: bool,
+    dnd: bool,
 }
 
 impl Notifications {
@@ -178,11 +181,16 @@ impl Notifications {
             toasts: VecDeque::new(),
             dismiss_phases: HashMap::new(),
             animations_enabled,
+            dnd: false,
         }
     }
 
     pub fn set_animations_enabled(&mut self, enabled: bool) {
         self.animations_enabled = enabled;
+    }
+
+    pub fn set_do_not_disturb(&mut self, dnd: bool) {
+        self.dnd = dnd;
     }
 
     fn is_blocklisted(&self, app_name: &str) -> bool {
@@ -338,7 +346,17 @@ impl Notifications {
                         return Action::None;
                     }
 
-                    let toast_action = self.toast_action_for_update_event(&update_event);
+                    let suppress_toast = self.dnd
+                        && matches!(
+                            &update_event,
+                            NotificationEvent::Received(notification)
+                                if notification.urgency != Urgency::Critical
+                        );
+                    let toast_action = if suppress_toast {
+                        Action::None
+                    } else {
+                        self.toast_action_for_update_event(&update_event)
+                    };
                     self.apply_update_event(update_event);
 
                     toast_action
@@ -351,6 +369,10 @@ impl Notifications {
                 Action::Task(invoke_and_close_task(connection, id, action_key))
             }
             Message::NotificationClosed => Action::None,
+            Message::ToggleDnd => {
+                self.dnd = !self.dnd;
+                Action::SetDnd(self.dnd)
+            }
             Message::ClearNotifications => {
                 let connection = self.connection.clone();
                 let notification_ids: Vec<u32> = self.notifications.iter().map(|n| n.id).collect();
@@ -627,11 +649,14 @@ impl Notifications {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        if !self.notifications.is_empty() {
-            icon(StaticIcon::BellBadge).into()
+        let bell_icon = if self.dnd {
+            StaticIcon::BellOff
+        } else if !self.notifications.is_empty() {
+            StaticIcon::BellBadge
         } else {
-            icon(StaticIcon::Bell).into()
-        }
+            StaticIcon::Bell
+        };
+        icon(bell_icon).into()
     }
 
     pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
@@ -656,6 +681,20 @@ impl Notifications {
                     text(t!("notifications-heading"))
                         .width(Length::Fill)
                         .size(font_size.lg)
+                )
+                .push(
+                    icon_button(if self.dnd {
+                        StaticIcon::BellOff
+                    } else {
+                        StaticIcon::Bell
+                    })
+                    .kind(ButtonKind::Transparent)
+                    .hierarchy(if self.dnd {
+                        ButtonHierarchy::Danger
+                    } else {
+                        ButtonHierarchy::Secondary
+                    })
+                    .on_press(Message::ToggleDnd)
                 )
                 .push((!is_empty).then(|| {
                     icon_button(StaticIcon::Delete).on_press(Message::ClearNotifications)
