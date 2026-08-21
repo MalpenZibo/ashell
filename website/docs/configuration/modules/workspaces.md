@@ -159,6 +159,24 @@ changed icon theme are picked up the next time `ashell` is restarted.
 
 :::
 
+## Font Size
+
+Workspace numbers/names render smaller than most other bar text by default. Set
+`font_size = "large"` to bump them up one step:
+
+```toml
+[workspaces]
+font_size = "large"
+```
+
+:::note
+
+Only `"small"` (default) and `"large"` are offered today: the bar's height is
+fixed, and larger steps don't fit inside the workspace button without also
+making the bar taller, which isn't currently configurable.
+
+:::
+
 ## Default Configuration
 
 The default configuration is:
@@ -171,6 +189,7 @@ group_by_monitor = false
 enable_workspace_filling = false
 disable_special_workspaces = false
 invert_scroll_direction = None
+font_size = "small"
 ```
 
 ## Examples

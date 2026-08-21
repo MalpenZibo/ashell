@@ -49,6 +49,7 @@ enable_workspace_filling = false  # (default)
 # workspace_names = ["1", "2", "3"] # (default: []) custom names for workspaces
 # enable_virtual_desktops = false   # (default) group workspaces into virtual desktops
 # invert_scroll_direction = "All"   # (default: None) "All", "Mouse", or "Trackpad"
+# font_size = "small"               # "small" (default) or "large"
 
 # ── Custom Modules ────────────────────────────────────────────────────────────
 

@@ -142,6 +142,17 @@ pub struct WorkspacesModuleConfig {
     pub workspace_names: Vec<String>,
     pub enable_virtual_desktops: bool,
     pub invert_scroll_direction: Option<InvertScrollDirection>,
+    pub font_size: WorkspaceFontSize,
+}
+
+/// Bar height is fixed, so only sizes that are known to fit the workspace
+/// button are offered; anything larger needs configurable bar height first.
+#[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum WorkspaceFontSize {
+    #[default]
+    Small,
+    Large,
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
