@@ -47,8 +47,9 @@ impl NotificationIcon {
     }
 }
 
+// freedesktop notification hint image data type
 #[derive(zvariant::OwnedValue, Debug)]
-struct FreedesktopNotificationHintImageData {
+struct HintImageData {
     width: i32,
     height: i32,
     rowstride: i32,
@@ -63,36 +64,31 @@ fn try_icon_from_hints(hints: &HashMap<String, OwnedValue>) -> Option<Notificati
         .get("image-data")
         .or(hints.get("image_data"))
         .or(hints.get("icon_data"))
-        && let Ok(freedesktop_image_data) =
-            FreedesktopNotificationHintImageData::try_from(image_data.clone())
-    {
-        let bytes = if freedesktop_image_data.has_alpha && freedesktop_image_data.channels == 4 {
-            freedesktop_image_data.image_bytes
-        } else if !freedesktop_image_data.has_alpha && freedesktop_image_data.channels == 3 {
-            freedesktop_image_data
-                .image_bytes
-                .as_chunks::<3>()
-                .0
-                .iter()
-                .flat_map(|[r, g, b]| [*r, *g, *b, 255_u8])
-                .collect()
-        } else {
-            return None;
-        };
-
-        if bytes.len()
-            == (freedesktop_image_data.width * freedesktop_image_data.height * 4) as usize
-        {
-            Some(NotificationIcon::Image(
-                iced::advanced::image::Handle::from_rgba(
-                    freedesktop_image_data.width as u32,
-                    freedesktop_image_data.height as u32,
-                    bytes,
-                ),
-            ))
+        && let Ok(hint_image_data) = HintImageData::try_from(image_data.clone())
+        && let Some(bytes) = if hint_image_data.has_alpha && hint_image_data.channels == 4 {
+            Some(hint_image_data.image_bytes)
+        } else if !hint_image_data.has_alpha && hint_image_data.channels == 3 {
+            Some(
+                hint_image_data
+                    .image_bytes
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .flat_map(|[r, g, b]| [*r, *g, *b, 255_u8])
+                    .collect(),
+            )
         } else {
             None
         }
+        && bytes.len() == (hint_image_data.width * hint_image_data.height * 4) as usize
+    {
+        Some(NotificationIcon::Image(
+            iced::advanced::image::Handle::from_rgba(
+                hint_image_data.width as u32,
+                hint_image_data.height as u32,
+                bytes,
+            ),
+        ))
     } else {
         None
     }
