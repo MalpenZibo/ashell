@@ -10,7 +10,10 @@ use inotify::Inotify;
 use inotify::WatchMask;
 use log::{debug, error, info, warn};
 use regex::Regex;
-use serde::{Deserialize, Deserializer, de::Visitor};
+use serde::{
+    Deserialize, Deserializer,
+    de::{self, MapAccess, Visitor},
+};
 use serde_with::DisplayFromStr;
 use serde_with::serde_as;
 use std::path::PathBuf;
@@ -1045,16 +1048,115 @@ pub struct MenuAppearance {
     pub backdrop: f32,
 }
 
+/// A surface ashell draws on. Each one is a separate layer-shell surface, so
+/// each can be drawn with its own theme.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Surface {
+    Bar,
+    Menu,
+    Osd,
+    Notifications,
+}
+
+const OPACITY_FIELDS: &[&str] = &["default", "bar", "menu", "osd", "notifications"];
+
+/// Either one opacity for every surface, or a `default` with per-surface
+/// overrides. Read through [`Opacity::get`], which resolves the fallback.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Opacity {
+    default: f32,
+    bar: Option<f32>,
+    menu: Option<f32>,
+    osd: Option<f32>,
+    notifications: Option<f32>,
+}
+
+impl Opacity {
+    pub fn get(&self, surface: Surface) -> f32 {
+        match surface {
+            Surface::Bar => self.bar,
+            Surface::Menu => self.menu,
+            Surface::Osd => self.osd,
+            Surface::Notifications => self.notifications,
+        }
+        .unwrap_or(self.default)
+    }
+}
+
+impl Default for Opacity {
+    fn default() -> Self {
+        Self {
+            default: 1.0,
+            bar: None,
+            menu: None,
+            osd: None,
+            notifications: None,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Opacity {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct OpacityVisitor;
+
+        impl<'de> Visitor<'de> for OpacityVisitor {
+            type Value = Opacity;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str(
+                    "a number between 0.0 and 1.0, or a table with `default` and per-surface overrides",
+                )
+            }
+
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<Opacity, E> {
+                Ok(Opacity {
+                    default: check_opacity(v).map_err(E::custom)?,
+                    ..Opacity::default()
+                })
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Opacity, E> {
+                self.visit_f64(v as f64)
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Opacity, E> {
+                self.visit_f64(v as f64)
+            }
+
+            fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Opacity, M::Error> {
+                let mut opacity = Opacity::default();
+
+                while let Some(key) = map.next_key::<String>()? {
+                    let value =
+                        check_opacity(map.next_value::<f64>()?).map_err(de::Error::custom)?;
+
+                    match key.as_str() {
+                        "default" => opacity.default = value,
+                        "bar" => opacity.bar = Some(value),
+                        "menu" => opacity.menu = Some(value),
+                        "osd" => opacity.osd = Some(value),
+                        "notifications" => opacity.notifications = Some(value),
+                        other => return Err(de::Error::unknown_field(other, OPACITY_FIELDS)),
+                    }
+                }
+
+                Ok(opacity)
+            }
+        }
+
+        deserializer.deserialize_any(OpacityVisitor)
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Appearance {
     pub font_name: Option<String>,
     #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
-    /// Opacity of every surface ashell draws. Applied once, to the palette, so
+    /// Opacity of the surfaces ashell draws. Applied once, to the palette, so
     /// every background colour carries it and every text colour does not.
-    #[serde(deserialize_with = "opacity_deserializer")]
-    pub opacity: f32,
+    pub opacity: Opacity,
     pub bar: BarAppearance,
     pub menu: MenuAppearance,
     pub background_color: BackgroundAppearanceColor,
@@ -1116,27 +1218,16 @@ where
     Ok(v)
 }
 
-fn opacity_deserializer<'de, D>(deserializer: D) -> Result<f32, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let v = f32::deserialize(deserializer)?;
-
+fn check_opacity(v: f64) -> Result<f32, String> {
     if v < 0.0 {
-        return Err(serde::de::Error::custom("Opacity cannot be negative"));
+        return Err("Opacity cannot be negative".to_string());
     }
 
     if v > 1.0 {
-        return Err(serde::de::Error::custom(
-            "Opacity cannot be greater than 1.0",
-        ));
+        return Err("Opacity cannot be greater than 1.0".to_string());
     }
 
-    Ok(v)
-}
-
-fn default_opacity() -> f32 {
-    1.0
+    Ok(v as f32)
 }
 
 impl Default for Appearance {
@@ -1144,7 +1235,7 @@ impl Default for Appearance {
         Self {
             font_name: None,
             scale_factor: 1.0,
-            opacity: default_opacity(),
+            opacity: Opacity::default(),
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
             background_color: BackgroundAppearanceColor::Complete {

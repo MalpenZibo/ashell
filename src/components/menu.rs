@@ -1,6 +1,6 @@
 use crate::app::{self, App};
 use crate::components::{self, ButtonUIRef};
-use crate::config::{BarSurface, Position};
+use crate::config::{BarSurface, Position, Surface};
 use crate::theme::{backdrop_color, use_theme};
 use iced::alignment::Vertical;
 use iced::widget::container::Style;
@@ -308,7 +308,7 @@ impl App {
                 t.bar_surface,
                 t.bar_position,
                 t.menu.backdrop,
-                t.blur,
+                t.surface(Surface::Menu).blur,
             )
         });
 

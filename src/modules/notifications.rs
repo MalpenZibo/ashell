@@ -3,7 +3,7 @@ use crate::{
     components::icons::{StaticIcon, icon, icon_button},
     components::slide::{self, SlideDirection, slide},
     components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize},
-    config::{NotificationsModuleConfig, ToastPosition},
+    config::{NotificationsModuleConfig, Surface, ToastPosition},
     services::{
         ReadOnlyService, ServiceEvent,
         notifications::{
@@ -702,7 +702,8 @@ impl Notifications {
         };
         let card_width = MenuSize::Medium.size();
         // A toast is alone on its surface, so it publishes its own blur region.
-        let (blur_enabled, card_radius) = use_theme(|t| (t.blur, t.radius.lg));
+        let (blur_enabled, card_radius) =
+            use_theme(|t| (t.surface(Surface::Notifications).blur, t.radius.lg));
 
         let mut toast_column = column!().spacing(space.sm);
 

@@ -4,7 +4,7 @@ use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
         Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarRadius,
-        BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize,
+        BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize, Surface,
     },
 };
 use iced::{
@@ -155,9 +155,60 @@ impl Default for FontSize {
     }
 }
 
+/// Everything that varies from one surface to the next. The opacity is baked
+/// into the palette, so a widget reads the right one from the `&Theme` iced
+/// hands its style function and never has to ask which surface it is on.
+#[derive(Debug, Clone)]
+pub struct SurfaceTheme {
+    pub iced_theme: Theme,
+    pub blur: bool,
+}
+
+/// One [`SurfaceTheme`] per surface. Named rather than indexed, so adding a
+/// surface fails to compile until every arm is filled in.
+#[derive(Debug, Clone)]
+struct SurfaceThemes {
+    bar: SurfaceTheme,
+    menu: SurfaceTheme,
+    osd: SurfaceTheme,
+    notifications: SurfaceTheme,
+}
+
+impl SurfaceThemes {
+    fn new(appearance: &Appearance) -> Self {
+        let for_surface = |surface| {
+            let opacity = appearance.opacity.get(surface);
+
+            SurfaceTheme {
+                iced_theme: build_iced_theme(appearance, opacity),
+                blur: appearance.blur.enabled(opacity),
+            }
+        };
+
+        Self {
+            bar: for_surface(Surface::Bar),
+            menu: for_surface(Surface::Menu),
+            osd: for_surface(Surface::Osd),
+            notifications: for_surface(Surface::Notifications),
+        }
+    }
+
+    fn get(&self, surface: Surface) -> &SurfaceTheme {
+        match surface {
+            Surface::Bar => &self.bar,
+            Surface::Menu => &self.menu,
+            Surface::Osd => &self.osd,
+            Surface::Notifications => &self.notifications,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AshellTheme {
-    pub iced_theme: Theme,
+    surfaces: SurfaceThemes,
+    /// The palette before any opacity, for the few call sites that read an
+    /// accent outside a style function. Accents never carry the opacity.
+    pub palette: Palette,
     pub space: Space,
     pub radius: Radius,
     pub font_size: FontSize,
@@ -172,7 +223,6 @@ pub struct AshellTheme {
     // Read by animation call sites added in subsequent PRs.
     #[allow(dead_code)]
     pub animations_enabled: bool,
-    pub blur: bool,
 }
 
 impl Default for AshellTheme {
@@ -258,17 +308,27 @@ fn with_opacity(extended: palette::Extended, opacity: f32) -> palette::Extended 
     }
 }
 
+/// The configured colours, before any opacity is applied.
+fn base_palette(appearance: &Appearance) -> Palette {
+    Palette {
+        background: appearance.background_color.get_base(),
+        text: appearance.text_color.get_base(),
+        primary: appearance.primary_color.get_base(),
+        success: appearance.success_color.get_base(),
+        warning: appearance.warning_color.get_base(),
+        danger: appearance.danger_color.get_base(),
+    }
+}
+
 fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
+    let base = base_palette(appearance);
+
     Theme::custom_with_fn(
         "local".to_string(),
         Palette {
             // The one colour here that is paint; the accents are read as ink.
-            background: appearance.background_color.get_base().scale_alpha(opacity),
-            text: appearance.text_color.get_base(),
-            primary: appearance.primary_color.get_base(),
-            success: appearance.success_color.get_base(),
-            warning: appearance.warning_color.get_base(),
-            danger: appearance.danger_color.get_base(),
+            background: base.background.scale_alpha(opacity),
+            ..base
         },
         |palette| {
             let text = palette.text;
@@ -391,8 +451,8 @@ fn base_theme_from_appearance(
         special_workspace_colors: appearance.special_workspace_colors.clone(),
         scale_factor: appearance.scale_factor,
         animations_enabled,
-        blur: appearance.blur.enabled(appearance.opacity),
-        iced_theme: build_iced_theme(appearance, appearance.opacity),
+        palette: base_palette(appearance),
+        surfaces: SurfaceThemes::new(appearance),
     }
 }
 
@@ -403,6 +463,10 @@ impl AshellTheme {
         animations: &crate::config::AnimationsConfig,
     ) -> Self {
         base_theme_from_appearance(appearance, position, animations.enabled)
+    }
+
+    pub fn surface(&self, surface: Surface) -> &SurfaceTheme {
+        self.surfaces.get(surface)
     }
 
     pub fn bar_layout(&self) -> BarLayout {

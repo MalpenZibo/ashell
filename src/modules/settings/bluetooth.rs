@@ -276,7 +276,7 @@ impl BluetoothSettings {
                                 .push(
                                     text(d.name.clone())
                                         .color_maybe(if d.connected {
-                                            Some(theme.iced_theme.palette().success)
+                                            Some(theme.palette.success)
                                         } else {
                                             None
                                         })
@@ -286,7 +286,7 @@ impl BluetoothSettings {
                                 .push(
                                     icon_button(StaticIcon::Remove)
                                         .on_press(Message::RemoveDevice(d.path.clone()))
-                                        .color(theme.iced_theme.palette().danger)
+                                        .color(theme.palette.danger)
                                         .size(ButtonSize::Small),
                                 )
                                 .align_y(Vertical::Center)

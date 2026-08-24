@@ -175,17 +175,11 @@ impl Tempo {
                                                 if day
                                                     == self.naive_date(self.current_timezone_index)
                                                 {
-                                                    Some(theme.iced_theme.palette().success)
+                                                    Some(theme.palette.success)
                                                 } else if day == selected_date {
-                                                    Some(theme.iced_theme.palette().primary)
+                                                    Some(theme.palette.primary)
                                                 } else if day.month0() != current_month {
-                                                    Some(
-                                                        theme
-                                                            .iced_theme
-                                                            .palette()
-                                                            .text
-                                                            .scale_alpha(0.2),
-                                                    )
+                                                    Some(theme.palette.text.scale_alpha(0.2))
                                                 } else {
                                                     None
                                                 }

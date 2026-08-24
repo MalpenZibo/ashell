@@ -242,14 +242,8 @@ impl MediaPlayer {
     }
 
     pub fn menu_view<'a>(&'a self, is_closing: bool) -> Element<'a, Message> {
-        let (space, font_size, radius, palette) = use_theme(|theme| {
-            (
-                theme.space,
-                theme.font_size,
-                theme.radius,
-                theme.iced_theme.palette(),
-            )
-        });
+        let (space, font_size, radius, palette) =
+            use_theme(|theme| (theme.space, theme.font_size, theme.radius, theme.palette));
         container(match &self.service {
             None => Into::<Element<'a, Message>>::into(text(t!("media-player-not-connected"))),
             Some(service) => column!(
@@ -470,7 +464,7 @@ impl MediaPlayer {
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
         let (space, font_size, palette) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.iced_theme.palette()));
+            use_theme(|theme| (theme.space, theme.font_size, theme.palette));
         self.active_player().map(|player| {
             let has_text = self.config.indicator_format != MediaPlayerFormat::Icon;
             let label = || {

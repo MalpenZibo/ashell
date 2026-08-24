@@ -8,7 +8,7 @@ use tokio::time::sleep;
 
 use crate::{
     components::icons::{Icon, StaticIcon},
-    config::OsdConfig,
+    config::{OsdConfig, Surface},
     modules::settings::audio::AudioSettings,
     modules::settings::network::NetworkSettings,
     services::idle_inhibitor::IdleInhibitorManager,
@@ -126,7 +126,7 @@ impl Osd {
         };
 
         let (space, font_size, radius, blur) =
-            use_theme(|t| (t.space, t.font_size, t.radius, t.blur));
+            use_theme(|t| (t.space, t.font_size, t.radius, t.surface(Surface::Osd).blur));
 
         let overdrive = matches!(state.kind, OsdKind::Volume) && state.value > 1.0;
 
