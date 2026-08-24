@@ -22,13 +22,14 @@ use crate::{
     },
 };
 use iced::{
-    Color, Element, Length, Subscription, Task,
+    Background, Border, Color, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
     futures::SinkExt,
     gradient::ColorStop,
+    mouse::Interaction,
     stream::channel,
     widget::{
-        Stack,
+        MouseArea, Stack,
         canvas::{self, Canvas, Fill, Frame, Geometry, Path},
         column, container, image, row, slider, space, text,
     },
@@ -157,6 +158,7 @@ pub enum Message {
     PlayPause(String),
     Next(String),
     Volume(String, remote_value::Message<f64>),
+    Raise(String),
     ActivePrev,
     ActivePlayPause,
     ActiveNext,
@@ -171,6 +173,7 @@ pub enum Message {
 pub enum Action {
     None,
     Command(Task<Message>),
+    CommandAndCloseMenu(Task<Message>),
 }
 
 pub struct MediaPlayer {
@@ -289,6 +292,9 @@ impl MediaPlayer {
                     None => Task::none(),
                 };
                 Action::Command(Task::batch([command, remote]))
+            }
+            Message::Raise(s) => {
+                Action::CommandAndCloseMenu(self.handle_command(s, PlayerCommand::Raise))
             }
             Message::ActivePrev => self.active_command(PlayerCommand::Prev),
             Message::ActivePlayPause => self.active_command(PlayerCommand::PlayPause),
@@ -483,9 +489,19 @@ impl MediaPlayer {
                         } else {
                             content
                         };
-                        container(body)
-                            .style(crate::theme::card_style(radius.lg))
-                            .width(Length::Fill)
+                        let card = container(body)
+                            .style(move |app_theme: &Theme| container::Style {
+                                background: Background::Color(
+                                    app_theme.extended_palette().background.weak.color,
+                                )
+                                .into(),
+                                border: Border::default().rounded(radius.lg),
+                                ..container::Style::default()
+                            })
+                            .width(Length::Fill);
+                        MouseArea::new(card)
+                            .on_press(Message::Raise(d.service.clone()))
+                            .interaction(Interaction::Pointer)
                             .into()
                     }))
                     .spacing(space.md)
