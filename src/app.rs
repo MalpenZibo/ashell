@@ -460,6 +460,11 @@ impl App {
             Message::MediaPlayer(msg) => match self.media_player.update(msg) {
                 modules::media_player::Action::None => Task::none(),
                 modules::media_player::Action::Command(task) => task.map(Message::MediaPlayer),
+                modules::media_player::Action::CommandAndCloseMenu(task) => Task::batch(vec![
+                    self.outputs
+                        .close_all_menus(self.general_config.enable_esc_key),
+                    task.map(Message::MediaPlayer),
+                ]),
             },
             Message::CloseAllMenus => {
                 if self.outputs.menu_is_open() {

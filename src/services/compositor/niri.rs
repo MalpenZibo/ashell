@@ -6,7 +6,7 @@ use crate::services::ServiceEvent;
 use anyhow::{Context, Result, anyhow};
 use itertools::Itertools;
 use niri_ipc::{
-    Action, Event, Reply, Request, WorkspaceReferenceArg,
+    Action, Event, Reply, Request, Response, WorkspaceReferenceArg,
     state::{EventStreamState, EventStreamStatePart},
 };
 use std::{collections::HashMap, env, os::unix::net::UnixStream as StdUnixStream};
@@ -57,6 +57,10 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
                 return Err(anyhow!("Unknown custom dispatch: {}", action));
             }
         }
+
+        CompositorCommand::FocusWindowByPid(pid) => Action::FocusWindow {
+            id: window_id_for_pid(pid).await?,
+        },
     };
 
     send_command_request(&mut stream, Request::Action(action)).await?;
@@ -146,6 +150,10 @@ async fn connect() -> Result<UnixStream> {
 }
 
 async fn send_command_request(stream: &mut UnixStream, request: Request) -> Result<()> {
+    send_request(stream, request).await.map(|_| ())
+}
+
+async fn send_request(stream: &mut UnixStream, request: Request) -> Result<Response> {
     let mut json = serde_json::to_string(&request)?;
     json.push('\n');
     stream.write_all(json.as_bytes()).await?;
@@ -156,7 +164,27 @@ async fn send_command_request(stream: &mut UnixStream, request: Request) -> Resu
     reader.read_line(&mut response_line).await?;
 
     let reply: Reply = serde_json::from_str(&response_line)?;
-    reply.map_err(|e| anyhow!("Niri error: {}", e)).map(|_| ())
+    reply.map_err(|e| anyhow!("Niri error: {}", e))
+}
+
+async fn window_id_for_pid(pid: u32) -> Result<u64> {
+    let mut stream = connect().await?;
+
+    let Response::Windows(windows) = send_request(&mut stream, Request::Windows).await? else {
+        return Err(anyhow!("Unexpected reply to a Niri windows request"));
+    };
+
+    let owned: Vec<_> = windows
+        .iter()
+        .filter(|w| w.pid.is_some_and(|p| i64::from(p) == i64::from(pid)))
+        .collect();
+
+    owned
+        .iter()
+        .find(|w| w.is_focused)
+        .or(owned.first())
+        .map(|w| w.id)
+        .ok_or_else(|| anyhow!("No window found for pid {pid}"))
 }
 
 fn map_state(niri: &EventStreamState) -> CompositorState {

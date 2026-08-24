@@ -136,4 +136,5 @@ pub enum CompositorCommand {
     ScrollWorkspace(i32),           // +1 or -1
     CustomDispatch(String, String), // For "vdesk"
     NextLayout,
+    FocusWindowByPid(u32),
 }
