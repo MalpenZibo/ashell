@@ -110,14 +110,16 @@ scale_factor = 1.0
 surface = "transparent"    # transparent or solid
 radius = "md"              # none|sm|md|lg|xl, CSS border-radius shorthand
 margin = "sm"              # none|xxs..xxl, CSS margin shorthand
-opacity = 0.9
+
+[appearance.opacity]
+default = 0.9
+bar = 1.0
 
 [appearance.background]
 base = "#1e1e2e"
 
 [appearance.menu]
-opacity = 0.95
-backdrop_blur = true
+backdrop = 0.3
 ```
 
 See the [Configuration Reference](../reference/config-reference.md) for a complete list of all configuration options.
