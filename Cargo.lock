@@ -1951,7 +1951,7 @@ dependencies = [
 [[package]]
 name = "iced_layershell"
 version = "0.4.0"
-source = "git+https://github.com/MalpenZibo/iced_layershell?branch=feature%2Fper-surface-theme#3d5d5ba38fdecdec80398af2fba0b9721758b923"
+source = "git+https://github.com/MalpenZibo/iced_layershell?branch=feature%2Fper-surface-theme#4dec19d5ed7f9bf987adbe8bbe3891c942ad12ce"
 dependencies = [
  "calloop",
  "calloop-wayland-source",

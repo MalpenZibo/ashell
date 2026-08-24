@@ -230,8 +230,8 @@ impl App {
         use_theme(|t| t.surface(surface).iced_theme.clone())
     }
 
-    pub fn scale_factor(&self) -> f64 {
-        use_theme(|t| t.scale_factor)
+    pub fn scale_factor(&self, _id: SurfaceId) -> f32 {
+        use_theme(|t| t.scale_factor) as f32
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
