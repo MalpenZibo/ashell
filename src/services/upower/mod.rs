@@ -18,6 +18,8 @@ use iced::{
 use log::{debug, error, warn};
 use serde::Deserialize;
 use std::{any::TypeId, fmt, time::Duration};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use zbus::zvariant::ObjectPath;
 
 mod dbus;
@@ -300,6 +302,7 @@ pub struct UPowerService {
     pub power_profile: PowerProfile,
     pub kbd_backlight: Option<KbdBacklight>,
     conn: zbus::Connection,
+    commander: UnboundedSender<u32>,
 }
 
 enum State {
@@ -442,14 +445,19 @@ impl UPowerService {
         })
     }
 
-    pub fn set_kbd_backlight(&self, brightness: u32) {
-        let conn = self.conn.clone();
+    fn start_commander(conn: zbus::Connection, to_server_rx: UnboundedReceiver<u32>) {
         tokio::spawn(async move {
-            match KbdBacklightProxy::new(&conn).await {
-                Ok(proxy) => {
-                    let _ = proxy.set_brightness(brightness as i32).await;
+            let mut stream =
+                UnboundedReceiverStream::new(to_server_rx).throttle(Duration::from_millis(100));
+            while let Some(brightness) = stream.next().await {
+                match KbdBacklightProxy::new(&conn).await {
+                    Ok(proxy) => {
+                        if let Err(err) = proxy.set_brightness(brightness as i32).await {
+                            error!("Failed to set keyboard backlight: {err}");
+                        }
+                    }
+                    Err(err) => error!("Failed to connect to keyboard backlight: {err}"),
                 }
-                Err(err) => error!("Failed to set brightness {err}"),
             }
         });
     }
@@ -836,20 +844,24 @@ impl UPowerService {
                         charge_limit,
                         peripherals,
                         power_profile,
-                        kbd_brightness,
+                        kbd_backlight,
                     )) => {
                         let peripheral_paths = peripherals
                             .iter()
                             .map(|p| p.device.inner().path().clone())
                             .collect();
 
+                        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+                        Self::start_commander(conn.clone(), rx);
+
                         let service = UPowerService {
                             system_battery: system_battery.as_ref().map(|b| b.0),
                             charge_limit,
                             peripherals,
                             power_profile,
-                            kbd_backlight: kbd_brightness,
+                            kbd_backlight,
                             conn: conn.clone(),
+                            commander: tx,
                         };
                         let _ = output.send(ServiceEvent::Init(service)).await;
 
@@ -922,86 +934,92 @@ fn battery_status_from_timed_system_state(state: dbus::DeviceState, time: i64) -
 pub enum UPowerCommand {
     TogglePowerProfile,
     ToggleChargeLimit,
+    SetKbdBacklight(u32),
 }
 
 impl Service for UPowerService {
     type Command = UPowerCommand;
 
     fn command(&mut self, command: Self::Command) -> iced::Task<ServiceEvent<Self>> {
-        iced::Task::perform(
-            {
+        match command {
+            UPowerCommand::SetKbdBacklight(brightness) => {
+                let _ = self.commander.send(brightness);
+                iced::Task::none()
+            }
+            UPowerCommand::TogglePowerProfile => {
                 let conn = self.conn.clone();
                 let power_profile = self.power_profile;
+                iced::Task::perform(
+                    async move {
+                        let Some(powerprofiles) = PowerProfilesProxy::new(&conn).await.ok() else {
+                            return UPowerEvent::UpdatePowerProfile(power_profile);
+                        };
+                        let current_profile = power_profile;
+                        let power_profile = match current_profile {
+                            PowerProfile::Balanced => {
+                                let _ = powerprofiles.set_active_profile("performance").await;
+
+                                PowerProfile::Performance
+                            }
+                            PowerProfile::Performance => {
+                                let _ = powerprofiles.set_active_profile("power-saver").await;
+
+                                PowerProfile::PowerSaver
+                            }
+                            PowerProfile::PowerSaver => {
+                                let _ = powerprofiles.set_active_profile("balanced").await;
+
+                                PowerProfile::Balanced
+                            }
+                            PowerProfile::Unknown => PowerProfile::Unknown,
+                        };
+
+                        UPowerEvent::UpdatePowerProfile(power_profile)
+                    },
+                    ServiceEvent::Update,
+                )
+            }
+            UPowerCommand::ToggleChargeLimit => {
+                let conn = self.conn.clone();
                 let charge_limit = self.charge_limit.clone();
-                async move {
-                    match command {
-                        UPowerCommand::TogglePowerProfile => {
-                            let Some(powerprofiles) = PowerProfilesProxy::new(&conn).await.ok()
-                            else {
-                                return UPowerEvent::UpdatePowerProfile(power_profile);
-                            };
-                            let current_profile = power_profile;
-                            let power_profile = match current_profile {
-                                PowerProfile::Balanced => {
-                                    let _ = powerprofiles.set_active_profile("performance").await;
+                iced::Task::perform(
+                    async move {
+                        let Some(charge_limit) = charge_limit else {
+                            return UPowerEvent::UpdateChargeLimit(None);
+                        };
+                        let Ok(device) =
+                            DeviceProxy::builder(&conn).path(charge_limit.device_path.clone())
+                        else {
+                            return UPowerEvent::UpdateChargeLimit(Some(charge_limit));
+                        };
+                        let Ok(device) = device.build().await else {
+                            return UPowerEvent::UpdateChargeLimit(Some(charge_limit));
+                        };
 
-                                    PowerProfile::Performance
-                                }
-                                PowerProfile::Performance => {
-                                    let _ = powerprofiles.set_active_profile("power-saver").await;
+                        let target_enabled = !charge_limit.enabled;
 
-                                    PowerProfile::PowerSaver
-                                }
-                                PowerProfile::PowerSaver => {
-                                    let _ = powerprofiles.set_active_profile("balanced").await;
-
-                                    PowerProfile::Balanced
-                                }
-                                PowerProfile::Unknown => PowerProfile::Unknown,
-                            };
-
-                            UPowerEvent::UpdatePowerProfile(power_profile)
+                        if let Err(err) = device.enable_charge_threshold(target_enabled).await {
+                            warn!("Failed to toggle battery charge limit: {err}");
+                            return UPowerEvent::UpdateChargeLimit(Some(charge_limit));
                         }
-                        UPowerCommand::ToggleChargeLimit => {
-                            let Some(charge_limit) = charge_limit else {
-                                return UPowerEvent::UpdateChargeLimit(None);
-                            };
-                            let Ok(device) =
-                                DeviceProxy::builder(&conn).path(charge_limit.device_path.clone())
-                            else {
-                                return UPowerEvent::UpdateChargeLimit(Some(charge_limit));
-                            };
-                            let Ok(device) = device.build().await else {
-                                return UPowerEvent::UpdateChargeLimit(Some(charge_limit));
-                            };
 
-                            let target_enabled = !charge_limit.enabled;
-
-                            if let Err(err) = device.enable_charge_threshold(target_enabled).await {
-                                warn!("Failed to toggle battery charge limit: {err}");
-                                return UPowerEvent::UpdateChargeLimit(Some(charge_limit));
-                            }
-
-                            match Self::initialize_charge_limit_data(&conn).await {
-                                Ok(Some(new_data)) => {
-                                    UPowerEvent::UpdateChargeLimit(Some(new_data))
-                                }
-                                _ => {
-                                    warn!(
-                                        "Failed to refresh charge limit data after toggle, using optimistic state"
-                                    );
-                                    UPowerEvent::UpdateChargeLimit(Some(ChargeLimit {
-                                        enabled: target_enabled,
-                                        ..charge_limit
-                                    }))
-                                }
+                        match Self::initialize_charge_limit_data(&conn).await {
+                            Ok(Some(new_data)) => UPowerEvent::UpdateChargeLimit(Some(new_data)),
+                            _ => {
+                                warn!(
+                                    "Failed to refresh charge limit data after toggle, using optimistic state"
+                                );
+                                UPowerEvent::UpdateChargeLimit(Some(ChargeLimit {
+                                    enabled: target_enabled,
+                                    ..charge_limit
+                                }))
                             }
                         }
-                    }
-                }
-            },
-            ServiceEvent::Update,
-        )
+                    },
+                    ServiceEvent::Update,
+                )
+            }
+        }
     }
 }
 

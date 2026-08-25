@@ -202,7 +202,7 @@ impl PowerSettings {
                 if let Some(service) = self.service.as_mut() {
                     // Send
                     if let Some(value) = message.value() {
-                        service.set_kbd_backlight(value);
+                        let _ = service.command(UPowerCommand::SetKbdBacklight(value));
                     }
                     // Drive UI updates
                     if let Some(kbd_backlight) = service.kbd_backlight.as_mut() {
