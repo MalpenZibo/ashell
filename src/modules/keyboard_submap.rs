@@ -6,16 +6,12 @@ pub enum Message {
     ServiceEvent(ServiceEvent<CompositorService>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct KeyboardSubmap {
     service: Option<CompositorService>,
 }
 
 impl KeyboardSubmap {
-    pub fn default() -> Self {
-        Self { service: None }
-    }
-
     pub fn update(&mut self, message: Message) {
         match message {
             Message::ServiceEvent(event) => match event {
