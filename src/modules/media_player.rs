@@ -21,9 +21,10 @@ use iced::{
     alignment::Vertical,
     futures::SinkExt,
     gradient::ColorStop,
+    mouse::Interaction,
     stream::channel,
     widget::{
-        Stack,
+        MouseArea, Stack,
         canvas::{self, Canvas, Fill, Frame, Geometry, Path},
         column, container, image, row, scrollable, slider, space, text,
     },
@@ -149,6 +150,7 @@ pub enum Message {
     PlayPause(String),
     Next(String),
     SetVolume(String, f64),
+    Raise(String),
     Event(ServiceEvent<MprisPlayerService>),
     ConfigReloaded(MediaPlayerModuleConfig),
     Bars(Vec<f32>),
@@ -158,6 +160,7 @@ pub enum Message {
 pub enum Action {
     None,
     Command(Task<Message>),
+    CommandAndCloseMenu(Task<Message>),
 }
 
 pub struct MediaPlayer {
@@ -204,6 +207,9 @@ impl MediaPlayer {
             Message::Next(s) => Action::Command(self.handle_command(s, PlayerCommand::Next)),
             Message::SetVolume(s, v) => {
                 Action::Command(self.handle_command(s, PlayerCommand::Volume(v)))
+            }
+            Message::Raise(s) => {
+                Action::CommandAndCloseMenu(self.handle_command(s, PlayerCommand::Raise))
             }
             Message::Event(event) => match event {
                 ServiceEvent::Init(s) => {
@@ -392,7 +398,7 @@ impl MediaPlayer {
                         } else {
                             content
                         };
-                        container(body)
+                        let card = container(body)
                             .style(move |app_theme: &Theme| container::Style {
                                 background: Background::Color(
                                     app_theme.extended_palette().background.weak.color,
@@ -401,7 +407,10 @@ impl MediaPlayer {
                                 border: Border::default().rounded(radius.lg),
                                 ..container::Style::default()
                             })
-                            .width(Length::Fill)
+                            .width(Length::Fill);
+                        MouseArea::new(card)
+                            .on_press(Message::Raise(d.service.clone()))
+                            .interaction(Interaction::Pointer)
                             .into()
                     }))
                     .spacing(space.md)

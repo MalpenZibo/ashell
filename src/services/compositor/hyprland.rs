@@ -31,7 +31,7 @@ async fn is_lua_config() -> bool {
 
 /// Dispatch a command using the old hyprlang socket protocol.
 /// Works on all Hyprland versions but is broken on 0.55+ with Lua config.
-fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
+async fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
     match cmd {
         CompositorCommand::FocusWorkspace(id) => {
             Dispatch::call(DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(
@@ -63,6 +63,10 @@ fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
         }
         CompositorCommand::CustomDispatch(dispatcher, args) => {
             Dispatch::call(DispatchType::Custom(&dispatcher, &args))?;
+        }
+        CompositorCommand::FocusWindowByPid(pid) => {
+            let selector = window_selector_for_pid(pid).await;
+            Dispatch::call(DispatchType::Custom("focuswindow", &selector))?;
         }
     }
     Ok(())
@@ -98,6 +102,12 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
         CompositorCommand::CustomDispatch(dispatcher, args) => {
             format!("hl.dispatch(hl.dsp.{dispatcher}({args}))")
         }
+        CompositorCommand::FocusWindowByPid(pid) => {
+            format!(
+                "hl.dispatch(hl.dsp.focus({{ window = \"{}\" }}))",
+                window_selector_for_pid(pid).await
+            )
+        }
     };
     tokio::process::Command::new("hyprctl")
         .args(["eval", &lua])
@@ -106,11 +116,25 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
     Ok(())
 }
 
+async fn window_selector_for_pid(pid: u32) -> String {
+    Clients::get_async()
+        .await
+        .ok()
+        .and_then(|clients| {
+            clients
+                .iter()
+                .filter(|c| u32::try_from(c.pid).is_ok_and(|p| p == pid))
+                .min_by_key(|c| c.focus_history_id)
+                .map(|c| format!("address:{}", c.address))
+        })
+        .unwrap_or_else(|| format!("pid:{pid}"))
+}
+
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     if is_lua_config().await {
         dispatch_lua(cmd).await
     } else {
-        dispatch_hyprlang(cmd)
+        dispatch_hyprlang(cmd).await
     }
 }
 

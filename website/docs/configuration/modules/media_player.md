@@ -91,6 +91,17 @@ The menu shows all active media players with playback controls:
 - Previous, Play/Pause, and Next buttons
 - Volume slider (if supported by the player)
 
+Clicking a player card (anywhere outside the controls) focuses that player's
+window and closes the menu. When a player owns several windows the most
+recently focused one is picked, so clicking a browser card brings back the
+window you last watched the video in, not the tab, though: MPRIS carries no
+tab information, so a background tab stays in the background.
+
+Focusing goes through the compositor, which means it works on Hyprland and
+Niri. On other compositors ashell falls back to the MPRIS `Raise()` method,
+which most Wayland compositors ignore because a client cannot activate itself
+without an activation token.
+
 ## Example
 
 ```toml
