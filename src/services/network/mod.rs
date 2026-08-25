@@ -182,7 +182,7 @@ impl Deref for NetworkService {
 
 enum State {
     Init,
-    Active(zbus::Connection, BackendChoice),
+    Active(zbus::Connection, BackendChoice, bool),
     Error,
 }
 
@@ -460,7 +460,7 @@ impl NetworkService {
                                     pending_scan_devices: Vec::new(),
                                 }))
                                 .await;
-                            State::Active(conn, choice)
+                            State::Active(conn, choice, false)
                         }
                         Err(err) => {
                             if err.is::<zbus::Error>() {
@@ -478,7 +478,7 @@ impl NetworkService {
                     State::Error
                 }
             },
-            State::Active(conn, choice) => {
+            State::Active(conn, choice, refresh_data) => {
                 info!("Listening for network events");
 
                 // TODO: i dont know how to combine the opaque types.. rust streams
@@ -508,7 +508,7 @@ impl NetworkService {
 
                                 debug!("Network service exit events stream");
 
-                                State::Active(conn, choice)
+                                State::Active(conn, choice, false)
                             }
                             Err(err) => {
                                 error!("Failed to listen for network events: {err}");
@@ -527,6 +527,26 @@ impl NetworkService {
                         };
                         match iwd.subscribe_events().await {
                             Ok(mut event_s) => {
+                                if refresh_data {
+                                    match iwd.initialize_data().await {
+                                        Ok(data) => {
+                                            let _ = output
+                                                .send(ServiceEvent::Init(NetworkService {
+                                                    data,
+                                                    conn: conn.clone(),
+                                                    backend_choice: choice,
+                                                    pending_scan_devices: Vec::new(),
+                                                }))
+                                                .await;
+                                        }
+                                        Err(err) => {
+                                            error!(
+                                                "Failed to refresh network service after IWD station topology change: {err}"
+                                            );
+                                        }
+                                    }
+                                }
+
                                 while let Some(events) = event_s.next().await {
                                     for event in events {
                                         // TODO: network manager leaves with device - we can also
@@ -537,8 +557,9 @@ impl NetworkService {
                                 }
 
                                 debug!("Network service exit events stream");
+                                drop(event_s);
 
-                                State::Active(conn, choice)
+                                State::Active(conn, choice, true)
                             }
                             Err(err) => {
                                 error!("Failed to listen for network events: {err}");
