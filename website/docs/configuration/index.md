@@ -17,6 +17,39 @@ immediately—so you can tweak the configuration while Ashell is running.
 
 See more about the [TOML format](https://toml.io/en/).
 
+## How commands are executed
+
+Every configuration option that takes a command string is run through
+`bash -c "<your command>"`. Shell features are therefore available:
+pipes, `&&`, `$(...)` substitution, globs, redirection and environment
+variables all work as they would in an interactive shell.
+
+The options executed this way are:
+
+| Where | Options |
+| ----- | ------- |
+| [Updates](./modules/updates.md) | `check_cmd`, `update_cmd` |
+| [Settings](./modules/settings.md), power menu | `lock_cmd`, `suspend_cmd`, `hibernate_cmd`, `reboot_cmd`, `shutdown_cmd`, `logout_cmd` |
+| [Settings](./modules/settings.md), "more" buttons | `audio_sinks_more_cmd`, `audio_sources_more_cmd`, `wifi_more_cmd`, `vpn_more_cmd`, `bluetooth_more_cmd` |
+| [Settings](./modules/settings.md), custom buttons | `command`, `status_command` |
+| [Custom modules](./modules/custom_module.md) | `command`, `listen_cmd`, `on_right_click`, `on_middle_click`, `on_scroll_up`, `on_scroll_down` |
+
+Because a shell interprets these strings, remember to quote paths and
+arguments that contain spaces, and to escape `$` where you want a literal
+dollar sign rather than a variable.
+
+:::warning
+
+Anything in these options runs with your user's full privileges, as soon as
+the relevant module loads or the relevant button is pressed. Note that
+`check_cmd` and `listen_cmd` run automatically, without any interaction.
+
+Treat `config.toml` with the same care as `~/.bashrc`: don't paste command
+options from sources you don't trust, and don't make the file writable by
+other users.
+
+:::
+
 ## Command-line parameters
 
 You can pass a configuration file to Ashell using the `--config-path` parameter:
