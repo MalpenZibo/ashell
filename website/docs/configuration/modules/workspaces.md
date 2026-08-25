@@ -50,6 +50,9 @@ group_by_monitor = true
 If you would like to make the special workspaces invisible, set the `disable_special_workspaces` to `true`.
 By default, special workspaces will be visible.
 
+Special workspaces are currently a Hyprland-only concept. On other compositors
+there are none to show, so this option has no effect.
+
 ## Workspace Filling And Maximum Workspaces
 
 You can also enable or disable filling the workspace  
