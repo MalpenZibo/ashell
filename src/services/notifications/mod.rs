@@ -29,9 +29,11 @@ impl NotificationIcon {
         app_icon: &str,
         hints: &HashMap<String, OwnedValue>,
     ) -> Option<Self> {
-        try_icon_from_hints(hints)..or_else(|| icon_candidates(app_name, app_icon, hints)
-            .find_map(resolve_candidate)
-            .map(Self::from_path))
+        try_icon_from_hints(hints)..or_else(|| {
+            icon_candidates(app_name, app_icon, hints)
+                .find_map(resolve_candidate)
+                .map(Self::from_path)
+        })
     }
 
     fn from_path(path: PathBuf) -> Self {
