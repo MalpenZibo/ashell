@@ -1,3 +1,4 @@
+use crate::components::scrollable;
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon, icon_button},
@@ -25,7 +26,7 @@ use iced::{
     widget::{
         Stack,
         canvas::{self, Canvas, Fill, Frame, Geometry, Path},
-        column, container, image, row, scrollable, slider, space, text,
+        column, container, image, row, slider, space, text,
     },
 };
 use std::any::TypeId;
@@ -388,9 +389,10 @@ impl MediaPlayer {
                         };
                         container(body)
                             .style(move |app_theme: &Theme| container::Style {
-                                background: Background::Color(
+                                background: Background::Color(crate::theme::as_surface(
+                                    app_theme,
                                     app_theme.extended_palette().background.weak.color,
-                                )
+                                ))
                                 .into(),
                                 border: Border::default().rounded(radius.lg),
                                 ..container::Style::default()

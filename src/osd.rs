@@ -146,14 +146,17 @@ impl Osd {
 
         let detail: Element<'_, Message> = match state.kind {
             OsdKind::Volume | OsdKind::Microphone | OsdKind::Brightness => {
-                let mut bar = progress_bar(0.0..=state.scale, state.value)
-                    .length(160.0)
-                    .girth(8.0);
-                if state.muted {
-                    bar = bar.style(progress_bar::secondary);
+                let variant = if state.muted {
+                    progress_bar::secondary
                 } else if overdrive {
-                    bar = bar.style(progress_bar::danger);
-                }
+                    progress_bar::danger
+                } else {
+                    progress_bar::primary
+                };
+                let bar = progress_bar(0.0..=state.scale, state.value)
+                    .length(160.0)
+                    .girth(8.0)
+                    .style(crate::theme::progress_bar_style(variant));
                 if show_percentage {
                     let pct = (state.value * 100.0).round() as u32;
                     row![
@@ -190,7 +193,10 @@ impl Osd {
             background: Some(t.palette().background.into()),
             border: Border::default()
                 .width(1)
-                .color(t.extended_palette().background.weakest.color)
+                .color(crate::theme::as_surface(
+                    t,
+                    t.extended_palette().background.weakest.color,
+                ))
                 .rounded(radius.xl),
             text_color: Some(match (state.kind, state.muted) {
                 (OsdKind::IdleInhibitor, true) => t.palette().danger,

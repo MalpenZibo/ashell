@@ -5,7 +5,7 @@ use iced::{
     Background, Border, Degrees, Element, Length, Padding, Rotation, Theme,
     alignment::{Horizontal, Vertical},
     core::svg::Handle,
-    widget::{Column, MouseArea, Row, Svg, column, container, row, scrollable, svg, text},
+    widget::{Column, MouseArea, Row, Svg, column, container, row, svg, text},
 };
 use itertools::izip;
 use serde::{Deserialize, Deserializer};
@@ -18,6 +18,7 @@ use crate::{
 };
 
 use super::{Message, Tempo};
+use crate::components::scrollable;
 
 impl Tempo {
     pub(super) fn weather<'a>(&'a self) -> Option<Element<'a, Message>> {
@@ -49,9 +50,10 @@ impl Tempo {
                 } else {
                     container(text("•••••").size(font_size.sm))
                         .style(move |theme: &Theme| container::Style {
-                            background: Some(Background::Color(
+                            background: Some(Background::Color(crate::theme::as_surface(
+                                theme,
                                 theme.extended_palette().background.strong.color,
-                            )),
+                            ))),
                             border: Border::default().rounded(radius.sm),
                             ..Default::default()
                         })
@@ -145,9 +147,10 @@ impl Tempo {
                     )
                     .padding(space.md)
                     .style(move |app_theme: &Theme| container::Style {
-                        background: Background::Color(
+                        background: Background::Color(crate::theme::as_surface(
+                            app_theme,
                             app_theme.extended_palette().background.weak.color,
-                        )
+                        ))
                         .into(),
                         border: Border::default().rounded(radius.lg),
                         ..container::Style::default()
@@ -203,9 +206,10 @@ impl Tempo {
                     )
                     .padding(space.sm)
                     .style(move |app_theme: &Theme| container::Style {
-                        background: Background::Color(
+                        background: Background::Color(crate::theme::as_surface(
+                            app_theme,
                             app_theme.extended_palette().background.weak.color,
-                        )
+                        ))
                         .into(),
                         border: Border::default().rounded(radius.lg),
                         ..container::Style::default()
@@ -266,9 +270,10 @@ impl Tempo {
                                 )
                                 .padding(space.sm)
                                 .style(move |app_theme: &Theme| container::Style {
-                                    background: Background::Color(
+                                    background: Background::Color(crate::theme::as_surface(
+                                        app_theme,
                                         app_theme.extended_palette().background.weak.color,
-                                    )
+                                    ))
                                     .into(),
                                     border: Border::default().rounded(iced::border::Radius {
                                         top_left: if index == 0 { radius.lg } else { radius.sm },

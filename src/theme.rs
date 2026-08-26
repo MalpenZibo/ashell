@@ -12,7 +12,9 @@ use iced::{
     theme::{Palette, palette},
     widget::{
         button::{self, Status},
+        progress_bar, rule, scrollable, slider,
         text_input::{self},
+        toggler,
     },
 };
 
@@ -155,17 +157,13 @@ impl Default for FontSize {
     }
 }
 
-/// Everything that varies from one surface to the next. The opacity is baked
-/// into the palette, so a widget reads the right one from the `&Theme` iced
-/// hands its style function and never has to ask which surface it is on.
+/// Everything that varies from one surface to the next.
 #[derive(Debug, Clone)]
 pub struct SurfaceTheme {
     pub iced_theme: Theme,
     pub blur: bool,
 }
 
-/// One [`SurfaceTheme`] per surface. Named rather than indexed, so adding a
-/// surface fails to compile until every arm is filled in.
 #[derive(Debug, Clone)]
 struct SurfaceThemes {
     bar: SurfaceTheme,
@@ -206,8 +204,7 @@ impl SurfaceThemes {
 #[derive(Debug, Clone)]
 pub struct AshellTheme {
     surfaces: SurfaceThemes,
-    /// The palette before any opacity, for the few call sites that read an
-    /// accent outside a style function. Accents never carry the opacity.
+    /// For call sites that read a colour where there is no `&Theme` to hand.
     pub palette: Palette,
     pub space: Space,
     pub radius: Radius,
@@ -251,64 +248,78 @@ fn over(a: Color, b: Color) -> Color {
     }
 }
 
+/// Alphas for marks drawn *on* a surface. Fixed ratios of the foreground, as
+/// in Adwaita, so they read the same whatever opacity the surface runs at.
+const TROUGH_ALPHA: f32 = 0.15;
+const THUMB_ALPHA: f32 = 0.4;
+const DIVIDER_ALPHA: f32 = 0.12;
+
+fn trough(theme: &Theme) -> Color {
+    theme.palette().text.scale_alpha(TROUGH_ALPHA)
+}
+
+pub fn slider_style(theme: &Theme, status: slider::Status) -> slider::Style {
+    let mut style = slider::default(theme, status);
+    style.rail.backgrounds.1 = trough(theme).into();
+    style
+}
+
+pub fn scrollable_style(theme: &Theme, status: scrollable::Status) -> scrollable::Style {
+    let mut style = scrollable::default(theme, status);
+    for rail in [&mut style.vertical_rail, &mut style.horizontal_rail] {
+        rail.background = Some(Background::Color(Color::TRANSPARENT));
+        rail.scroller.background = theme.palette().text.scale_alpha(THUMB_ALPHA).into();
+    }
+    style
+}
+
+pub fn toggler_style(theme: &Theme, status: toggler::Status) -> toggler::Style {
+    let mut style = toggler::default(theme, status);
+    let toggled = matches!(
+        status,
+        toggler::Status::Active { is_toggled: true }
+            | toggler::Status::Hovered { is_toggled: true }
+    );
+    if !toggled {
+        style.background = trough(theme).into();
+    }
+    style
+}
+
+pub fn rule_style(theme: &Theme) -> rule::Style {
+    rule::Style {
+        color: theme.palette().text.scale_alpha(DIVIDER_ALPHA),
+        ..rule::default(theme)
+    }
+}
+
+pub fn progress_bar_style(
+    base: fn(&Theme) -> progress_bar::Style,
+) -> impl Fn(&Theme) -> progress_bar::Style {
+    move |theme| progress_bar::Style {
+        background: trough(theme).into(),
+        ..base(theme)
+    }
+}
+
+/// The opacity of the surface this theme paints. Lives on the base palette's
+/// background because that is the only colour there that is paint.
+pub fn surface_opacity(theme: &Theme) -> f32 {
+    theme.palette().background.a
+}
+
+/// `color` painted as part of the surface, so it carries the surface opacity.
+/// Anything drawn *on* the surface stays opaque or picks its own fixed alpha.
+pub fn as_surface(theme: &Theme, color: Color) -> Color {
+    color.scale_alpha(surface_opacity(theme))
+}
+
 /// `color` with the hover overlay composited in, so hovering paints one layer
 /// rather than stacking a second one and washing out the translucency.
 pub fn hovered(theme: &Theme, color: Color) -> Color {
     over(theme.palette().text.scale_alpha(HOVER_OVERLAY), color)
 }
 
-/// Apply the opacity to every background colour, leaving foregrounds opaque.
-///
-/// In a [`palette::Pair`], `color` is painted behind content and `text` on top
-/// of it, so the split needs no list of special cases and no call site has to
-/// ask for a translucent colour.
-fn with_opacity(extended: palette::Extended, opacity: f32) -> palette::Extended {
-    let pair = |p: palette::Pair| palette::Pair {
-        color: p.color.scale_alpha(opacity),
-        text: p.text,
-    };
-
-    palette::Extended {
-        background: palette::Background {
-            base: pair(extended.background.base),
-            weakest: pair(extended.background.weakest),
-            weaker: pair(extended.background.weaker),
-            weak: pair(extended.background.weak),
-            neutral: pair(extended.background.neutral),
-            strong: pair(extended.background.strong),
-            stronger: pair(extended.background.stronger),
-            strongest: pair(extended.background.strongest),
-        },
-        primary: palette::Primary {
-            base: pair(extended.primary.base),
-            weak: pair(extended.primary.weak),
-            strong: pair(extended.primary.strong),
-        },
-        secondary: palette::Secondary {
-            base: pair(extended.secondary.base),
-            weak: pair(extended.secondary.weak),
-            strong: pair(extended.secondary.strong),
-        },
-        success: palette::Success {
-            base: pair(extended.success.base),
-            weak: pair(extended.success.weak),
-            strong: pair(extended.success.strong),
-        },
-        warning: palette::Warning {
-            base: pair(extended.warning.base),
-            weak: pair(extended.warning.weak),
-            strong: pair(extended.warning.strong),
-        },
-        danger: palette::Danger {
-            base: pair(extended.danger.base),
-            weak: pair(extended.danger.weak),
-            strong: pair(extended.danger.strong),
-        },
-        is_dark: extended.is_dark,
-    }
-}
-
-/// The configured colours, before any opacity is applied.
 fn base_palette(appearance: &Appearance) -> Palette {
     Palette {
         background: appearance.background_color.get_base(),
@@ -369,7 +380,7 @@ fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
                 appearance.danger_color.get_text().unwrap_or(text),
             );
 
-            let built = palette::Extended {
+            palette::Extended {
                 background: palette::Background {
                     base: default_bg.base,
                     weakest: bg(BackgroundLevel::Weakest, default_bg.weakest),
@@ -426,9 +437,7 @@ fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
                         .unwrap_or(default_danger.strong),
                 },
                 is_dark: true,
-            };
-
-            with_opacity(built, opacity)
+            }
         },
     )
 }
@@ -505,8 +514,8 @@ impl AshellTheme {
                     palette.primary,
                 ),
                 ButtonHierarchy::Secondary => (
-                    ext.background.weak.color,
-                    ext.background.strong.color,
+                    as_surface(theme, ext.background.weak.color),
+                    as_surface(theme, ext.background.strong.color),
                     palette.text,
                     palette.text,
                     ext.background.weak.color,
@@ -686,7 +695,7 @@ impl AshellTheme {
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius = self.radius.xl;
         move |theme: &Theme, status: Status| {
-            let inactive_bg = theme.extended_palette().background.weak.color;
+            let inactive_bg = as_surface(theme, theme.extended_palette().background.weak.color);
             let active_bg = theme.extended_palette().primary.base.color;
             let bg = lerp_color(inactive_bg, active_bg, active);
 
@@ -707,7 +716,8 @@ impl AshellTheme {
             match status {
                 Status::Active => base,
                 Status::Hovered => {
-                    let inactive_hover = theme.extended_palette().background.strong.color;
+                    let inactive_hover =
+                        as_surface(theme, theme.extended_palette().background.strong.color);
                     let active_hover = theme.extended_palette().primary.weak.color;
                     base.background = Some(lerp_color(inactive_hover, active_hover, active).into());
                     base
@@ -726,6 +736,8 @@ impl AshellTheme {
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
         move |theme: &Theme, status: Status| {
+            let fill = |color: Color| Background::Color(as_surface(theme, color));
+            let mark = Background::Color;
             let primary = colors.map(|c| {
                 c.map_or_else(
                     || theme.extended_palette().primary,
@@ -755,17 +767,17 @@ impl AshellTheme {
             let (bg_strong, fg_strong) = resolve(|b| b.strong, |p| p.strong);
             let (bg_weak, fg_weak) = resolve(|b| b.weak, |p| p.weak);
             let mut base = button::Style {
-                background: Some(Background::Color(if is_urgent && is_empty {
-                    theme.extended_palette().danger.base.color
+                background: Some(if is_urgent && is_empty {
+                    mark(theme.extended_palette().danger.base.color)
                 } else if is_empty && is_active {
-                    theme.extended_palette().background.strong.color
+                    mark(theme.extended_palette().background.strong.color)
                 } else if is_empty {
-                    theme.extended_palette().background.weak.color
+                    fill(theme.extended_palette().background.weak.color)
                 } else if is_active {
-                    bg_color
+                    mark(bg_color)
                 } else {
-                    bg_weak
-                })),
+                    fill(bg_weak)
+                }),
                 border: Border {
                     width: if is_urgent || is_empty { 1.0 } else { 0.0 },
                     color: if is_urgent {
@@ -793,15 +805,15 @@ impl AshellTheme {
             match status {
                 Status::Active => base,
                 Status::Hovered => {
-                    base.background = Some(Background::Color(if is_urgent && is_empty {
-                        theme.extended_palette().danger.strong.color
+                    base.background = Some(if is_urgent && is_empty {
+                        mark(theme.extended_palette().danger.strong.color)
                     } else if is_empty {
-                        theme.extended_palette().background.strong.color
+                        fill(theme.extended_palette().background.strong.color)
                     } else if is_active {
-                        bg_color
+                        mark(bg_color)
                     } else {
-                        bg_strong
-                    }));
+                        fill(bg_strong)
+                    });
                     base.border.color = if is_urgent && is_active {
                         theme.extended_palette().danger.base.color
                     } else if is_urgent {
@@ -851,7 +863,8 @@ impl AshellTheme {
                     base
                 }
                 text_input::Status::Disabled => {
-                    base.background = theme.extended_palette().background.weak.color.into();
+                    base.background =
+                        as_surface(theme, theme.extended_palette().background.weak.color).into();
                     base.border.color = Color::TRANSPARENT;
                     base
                 }

@@ -315,7 +315,10 @@ impl App {
         let menu_style = move |theme: &Theme| Style {
             background: Some(theme.palette().background.into()),
             border: Border {
-                color: theme.extended_palette().background.weakest.color,
+                color: crate::theme::as_surface(
+                    theme,
+                    theme.extended_palette().background.weakest.color,
+                ),
                 width: 1.,
                 radius: radius.lg.into(),
             },

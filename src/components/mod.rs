@@ -30,8 +30,21 @@ pub use quick_setting_button::*;
 pub use slider_control::*;
 pub use sub_menu_wrapper::*;
 
-use iced::{Element, widget::rule};
+use iced::{
+    Element,
+    widget::{Scrollable, Toggler, rule},
+};
 
 pub fn divider<'a, Msg: 'static>() -> Element<'a, Msg> {
-    rule::horizontal(1).into()
+    rule::horizontal(1).style(crate::theme::rule_style).into()
+}
+
+pub fn scrollable<'a, Message>(
+    content: impl Into<Element<'a, Message>>,
+) -> Scrollable<'a, Message> {
+    iced::widget::scrollable(content).style(crate::theme::scrollable_style)
+}
+
+pub fn toggler<'a, Message>(is_checked: bool) -> Toggler<'a, Message> {
+    iced::widget::toggler(is_checked).style(crate::theme::toggler_style)
 }

@@ -1,3 +1,4 @@
+use crate::components::scrollable;
 use crate::{
     components::collapsible::{self, collapsible},
     components::icons::{StaticIcon, icon, icon_button},
@@ -17,7 +18,7 @@ use crate::{
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
-    widget::{Space, blur, button, column, container, image, row, scrollable, sensor, svg, text},
+    widget::{Space, blur, button, column, container, image, row, sensor, svg, text},
 };
 use itertools::Itertools;
 use log::error;
@@ -491,7 +492,10 @@ impl Notifications {
             let mut border = match style {
                 NotificationStyle::Toast => Border::default()
                     .width(1)
-                    .color(iced_theme.extended_palette().background.weakest.color)
+                    .color(crate::theme::as_surface(
+                        iced_theme,
+                        iced_theme.extended_palette().background.weakest.color,
+                    ))
                     .rounded(radius.lg),
                 NotificationStyle::Standalone => Border::default().rounded(radius.lg),
                 NotificationStyle::GroupHeader => Border::default().rounded(iced::border::Radius {
@@ -519,11 +523,14 @@ impl Notifications {
                 border,
                 ..iced::widget::button::Style::default()
             };
-            let bg = if style == NotificationStyle::Toast {
-                iced_theme.extended_palette().background.base.color
-            } else {
-                iced_theme.extended_palette().background.weak.color
-            };
+            let bg = crate::theme::as_surface(
+                iced_theme,
+                if style == NotificationStyle::Toast {
+                    iced_theme.extended_palette().background.base.color
+                } else {
+                    iced_theme.extended_palette().background.weak.color
+                },
+            );
             button_style.background = Some(
                 if matches!(status, iced::widget::button::Status::Hovered) {
                     crate::theme::hovered(iced_theme, bg)

@@ -6,7 +6,11 @@ pub fn sub_menu_wrapper<'a, Msg: 'static>(content: Element<'a, Msg>) -> Element<
 
     container(content)
         .style(move |theme: &Theme| container::Style {
-            background: Background::Color(theme.extended_palette().background.weak.color).into(),
+            background: Background::Color(crate::theme::as_surface(
+                theme,
+                theme.extended_palette().background.weak.color,
+            ))
+            .into(),
             border: Border::default().rounded(radius.lg),
             ..container::Style::default()
         })

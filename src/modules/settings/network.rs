@@ -1,4 +1,5 @@
 use super::SubMenu;
+use crate::components::{scrollable, toggler};
 use crate::{
     components::{
         divider, format_indicator,
@@ -21,7 +22,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
-    widget::{Column, column, container, row, scrollable, text, toggler},
+    widget::{Column, column, container, row, text},
 };
 use log::{info, warn};
 

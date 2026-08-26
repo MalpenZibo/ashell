@@ -86,10 +86,11 @@ impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg>
 
         let overdrive = ctrl.overdrive;
         let mut s = slider(ctrl.range, ctrl.value, remote_value::Message::Request)
-            .on_release(remote_value::Message::Timeout);
+            .on_release(remote_value::Message::Timeout)
+            .style(crate::theme::slider_style);
         if overdrive {
             s = s.style(|t: &Theme, status| {
-                let mut style = slider::default(t, status);
+                let mut style = crate::theme::slider_style(t, status);
                 style.rail.backgrounds.0 = t.palette().danger.into();
                 style
             });

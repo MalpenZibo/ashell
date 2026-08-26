@@ -1,3 +1,4 @@
+use crate::components::{scrollable, toggler};
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
@@ -17,7 +18,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
-    widget::{Column, Image, Row, Svg, container, scrollable, text, toggler},
+    widget::{Column, Image, Row, Svg, container, text},
 };
 use log::debug;
 

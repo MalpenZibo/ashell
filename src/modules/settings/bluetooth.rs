@@ -1,4 +1,5 @@
 use super::SubMenu;
+use crate::components::scrollable;
 use crate::{
     components::{
         ButtonSize, divider, format_indicator,
@@ -19,7 +20,7 @@ use crate::{
 use iced::{
     Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     alignment::{Horizontal, Vertical},
-    widget::{Column, MouseArea, Row, column, container, row, scrollable, text},
+    widget::{Column, MouseArea, Row, column, container, row, text},
 };
 use itertools::Itertools;
 use zbus::zvariant::OwnedObjectPath;
