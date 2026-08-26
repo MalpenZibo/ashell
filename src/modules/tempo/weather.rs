@@ -570,111 +570,51 @@ mod offsetdatetime_no_seconds {
     }
 }
 
-pub fn weather_icon<'a>(code: u32, is_day: bool) -> Svg<'a> {
+fn weather_icon_bytes(code: u32, is_day: bool) -> &'static [u8] {
     match (code, is_day) {
-        (0, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/clear-day.svg"
-        ))),
-        (0, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/clear-night.svg"
-        ))),
-        (1, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/cloudy-1-day.svg"
-        ))),
-        (1, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/cloudy-1-night.svg"
-        ))),
-        (2, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/cloudy-3-day.svg"
-        ))),
-        (2, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/cloudy-3-night.svg"
-        ))),
-        (3, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/cloudy.svg"
-        ))),
-        (45, _) | (48, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/fog.svg"
-        ))),
-        (51, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/rainy-1-day.svg"
-        ))),
-        (51, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/rainy-1-night.svg"
-        ))),
-        (53, true) | (56, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/rainy-2-day.svg"
-        ))),
-        (53, false) | (56, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/rainy-2-night.svg"
-        ))),
-        (55, true) | (57, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/rainy-3-day.svg"
-        ))),
-        (55, false) | (57, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/rainy-3-night.svg"
-        ))),
-        (61, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/rainy-1.svg"
-        ))),
-        (63, _) | (66, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/rainy-2.svg"
-        ))),
-        (65, _) | (67, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/rainy-3.svg"
-        ))),
-        (71, _) | (77, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/snowy-1.svg"
-        ))),
-        (73, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/snowy-2.svg"
-        ))),
-        (75, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/snowy-3.svg"
-        ))),
-        (80, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/showers-rainy-1-day.svg"
-        ))),
-        (80, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/showers-rainy-1-night.svg"
-        ))),
-        (81, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/showers-rainy-2-day.svg"
-        ))),
-        (81, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/showers-rainy-2-night.svg"
-        ))),
-        (82, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/showers-rainy-3-day.svg"
-        ))),
-        (82, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/showers-rainy-3-night.svg"
-        ))),
-        (85, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/snowy-2-day.svg"
-        ))),
-        (85, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/snowy-2-night.svg"
-        ))),
-        (86, true) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/snowy-3-day.svg"
-        ))),
-        (86, false) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/snowy-3-night.svg"
-        ))),
-        (95, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/isolated-thunderstorms.svg"
-        ))),
-        (96, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/scattered-thunderstorms.svg"
-        ))),
-        (99, _) => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/severe-thunderstorm.svg"
-        ))),
-        _ => svg(Handle::from_memory(include_bytes!(
-            "../../../assets/weather_icon/unknown.svg"
-        ))),
+        (0, true) => include_bytes!("../../../assets/weather_icon/clear-day.svg"),
+        (0, false) => include_bytes!("../../../assets/weather_icon/clear-night.svg"),
+        (1, true) => include_bytes!("../../../assets/weather_icon/cloudy-1-day.svg"),
+        (1, false) => include_bytes!("../../../assets/weather_icon/cloudy-1-night.svg"),
+        (2, true) => include_bytes!("../../../assets/weather_icon/cloudy-3-day.svg"),
+        (2, false) => include_bytes!("../../../assets/weather_icon/cloudy-3-night.svg"),
+        (3, _) => include_bytes!("../../../assets/weather_icon/cloudy.svg"),
+        (45, _) | (48, _) => include_bytes!("../../../assets/weather_icon/fog.svg"),
+        (51, true) => include_bytes!("../../../assets/weather_icon/rainy-1-day.svg"),
+        (51, false) => include_bytes!("../../../assets/weather_icon/rainy-1-night.svg"),
+        (53, true) | (56, true) => include_bytes!("../../../assets/weather_icon/rainy-2-day.svg"),
+        (53, false) | (56, false) => {
+            include_bytes!("../../../assets/weather_icon/rainy-2-night.svg")
+        }
+        (55, true) | (57, true) => include_bytes!("../../../assets/weather_icon/rainy-3-day.svg"),
+        (55, false) | (57, false) => {
+            include_bytes!("../../../assets/weather_icon/rainy-3-night.svg")
+        }
+        (61, _) => include_bytes!("../../../assets/weather_icon/rainy-1.svg"),
+        (63, _) | (66, _) => include_bytes!("../../../assets/weather_icon/rainy-2.svg"),
+        (65, _) | (67, _) => include_bytes!("../../../assets/weather_icon/rainy-3.svg"),
+        (71, _) | (77, _) => include_bytes!("../../../assets/weather_icon/snowy-1.svg"),
+        (73, _) => include_bytes!("../../../assets/weather_icon/snowy-2.svg"),
+        (75, _) => include_bytes!("../../../assets/weather_icon/snowy-3.svg"),
+        (80, true) => include_bytes!("../../../assets/weather_icon/showers-rainy-1-day.svg"),
+        (80, false) => include_bytes!("../../../assets/weather_icon/showers-rainy-1-night.svg"),
+        (81, true) => include_bytes!("../../../assets/weather_icon/showers-rainy-2-day.svg"),
+        (81, false) => include_bytes!("../../../assets/weather_icon/showers-rainy-2-night.svg"),
+        (82, true) => include_bytes!("../../../assets/weather_icon/showers-rainy-3-day.svg"),
+        (82, false) => include_bytes!("../../../assets/weather_icon/showers-rainy-3-night.svg"),
+        (85, true) => include_bytes!("../../../assets/weather_icon/snowy-2-day.svg"),
+        (85, false) => include_bytes!("../../../assets/weather_icon/snowy-2-night.svg"),
+        (86, true) => include_bytes!("../../../assets/weather_icon/snowy-3-day.svg"),
+        (86, false) => include_bytes!("../../../assets/weather_icon/snowy-3-night.svg"),
+        (95, _) => include_bytes!("../../../assets/weather_icon/isolated-thunderstorms.svg"),
+        (96, _) => include_bytes!("../../../assets/weather_icon/scattered-thunderstorms.svg"),
+        (99, _) => include_bytes!("../../../assets/weather_icon/severe-thunderstorm.svg"),
+        _ => include_bytes!("../../../assets/weather_icon/unknown.svg"),
     }
+}
+
+pub fn weather_icon<'a>(code: u32, is_day: bool) -> Svg<'a> {
+    svg(Handle::from_memory(weather_icon_bytes(code, is_day)))
 }
 
 pub fn weather_description(code: u32) -> String {
