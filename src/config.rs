@@ -89,6 +89,7 @@ impl Config {
             updates.validate();
         }
         self.system_info.validate();
+        self.tempo.validate();
         self.settings.validate();
         self.media_player.validate();
     }
@@ -497,6 +498,20 @@ impl TempoModuleConfig {
                 UnitSystem::Imperial => WindSpeedUnit::Mph,
                 UnitSystem::Metric => WindSpeedUnit::Kmh,
             },
+        }
+    }
+
+    fn validate(&mut self) {
+        if let Some(WeatherLocation::Coordinates(lat, lon)) = &mut self.weather_location {
+            let clamped_lat = lat.clamp(-90.0, 90.0);
+            let clamped_lon = lon.clamp(-180.0, 180.0);
+            if *lat != clamped_lat || *lon != clamped_lon {
+                warn!(
+                    "tempo.weather_location latitude ({lat}) must be in -90..=90 and longitude ({lon}) in -180..=180, setting to ({clamped_lat}, {clamped_lon})"
+                );
+                *lat = clamped_lat;
+                *lon = clamped_lon;
+            }
         }
     }
 }
