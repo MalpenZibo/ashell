@@ -23,7 +23,7 @@ use itertools::Itertools;
 use log::error;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use zbus::Connection;
 
@@ -163,6 +163,7 @@ pub struct Notifications {
     blocklist: Vec<crate::config::RegexCfg>,
     toasts: VecDeque<u32>,
     dismiss_phases: HashMap<u32, DismissPhase>,
+    toast_timers: HashMap<u32, Instant>,
     animations_enabled: bool,
 }
 
@@ -177,6 +178,7 @@ impl Notifications {
             blocklist,
             toasts: VecDeque::new(),
             dismiss_phases: HashMap::new(),
+            toast_timers: HashMap::new(),
             animations_enabled,
         }
     }
@@ -206,12 +208,14 @@ impl Notifications {
         let had_toasts = !self.toasts.is_empty();
         self.toasts.clear();
         self.dismiss_phases.clear();
+        self.toast_timers.clear();
         had_toasts
     }
 
     fn remove_toast(&mut self, id: u32) -> bool {
         let had_toasts = !self.toasts.is_empty();
         self.toasts.retain(|&toast_id| toast_id != id);
+        self.toast_timers.remove(&id);
         had_toasts
     }
 
@@ -219,6 +223,9 @@ impl Notifications {
         let had_toasts = !self.toasts.is_empty();
         let ids: HashSet<u32> = ids.iter().copied().collect();
         self.toasts.retain(|toast_id| !ids.contains(toast_id));
+        for id in &ids {
+            self.toast_timers.remove(id);
+        }
         had_toasts
     }
 
@@ -254,19 +261,28 @@ impl Notifications {
         match update_event {
             NotificationEvent::Received(notification) => {
                 if self.config.toast_limit == 0 {
-                    self.toasts.clear();
-                    self.dismiss_phases.clear();
+                    self.clear_toasts();
                     return Action::None;
                 }
 
-                while self.toasts.len() >= self.config.toast_limit {
-                    if let Some(evicted) = self.toasts.pop_front() {
-                        self.dismiss_phases.remove(&evicted);
+                if !self.toasts.contains(&notification.id) {
+                    while self.toasts.len() >= self.config.toast_limit {
+                        if let Some(evicted) = self.toasts.pop_front() {
+                            self.dismiss_phases.remove(&evicted);
+                            self.toast_timers.remove(&evicted);
+                        }
                     }
+                    self.toasts.push_back(notification.id);
                 }
-                self.toasts.push_back(notification.id);
 
-                let notification_id = notification.id;
+                // A replace cancels an in-flight dismissal: the replacement has
+                // to be shown even if the previous instance was sliding out.
+                // A user dismissal we already forwarded over D-Bus can still
+                // race its own trailing `Closed` event past this point, but a
+                // client replacing an id it was just told was closed is odd
+                // enough to leave alone.
+                self.dismiss_phases.remove(&notification.id);
+
                 // Critical notifications are persistent per the freedesktop
                 // spec: they must be acknowledged by the user.
                 let timeout = if notification.urgency == Urgency::Critical {
@@ -275,19 +291,26 @@ impl Notifications {
                     toast_timeout(notification.expire_timeout, self.config.toast_timeout)
                 };
 
-                let timer_task = if let Some(timeout) = timeout {
-                    Task::perform(
-                        async move {
-                            tokio::time::sleep(timeout).await;
-                            notification_id
-                        },
-                        Message::ExpireToast,
-                    )
+                let task = if let Some(timeout) = timeout {
+                    let deadline = Instant::now() + timeout;
+                    let previous = self.toast_timers.insert(notification.id, deadline);
+                    // A stored deadline always has a sleep in flight for it:
+                    // every wakeup either expires the toast, removing the
+                    // deadline, or reschedules itself. So a new sleep is only
+                    // needed when there was no deadline (a first notification,
+                    // or a critical one being replaced by a normal one) or when
+                    // the new deadline lands before the pending wakeup.
+                    if previous.is_none_or(|previous| deadline < previous) {
+                        delayed_toast_message(timeout, notification.id, Message::ExpireToast)
+                    } else {
+                        Task::none()
+                    }
                 } else {
+                    self.toast_timers.remove(&notification.id);
                     Task::none()
                 };
 
-                Action::Show(timer_task)
+                Action::Show(task)
             }
             NotificationEvent::Closed(id) => {
                 let id = *id;
@@ -303,6 +326,7 @@ impl Notifications {
     fn apply_update_event(&mut self, update_event: NotificationEvent) {
         match update_event {
             NotificationEvent::Received(notification) => {
+                self.notifications.retain(|n| n.id != notification.id);
                 self.notifications.push_front(*notification);
             }
             NotificationEvent::Closed(id) => {
@@ -320,7 +344,7 @@ impl Notifications {
                 self.blocklist = config.blocklist.clone();
                 self.config = config;
                 if hide {
-                    self.toasts.clear();
+                    self.clear_toasts();
                     Action::Hide(Task::none())
                 } else {
                     Action::None
@@ -390,6 +414,21 @@ impl Notifications {
                 Action::None
             }
             Message::ExpireToast(id) => {
+                let Some(&deadline) = self.toast_timers.get(&id) else {
+                    return Action::None;
+                };
+                let now = Instant::now();
+                if now < deadline {
+                    // Replaced with a later deadline after this sleep started:
+                    // wait out the remainder instead of expiring early.
+                    return Action::Task(delayed_toast_message(
+                        deadline - now,
+                        id,
+                        Message::ExpireToast,
+                    ));
+                }
+                self.toast_timers.remove(&id);
+
                 if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
                     if !self.animations_enabled {
                         let had_toasts = self.remove_toast(id);
@@ -446,7 +485,10 @@ impl Notifications {
                 }
             }
             Message::DismissAnimationComplete(id) => {
-                self.dismiss_phases.remove(&id);
+                if self.dismiss_phases.remove(&id).is_none() {
+                    // Cancelled by a replace: the toast is on screen again.
+                    return Action::None;
+                }
                 let had_toasts = self.remove_toast(id);
                 self.hide_toasts_if_empty(had_toasts)
             }
