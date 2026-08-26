@@ -1048,8 +1048,7 @@ pub struct MenuAppearance {
     pub backdrop: f32,
 }
 
-/// A surface ashell draws on. Each one is a separate layer-shell surface, so
-/// each can be drawn with its own theme.
+/// A layer-shell surface. Each one is drawn with its own theme.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Surface {
     Bar,
@@ -1060,8 +1059,6 @@ pub enum Surface {
 
 const OPACITY_FIELDS: &[&str] = &["default", "bar", "menu", "osd", "notifications"];
 
-/// Either one opacity for every surface, or a `default` with per-surface
-/// overrides. Read through [`Opacity::get`], which resolves the fallback.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Opacity {
     default: f32,
@@ -1154,8 +1151,6 @@ pub struct Appearance {
     pub font_name: Option<String>,
     #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
-    /// Opacity of the surfaces ashell draws. Applied once, to the palette, so
-    /// every background colour carries it and every text colour does not.
     pub opacity: Opacity,
     pub bar: BarAppearance,
     pub menu: MenuAppearance,
