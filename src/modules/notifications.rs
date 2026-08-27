@@ -47,20 +47,20 @@ fn invoke_and_close_task(
     connection: Option<Connection>,
     id: u32,
     action_key: Option<String>,
+    revision: Option<u64>,
 ) -> Task<Message> {
     Task::perform(
         async move {
-            if let Some(connection) = connection {
-                if let Some(action_key) = action_key
-                    && let Err(e) =
-                        NotificationDaemon::invoke_action(&connection, id, action_key).await
-                {
-                    error!("Failed to invoke notification action for id {}: {}", id, e);
-                }
-                if let Err(e) = NotificationDaemon::close_notification_by_id(&connection, id).await
-                {
-                    error!("Failed to close notification id {}: {}", id, e);
-                }
+            if let Some(connection) = connection
+                && let Err(e) = NotificationDaemon::close_notification_by_id(
+                    &connection,
+                    id,
+                    action_key,
+                    revision,
+                )
+                .await
+            {
+                error!("Failed to close notification id {}: {}", id, e);
             }
         },
         |_| Message::NotificationClosed,
@@ -70,18 +70,26 @@ fn invoke_and_close_task(
 async fn close_notification_ids(connection: Option<Connection>, notification_ids: &[u32]) {
     if let Some(connection) = connection {
         for id in notification_ids {
-            if let Err(e) = NotificationDaemon::close_notification_by_id(&connection, *id).await {
+            if let Err(e) =
+                NotificationDaemon::close_notification_by_id(&connection, *id, None, None).await
+            {
                 error!("Failed to close notification id {}: {}", id, e);
             }
         }
     }
 }
 
-fn close_notification_by_id_task(connection: Option<Connection>, id: u32) -> Task<Message> {
+fn close_notification_by_id_task(
+    connection: Option<Connection>,
+    id: u32,
+    revision: Option<u64>,
+) -> Task<Message> {
     Task::perform(
         async move {
             if let Some(connection) = connection
-                && let Err(e) = NotificationDaemon::close_notification_by_id(&connection, id).await
+                && let Err(e) =
+                    NotificationDaemon::close_notification_by_id(&connection, id, None, revision)
+                        .await
             {
                 error!("Failed to close notification id {}: {}", id, e);
             }
@@ -197,6 +205,10 @@ impl Notifications {
         self.notifications.iter().find(|n| n.id == id)
     }
 
+    fn revision_of(&self, id: u32) -> Option<u64> {
+        self.find_notification(id).map(|n| n.revision)
+    }
+
     fn find_first_action_key(&self, id: u32) -> Option<String> {
         self.find_notification(id)
             .filter(|n| !n.actions.is_empty())
@@ -276,9 +288,7 @@ impl Notifications {
                 }
 
                 // A replace cancels an in-flight dismissal so the replacement is
-                // shown instead of being swallowed by the slide-out. A dismissal
-                // already forwarded over D-Bus can still race its own trailing
-                // `Closed` past here and take the replacement down with it.
+                // shown instead of being swallowed by the slide-out.
                 self.dismiss_phases.remove(&notification.id);
 
                 // Critical notifications are persistent per the freedesktop
@@ -368,7 +378,8 @@ impl Notifications {
             Message::NotificationClicked(id) => {
                 let connection = self.connection.clone();
                 let action_key = self.find_first_action_key(id);
-                Action::Task(invoke_and_close_task(connection, id, action_key))
+                let revision = self.revision_of(id);
+                Action::Task(invoke_and_close_task(connection, id, action_key, revision))
             }
             Message::NotificationClosed => Action::None,
             Message::ClearNotifications => {
@@ -441,17 +452,19 @@ impl Notifications {
             }
             Message::CloseNotificationById(id) => {
                 let connection = self.connection.clone();
+                let revision = self.revision_of(id);
                 let had_toasts = self.remove_toast(id);
                 self.dismiss_phases.remove(&id);
 
-                let task = close_notification_by_id_task(connection, id);
+                let task = close_notification_by_id_task(connection, id, revision);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
             Message::DismissToast(id) => {
                 if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
                     let connection = self.connection.clone();
                     let action_key = self.find_first_action_key(id);
-                    let invoke_task = invoke_and_close_task(connection, id, action_key);
+                    let revision = self.revision_of(id);
+                    let invoke_task = invoke_and_close_task(connection, id, action_key, revision);
                     if !self.animations_enabled {
                         let had_toasts = self.remove_toast(id);
                         let hide_action =
