@@ -8,7 +8,7 @@ use crate::{
         ReadOnlyService, ServiceEvent,
         notifications::{
             Notification, NotificationIcon, NotificationsService, Urgency,
-            dbus::{NotificationDaemon, NotificationEvent},
+            dbus::{CloseGuard, NotificationDaemon, NotificationEvent},
         },
     },
     t,
@@ -23,7 +23,7 @@ use itertools::Itertools;
 use log::error;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use zbus::Connection;
 
@@ -47,20 +47,15 @@ fn invoke_and_close_task(
     connection: Option<Connection>,
     id: u32,
     action_key: Option<String>,
+    guard: CloseGuard,
 ) -> Task<Message> {
     Task::perform(
         async move {
-            if let Some(connection) = connection {
-                if let Some(action_key) = action_key
-                    && let Err(e) =
-                        NotificationDaemon::invoke_action(&connection, id, action_key).await
-                {
-                    error!("Failed to invoke notification action for id {}: {}", id, e);
-                }
-                if let Err(e) = NotificationDaemon::close_notification_by_id(&connection, id).await
-                {
-                    error!("Failed to close notification id {}: {}", id, e);
-                }
+            if let Some(connection) = connection
+                && let Err(e) =
+                    NotificationDaemon::invoke_and_close(&connection, id, action_key, guard).await
+            {
+                error!("Failed to close notification id {}: {}", id, e);
             }
         },
         |_| Message::NotificationClosed,
@@ -70,24 +65,13 @@ fn invoke_and_close_task(
 async fn close_notification_ids(connection: Option<Connection>, notification_ids: &[u32]) {
     if let Some(connection) = connection {
         for id in notification_ids {
-            if let Err(e) = NotificationDaemon::close_notification_by_id(&connection, *id).await {
+            if let Err(e) =
+                NotificationDaemon::invoke_and_close(&connection, *id, None, CloseGuard::Any).await
+            {
                 error!("Failed to close notification id {}: {}", id, e);
             }
         }
     }
-}
-
-fn close_notification_by_id_task(connection: Option<Connection>, id: u32) -> Task<Message> {
-    Task::perform(
-        async move {
-            if let Some(connection) = connection
-                && let Err(e) = NotificationDaemon::close_notification_by_id(&connection, id).await
-            {
-                error!("Failed to close notification id {}: {}", id, e);
-            }
-        },
-        |_| Message::NotificationClosed,
-    )
 }
 
 fn delayed_toast_message(delay: Duration, id: u32, msg: fn(u32) -> Message) -> Task<Message> {
@@ -163,6 +147,7 @@ pub struct Notifications {
     blocklist: Vec<crate::config::RegexCfg>,
     toasts: VecDeque<u32>,
     dismiss_phases: HashMap<u32, DismissPhase>,
+    toast_timers: HashMap<u32, Instant>,
     animations_enabled: bool,
 }
 
@@ -177,6 +162,7 @@ impl Notifications {
             blocklist,
             toasts: VecDeque::new(),
             dismiss_phases: HashMap::new(),
+            toast_timers: HashMap::new(),
             animations_enabled,
         }
     }
@@ -195,6 +181,11 @@ impl Notifications {
         self.notifications.iter().find(|n| n.id == id)
     }
 
+    fn close_guard(&self, id: u32) -> CloseGuard {
+        self.find_notification(id)
+            .map_or(CloseGuard::Any, |n| CloseGuard::Revision(n.revision))
+    }
+
     fn find_first_action_key(&self, id: u32) -> Option<String> {
         self.find_notification(id)
             .filter(|n| !n.actions.is_empty())
@@ -206,12 +197,14 @@ impl Notifications {
         let had_toasts = !self.toasts.is_empty();
         self.toasts.clear();
         self.dismiss_phases.clear();
+        self.toast_timers.clear();
         had_toasts
     }
 
     fn remove_toast(&mut self, id: u32) -> bool {
         let had_toasts = !self.toasts.is_empty();
         self.toasts.retain(|&toast_id| toast_id != id);
+        self.toast_timers.remove(&id);
         had_toasts
     }
 
@@ -219,6 +212,7 @@ impl Notifications {
         let had_toasts = !self.toasts.is_empty();
         let ids: HashSet<u32> = ids.iter().copied().collect();
         self.toasts.retain(|toast_id| !ids.contains(toast_id));
+        self.toast_timers.retain(|id, _| !ids.contains(id));
         had_toasts
     }
 
@@ -254,19 +248,24 @@ impl Notifications {
         match update_event {
             NotificationEvent::Received(notification) => {
                 if self.config.toast_limit == 0 {
-                    self.toasts.clear();
-                    self.dismiss_phases.clear();
-                    return Action::None;
+                    let had_toasts = self.clear_toasts();
+                    return self.hide_toasts_if_empty(had_toasts);
                 }
 
-                while self.toasts.len() >= self.config.toast_limit {
-                    if let Some(evicted) = self.toasts.pop_front() {
+                if !self.toasts.contains(&notification.id) {
+                    while self.toasts.len() >= self.config.toast_limit
+                        && let Some(evicted) = self.toasts.pop_front()
+                    {
                         self.dismiss_phases.remove(&evicted);
+                        self.toast_timers.remove(&evicted);
                     }
+                    self.toasts.push_back(notification.id);
                 }
-                self.toasts.push_back(notification.id);
 
-                let notification_id = notification.id;
+                // A replace cancels an in-flight dismissal so the replacement is
+                // shown instead of being swallowed by the slide-out.
+                self.dismiss_phases.remove(&notification.id);
+
                 // Critical notifications are persistent per the freedesktop
                 // spec: they must be acknowledged by the user.
                 let timeout = if notification.urgency == Urgency::Critical {
@@ -275,19 +274,24 @@ impl Notifications {
                     toast_timeout(notification.expire_timeout, self.config.toast_timeout)
                 };
 
-                let timer_task = if let Some(timeout) = timeout {
-                    Task::perform(
-                        async move {
-                            tokio::time::sleep(timeout).await;
-                            notification_id
-                        },
-                        Message::ExpireToast,
-                    )
+                let task = if let Some(timeout) = timeout {
+                    let deadline = Instant::now() + timeout;
+                    let previous = self.toast_timers.insert(notification.id, deadline);
+                    // Every wakeup either expires the toast, dropping the
+                    // deadline, or reschedules itself, so a stored deadline always
+                    // has a sleep in flight: one is only needed when there was no
+                    // deadline, or when the new one lands before the pending wakeup.
+                    if previous.is_none_or(|previous| deadline < previous) {
+                        delayed_toast_message(timeout, notification.id, Message::ExpireToast)
+                    } else {
+                        Task::none()
+                    }
                 } else {
+                    self.toast_timers.remove(&notification.id);
                     Task::none()
                 };
 
-                Action::Show(timer_task)
+                Action::Show(task)
             }
             NotificationEvent::Closed(id) => {
                 let id = *id;
@@ -303,12 +307,11 @@ impl Notifications {
     fn apply_update_event(&mut self, update_event: NotificationEvent) {
         match update_event {
             NotificationEvent::Received(notification) => {
+                self.notifications.retain(|n| n.id != notification.id);
                 self.notifications.push_front(*notification);
             }
             NotificationEvent::Closed(id) => {
-                if let Some(pos) = self.notifications.iter().position(|n| n.id == id) {
-                    self.notifications.remove(pos);
-                }
+                self.notifications.retain(|n| n.id != id);
             }
         }
     }
@@ -320,7 +323,7 @@ impl Notifications {
                 self.blocklist = config.blocklist.clone();
                 self.config = config;
                 if hide {
-                    self.toasts.clear();
+                    self.clear_toasts();
                     Action::Hide(Task::none())
                 } else {
                     Action::None
@@ -348,7 +351,8 @@ impl Notifications {
             Message::NotificationClicked(id) => {
                 let connection = self.connection.clone();
                 let action_key = self.find_first_action_key(id);
-                Action::Task(invoke_and_close_task(connection, id, action_key))
+                let guard = self.close_guard(id);
+                Action::Task(invoke_and_close_task(connection, id, action_key, guard))
             }
             Message::NotificationClosed => Action::None,
             Message::ClearNotifications => {
@@ -390,6 +394,20 @@ impl Notifications {
                 Action::None
             }
             Message::ExpireToast(id) => {
+                let Some(&deadline) = self.toast_timers.get(&id) else {
+                    return Action::None;
+                };
+                let now = Instant::now();
+                if now < deadline {
+                    // Replaced with a later deadline: wait out the remainder.
+                    return Action::Task(delayed_toast_message(
+                        deadline - now,
+                        id,
+                        Message::ExpireToast,
+                    ));
+                }
+                self.toast_timers.remove(&id);
+
                 if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
                     if !self.animations_enabled {
                         let had_toasts = self.remove_toast(id);
@@ -407,17 +425,19 @@ impl Notifications {
             }
             Message::CloseNotificationById(id) => {
                 let connection = self.connection.clone();
+                let guard = self.close_guard(id);
                 let had_toasts = self.remove_toast(id);
                 self.dismiss_phases.remove(&id);
 
-                let task = close_notification_by_id_task(connection, id);
+                let task = invoke_and_close_task(connection, id, None, guard);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
             Message::DismissToast(id) => {
                 if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
                     let connection = self.connection.clone();
                     let action_key = self.find_first_action_key(id);
-                    let invoke_task = invoke_and_close_task(connection, id, action_key);
+                    let guard = self.close_guard(id);
+                    let invoke_task = invoke_and_close_task(connection, id, action_key, guard);
                     if !self.animations_enabled {
                         let had_toasts = self.remove_toast(id);
                         let hide_action =
@@ -446,7 +466,10 @@ impl Notifications {
                 }
             }
             Message::DismissAnimationComplete(id) => {
-                self.dismiss_phases.remove(&id);
+                if self.dismiss_phases.remove(&id).is_none() {
+                    // Cancelled by a replace: the toast is on screen again.
+                    return Action::None;
+                }
                 let had_toasts = self.remove_toast(id);
                 self.hide_toasts_if_empty(had_toasts)
             }

@@ -60,7 +60,7 @@ fn pixmap_to_icon(icons: Vec<dbus::Icon>) -> Option<TrayIcon> {
         })
         .map(|mut i| {
             // Convert ARGB to RGBA
-            for pixel in i.bytes.chunks_exact_mut(4) {
+            for pixel in i.bytes.as_chunks_mut::<4>().0 {
                 pixel.rotate_left(1);
             }
             TrayIcon::Image(image::Handle::from_rgba(

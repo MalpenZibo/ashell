@@ -199,14 +199,22 @@ impl GenericState {
             .enumerate()
             .map(|(pos, ws)| {
                 let (monitor, monitor_id) = self.workspace_monitor(ws);
-                // ext-workspace has no inherent index. Prefer the workspace name
-                // when it is a positive integer (the common 1..N labelling),
+                // ext-workspace has no inherent index. Prefer a leading numeric
+                // prefix from the workspace name (e.g. "1: " → 1, the common
+                // 1..N labelling used by Sway/i3 and tools like workstyle),
                 // else fall back to display order so the value stays small and
                 // dense instead of the ever-growing numeric_id.
                 let index = ws
                     .name
-                    .parse::<i32>()
-                    .ok()
+                    .split(|c: char| !c.is_ascii_digit())
+                    .next()
+                    .and_then(|s| {
+                        if s.is_empty() {
+                            None
+                        } else {
+                            s.parse::<i32>().ok()
+                        }
+                    })
                     .filter(|n| *n > 0)
                     .unwrap_or(pos as i32 + 1);
                 CompositorWorkspace {
@@ -583,9 +591,10 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for GenericState {
                     // (one per active state, not a bitmask), so we parse 4 bytes at a time.
                     let activated = zwlr_foreign_toplevel_handle_v1::State::Activated as u32;
                     t.activated = tl_state
-                        .chunks_exact(4)
-                        .filter_map(|c| c.try_into().ok())
-                        .any(|c| u32::from_ne_bytes(c) == activated);
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
+                        .any(|&c| u32::from_ne_bytes(c) == activated);
                 }
             }
             zwlr_foreign_toplevel_handle_v1::Event::Done => state.dirty = true,

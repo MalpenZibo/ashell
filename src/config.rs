@@ -90,6 +90,7 @@ impl Config {
             updates.validate();
         }
         self.system_info.validate();
+        self.tempo.validate();
         self.settings.validate();
         self.media_player.validate();
     }
@@ -498,6 +499,20 @@ impl TempoModuleConfig {
                 UnitSystem::Imperial => WindSpeedUnit::Mph,
                 UnitSystem::Metric => WindSpeedUnit::Kmh,
             },
+        }
+    }
+
+    fn validate(&mut self) {
+        if let Some(WeatherLocation::Coordinates(lat, lon)) = &mut self.weather_location {
+            let clamped_lat = lat.clamp(-90.0, 90.0);
+            let clamped_lon = lon.clamp(-180.0, 180.0);
+            if *lat != clamped_lat || *lon != clamped_lon {
+                warn!(
+                    "tempo.weather_location latitude ({lat}) must be in -90..=90 and longitude ({lon}) in -180..=180, setting to ({clamped_lat}, {clamped_lon})"
+                );
+                *lat = clamped_lat;
+                *lon = clamped_lon;
+            }
         }
     }
 }
@@ -1472,10 +1487,20 @@ fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
 
     info!("Decoding config file {path:?}");
 
-    let res = toml::from_str::<Config>(&content);
+    let de =
+        toml::Deserializer::parse(&content).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
+    let mut unknown_fields = Vec::new();
+    let res = serde_ignored::deserialize(de, |path| {
+        unknown_fields.push(path.to_string());
+    });
 
     match res {
         Ok(config) => {
+            for field in &unknown_fields {
+                let msg = format!("Unknown configuration field ignored: {field}");
+                warn!("{msg}");
+                eprintln!("ashell: warning: {msg}");
+            }
             info!("Config file loaded successfully");
             let mut config: Config = config;
             config.validate();
