@@ -275,12 +275,10 @@ impl Notifications {
                     self.toasts.push_back(notification.id);
                 }
 
-                // A replace cancels an in-flight dismissal: the replacement has
-                // to be shown even if the previous instance was sliding out.
-                // A user dismissal we already forwarded over D-Bus can still
-                // race its own trailing `Closed` event past this point, but a
-                // client replacing an id it was just told was closed is odd
-                // enough to leave alone.
+                // A replace cancels an in-flight dismissal so the replacement is
+                // shown instead of being swallowed by the slide-out. A dismissal
+                // already forwarded over D-Bus can still race its own trailing
+                // `Closed` past here and take the replacement down with it.
                 self.dismiss_phases.remove(&notification.id);
 
                 // Critical notifications are persistent per the freedesktop
@@ -294,12 +292,10 @@ impl Notifications {
                 let task = if let Some(timeout) = timeout {
                     let deadline = Instant::now() + timeout;
                     let previous = self.toast_timers.insert(notification.id, deadline);
-                    // A stored deadline always has a sleep in flight for it:
-                    // every wakeup either expires the toast, removing the
-                    // deadline, or reschedules itself. So a new sleep is only
-                    // needed when there was no deadline (a first notification,
-                    // or a critical one being replaced by a normal one) or when
-                    // the new deadline lands before the pending wakeup.
+                    // Every wakeup either expires the toast, dropping the
+                    // deadline, or reschedules itself, so a stored deadline always
+                    // has a sleep in flight: one is only needed when there was no
+                    // deadline, or when the new one lands before the pending wakeup.
                     if previous.is_none_or(|previous| deadline < previous) {
                         delayed_toast_message(timeout, notification.id, Message::ExpireToast)
                     } else {
@@ -419,8 +415,7 @@ impl Notifications {
                 };
                 let now = Instant::now();
                 if now < deadline {
-                    // Replaced with a later deadline after this sleep started:
-                    // wait out the remainder instead of expiring early.
+                    // Replaced with a later deadline: wait out the remainder.
                     return Action::Task(delayed_toast_message(
                         deadline - now,
                         id,
