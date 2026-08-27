@@ -261,8 +261,8 @@ impl Notifications {
         match update_event {
             NotificationEvent::Received(notification) => {
                 if self.config.toast_limit == 0 {
-                    self.clear_toasts();
-                    return Action::None;
+                    let had_toasts = self.clear_toasts();
+                    return self.hide_toasts_if_empty(had_toasts);
                 }
 
                 if !self.toasts.contains(&notification.id) {
