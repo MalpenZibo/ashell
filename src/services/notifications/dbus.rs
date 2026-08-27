@@ -17,6 +17,15 @@ pub enum NotificationEvent {
     Closed(u32),
 }
 
+/// Which instance of an id a close applies to.
+#[derive(Debug, Clone, Copy)]
+pub enum CloseGuard {
+    /// Whatever holds the id now.
+    Any,
+    /// Only while the id still carries this revision.
+    Revision(u64),
+}
+
 const NAME: WellKnownName =
     WellKnownName::from_static_str_unchecked("org.freedesktop.Notifications");
 pub const OBJECT_PATH: &str = "/org/freedesktop/Notifications";
@@ -48,6 +57,9 @@ impl Urgency {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Notification {
     pub id: u32,
+    /// Bumped on every `Notify`, so a consumer can tell one instance of an id
+    /// from the next one a `replaces_id` put in its place.
+    pub revision: u64,
     pub app_name: String,
     pub app_icon: String,
     pub summary: String,
@@ -63,6 +75,8 @@ pub struct Notification {
 
 pub struct NotificationDaemon {
     next_id: u32,
+    next_revision: u64,
+    revisions: HashMap<u32, u64>,
     event_tx: broadcast::Sender<NotificationEvent>,
     connection: Connection,
 }
@@ -71,6 +85,8 @@ impl NotificationDaemon {
     pub fn new(event_tx: broadcast::Sender<NotificationEvent>, connection: Connection) -> Self {
         Self {
             next_id: 0,
+            next_revision: 0,
+            revisions: HashMap::new(),
             event_tx,
             connection,
         }
@@ -107,10 +123,15 @@ impl NotificationDaemon {
             replaces_id
         };
 
+        self.next_revision += 1;
+        let revision = self.next_revision;
+        self.revisions.insert(id, revision);
+
         let icon = NotificationIcon::resolve(&app_name, &app_icon, &hints);
         let urgency = Urgency::from_hints(&hints);
         let notification = Notification {
             id,
+            revision,
             app_name,
             app_icon,
             summary,
@@ -134,6 +155,8 @@ impl NotificationDaemon {
     }
 
     async fn close_notification(&mut self, id: u32) {
+        self.revisions.remove(&id);
+
         // Send event through channel
         let _ = self.event_tx.send(NotificationEvent::Closed(id));
 
@@ -187,32 +210,43 @@ impl NotificationDaemon {
         Ok((connection, event_tx))
     }
 
-    pub async fn invoke_action(
+    /// `guard` pins the instance the caller acted on: both steps are skipped
+    /// when `id` no longer carries it, because a `Notify` won the race against
+    /// this call and the notification the user acted on is gone. Closing anyway
+    /// would take the replacement down with it. Holding the interface lock over
+    /// the check and both steps is what keeps that ordering decidable.
+    pub async fn invoke_and_close(
         connection: &Connection,
         id: u32,
-        action_key: String,
+        action_key: Option<String>,
+        guard: CloseGuard,
     ) -> anyhow::Result<()> {
-        connection
-            .emit_signal(
-                None::<&str>,
-                OBJECT_PATH,
-                NAME.as_str(),
-                "ActionInvoked",
-                &(id, action_key),
-            )
-            .await?;
-        Ok(())
-    }
-
-    pub async fn close_notification_by_id(connection: &Connection, id: u32) -> anyhow::Result<()> {
-        // Get the object server interface to call the method properly
         let iface_ref = connection
             .object_server()
             .interface::<_, NotificationDaemon>(OBJECT_PATH)
             .await?;
+        let mut daemon = iface_ref.get_mut().await;
 
-        // Call the close_notification method which properly cleans up and emits events
-        iface_ref.get_mut().await.close_notification(id).await;
+        if let CloseGuard::Revision(revision) = guard
+            && daemon.revisions.get(&id) != Some(&revision)
+        {
+            debug!("Skipping close of notification {}: replaced since", id);
+            return Ok(());
+        }
+
+        if let Some(action_key) = action_key {
+            connection
+                .emit_signal(
+                    None::<&str>,
+                    OBJECT_PATH,
+                    NAME.as_str(),
+                    "ActionInvoked",
+                    &(id, action_key),
+                )
+                .await?;
+        }
+
+        daemon.close_notification(id).await;
         Ok(())
     }
 }

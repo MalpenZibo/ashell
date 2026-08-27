@@ -591,9 +591,10 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for GenericState {
                     // (one per active state, not a bitmask), so we parse 4 bytes at a time.
                     let activated = zwlr_foreign_toplevel_handle_v1::State::Activated as u32;
                     t.activated = tl_state
-                        .chunks_exact(4)
-                        .filter_map(|c| c.try_into().ok())
-                        .any(|c| u32::from_ne_bytes(c) == activated);
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
+                        .any(|&c| u32::from_ne_bytes(c) == activated);
                 }
             }
             zwlr_foreign_toplevel_handle_v1::Event::Done => state.dirty = true,
