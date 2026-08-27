@@ -594,7 +594,7 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for GenericState {
                         .as_chunks::<4>()
                         .0
                         .iter()
-                        .any(|c| u32::from_ne_bytes(*c) == activated);
+                        .any(|&c| u32::from_ne_bytes(c) == activated);
                 }
             }
             zwlr_foreign_toplevel_handle_v1::Event::Done => state.dirty = true,

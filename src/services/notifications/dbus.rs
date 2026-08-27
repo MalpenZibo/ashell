@@ -17,6 +17,15 @@ pub enum NotificationEvent {
     Closed(u32),
 }
 
+/// Which instance of an id a close applies to.
+#[derive(Debug, Clone, Copy)]
+pub enum CloseGuard {
+    /// Whatever holds the id now.
+    Any,
+    /// Only while the id still carries this revision.
+    Revision(u64),
+}
+
 const NAME: WellKnownName =
     WellKnownName::from_static_str_unchecked("org.freedesktop.Notifications");
 pub const OBJECT_PATH: &str = "/org/freedesktop/Notifications";
@@ -201,18 +210,16 @@ impl NotificationDaemon {
         Ok((connection, event_tx))
     }
 
-    /// Invokes `action_key`, if any, and closes `id`.
-    ///
-    /// `revision` pins the instance the caller acted on. Both steps are skipped
+    /// `guard` pins the instance the caller acted on: both steps are skipped
     /// when `id` no longer carries it, because a `Notify` won the race against
-    /// this call and the notification the user acted on is gone: closing anyway
-    /// would take the replacement down with it. Taking the interface lock once
-    /// for the check and both steps is what keeps that ordering decidable.
-    pub async fn close_notification_by_id(
+    /// this call and the notification the user acted on is gone. Closing anyway
+    /// would take the replacement down with it. Holding the interface lock over
+    /// the check and both steps is what keeps that ordering decidable.
+    pub async fn invoke_and_close(
         connection: &Connection,
         id: u32,
         action_key: Option<String>,
-        revision: Option<u64>,
+        guard: CloseGuard,
     ) -> anyhow::Result<()> {
         let iface_ref = connection
             .object_server()
@@ -220,7 +227,9 @@ impl NotificationDaemon {
             .await?;
         let mut daemon = iface_ref.get_mut().await;
 
-        if revision.is_some_and(|revision| daemon.revisions.get(&id) != Some(&revision)) {
+        if let CloseGuard::Revision(revision) = guard
+            && daemon.revisions.get(&id) != Some(&revision)
+        {
             debug!("Skipping close of notification {}: replaced since", id);
             return Ok(());
         }

@@ -8,7 +8,7 @@ use crate::{
         ReadOnlyService, ServiceEvent,
         notifications::{
             Notification, NotificationIcon, NotificationsService, Urgency,
-            dbus::{NotificationDaemon, NotificationEvent},
+            dbus::{CloseGuard, NotificationDaemon, NotificationEvent},
         },
     },
     t,
@@ -47,18 +47,13 @@ fn invoke_and_close_task(
     connection: Option<Connection>,
     id: u32,
     action_key: Option<String>,
-    revision: Option<u64>,
+    guard: CloseGuard,
 ) -> Task<Message> {
     Task::perform(
         async move {
             if let Some(connection) = connection
-                && let Err(e) = NotificationDaemon::close_notification_by_id(
-                    &connection,
-                    id,
-                    action_key,
-                    revision,
-                )
-                .await
+                && let Err(e) =
+                    NotificationDaemon::invoke_and_close(&connection, id, action_key, guard).await
             {
                 error!("Failed to close notification id {}: {}", id, e);
             }
@@ -71,31 +66,12 @@ async fn close_notification_ids(connection: Option<Connection>, notification_ids
     if let Some(connection) = connection {
         for id in notification_ids {
             if let Err(e) =
-                NotificationDaemon::close_notification_by_id(&connection, *id, None, None).await
+                NotificationDaemon::invoke_and_close(&connection, *id, None, CloseGuard::Any).await
             {
                 error!("Failed to close notification id {}: {}", id, e);
             }
         }
     }
-}
-
-fn close_notification_by_id_task(
-    connection: Option<Connection>,
-    id: u32,
-    revision: Option<u64>,
-) -> Task<Message> {
-    Task::perform(
-        async move {
-            if let Some(connection) = connection
-                && let Err(e) =
-                    NotificationDaemon::close_notification_by_id(&connection, id, None, revision)
-                        .await
-            {
-                error!("Failed to close notification id {}: {}", id, e);
-            }
-        },
-        |_| Message::NotificationClosed,
-    )
 }
 
 fn delayed_toast_message(delay: Duration, id: u32, msg: fn(u32) -> Message) -> Task<Message> {
@@ -205,8 +181,9 @@ impl Notifications {
         self.notifications.iter().find(|n| n.id == id)
     }
 
-    fn revision_of(&self, id: u32) -> Option<u64> {
-        self.find_notification(id).map(|n| n.revision)
+    fn close_guard(&self, id: u32) -> CloseGuard {
+        self.find_notification(id)
+            .map_or(CloseGuard::Any, |n| CloseGuard::Revision(n.revision))
     }
 
     fn find_first_action_key(&self, id: u32) -> Option<String> {
@@ -235,9 +212,7 @@ impl Notifications {
         let had_toasts = !self.toasts.is_empty();
         let ids: HashSet<u32> = ids.iter().copied().collect();
         self.toasts.retain(|toast_id| !ids.contains(toast_id));
-        for id in &ids {
-            self.toast_timers.remove(id);
-        }
+        self.toast_timers.retain(|id, _| !ids.contains(id));
         had_toasts
     }
 
@@ -278,11 +253,11 @@ impl Notifications {
                 }
 
                 if !self.toasts.contains(&notification.id) {
-                    while self.toasts.len() >= self.config.toast_limit {
-                        if let Some(evicted) = self.toasts.pop_front() {
-                            self.dismiss_phases.remove(&evicted);
-                            self.toast_timers.remove(&evicted);
-                        }
+                    while self.toasts.len() >= self.config.toast_limit
+                        && let Some(evicted) = self.toasts.pop_front()
+                    {
+                        self.dismiss_phases.remove(&evicted);
+                        self.toast_timers.remove(&evicted);
                     }
                     self.toasts.push_back(notification.id);
                 }
@@ -336,9 +311,7 @@ impl Notifications {
                 self.notifications.push_front(*notification);
             }
             NotificationEvent::Closed(id) => {
-                if let Some(pos) = self.notifications.iter().position(|n| n.id == id) {
-                    self.notifications.remove(pos);
-                }
+                self.notifications.retain(|n| n.id != id);
             }
         }
     }
@@ -378,8 +351,8 @@ impl Notifications {
             Message::NotificationClicked(id) => {
                 let connection = self.connection.clone();
                 let action_key = self.find_first_action_key(id);
-                let revision = self.revision_of(id);
-                Action::Task(invoke_and_close_task(connection, id, action_key, revision))
+                let guard = self.close_guard(id);
+                Action::Task(invoke_and_close_task(connection, id, action_key, guard))
             }
             Message::NotificationClosed => Action::None,
             Message::ClearNotifications => {
@@ -452,19 +425,19 @@ impl Notifications {
             }
             Message::CloseNotificationById(id) => {
                 let connection = self.connection.clone();
-                let revision = self.revision_of(id);
+                let guard = self.close_guard(id);
                 let had_toasts = self.remove_toast(id);
                 self.dismiss_phases.remove(&id);
 
-                let task = close_notification_by_id_task(connection, id, revision);
+                let task = invoke_and_close_task(connection, id, None, guard);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
             Message::DismissToast(id) => {
                 if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
                     let connection = self.connection.clone();
                     let action_key = self.find_first_action_key(id);
-                    let revision = self.revision_of(id);
-                    let invoke_task = invoke_and_close_task(connection, id, action_key, revision);
+                    let guard = self.close_guard(id);
+                    let invoke_task = invoke_and_close_task(connection, id, action_key, guard);
                     if !self.animations_enabled {
                         let had_toasts = self.remove_toast(id);
                         let hide_action =
