@@ -12,7 +12,7 @@ use iced::{
     theme::{Palette, palette},
     widget::{
         button::{self, Status},
-        progress_bar, rule, scrollable, slider,
+        container, progress_bar, rule, scrollable, slider,
         text_input::{self},
         toggler,
     },
@@ -165,46 +165,12 @@ pub struct SurfaceTheme {
 }
 
 #[derive(Debug, Clone)]
-struct SurfaceThemes {
-    bar: SurfaceTheme,
-    menu: SurfaceTheme,
-    osd: SurfaceTheme,
-    notifications: SurfaceTheme,
-}
-
-impl SurfaceThemes {
-    fn new(appearance: &Appearance) -> Self {
-        let for_surface = |surface| {
-            let opacity = appearance.opacity.get(surface);
-
-            SurfaceTheme {
-                iced_theme: build_iced_theme(appearance, opacity),
-                blur: appearance.blur.enabled(opacity),
-            }
-        };
-
-        Self {
-            bar: for_surface(Surface::Bar),
-            menu: for_surface(Surface::Menu),
-            osd: for_surface(Surface::Osd),
-            notifications: for_surface(Surface::Notifications),
-        }
-    }
-
-    fn get(&self, surface: Surface) -> &SurfaceTheme {
-        match surface {
-            Surface::Bar => &self.bar,
-            Surface::Menu => &self.menu,
-            Surface::Osd => &self.osd,
-            Surface::Notifications => &self.notifications,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct AshellTheme {
-    surfaces: SurfaceThemes,
-    /// For call sites that read a colour where there is no `&Theme` to hand.
+    /// One entry per [`Surface`], indexed by `surface as usize`.
+    surfaces: [SurfaceTheme; 4],
+    /// Ink colours, for call sites that read one where there is no `&Theme` to
+    /// hand. `background` here is the un-opacified base, so it is not what any
+    /// surface actually paints; use [`as_surface`] for fills.
     pub palette: Palette,
     pub space: Space,
     pub radius: Radius,
@@ -217,8 +183,6 @@ pub struct AshellTheme {
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
     pub scale_factor: f64,
-    // Read by animation call sites added in subsequent PRs.
-    #[allow(dead_code)]
     pub animations_enabled: bool,
 }
 
@@ -254,13 +218,14 @@ const TROUGH_ALPHA: f32 = 0.15;
 const THUMB_ALPHA: f32 = 0.4;
 const DIVIDER_ALPHA: f32 = 0.12;
 
-fn trough(theme: &Theme) -> Color {
-    theme.palette().text.scale_alpha(TROUGH_ALPHA)
+/// The foreground colour at `alpha`: a mark drawn on the surface.
+fn ink(theme: &Theme, alpha: f32) -> Color {
+    theme.palette().text.scale_alpha(alpha)
 }
 
 pub fn slider_style(theme: &Theme, status: slider::Status) -> slider::Style {
     let mut style = slider::default(theme, status);
-    style.rail.backgrounds.1 = trough(theme).into();
+    style.rail.backgrounds.1 = ink(theme, TROUGH_ALPHA).into();
     style
 }
 
@@ -268,7 +233,7 @@ pub fn scrollable_style(theme: &Theme, status: scrollable::Status) -> scrollable
     let mut style = scrollable::default(theme, status);
     for rail in [&mut style.vertical_rail, &mut style.horizontal_rail] {
         rail.background = Some(Background::Color(Color::TRANSPARENT));
-        rail.scroller.background = theme.palette().text.scale_alpha(THUMB_ALPHA).into();
+        rail.scroller.background = ink(theme, THUMB_ALPHA).into();
     }
     style
 }
@@ -281,30 +246,40 @@ pub fn toggler_style(theme: &Theme, status: toggler::Status) -> toggler::Style {
             | toggler::Status::Hovered { is_toggled: true }
     );
     if !toggled {
-        style.background = trough(theme).into();
+        style.background = ink(theme, TROUGH_ALPHA).into();
     }
     style
 }
 
 pub fn rule_style(theme: &Theme) -> rule::Style {
     rule::Style {
-        color: theme.palette().text.scale_alpha(DIVIDER_ALPHA),
+        color: ink(theme, DIVIDER_ALPHA),
         ..rule::default(theme)
     }
 }
 
-pub fn progress_bar_style(
-    base: fn(&Theme) -> progress_bar::Style,
-) -> impl Fn(&Theme) -> progress_bar::Style {
-    move |theme| progress_bar::Style {
-        background: trough(theme).into(),
-        ..base(theme)
+fn troughed(theme: &Theme, base: progress_bar::Style) -> progress_bar::Style {
+    progress_bar::Style {
+        background: ink(theme, TROUGH_ALPHA).into(),
+        ..base
     }
+}
+
+pub fn progress_bar_primary(theme: &Theme) -> progress_bar::Style {
+    troughed(theme, progress_bar::primary(theme))
+}
+
+pub fn progress_bar_secondary(theme: &Theme) -> progress_bar::Style {
+    troughed(theme, progress_bar::secondary(theme))
+}
+
+pub fn progress_bar_danger(theme: &Theme) -> progress_bar::Style {
+    troughed(theme, progress_bar::danger(theme))
 }
 
 /// The opacity of the surface this theme paints. Lives on the base palette's
 /// background because that is the only colour there that is paint.
-pub fn surface_opacity(theme: &Theme) -> f32 {
+fn surface_opacity(theme: &Theme) -> f32 {
     theme.palette().background.a
 }
 
@@ -317,7 +292,21 @@ pub fn as_surface(theme: &Theme, color: Color) -> Color {
 /// `color` with the hover overlay composited in, so hovering paints one layer
 /// rather than stacking a second one and washing out the translucency.
 pub fn hovered(theme: &Theme, color: Color) -> Color {
-    over(theme.palette().text.scale_alpha(HOVER_OVERLAY), color)
+    over(ink(theme, HOVER_OVERLAY), color)
+}
+
+/// The raised panel every menu card is built from: a `background.weak` fill
+/// that carries the surface opacity, rounded by `radius`.
+pub fn card_style(radius: impl Into<border::Radius>) -> impl Fn(&Theme) -> container::Style {
+    let radius = radius.into();
+    move |theme| container::Style {
+        background: Some(Background::Color(as_surface(
+            theme,
+            theme.extended_palette().background.weak.color,
+        ))),
+        border: Border::default().rounded(radius),
+        ..container::Style::default()
+    }
 }
 
 fn base_palette(appearance: &Appearance) -> Palette {
@@ -331,114 +320,117 @@ fn base_palette(appearance: &Appearance) -> Palette {
     }
 }
 
-fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
-    let base = base_palette(appearance);
+/// The variants derived from `base`. Independent of the surface opacity: every
+/// colour here is either ink or a background forced back to `a: 1.0`, so it is
+/// generated once and shared by all four surface themes.
+fn build_extended(appearance: &Appearance, palette: Palette) -> palette::Extended {
+    let text = palette.text;
+    let bg_text = appearance.background_color.get_text().unwrap_or(text);
+    // `mix` interpolates alpha too, so deriving from the translucent
+    // colour would spread assorted alphas across the variants.
+    let background = Color {
+        a: 1.0,
+        ..palette.background
+    };
 
+    let default_bg = palette::Background::new(background, bg_text);
+    let bg = |level, fallback| {
+        appearance
+            .background_color
+            .get_pair(level, text)
+            .unwrap_or(fallback)
+    };
+
+    let default_primary = palette::Primary::generate(
+        palette.primary,
+        background,
+        appearance.primary_color.get_text().unwrap_or(text),
+    );
+    let default_success = palette::Success::generate(
+        palette.success,
+        background,
+        appearance.success_color.get_text().unwrap_or(text),
+    );
+    let default_warning = palette::Warning::generate(
+        palette.warning,
+        background,
+        appearance.warning_color.get_text().unwrap_or(text),
+    );
+    let default_danger = palette::Danger::generate(
+        palette.danger,
+        background,
+        appearance.danger_color.get_text().unwrap_or(text),
+    );
+
+    palette::Extended {
+        background: palette::Background {
+            base: default_bg.base,
+            weakest: bg(BackgroundLevel::Weakest, default_bg.weakest),
+            weaker: bg(BackgroundLevel::Weaker, default_bg.weaker),
+            weak: bg(BackgroundLevel::Weak, default_bg.weak),
+            neutral: bg(BackgroundLevel::Neutral, default_bg.neutral),
+            strong: bg(BackgroundLevel::Strong, default_bg.strong),
+            stronger: bg(BackgroundLevel::Stronger, default_bg.stronger),
+            strongest: bg(BackgroundLevel::Strongest, default_bg.strongest),
+        },
+        primary: palette::Primary {
+            base: default_primary.base,
+            weak: appearance
+                .primary_color
+                .get_weak_pair(text)
+                .unwrap_or(default_primary.weak),
+            strong: appearance
+                .primary_color
+                .get_strong_pair(text)
+                .unwrap_or(default_primary.strong),
+        },
+        secondary: palette::Secondary::generate(background, text),
+        success: palette::Success {
+            base: default_success.base,
+            weak: appearance
+                .success_color
+                .get_weak_pair(text)
+                .unwrap_or(default_success.weak),
+            strong: appearance
+                .success_color
+                .get_strong_pair(text)
+                .unwrap_or(default_success.strong),
+        },
+        warning: palette::Warning {
+            base: default_warning.base,
+            weak: appearance
+                .warning_color
+                .get_weak_pair(text)
+                .unwrap_or(default_warning.weak),
+            strong: appearance
+                .warning_color
+                .get_strong_pair(text)
+                .unwrap_or(default_warning.strong),
+        },
+        danger: palette::Danger {
+            base: default_danger.base,
+            weak: appearance
+                .danger_color
+                .get_weak_pair(text)
+                .unwrap_or(default_danger.weak),
+            strong: appearance
+                .danger_color
+                .get_strong_pair(text)
+                .unwrap_or(default_danger.strong),
+        },
+        is_dark: true,
+    }
+}
+
+fn build_iced_theme(base: Palette, extended: palette::Extended, opacity: f32) -> Theme {
     Theme::custom_with_fn(
-        "local".to_string(),
+        "local",
         Palette {
             // The one colour here that is paint; the accents are read as ink.
             background: base.background.scale_alpha(opacity),
             ..base
         },
-        |palette| {
-            let text = palette.text;
-            let bg_text = appearance.background_color.get_text().unwrap_or(text);
-            // `mix` interpolates alpha too, so deriving from the translucent
-            // colour would spread assorted alphas across the variants.
-            let background = Color {
-                a: 1.0,
-                ..palette.background
-            };
-
-            let default_bg = palette::Background::new(background, bg_text);
-            let bg = |level, fallback| {
-                appearance
-                    .background_color
-                    .get_pair(level, text)
-                    .unwrap_or(fallback)
-            };
-
-            let default_primary = palette::Primary::generate(
-                palette.primary,
-                background,
-                appearance.primary_color.get_text().unwrap_or(text),
-            );
-            let default_success = palette::Success::generate(
-                palette.success,
-                background,
-                appearance.success_color.get_text().unwrap_or(text),
-            );
-            let default_warning = palette::Warning::generate(
-                palette.warning,
-                background,
-                appearance.warning_color.get_text().unwrap_or(text),
-            );
-            let default_danger = palette::Danger::generate(
-                palette.danger,
-                background,
-                appearance.danger_color.get_text().unwrap_or(text),
-            );
-
-            palette::Extended {
-                background: palette::Background {
-                    base: default_bg.base,
-                    weakest: bg(BackgroundLevel::Weakest, default_bg.weakest),
-                    weaker: bg(BackgroundLevel::Weaker, default_bg.weaker),
-                    weak: bg(BackgroundLevel::Weak, default_bg.weak),
-                    neutral: bg(BackgroundLevel::Neutral, default_bg.neutral),
-                    strong: bg(BackgroundLevel::Strong, default_bg.strong),
-                    stronger: bg(BackgroundLevel::Stronger, default_bg.stronger),
-                    strongest: bg(BackgroundLevel::Strongest, default_bg.strongest),
-                },
-                primary: palette::Primary {
-                    base: default_primary.base,
-                    weak: appearance
-                        .primary_color
-                        .get_weak_pair(text)
-                        .unwrap_or(default_primary.weak),
-                    strong: appearance
-                        .primary_color
-                        .get_strong_pair(text)
-                        .unwrap_or(default_primary.strong),
-                },
-                secondary: palette::Secondary::generate(background, text),
-                success: palette::Success {
-                    base: default_success.base,
-                    weak: appearance
-                        .success_color
-                        .get_weak_pair(text)
-                        .unwrap_or(default_success.weak),
-                    strong: appearance
-                        .success_color
-                        .get_strong_pair(text)
-                        .unwrap_or(default_success.strong),
-                },
-                warning: palette::Warning {
-                    base: default_warning.base,
-                    weak: appearance
-                        .warning_color
-                        .get_weak_pair(text)
-                        .unwrap_or(default_warning.weak),
-                    strong: appearance
-                        .warning_color
-                        .get_strong_pair(text)
-                        .unwrap_or(default_warning.strong),
-                },
-                danger: palette::Danger {
-                    base: default_danger.base,
-                    weak: appearance
-                        .danger_color
-                        .get_weak_pair(text)
-                        .unwrap_or(default_danger.weak),
-                    strong: appearance
-                        .danger_color
-                        .get_strong_pair(text)
-                        .unwrap_or(default_danger.strong),
-                },
-                is_dark: true,
-            }
-        },
+        move |_| extended,
     )
 }
 
@@ -447,6 +439,9 @@ fn base_theme_from_appearance(
     bar_position: Position,
     animations_enabled: bool,
 ) -> AshellTheme {
+    let palette = base_palette(appearance);
+    let extended = build_extended(appearance, palette);
+
     AshellTheme {
         space: Space::default(),
         radius: Radius::default(),
@@ -460,8 +455,15 @@ fn base_theme_from_appearance(
         special_workspace_colors: appearance.special_workspace_colors.clone(),
         scale_factor: appearance.scale_factor,
         animations_enabled,
-        palette: base_palette(appearance),
-        surfaces: SurfaceThemes::new(appearance),
+        palette,
+        surfaces: Surface::ALL.map(|surface| {
+            let opacity = appearance.opacity.get(surface);
+
+            SurfaceTheme {
+                iced_theme: build_iced_theme(palette, extended, opacity),
+                blur: appearance.blur.enabled(opacity),
+            }
+        }),
     }
 }
 
@@ -475,7 +477,7 @@ impl AshellTheme {
     }
 
     pub fn surface(&self, surface: Surface) -> &SurfaceTheme {
-        self.surfaces.get(surface)
+        &self.surfaces[surface as usize]
     }
 
     pub fn bar_layout(&self) -> BarLayout {
@@ -736,8 +738,11 @@ impl AshellTheme {
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
         move |theme: &Theme, status: Status| {
+            // A filled indicator is part of the surface and carries its
+            // opacity; an accent or urgency mark is drawn on top and stays
+            // opaque so it keeps its contrast at any opacity.
             let fill = |color: Color| Background::Color(as_surface(theme, color));
-            let mark = Background::Color;
+            let opaque = Background::Color;
             let primary = colors.map(|c| {
                 c.map_or_else(
                     || theme.extended_palette().primary,
@@ -768,13 +773,13 @@ impl AshellTheme {
             let (bg_weak, fg_weak) = resolve(|b| b.weak, |p| p.weak);
             let mut base = button::Style {
                 background: Some(if is_urgent && is_empty {
-                    mark(theme.extended_palette().danger.base.color)
+                    opaque(theme.extended_palette().danger.base.color)
                 } else if is_empty && is_active {
-                    mark(theme.extended_palette().background.strong.color)
+                    opaque(theme.extended_palette().background.strong.color)
                 } else if is_empty {
                     fill(theme.extended_palette().background.weak.color)
                 } else if is_active {
-                    mark(bg_color)
+                    opaque(bg_color)
                 } else {
                     fill(bg_weak)
                 }),
@@ -806,11 +811,11 @@ impl AshellTheme {
                 Status::Active => base,
                 Status::Hovered => {
                     base.background = Some(if is_urgent && is_empty {
-                        mark(theme.extended_palette().danger.strong.color)
+                        opaque(theme.extended_palette().danger.strong.color)
                     } else if is_empty {
                         fill(theme.extended_palette().background.strong.color)
                     } else if is_active {
-                        mark(bg_color)
+                        opaque(bg_color)
                     } else {
                         fill(bg_strong)
                     });

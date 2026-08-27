@@ -85,16 +85,17 @@ impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg>
         };
 
         let overdrive = ctrl.overdrive;
-        let mut s = slider(ctrl.range, ctrl.value, remote_value::Message::Request)
-            .on_release(remote_value::Message::Timeout)
-            .style(crate::theme::slider_style);
-        if overdrive {
-            s = s.style(|t: &Theme, status| {
+        let s = slider(ctrl.range, ctrl.value, remote_value::Message::Request)
+            .on_release(remote_value::Message::Timeout);
+        let s = if overdrive {
+            s.style(|t: &Theme, status| {
                 let mut style = crate::theme::slider_style(t, status);
                 style.rail.backgrounds.0 = t.palette().danger.into();
                 style
-            });
-        }
+            })
+        } else {
+            s.style(crate::theme::slider_style)
+        };
         let slider_element =
             MouseArea::new(Element::<'a, remote_value::Message<u32>>::from(s).map(ctrl.on_change))
                 .on_scroll(ctrl.on_scroll);

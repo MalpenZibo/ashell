@@ -1,4 +1,3 @@
-use crate::components::{scrollable, toggler};
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
@@ -6,6 +5,7 @@ use crate::{
         ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
         styled_button,
     },
+    components::{scrollable, toggler},
     config::{TrayClickAction, TrayModuleConfig},
     services::{
         ReadOnlyService, Service, ServiceEvent,

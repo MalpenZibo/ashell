@@ -1,12 +1,11 @@
 use super::SubMenu;
-use crate::components::{scrollable, toggler};
 use crate::{
     components::{
         divider, format_indicator,
         icons::{StaticIcon, icon, icon_button},
-        quick_setting_button,
+        quick_setting_button, scrollable,
         spinning_icon::spinning_icon,
-        styled_button,
+        styled_button, toggler,
     },
     config::SettingsFormat,
     services::{

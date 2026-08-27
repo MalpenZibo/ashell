@@ -1,7 +1,7 @@
-use crate::components::scrollable;
 use crate::{
     components::collapsible::{self, collapsible},
     components::icons::{StaticIcon, icon, icon_button},
+    components::scrollable,
     components::slide::{self, SlideDirection, slide},
     components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize},
     config::{NotificationsModuleConfig, Surface, ToastPosition},

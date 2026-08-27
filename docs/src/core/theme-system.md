@@ -6,7 +6,8 @@ The theme system is defined in `src/theme.rs`. It wraps iced's built-in theming 
 
 ```rust
 pub struct AshellTheme {
-    pub iced_theme: Theme,                                    // iced's built-in theme
+    surfaces: [SurfaceTheme; 4],                              // One theme per Surface
+    pub palette: Palette,                                     // Ink colours, no `&Theme` needed
     pub space: Space,                                         // Spacing tokens
     pub radius: Radius,                                       // Border radius tokens
     pub font_size: FontSize,                                  // Font size tokens
@@ -20,6 +21,31 @@ pub struct AshellTheme {
     pub scale_factor: f64,                                    // DPI scale factor
 }
 ```
+
+Each layer-shell surface is drawn with its own theme, so `appearance.opacity`
+can vary per surface:
+
+```rust
+pub enum Surface { Bar, Menu, Osd, Notifications }
+
+/// Everything that varies from one surface to the next.
+pub struct SurfaceTheme {
+    pub iced_theme: Theme,
+    pub blur: bool,
+}
+```
+
+Reach for one with `theme.surface(Surface::Menu)`. `App::theme(id)` picks the
+surface via `HasOutput::surface()`.
+
+### Paint vs ink
+
+Opacity is carried by `Palette::background` only. A colour that is *paint*, a
+fill that is part of the surface, must be wrapped in `as_surface(theme, color)`
+so it picks that opacity up. A colour that is *ink* (text, icons, accents, and
+marks drawn on top of the surface) stays opaque, so it keeps its contrast at
+any opacity. Marks that need to be subtle use a fixed ratio of the foreground
+(`ink(theme, alpha)`) rather than a scaled background.
 
 ## Design Tokens
 
@@ -118,7 +144,7 @@ The theme is built from the config's `Appearance` section:
 impl AshellTheme {
     pub fn new(position: Position, appearance: &Appearance) -> Self {
         AshellTheme {
-            iced_theme: Theme::custom_with_fn(/* ... */),
+            surfaces: Surface::ALL.map(/* one theme per surface */),
             space: Space::default(),
             radius: Radius::default(),
             font_size: FontSize::default(),
@@ -132,4 +158,4 @@ impl AshellTheme {
 }
 ```
 
-The iced theme is created with `Theme::custom_with_fn()`, which builds a palette from the configured colors.
+Each iced theme is created with `Theme::custom_with_fn()`, which builds a palette from the configured colors. The derived `palette::Extended` does not depend on the opacity, so it is generated once and shared by all four surface themes.

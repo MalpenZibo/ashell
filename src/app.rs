@@ -220,12 +220,10 @@ impl App {
     }
 
     pub fn theme(&self, id: SurfaceId) -> Theme {
-        let surface = match self.outputs.has(id) {
-            Some(HasOutput::Menu(_)) => Surface::Menu,
-            Some(HasOutput::Toast) => Surface::Notifications,
-            Some(HasOutput::Osd) => Surface::Osd,
-            Some(HasOutput::Main) | None => Surface::Bar,
-        };
+        let surface = self
+            .outputs
+            .has(id)
+            .map_or(Surface::Bar, |output| output.surface());
 
         use_theme(|t| t.surface(surface).iced_theme.clone())
     }

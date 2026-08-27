@@ -1,7 +1,7 @@
-use crate::components::scrollable;
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon, icon_button},
+    components::scrollable,
     components::{ButtonSize, MenuSize},
     config::{
         MediaPlayerFormat, MediaPlayerModuleConfig, MediaPlayerTextField, MediaPlayerVisualizer,
@@ -18,7 +18,7 @@ use crate::{
     utils::truncate_text,
 };
 use iced::{
-    Background, Border, Color, Element, Length, Subscription, Task, Theme,
+    Color, Element, Length, Subscription, Task,
     alignment::Vertical,
     futures::SinkExt,
     gradient::ColorStop,
@@ -306,6 +306,7 @@ impl MediaPlayer {
                                 Message::SetVolume(d.service.clone(), v)
                             })
                             .width(LEFT_COLUMN_WIDTH)
+                            .style(crate::theme::slider_style)
                             .into()
                         });
                         let cover: Option<Element<'_, _>> = (!is_closing)
@@ -388,15 +389,7 @@ impl MediaPlayer {
                             content
                         };
                         container(body)
-                            .style(move |app_theme: &Theme| container::Style {
-                                background: Background::Color(crate::theme::as_surface(
-                                    app_theme,
-                                    app_theme.extended_palette().background.weak.color,
-                                ))
-                                .into(),
-                                border: Border::default().rounded(radius.lg),
-                                ..container::Style::default()
-                            })
+                            .style(crate::theme::card_style(radius.lg))
                             .width(Length::Fill)
                             .into()
                     }))

@@ -11,6 +11,7 @@ use itertools::izip;
 use serde::{Deserialize, Deserializer};
 
 use crate::{
+    components::scrollable,
     config::WeatherLocation,
     i18n::{UnitSystem, chrono_locale, unit_system},
     t,
@@ -18,7 +19,6 @@ use crate::{
 };
 
 use super::{Message, Tempo};
-use crate::components::scrollable;
 
 impl Tempo {
     pub(super) fn weather<'a>(&'a self) -> Option<Element<'a, Message>> {
@@ -146,15 +146,7 @@ impl Tempo {
                         .width(Length::Fill),
                     )
                     .padding(space.md)
-                    .style(move |app_theme: &Theme| container::Style {
-                        background: Background::Color(crate::theme::as_surface(
-                            app_theme,
-                            app_theme.extended_palette().background.weak.color,
-                        ))
-                        .into(),
-                        border: Border::default().rounded(radius.lg),
-                        ..container::Style::default()
-                    }),
+                    .style(crate::theme::card_style(radius.lg)),
                     container(
                         scrollable(
                             Row::with_children({
@@ -205,15 +197,7 @@ impl Tempo {
                         .horizontal()
                     )
                     .padding(space.sm)
-                    .style(move |app_theme: &Theme| container::Style {
-                        background: Background::Color(crate::theme::as_surface(
-                            app_theme,
-                            app_theme.extended_palette().background.weak.color,
-                        ))
-                        .into(),
-                        border: Border::default().rounded(radius.lg),
-                        ..container::Style::default()
-                    }),
+                    .style(crate::theme::card_style(radius.lg)),
                     Column::with_children(
                         izip!(
                             &data.daily.time,
@@ -269,28 +253,20 @@ impl Tempo {
                                     .align_y(Vertical::Center),
                                 )
                                 .padding(space.sm)
-                                .style(move |app_theme: &Theme| container::Style {
-                                    background: Background::Color(crate::theme::as_surface(
-                                        app_theme,
-                                        app_theme.extended_palette().background.weak.color,
-                                    ))
-                                    .into(),
-                                    border: Border::default().rounded(iced::border::Radius {
-                                        top_left: if index == 0 { radius.lg } else { radius.sm },
-                                        top_right: if index == 0 { radius.lg } else { radius.sm },
-                                        bottom_right: if index == last_index {
-                                            radius.lg
-                                        } else {
-                                            radius.sm
-                                        },
-                                        bottom_left: if index == last_index {
-                                            radius.lg
-                                        } else {
-                                            radius.sm
-                                        },
-                                    }),
-                                    ..container::Style::default()
-                                })
+                                .style(crate::theme::card_style(iced::border::Radius {
+                                    top_left: if index == 0 { radius.lg } else { radius.sm },
+                                    top_right: if index == 0 { radius.lg } else { radius.sm },
+                                    bottom_right: if index == last_index {
+                                        radius.lg
+                                    } else {
+                                        radius.sm
+                                    },
+                                    bottom_left: if index == last_index {
+                                        radius.lg
+                                    } else {
+                                        radius.sm
+                                    },
+                                }))
                                 .into()
                             }
                         )

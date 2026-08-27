@@ -1057,7 +1057,14 @@ pub enum Surface {
     Notifications,
 }
 
-const OPACITY_FIELDS: &[&str] = &["default", "bar", "menu", "osd", "notifications"];
+impl Surface {
+    pub const ALL: [Surface; 4] = [
+        Surface::Bar,
+        Surface::Menu,
+        Surface::Osd,
+        Surface::Notifications,
+    ];
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Opacity {
@@ -1120,24 +1127,27 @@ impl<'de> Deserialize<'de> for Opacity {
                 self.visit_f64(v as f64)
             }
 
-            fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Opacity, M::Error> {
-                let mut opacity = Opacity::default();
-
-                while let Some(key) = map.next_key::<String>()? {
-                    let value =
-                        check_opacity(map.next_value::<f64>()?).map_err(de::Error::custom)?;
-
-                    match key.as_str() {
-                        "default" => opacity.default = value,
-                        "bar" => opacity.bar = Some(value),
-                        "menu" => opacity.menu = Some(value),
-                        "osd" => opacity.osd = Some(value),
-                        "notifications" => opacity.notifications = Some(value),
-                        other => return Err(de::Error::unknown_field(other, OPACITY_FIELDS)),
-                    }
+            fn visit_map<M: MapAccess<'de>>(self, map: M) -> Result<Opacity, M::Error> {
+                #[derive(Deserialize)]
+                struct Table {
+                    default: Option<f64>,
+                    bar: Option<f64>,
+                    menu: Option<f64>,
+                    osd: Option<f64>,
+                    notifications: Option<f64>,
                 }
 
-                Ok(opacity)
+                let table = Table::deserialize(de::value::MapAccessDeserializer::new(map))?;
+                let check =
+                    |v: Option<f64>| v.map(check_opacity).transpose().map_err(de::Error::custom);
+
+                Ok(Opacity {
+                    default: check(table.default)?.unwrap_or(1.0),
+                    bar: check(table.bar)?,
+                    menu: check(table.menu)?,
+                    osd: check(table.osd)?,
+                    notifications: check(table.notifications)?,
+                })
             }
         }
 
@@ -1213,13 +1223,13 @@ where
     Ok(v)
 }
 
-fn check_opacity(v: f64) -> Result<f32, String> {
+fn check_opacity(v: f64) -> Result<f32, &'static str> {
     if v < 0.0 {
-        return Err("Opacity cannot be negative".to_string());
+        return Err("Opacity cannot be negative");
     }
 
     if v > 1.0 {
-        return Err("Opacity cannot be greater than 1.0".to_string());
+        return Err("Opacity cannot be greater than 1.0");
     }
 
     Ok(v as f32)

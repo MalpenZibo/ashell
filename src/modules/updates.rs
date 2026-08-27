@@ -1,7 +1,7 @@
-use crate::components::scrollable;
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
+    components::scrollable,
     components::spinning_icon::spinning_icon,
     components::{IconPosition, MenuSize, styled_button},
     config::UpdatesModuleConfig,

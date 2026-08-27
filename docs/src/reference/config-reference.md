@@ -35,15 +35,17 @@ Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"
 font_name = "JetBrains Mono"   # Optional custom font
 scale_factor = 1.0              # DPI scale factor
 opacity = 1.0                   # 0.0-1.0, every surface ashell draws
+blur = "auto"                   # auto|always|never, compositor blur
 
-# or, per surface (any key may be omitted and falls back to `default`):
+# `opacity` may instead be a table, replacing the scalar above. Any key may be
+# omitted and falls back to `default`. Keep it after every `[appearance]`
+# scalar, or those scalars become keys of this table.
 # [appearance.opacity]
 # default = 0.8
 # bar = 1.0
 # menu = 0.9
 # osd = 0.6
 # notifications = 0.9
-blur = "auto"                   # auto|always|never, compositor blur
 
 [appearance.bar]
 surface = "transparent"         # "transparent" or "solid"

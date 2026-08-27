@@ -114,8 +114,8 @@ The `opacity` field sets the opacity of the surfaces ashell draws. The value
 should be a float between `0.0` (fully transparent) and `1.0` (fully opaque,
 the default).
 
-It is applied once, to the theme's palette, so every background colour carries
-it while text and icons stay fully opaque and readable.
+It applies to the backgrounds a surface paints, so text and icons stay fully
+opaque and readable whatever opacity you pick.
 
 A single value covers every surface:
 
