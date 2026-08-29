@@ -19,19 +19,15 @@ const MAX_SIMILAR_ICON_CANDIDATES: usize = 5;
 
 static ICON_CACHE: LazyLock<RwLock<HashMap<String, Option<XdgIcon>>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
-static SYSTEM_ICON_NAMES: LazyLock<BTreeSet<OsString>> = LazyLock::new(load_system_icon_names);
 static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(Cow<'static, str>, Cow<'static, str>)>> =
     LazyLock::new(|| {
-        SYSTEM_ICON_NAMES
+        let names = load_system_icon_names();
+        names
             .iter()
             .filter_map(|name| {
                 let name_str = name.to_str()?;
                 let normalized = normalize_icon_name(name_str);
-                let normalized_cow = if normalized.as_ref() == name_str {
-                    Cow::Borrowed(name_str)
-                } else {
-                    Cow::Owned(normalized.into_owned())
-                };
+                let normalized_cow = Cow::Owned(normalized.into_owned());
                 Some((Cow::Owned(name_str.to_string()), normalized_cow))
             })
             .collect()
@@ -51,7 +47,6 @@ pub fn fallback_icon() -> XdgIcon {
 }
 
 fn warm_cache() {
-    LazyLock::force(&SYSTEM_ICON_NAMES);
     LazyLock::force(&SYSTEM_ICON_ENTRIES);
     LazyLock::force(&DESKTOP_ICON_INDEX);
 }
