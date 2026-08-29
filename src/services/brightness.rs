@@ -106,10 +106,7 @@ impl BrightnessService {
             .match_subsystem("backlight")?
             .listen()?;
 
-        Ok(AsyncFd::with_interest(
-            socket,
-            Interest::READABLE | Interest::WRITABLE,
-        )?)
+        Ok(AsyncFd::with_interest(socket, Interest::READABLE)?)
     }
 
     fn backlight_enumerate() -> anyhow::Result<Vec<udev::Device>> {
@@ -175,7 +172,7 @@ impl BrightnessService {
                         loop {
                             debug!("Waiting for brightness events");
 
-                            match socket.writable_mut().await {
+                            match socket.readable_mut().await {
                                 Ok(mut socket) => {
                                     for evt in socket.get_inner().iter() {
                                         debug!("{:?}: {:?}", evt.event_type(), evt.device());
@@ -215,7 +212,7 @@ impl BrightnessService {
                                     socket.clear_ready();
                                 }
                                 _ => {
-                                    warn!("Failed to get writable socket");
+                                    warn!("Failed to get readable socket");
                                     break;
                                 }
                             }
