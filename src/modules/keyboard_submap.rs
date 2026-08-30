@@ -1,5 +1,8 @@
-use crate::services::{ReadOnlyService, ServiceEvent, compositor::CompositorService};
-use iced::{Element, Subscription, widget::text};
+use crate::{
+    components::{ModuleContent, ModuleView},
+    services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
+};
+use iced::{Subscription, widget::text};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -30,11 +33,11 @@ impl KeyboardSubmap {
         }
     }
 
-    pub fn view(&self) -> Option<Element<'_, Message>> {
+    pub fn view(&self) -> Option<ModuleView<'_, Message>> {
         let submap = self.service.as_ref()?.submap.as_ref()?;
 
         if !submap.is_empty() {
-            Some(text(submap).into())
+            Some(ModuleView::new(ModuleContent::Element(text(submap).into())))
         } else {
             None
         }

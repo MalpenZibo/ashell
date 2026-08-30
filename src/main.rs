@@ -242,8 +242,8 @@ fn main() -> iced::Result {
         Font::DEFAULT
     };
 
-    let bar_layout = BarLayout::from_appearance(&config.appearance.bar);
-    let height = Outputs::get_height(bar_layout.surface, config.appearance.scale_factor);
+    let bar_layout = BarLayout::new(config.appearance.bar);
+    let height = Outputs::get_height(bar_layout.appearance.inset, config.appearance.scale_factor);
 
     let iced_layer = match config.layer {
         config::Layer::Top => Layer::Top,

@@ -1,6 +1,6 @@
 use crate::app::{self, App};
 use crate::components::{self, ButtonUIRef};
-use crate::config::{BarSurface, Position};
+use crate::config::Position;
 use crate::theme::{backdrop_color, use_theme};
 use iced::alignment::Vertical;
 use iced::widget::container::Style;
@@ -301,19 +301,21 @@ impl App {
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
-        let (space, radius, bar_surface, bar_position, menu_backdrop, blur) = use_theme(|t| {
-            (
-                t.space,
-                t.radius,
-                t.bar_surface,
-                t.bar_position,
-                t.menu.backdrop,
-                t.blur,
-            )
-        });
+        let (space, radius, bar_inset, bar_position, menu_backdrop, menu_opacity, blur) =
+            use_theme(|t| {
+                (
+                    t.space,
+                    t.radius,
+                    t.bar.inset,
+                    t.bar_position,
+                    t.menu.backdrop,
+                    t.menu.opacity,
+                    t.blur,
+                )
+            });
 
         let menu_style = move |theme: &Theme| Style {
-            background: Some(theme.palette().background.into()),
+            background: Some(theme.palette().background.scale_alpha(menu_opacity).into()),
             border: Border {
                 color: theme.extended_palette().background.weakest.color,
                 width: 1.,
@@ -337,11 +339,7 @@ impl App {
 
         components::MenuWrapper::new(button_ui_ref.position.x, menu_body)
             .padding({
-                let v_padding = match bar_surface {
-                    BarSurface::Solid => 2,
-                    BarSurface::Transparent => 0,
-                };
-
+                let v_padding = if bar_inset > 0. { 2 } else { 0 };
                 Padding::new(0.)
                     .top(if bar_position == Position::Top {
                         v_padding

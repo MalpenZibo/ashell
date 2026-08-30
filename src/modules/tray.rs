@@ -1,9 +1,9 @@
 use crate::{
-    components::divider,
-    components::icons::{StaticIcon, icon},
     components::{
-        ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
-        styled_button,
+        ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, ModuleContent,
+        ModuleView, divider,
+        icons::{StaticIcon, icon},
+        position_button, styled_button,
     },
     config::{TrayClickAction, TrayModuleConfig},
     services::{
@@ -257,7 +257,7 @@ impl TrayModule {
         }
     }
 
-    pub fn view<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
+    pub fn view<'a>(&'a self, id: SurfaceId) -> Option<ModuleView<'a, Message>> {
         let (space, font_size, button_style) = use_theme(|theme| {
             (
                 theme.space,
@@ -271,7 +271,7 @@ impl TrayModule {
             .as_ref()
             .filter(|s| s.data.iter().any(|item| !self.is_blocklisted(&item.name)))
             .map(|service| {
-                Into::<Element<_>>::into(
+                let element = Into::<Element<_>>::into(
                     Row::with_children(
                         service
                             .data
@@ -312,7 +312,9 @@ impl TrayModule {
                     )
                     .padding([2.0, 0.])
                     .align_y(Alignment::Center),
-                )
+                );
+
+                ModuleView::new(ModuleContent::Element(element))
             })
     }
 

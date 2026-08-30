@@ -1,10 +1,11 @@
 use crate::{
-    components::MenuSize,
-    components::divider,
-    components::icons::{StaticIcon, icon},
+    components::{
+        MenuSize, ModuleContent, ModuleRow, ModuleView, divider,
+        icons::{StaticIcon, icon},
+    },
     config::{
-        CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
-        SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
+        CpuFormat, DiskFormat, MemoryFormat, ModuleName, SystemInfoIndicator,
+        SystemInfoModuleConfig, SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
     },
     i18n::{UnitSystem, unit_system},
     t,
@@ -14,7 +15,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
     time::every,
-    widget::{Column, Row, column, container, row, text},
+    widget::{Column, column, container, row, text},
 };
 use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
@@ -636,8 +637,13 @@ impl SystemInfo {
         .into()
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
-        let space = use_theme(|t| t.space);
+    pub fn view<'a>(&'a self) -> ModuleView<'a, Message> {
+        let (theme_space, appearance) =
+            use_theme(|t| (t.space, t.module_appearance()(&ModuleName::SystemInfo)));
+        let space_sizing = appearance.spacing;
+
+        let space = theme_space.resolve(space_sizing);
+
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
                 StaticIcon::Cpu,
@@ -773,10 +779,11 @@ impl SystemInfo {
             }),
         });
 
-        Row::with_children(indicators)
-            .align_y(Alignment::Center)
-            .spacing(space.xxs)
-            .into()
+        ModuleView::new(ModuleContent::Row(
+            ModuleRow::with_children(indicators)
+                .spacing(space)
+                .align_y(Alignment::Center),
+        ))
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

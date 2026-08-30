@@ -1,6 +1,7 @@
 use crate::app::Message;
 use crate::i18n::{UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
+use crate::theme::Radius;
 use crate::utils::celsius_to_fahrenheit;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
@@ -92,6 +93,32 @@ impl Config {
         self.tempo.validate();
         self.settings.validate();
         self.media_player.validate();
+    }
+
+    fn translate_deprecated(&mut self) {
+        if let Some(surface) = self.appearance.bar.surface {
+            let bar_appearance = &mut self.appearance.bar;
+
+            log::warn!(
+                "`appearance.bar.surface` is deprecated. \
+                configure `appearance.bar` directly instead — see the docs for equivalents."
+            );
+
+            match surface {
+                BarSurface::Solid => {
+                    bar_appearance.opacity.module = 0.;
+                    bar_appearance.module_border.width = 0.;
+                    bar_appearance.inset = 8.;
+                    bar_appearance.opacity.background = 1.;
+                }
+                BarSurface::Transparent => {
+                    bar_appearance.opacity.background = 0.;
+                    bar_appearance.inset = 0.;
+                }
+            }
+        }
+
+        // other deprecated stuffs
     }
 }
 
@@ -811,7 +838,7 @@ fn hex_to_pair(hex: HexColor, text: Option<HexColor>, text_fallback: Color) -> p
     )
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(untagged)]
 pub enum AppearanceColor {
     Simple(HexColor),
@@ -1008,6 +1035,25 @@ impl<'de> Deserialize<'de> for BarRadius {
     }
 }
 
+impl BarRadius {
+    pub fn resolve(&self, scale: Radius) -> iced::border::Radius {
+        iced::border::Radius {
+            top_left: scale.resolve(self.top_left),
+            top_right: scale.resolve(self.top_right),
+            bottom_left: scale.resolve(self.bottom_left),
+            bottom_right: scale.resolve(self.bottom_right),
+        }
+    }
+    pub fn new(size: RadiusSize) -> Self {
+        Self {
+            top_left: size,
+            top_right: size,
+            bottom_left: size,
+            bottom_right: size,
+        }
+    }
+}
+
 /// Per-edge margin selection, deserialized with CSS `margin` shorthand:
 /// 1 value = all edges, 2 = `[vertical, horizontal]`, 4 = `[top, right, bottom, left]`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -1031,18 +1077,126 @@ impl<'de> Deserialize<'de> for BarMargin {
     }
 }
 
-#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(default)]
-pub struct BarAppearance {
-    pub surface: BarSurface,
+pub struct BorderAppearance {
     pub radius: BarRadius,
-    pub margin: BarMargin,
+    pub width: f32,
+    pub color: AppearanceColor,
 }
 
-#[derive(Deserialize, Default, Clone, Copy, Debug)]
+impl Default for BorderAppearance {
+    fn default() -> Self {
+        Self {
+            radius: BarRadius::new(RadiusSize::Lg),
+            width: 0f32,
+            color: AppearanceColor::Simple(HexColor::default()),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[serde(default)]
+pub struct OpacityAppearance {
+    #[serde(deserialize_with = "opacity_deserializer")]
+    pub button: f32,
+    #[serde(deserialize_with = "opacity_deserializer")]
+    pub background: f32,
+    #[serde(deserialize_with = "opacity_deserializer")]
+    pub module: f32,
+}
+impl Default for OpacityAppearance {
+    fn default() -> Self {
+        Self {
+            button: default_opacity(),
+            background: 0.,
+            module: default_opacity(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[serde(default)]
+pub struct BarAppearance {
+    pub opacity: OpacityAppearance,
+    pub module_border: BorderAppearance,
+    pub border: BorderAppearance,
+    pub margin: BarMargin,
+
+    pub inset: f32,
+
+    /// Deprecated - set bar appearance directly instead.
+    pub surface: Option<BarSurface>,
+}
+
+impl BarAppearance {}
+
+impl Default for BarAppearance {
+    fn default() -> Self {
+        Self {
+            border: BorderAppearance {
+                radius: BarRadius::new(RadiusSize::None),
+                ..Default::default()
+            },
+            opacity: OpacityAppearance::default(),
+            module_border: BorderAppearance::default(),
+            margin: BarMargin::default(),
+            inset: 0.0,
+            surface: None,
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(default)]
 pub struct MenuAppearance {
+    #[serde(deserialize_with = "opacity_deserializer")]
+    pub opacity: f32,
     pub backdrop: f32,
+}
+
+impl Default for MenuAppearance {
+    fn default() -> Self {
+        Self {
+            opacity: default_opacity(),
+            backdrop: f32::default(),
+        }
+    }
+}
+
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ModuleGroup {
+    #[default]
+    Combined, // modules and members
+    Individual, // only members (have its own container)
+    None,       // no containers
+}
+
+#[derive(Deserialize, Copy, Clone, Debug)]
+#[serde(default)]
+pub struct ModuleAppearance {
+    pub spacing: SpaceSize,
+    pub grouping: ModuleGroup,
+    pub padding: SpaceSize,
+    pub border: Option<BorderAppearance>,
+    pub background: Option<BackgroundAppearanceColor>,
+    pub opacity: Option<f32>,
+    pub text_color: Option<AppearanceColor>,
+}
+
+impl Default for ModuleAppearance {
+    fn default() -> Self {
+        Self {
+            spacing: SpaceSize::Xxs,
+            padding: SpaceSize::None,
+            grouping: ModuleGroup::default(),
+            border: None,
+            background: None,
+            opacity: None,
+            text_color: None,
+        }
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -1051,10 +1205,6 @@ pub struct Appearance {
     pub font_name: Option<String>,
     #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
-    /// Opacity of every surface ashell draws. Applied once, to the palette, so
-    /// every background colour carries it and every text colour does not.
-    #[serde(deserialize_with = "opacity_deserializer")]
-    pub opacity: f32,
     pub bar: BarAppearance,
     pub menu: MenuAppearance,
     pub background_color: BackgroundAppearanceColor,
@@ -1065,6 +1215,9 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+
+    pub modules: HashMap<ModuleName, ModuleAppearance>,
+    pub grouped: ModuleAppearance,
     /// Blur the wallpaper behind ashell's translucent surfaces via
     /// `ext-background-effect-v1`. No-op where the protocol is unsupported.
     pub blur: BlurMode,
@@ -1144,9 +1297,16 @@ impl Default for Appearance {
         Self {
             font_name: None,
             scale_factor: 1.0,
-            opacity: default_opacity(),
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
+            grouped: ModuleAppearance::default(),
+            modules: HashMap::from([(
+                ModuleName::Settings,
+                ModuleAppearance {
+                    spacing: SpaceSize::Xs,
+                    ..Default::default()
+                },
+            )]),
             background_color: BackgroundAppearanceColor::Complete {
                 base: HexColor::rgb(26, 27, 38),
                 weakest: None,
@@ -1188,7 +1348,7 @@ pub enum Layer {
     Overlay,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ModuleName {
     Updates,
     Workspaces,
@@ -1221,18 +1381,18 @@ impl<'de> Deserialize<'de> for ModuleName {
                 E: serde::de::Error,
             {
                 Ok(match value {
-                    "Updates" => ModuleName::Updates,
-                    "Workspaces" => ModuleName::Workspaces,
-                    "WindowTitle" => ModuleName::WindowTitle,
-                    "SystemInfo" => ModuleName::SystemInfo,
-                    "KeyboardLayout" => ModuleName::KeyboardLayout,
-                    "KeyboardSubmap" => ModuleName::KeyboardSubmap,
-                    "Tray" => ModuleName::Tray,
-                    "Notifications" => ModuleName::Notifications,
-                    "Tempo" => ModuleName::Tempo,
-                    "Privacy" => ModuleName::Privacy,
-                    "Settings" => ModuleName::Settings,
-                    "MediaPlayer" => ModuleName::MediaPlayer,
+                    "updates" | "Updates" => ModuleName::Updates,
+                    "workspaces" | "Workspaces" => ModuleName::Workspaces,
+                    "window_title" | "WindowTitle" => ModuleName::WindowTitle,
+                    "system_info" | "SystemInfo" => ModuleName::SystemInfo,
+                    "keyboard_layout" | "KeyboardLayout" => ModuleName::KeyboardLayout,
+                    "keyboard_submap" | "KeyboardSubmap" => ModuleName::KeyboardSubmap,
+                    "tray" | "Tray" => ModuleName::Tray,
+                    "notifications" | "Notifications" => ModuleName::Notifications,
+                    "tempo" | "Tempo" => ModuleName::Tempo,
+                    "privacy" | "Privacy" => ModuleName::Privacy,
+                    "settings" | "Settings" => ModuleName::Settings,
+                    "media_player" | "MediaPlayer" => ModuleName::MediaPlayer,
                     other => ModuleName::Custom(other.to_string()),
                 })
             }
@@ -1470,6 +1630,9 @@ fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
             info!("Config file loaded successfully");
             let mut config: Config = config;
             config.validate();
+
+            config.translate_deprecated();
+
             Ok(config)
         }
         Err(e) => {

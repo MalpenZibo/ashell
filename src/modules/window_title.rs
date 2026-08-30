@@ -1,11 +1,12 @@
 use crate::{
+    components::{ModuleContent, ModuleView},
     config::{WindowTitleConfig, WindowTitleMode},
     services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
     theme::use_theme,
     utils::truncate_text,
 };
 use iced::{
-    Element, Subscription,
+    Subscription,
     widget::{container, text},
 };
 
@@ -90,8 +91,8 @@ impl WindowTitle {
         self.value.clone()
     }
 
-    pub fn view(&'_ self, title: String) -> Element<'_, Message> {
-        use_theme(|theme| {
+    pub fn view(&'_ self, title: String) -> ModuleView<'_, Message> {
+        let element = use_theme(|theme| {
             container(
                 text(title)
                     .size(theme.font_size.sm)
@@ -99,7 +100,9 @@ impl WindowTitle {
             )
             .clip(true)
             .into()
-        })
+        });
+
+        ModuleView::new(ModuleContent::Element(element))
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

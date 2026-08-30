@@ -1,14 +1,16 @@
-use std::cell::RefCell;
+use std::sync::Arc;
+use std::{cell::RefCell, collections::HashMap};
 
+use crate::config::BorderAppearance;
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
-        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarRadius,
-        BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize,
+        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, MenuAppearance,
+        ModuleAppearance, ModuleName, Position, RadiusSize, SpaceSize,
     },
 };
 use iced::{
-    Background, Border, Color, Theme, border,
+    Background, Border, Color, Theme,
     theme::{Palette, palette},
     widget::{
         button::{self, Status},
@@ -106,19 +108,17 @@ impl Radius {
 /// ordered `(top, right, bottom, left)`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BarLayout {
-    pub surface: BarSurface,
     pub margin: (f32, f32, f32, f32),
+    pub appearance: BarAppearance,
 }
 
 impl BarLayout {
-    pub fn from_appearance(bar: &BarAppearance) -> Self {
-        Self::new(bar.surface, bar.margin)
-    }
-
-    fn new(surface: BarSurface, margin: BarMargin) -> Self {
+    pub fn new(appearance: BarAppearance) -> Self {
+        let margin = appearance.margin;
         let space = Space::default();
+
         Self {
-            surface,
+            appearance,
             margin: (
                 space.resolve(margin.top),
                 space.resolve(margin.right),
@@ -159,12 +159,15 @@ impl Default for FontSize {
 pub struct AshellTheme {
     pub iced_theme: Theme,
     pub space: Space,
+
+    pub modules: Arc<HashMap<ModuleName, ModuleAppearance>>,
+    pub grouped: ModuleAppearance,
+
+    pub bar: BarAppearance,
+
     pub radius: Radius,
     pub font_size: FontSize,
     pub bar_position: Position,
-    pub bar_surface: BarSurface,
-    pub bar_radius: BarRadius,
-    pub bar_margin: BarMargin,
     pub menu: MenuAppearance,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
@@ -207,63 +210,12 @@ pub fn hovered(theme: &Theme, color: Color) -> Color {
     over(theme.palette().text.scale_alpha(HOVER_OVERLAY), color)
 }
 
-/// Apply the opacity to every background colour, leaving foregrounds opaque.
-///
-/// In a [`palette::Pair`], `color` is painted behind content and `text` on top
-/// of it, so the split needs no list of special cases and no call site has to
-/// ask for a translucent colour.
-fn with_opacity(extended: palette::Extended, opacity: f32) -> palette::Extended {
-    let pair = |p: palette::Pair| palette::Pair {
-        color: p.color.scale_alpha(opacity),
-        text: p.text,
-    };
-
-    palette::Extended {
-        background: palette::Background {
-            base: pair(extended.background.base),
-            weakest: pair(extended.background.weakest),
-            weaker: pair(extended.background.weaker),
-            weak: pair(extended.background.weak),
-            neutral: pair(extended.background.neutral),
-            strong: pair(extended.background.strong),
-            stronger: pair(extended.background.stronger),
-            strongest: pair(extended.background.strongest),
-        },
-        primary: palette::Primary {
-            base: pair(extended.primary.base),
-            weak: pair(extended.primary.weak),
-            strong: pair(extended.primary.strong),
-        },
-        secondary: palette::Secondary {
-            base: pair(extended.secondary.base),
-            weak: pair(extended.secondary.weak),
-            strong: pair(extended.secondary.strong),
-        },
-        success: palette::Success {
-            base: pair(extended.success.base),
-            weak: pair(extended.success.weak),
-            strong: pair(extended.success.strong),
-        },
-        warning: palette::Warning {
-            base: pair(extended.warning.base),
-            weak: pair(extended.warning.weak),
-            strong: pair(extended.warning.strong),
-        },
-        danger: palette::Danger {
-            base: pair(extended.danger.base),
-            weak: pair(extended.danger.weak),
-            strong: pair(extended.danger.strong),
-        },
-        is_dark: extended.is_dark,
-    }
-}
-
-fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
+fn build_iced_theme(appearance: &Appearance) -> Theme {
     Theme::custom_with_fn(
         "local".to_string(),
         Palette {
             // The one colour here that is paint; the accents are read as ink.
-            background: appearance.background_color.get_base().scale_alpha(opacity),
+            background: appearance.background_color.get_base(),
             text: appearance.text_color.get_base(),
             primary: appearance.primary_color.get_base(),
             success: appearance.success_color.get_base(),
@@ -273,14 +225,8 @@ fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
         |palette| {
             let text = palette.text;
             let bg_text = appearance.background_color.get_text().unwrap_or(text);
-            // `mix` interpolates alpha too, so deriving from the translucent
-            // colour would spread assorted alphas across the variants.
-            let background = Color {
-                a: 1.0,
-                ..palette.background
-            };
 
-            let default_bg = palette::Background::new(background, bg_text);
+            let default_bg = palette::Background::new(palette.background, bg_text);
             let bg = |level, fallback| {
                 appearance
                     .background_color
@@ -290,26 +236,26 @@ fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
 
             let default_primary = palette::Primary::generate(
                 palette.primary,
-                background,
+                palette.background,
                 appearance.primary_color.get_text().unwrap_or(text),
             );
             let default_success = palette::Success::generate(
                 palette.success,
-                background,
+                palette.background,
                 appearance.success_color.get_text().unwrap_or(text),
             );
             let default_warning = palette::Warning::generate(
                 palette.warning,
-                background,
+                palette.background,
                 appearance.warning_color.get_text().unwrap_or(text),
             );
             let default_danger = palette::Danger::generate(
                 palette.danger,
-                background,
+                palette.background,
                 appearance.danger_color.get_text().unwrap_or(text),
             );
 
-            let built = palette::Extended {
+            palette::Extended {
                 background: palette::Background {
                     base: default_bg.base,
                     weakest: bg(BackgroundLevel::Weakest, default_bg.weakest),
@@ -331,7 +277,7 @@ fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
                         .get_strong_pair(text)
                         .unwrap_or(default_primary.strong),
                 },
-                secondary: palette::Secondary::generate(background, text),
+                secondary: palette::Secondary::generate(palette.background, text),
                 success: palette::Success {
                     base: default_success.base,
                     weak: appearance
@@ -366,9 +312,7 @@ fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
                         .unwrap_or(default_danger.strong),
                 },
                 is_dark: true,
-            };
-
-            with_opacity(built, opacity)
+            }
         },
     )
 }
@@ -383,16 +327,27 @@ fn base_theme_from_appearance(
         radius: Radius::default(),
         font_size: FontSize::default(),
         bar_position,
-        bar_surface: appearance.bar.surface,
-        bar_radius: appearance.bar.radius,
-        bar_margin: appearance.bar.margin,
+
+        bar: appearance.bar,
         menu: appearance.menu,
+
+        modules: Arc::new(appearance.modules.clone()),
+        grouped: appearance.grouped,
+
         workspace_colors: appearance.workspace_colors.clone(),
         special_workspace_colors: appearance.special_workspace_colors.clone(),
         scale_factor: appearance.scale_factor,
         animations_enabled,
-        blur: appearance.blur.enabled(appearance.opacity),
-        iced_theme: build_iced_theme(appearance, appearance.opacity),
+        // Auto against the most translucent surface; the two opacities collapse
+        // into one in the opacity refactor.
+        blur: appearance.blur.enabled(
+            appearance
+                .bar
+                .opacity
+                .background
+                .min(appearance.menu.opacity),
+        ),
+        iced_theme: build_iced_theme(appearance),
     }
 }
 
@@ -406,16 +361,7 @@ impl AshellTheme {
     }
 
     pub fn bar_layout(&self) -> BarLayout {
-        BarLayout::new(self.bar_surface, self.bar_margin)
-    }
-
-    pub fn bar_border_radius(&self) -> border::Radius {
-        border::Radius {
-            top_left: self.radius.resolve(self.bar_radius.top_left),
-            top_right: self.radius.resolve(self.bar_radius.top_right),
-            bottom_right: self.radius.resolve(self.bar_radius.bottom_right),
-            bottom_left: self.radius.resolve(self.bar_radius.bottom_left),
-        }
+        BarLayout::new(self.bar)
     }
 
     pub fn button_style(
@@ -427,6 +373,7 @@ impl AshellTheme {
             ButtonKind::Transparent => self.radius.sm,
             ButtonKind::Solid | ButtonKind::Outline => self.radius.xl,
         };
+        let btn_opacity = self.bar.opacity.button;
 
         move |theme: &Theme, status: Status| {
             let palette = theme.palette();
@@ -458,7 +405,7 @@ impl AshellTheme {
 
             match (kind, status) {
                 (ButtonKind::Solid, Status::Active) => button::Style {
-                    background: Some(base_bg.into()),
+                    background: Some(base_bg.scale_alpha(btn_opacity).into()),
                     border: Border {
                         width: 0.0,
                         radius: radius.into(),
@@ -468,7 +415,7 @@ impl AshellTheme {
                     ..button::Style::default()
                 },
                 (ButtonKind::Solid, Status::Hovered) => button::Style {
-                    background: Some(hover_bg.into()),
+                    background: Some(hover_bg.scale_alpha(btn_opacity).into()),
                     border: Border {
                         width: 0.0,
                         radius: radius.into(),
@@ -523,7 +470,7 @@ impl AshellTheme {
                 },
                 // Transparent at rest, so hover adds an overlay, not a background.
                 (ButtonKind::Outline, Status::Hovered) => button::Style {
-                    background: Some(palette.text.scale_alpha(HOVER_OVERLAY).into()),
+                    background: Some(base_bg.scale_alpha(btn_opacity).into()),
                     border: Border {
                         width: 2.0,
                         radius: radius.into(),
@@ -537,7 +484,9 @@ impl AshellTheme {
                     let disabled_opacity = 0.3;
                     match kind {
                         ButtonKind::Solid => button::Style {
-                            background: Some(base_bg.scale_alpha(disabled_opacity).into()),
+                            background: Some(
+                                base_bg.scale_alpha(btn_opacity * disabled_opacity).into(),
+                            ),
                             border: Border {
                                 width: 0.0,
                                 radius: radius.into(),
@@ -588,6 +537,7 @@ impl AshellTheme {
         active: f32,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
+        let bg_opacity = self.bar.opacity.background;
         move |theme: &Theme, status: Status| {
             let mut base = button::Style {
                 background: None,
@@ -607,7 +557,15 @@ impl AshellTheme {
                 Status::Active => base,
                 // Transparent at rest, so hover adds an overlay, not a background.
                 Status::Hovered => {
-                    base.background = Some(theme.palette().text.scale_alpha(HOVER_OVERLAY).into());
+                    base.background = Some(
+                        theme
+                            .extended_palette()
+                            .background
+                            .weak
+                            .color
+                            .scale_alpha(bg_opacity)
+                            .into(),
+                    );
                     base.text_color = theme.palette().text;
                     base
                 }
@@ -620,11 +578,12 @@ impl AshellTheme {
         &self,
         active: f32,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
+        let bg_opacity = self.bar.opacity.background;
         let radius = self.radius.xl;
         move |theme: &Theme, status: Status| {
             let inactive_bg = theme.extended_palette().background.weak.color;
-            let active_bg = theme.extended_palette().primary.base.color;
-            let bg = lerp_color(inactive_bg, active_bg, active);
+            let active_bg = theme.palette().primary;
+            let bg = lerp_color(inactive_bg, active_bg, active).scale_alpha(bg_opacity);
 
             let mut base = button::Style {
                 background: Some(bg.into()),
@@ -645,7 +604,11 @@ impl AshellTheme {
                 Status::Hovered => {
                     let inactive_hover = theme.extended_palette().background.strong.color;
                     let active_hover = theme.extended_palette().primary.weak.color;
-                    base.background = Some(lerp_color(inactive_hover, active_hover, active).into());
+                    base.background = Some(
+                        lerp_color(inactive_hover, active_hover, active)
+                            .scale_alpha(bg_opacity)
+                            .into(),
+                    );
                     base
                 }
                 _ => base,
@@ -797,28 +760,98 @@ impl AshellTheme {
 
     /// Module button style: transparent base with hover highlight.
     /// The module-group background is handled by `module_group`, not the button.
-    pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style + use<> {
-        let radius_lg = self.radius.lg;
+    pub fn module_button_style(
+        &self,
+        appearance: Option<ModuleAppearance>,
+    ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
+        let (theme_radius, border, _module_padding, module_opacity) = (
+            self.radius,
+            self.bar.module_border,
+            self.space.xxs,
+            self.bar.opacity.module,
+        );
+
+        let border = appearance.and_then(|a| a.border).map_or_else(
+            || Border {
+                width: 0.0,
+                radius: border.radius.resolve(theme_radius),
+                color: Color::TRANSPARENT,
+            },
+            |BorderAppearance {
+                 radius,
+                 width,
+                 color,
+             }| {
+                Border {
+                    width,
+                    color: color.get_base(),
+                    radius: radius.resolve(theme_radius),
+                }
+            },
+        );
+
+        let btn_opacity = self.bar.opacity.button;
         move |theme, status| {
+            let opacity = appearance.and_then(|a| a.opacity).unwrap_or(module_opacity);
+
+            let background = Some(appearance.and_then(|a| a.background).map_or_else(
+                || theme.palette().background.scale_alpha(opacity).into(),
+                |background| background.get_base().scale_alpha(opacity).into(),
+            ));
+
+            let text_color = appearance
+                .and_then(|a| a.text_color)
+                .map_or_else(|| theme.palette().text, |text_color| text_color.get_base());
+
             let mut base = button::Style {
-                background: None,
-                border: Border {
-                    width: 0.0,
-                    radius: radius_lg.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
+                background,
+                border,
+                text_color,
+
                 ..button::Style::default()
             };
+
             match status {
                 Status::Active => base,
                 // The group pill already carries the opacity; overlay on it.
                 Status::Hovered => {
-                    base.background = Some(theme.palette().text.scale_alpha(HOVER_OVERLAY).into());
+                    base.background = Some(
+                        appearance
+                            .and_then(|a| a.background)
+                            .map_or_else(
+                                || {
+                                    theme
+                                        .extended_palette()
+                                        .background
+                                        .weak
+                                        .color
+                                        .scale_alpha(btn_opacity)
+                                },
+                                |background| {
+                                    background
+                                        .get_pair(BackgroundLevel::Weak, background.get_base())
+                                        .map_or_else(
+                                            || theme.extended_palette().background.weak.color,
+                                            |c| c.color,
+                                        )
+                                        .scale_alpha(btn_opacity)
+                                },
+                            )
+                            .into(),
+                    );
+
                     base
                 }
                 _ => base,
             }
+        }
+    }
+
+    pub fn module_appearance(&self) -> impl Fn(&ModuleName) -> ModuleAppearance + use<> {
+        let modules = Arc::clone(&self.modules);
+        move |module_name| {
+            let module = modules.get(module_name);
+            module.copied().unwrap_or_default()
         }
     }
 }

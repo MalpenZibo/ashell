@@ -1,8 +1,10 @@
 use crate::{
-    components::collapsible::{self, collapsible},
-    components::icons::{StaticIcon, icon, icon_button},
-    components::slide::{self, SlideDirection, slide},
-    components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize},
+    components::{
+        ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, ModuleContent, ModuleView,
+        collapsible::{self, collapsible},
+        icons::{StaticIcon, icon, icon_button},
+        slide::{self, SlideDirection, slide},
+    },
     config::{NotificationsModuleConfig, ToastPosition},
     services::{
         ReadOnlyService, ServiceEvent,
@@ -519,11 +521,13 @@ impl Notifications {
                 border,
                 ..iced::widget::button::Style::default()
             };
+
             let bg = if style == NotificationStyle::Toast {
                 iced_theme.extended_palette().background.base.color
             } else {
                 iced_theme.extended_palette().background.weak.color
             };
+
             button_style.background = Some(
                 if matches!(status, iced::widget::button::Status::Hovered) {
                     crate::theme::hovered(iced_theme, bg)
@@ -649,12 +653,14 @@ impl Notifications {
         .into()
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
-        if !self.notifications.is_empty() {
+    pub fn view(&'_ self) -> ModuleView<'_, Message> {
+        let element = if !self.notifications.is_empty() {
             icon(StaticIcon::BellBadge).into()
         } else {
             icon(StaticIcon::Bell).into()
-        }
+        };
+
+        ModuleView::new(ModuleContent::Element(element))
     }
 
     pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {

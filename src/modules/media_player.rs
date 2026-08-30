@@ -1,7 +1,8 @@
 use crate::{
-    components::divider,
-    components::icons::{StaticIcon, icon, icon_button},
-    components::{ButtonSize, MenuSize},
+    components::{
+        ButtonSize, MenuSize, ModuleContent, ModuleRow, ModuleView, divider,
+        icons::{StaticIcon, icon, icon_button},
+    },
     config::{
         MediaPlayerFormat, MediaPlayerModuleConfig, MediaPlayerTextField, MediaPlayerVisualizer,
     },
@@ -242,10 +243,11 @@ impl MediaPlayer {
     }
 
     pub fn menu_view<'a>(&'a self, is_closing: bool) -> Element<'a, Message> {
-        let (space, font_size, radius, palette) = use_theme(|theme| {
+        let (space, font_size, bg_opacity, radius, palette) = use_theme(|theme| {
             (
                 theme.space,
                 theme.font_size,
+                theme.menu.opacity,
                 theme.radius,
                 theme.iced_theme.palette(),
             )
@@ -395,7 +397,12 @@ impl MediaPlayer {
                         container(body)
                             .style(move |app_theme: &Theme| container::Style {
                                 background: Background::Color(
-                                    app_theme.extended_palette().background.weak.color,
+                                    app_theme
+                                        .extended_palette()
+                                        .background
+                                        .weak
+                                        .color
+                                        .scale_alpha(bg_opacity),
                                 )
                                 .into(),
                                 border: Border::default().rounded(radius.lg),
@@ -468,7 +475,7 @@ impl MediaPlayer {
         }
     }
 
-    pub fn view(&'_ self) -> Option<Element<'_, Message>> {
+    pub fn view(&'_ self) -> Option<ModuleView<'_, Message>> {
         let (space, font_size, palette) =
             use_theme(|theme| (theme.space, theme.font_size, theme.iced_theme.palette()));
         self.active_player().map(|player| {
@@ -495,7 +502,7 @@ impl MediaPlayer {
 
             let beside_visualizer = || {
                 container(
-                    Canvas::new(VisualizerCanvas {
+                    Canvas::<VisualizerCanvas, Message>::new(VisualizerCanvas {
                         bars: self.bars.clone(),
                         low: palette.primary,
                         mid: palette.warning,
@@ -524,37 +531,51 @@ impl MediaPlayer {
                             .center_y(Length::Fill)
                             .into()
                     };
-                    Stack::new()
-                        .push(base)
-                        .push_under(
-                            Canvas::new(VisualizerCanvas {
-                                bars: self.bars.clone(),
-                                low: palette.primary,
-                                mid: palette.warning,
-                                high: palette.danger,
-                                opacity: 0.1,
-                                radius: 0.0,
-                                min_bar_width: VISUALIZER_BAR_MIN_WIDTH,
-                                max_bar_width: VISUALIZER_BG_BAR_MAX_WIDTH,
-                                gap: VISUALIZER_BAR_GAP,
-                                inset: space.xxs,
-                            })
-                            .width(Length::Fill)
-                            .height(Length::Fill),
-                        )
-                        .into()
+                    ModuleView::new(ModuleContent::Element(
+                        Stack::new()
+                            .push(base)
+                            .push_under(
+                                Canvas::new(VisualizerCanvas {
+                                    bars: self.bars.clone(),
+                                    low: palette.primary,
+                                    mid: palette.warning,
+                                    high: palette.danger,
+                                    opacity: 0.1,
+                                    radius: 0.0,
+                                    min_bar_width: VISUALIZER_BAR_MIN_WIDTH,
+                                    max_bar_width: VISUALIZER_BG_BAR_MAX_WIDTH,
+                                    gap: VISUALIZER_BAR_GAP,
+                                    inset: space.xxs,
+                                })
+                                .width(Length::Fill)
+                                .height(Length::Fill),
+                            )
+                            .into(),
+                    ))
                 }
-                Some(MediaPlayerVisualizer::Before) if active => row![beside_visualizer(), content]
-                    .align_y(Vertical::Center)
-                    .spacing(space.xs)
-                    .height(Length::Fill)
-                    .into(),
-                Some(MediaPlayerVisualizer::After) if active => row![content, beside_visualizer()]
-                    .align_y(Vertical::Center)
-                    .spacing(space.xs)
-                    .height(Length::Fill)
-                    .into(),
-                _ => content.into(),
+                Some(MediaPlayerVisualizer::Before) if active => {
+                    ModuleView::new(ModuleContent::Row(
+                        ModuleRow::with_children(vec![
+                            Element::from(beside_visualizer()),
+                            Element::from(content),
+                        ])
+                        .align_y(Vertical::Center)
+                        .spacing(space.xs)
+                        .height(Length::Fill),
+                    ))
+                }
+                Some(MediaPlayerVisualizer::After) if active => {
+                    ModuleView::new(ModuleContent::Row(
+                        ModuleRow::with_children(vec![
+                            Element::from(content),
+                            Element::from(beside_visualizer()),
+                        ])
+                        .align_y(Vertical::Center)
+                        .spacing(space.xs)
+                        .height(Length::Fill),
+                    ))
+                }
+                _ => ModuleView::new(ModuleContent::Element(content.into())),
             }
         })
     }

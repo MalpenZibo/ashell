@@ -1,9 +1,9 @@
 use crate::{
     app::{App, Message},
-    components::animated_size,
-    components::menu::MenuType,
-    components::{module_group, module_item},
-    config::{ModuleDef, ModuleName},
+    components::{
+        ModuleItem, ModuleResult, animated_size, menu::MenuType, module_group, module_item,
+    },
+    config::{ModuleAppearance, ModuleDef, ModuleGroup, ModuleName},
     theme::use_theme,
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
@@ -83,74 +83,86 @@ impl App {
             .collect()
     }
 
+    fn apply_module_action<'a>(
+        &self,
+        mut item: ModuleItem<'a, Message>,
+        action: Option<OnModulePress>,
+        id: SurfaceId,
+    ) -> ModuleItem<'a, Message> {
+        if let Some(action) = action {
+            match action {
+                OnModulePress::Action(msg) => {
+                    item = item.on_press(*msg);
+                }
+                OnModulePress::ToggleMenu(menu_type) => {
+                    item = item.on_press_with_position(move |button_ui_ref| {
+                        Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
+                    });
+                }
+                OnModulePress::ToggleMenuWithExtra {
+                    menu_type,
+                    on_right_press,
+                    on_scroll_up,
+                    on_scroll_down,
+                } => {
+                    item = item.on_press_with_position(move |button_ui_ref| {
+                        Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
+                    });
+                    if let Some(msg) = on_right_press {
+                        item = item.on_right_press(*msg);
+                    }
+                    if let Some(msg) = on_scroll_up {
+                        item = item.on_scroll_up(*msg);
+                    }
+                    if let Some(msg) = on_scroll_down {
+                        item = item.on_scroll_down(*msg);
+                    }
+                }
+                OnModulePress::CustomAction {
+                    on_press,
+                    on_right_press,
+                    on_middle_press,
+                    on_scroll_up,
+                    on_scroll_down,
+                } => {
+                    item = item.on_press(*on_press);
+                    if let Some(msg) = on_right_press {
+                        item = item.on_right_press(*msg);
+                    }
+                    if let Some(msg) = on_middle_press {
+                        item = item.on_middle_press(*msg);
+                    }
+                    if let Some(msg) = on_scroll_up {
+                        item = item.on_scroll_up(*msg);
+                    }
+                    if let Some(msg) = on_scroll_down {
+                        item = item.on_scroll_down(*msg);
+                    }
+                }
+            }
+        };
+
+        item
+    }
+
     fn build_module_item<'a>(
         &'a self,
         id: SurfaceId,
+        module_appearance: Option<ModuleAppearance>,
         content: Element<'a, Message>,
         action: Option<OnModulePress>,
     ) -> Element<'a, Message> {
-        let content = if use_theme(|t| t.animations_enabled) {
+        let animated = use_theme(|t| t.animations_enabled);
+
+        let content = if animated {
             animated_size(content).into()
         } else {
             content
         };
-        match action {
-            Some(action) => {
-                let mut item = module_item(content);
-                match action {
-                    OnModulePress::Action(msg) => {
-                        item = item.on_press(*msg);
-                    }
-                    OnModulePress::ToggleMenu(menu_type) => {
-                        item = item.on_press_with_position(move |button_ui_ref| {
-                            Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
-                        });
-                    }
-                    OnModulePress::ToggleMenuWithExtra {
-                        menu_type,
-                        on_right_press,
-                        on_scroll_up,
-                        on_scroll_down,
-                    } => {
-                        item = item.on_press_with_position(move |button_ui_ref| {
-                            Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
-                        });
-                        if let Some(msg) = on_right_press {
-                            item = item.on_right_press(*msg);
-                        }
-                        if let Some(msg) = on_scroll_up {
-                            item = item.on_scroll_up(*msg);
-                        }
-                        if let Some(msg) = on_scroll_down {
-                            item = item.on_scroll_down(*msg);
-                        }
-                    }
-                    OnModulePress::CustomAction {
-                        on_press,
-                        on_right_press,
-                        on_middle_press,
-                        on_scroll_up,
-                        on_scroll_down,
-                    } => {
-                        item = item.on_press(*on_press);
-                        if let Some(msg) = on_right_press {
-                            item = item.on_right_press(*msg);
-                        }
-                        if let Some(msg) = on_middle_press {
-                            item = item.on_middle_press(*msg);
-                        }
-                        if let Some(msg) = on_scroll_up {
-                            item = item.on_scroll_up(*msg);
-                        }
-                        if let Some(msg) = on_scroll_down {
-                            item = item.on_scroll_down(*msg);
-                        }
-                    }
-                }
-                item.into()
-            }
-            None => module_item(content).into(),
-        }
+
+        let item = module_item(content, module_appearance);
+
+        self.apply_module_action(item, action, id).into()
     }
 
     fn single_module_wrapper<'a>(
@@ -158,8 +170,48 @@ impl App {
         id: SurfaceId,
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
+        let module_appearance = use_theme(|t| t.module_appearance()(module_name));
+        let grouping = module_appearance.grouping;
+
         self.get_module_view(id, module_name)
-            .map(|(content, action)| module_group(self.build_module_item(id, content, action)))
+            .map(move |module_result| {
+                let ModuleResult {
+                    action,
+                    view: content,
+                } = module_result;
+
+                match grouping {
+                    ModuleGroup::Individual => {
+                        let content = content.map_elements(|child| {
+                            // maybe we could further edit individuals
+                            self.build_module_item(
+                                id,
+                                Some(module_appearance),
+                                child,
+                                action.clone(),
+                            )
+                        });
+
+                        content.into_element()
+                    }
+                    ModuleGroup::Combined => {
+                        let item_appearance = ModuleAppearance {
+                            opacity: Some(0.),
+                            ..module_appearance
+                        };
+                        let item = self.build_module_item(
+                            id,
+                            Some(item_appearance),
+                            content.into_element(),
+                            action,
+                        );
+                        module_group(item, module_appearance)
+                    }
+                    ModuleGroup::None => {
+                        self.build_module_item(id, None, content.into_element(), action)
+                    }
+                }
+            })
     }
 
     fn group_module_wrapper<'a>(
@@ -167,29 +219,67 @@ impl App {
         id: SurfaceId,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
-        let modules: Vec<_> = group
+        let (theme_space, module_appearance, group_appearance) =
+            use_theme(|t| (t.space, t.module_appearance(), t.grouped));
+
+        let module_items: Vec<_> = group
             .iter()
-            .filter_map(|module| self.get_module_view(id, module))
+            .filter_map(|module| self.get_module_view(id, module).map(|view| (module, view)))
             .collect();
 
-        if modules.is_empty() {
-            None
-        } else {
-            let items = Row::with_children(
-                modules
-                    .into_iter()
-                    .map(|(content, action)| self.build_module_item(id, content, action))
-                    .collect::<Vec<_>>(),
-            );
-            Some(module_group(items.into()))
+        if module_items.is_empty() {
+            return None;
         }
+
+        let items = module_items
+            .into_iter()
+            .map(|(module_name, module_result)| {
+                let ModuleResult {
+                    action,
+                    view: content,
+                } = module_result;
+
+                let appearance = module_appearance(module_name);
+
+                let grouping = appearance.grouping;
+
+                match grouping {
+                    ModuleGroup::Individual => {
+                        let content = content.map_elements(|child| {
+                            self.build_module_item(id, Some(appearance), child, action.clone())
+                        });
+
+                        content.into_element()
+                    }
+                    ModuleGroup::Combined => {
+                        let item = self.build_module_item(
+                            id,
+                            Some(appearance),
+                            content.into_element(),
+                            action,
+                        );
+                        // module_group(item, module_appearance)
+                        // we should allow more customisation but for now leave it
+                        item
+                    }
+                    ModuleGroup::None => {
+                        self.build_module_item(id, Some(appearance), content.into_element(), action)
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let spacing = theme_space.resolve(group_appearance.spacing);
+        let row = Row::with_children(items).spacing(spacing);
+
+        Some(module_group(row.into(), group_appearance))
     }
 
     fn get_module_view<'a>(
         &'a self,
         id: SurfaceId,
         module_name: &'a ModuleName,
-    ) -> Option<(Element<'a, Message>, Option<OnModulePress>)> {
+    ) -> Option<ModuleResult<'a, Message>> {
         match module_name {
             ModuleName::Custom(name) => self.custom.get(name).map(|custom| {
                 let action = match custom.module_type() {
@@ -248,52 +338,48 @@ impl App {
                         })
                     }
                 };
-                (
-                    custom.view().map(|msg| Message::Custom(name.clone(), msg)),
+
+                ModuleResult {
+                    view: custom.view().map(|msg| Message::Custom(name.clone(), msg)),
                     action,
-                )
+                }
             }),
-            ModuleName::Updates => self.updates.as_ref().map(|updates| {
-                (
-                    updates.view().map(Message::Updates),
-                    Some(OnModulePress::ToggleMenu(MenuType::Updates)),
-                )
+            ModuleName::Updates => self.updates.as_ref().map(|updates| ModuleResult {
+                view: updates.view().map(Message::Updates),
+                action: Some(OnModulePress::ToggleMenu(MenuType::Updates)),
             }),
-            ModuleName::Workspaces => Some((
-                self.workspaces
+            ModuleName::Workspaces => Some(ModuleResult {
+                view: self
+                    .workspaces
                     .view(id, &self.outputs)
                     .map(Message::Workspaces),
-                None,
-            )),
-            ModuleName::WindowTitle => self.window_title.get_value().map(|title| {
-                (
-                    self.window_title.view(title).map(Message::WindowTitle),
-                    None,
-                )
+                action: None,
             }),
-            ModuleName::SystemInfo => Some((
-                self.system_info.view().map(Message::SystemInfo),
-                Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
-            )),
-            ModuleName::KeyboardLayout => self.keyboard_layout.view().map(|view| {
-                (
-                    view.map(Message::KeyboardLayout),
-                    Some(OnModulePress::Action(Box::new(Message::KeyboardLayout(
-                        keyboard_layout::Message::ChangeLayout,
-                    )))),
-                )
+            ModuleName::WindowTitle => self.window_title.get_value().map(|title| ModuleResult {
+                view: self.window_title.view(title).map(Message::WindowTitle),
+                action: None,
             }),
-            ModuleName::KeyboardSubmap => self
-                .keyboard_submap
-                .view()
-                .map(|view| (view.map(Message::KeyboardSubmap), None)),
-            ModuleName::Tray => self
-                .tray
-                .view(id)
-                .map(|view| (view.map(Message::Tray), None)),
-            ModuleName::Tempo => Some((
-                self.tempo.view().map(Message::Tempo),
-                Some(OnModulePress::ToggleMenuWithExtra {
+            ModuleName::SystemInfo => Some(ModuleResult {
+                view: self.system_info.view().map(Message::SystemInfo),
+                action: Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
+            }),
+            ModuleName::KeyboardLayout => self.keyboard_layout.view().map(|view| ModuleResult {
+                view: view.map(Message::KeyboardLayout),
+                action: Some(OnModulePress::Action(Box::new(Message::KeyboardLayout(
+                    keyboard_layout::Message::ChangeLayout,
+                )))),
+            }),
+            ModuleName::KeyboardSubmap => self.keyboard_submap.view().map(|view| ModuleResult {
+                view: view.map(Message::KeyboardSubmap),
+                action: None,
+            }),
+            ModuleName::Tray => self.tray.view(id).map(|view| ModuleResult {
+                view: view.map(Message::Tray),
+                action: None,
+            }),
+            ModuleName::Tempo => Some(ModuleResult {
+                view: self.tempo.view().map(Message::Tempo),
+                action: Some(OnModulePress::ToggleMenuWithExtra {
                     menu_type: MenuType::Tempo,
                     on_right_press: Some(Box::new(Message::Tempo(tempo::Message::CycleFormat))),
                     on_scroll_up: Some(Box::new(Message::Tempo(tempo::Message::CycleTimezone(
@@ -303,25 +389,23 @@ impl App {
                         tempo::TimezoneDirection::Backward,
                     )))),
                 }),
-            )),
-            ModuleName::Privacy => self
-                .privacy
-                .view()
-                .map(|view| (view.map(Message::Privacy), None)),
-            ModuleName::MediaPlayer => self.media_player.view().map(|view| {
-                (
-                    view.map(Message::MediaPlayer),
-                    Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-                )
             }),
-            ModuleName::Settings => Some((
-                self.settings.view(id).map(Message::Settings),
-                Some(OnModulePress::ToggleMenu(MenuType::Settings)),
-            )),
-            ModuleName::Notifications => Some((
-                self.notifications.view().map(Message::Notifications),
-                Some(OnModulePress::ToggleMenu(MenuType::Notifications)),
-            )),
+            ModuleName::Privacy => self.privacy.view().map(|view| ModuleResult {
+                view: view.map(Message::Privacy),
+                action: None,
+            }),
+            ModuleName::MediaPlayer => self.media_player.view().map(|view| ModuleResult {
+                view: view.map(Message::MediaPlayer),
+                action: Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
+            }),
+            ModuleName::Settings => Some(ModuleResult {
+                view: self.settings.view(id).map(Message::Settings),
+                action: Some(OnModulePress::ToggleMenu(MenuType::Settings)),
+            }),
+            ModuleName::Notifications => Some(ModuleResult {
+                view: self.notifications.view().map(Message::Notifications),
+                action: Some(OnModulePress::ToggleMenu(MenuType::Notifications)),
+            }),
         }
     }
 

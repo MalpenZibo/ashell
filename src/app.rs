@@ -1,7 +1,7 @@
 use crate::{
     HEIGHT,
     components::{Centerbox, menu::MenuType},
-    config::{self, BarSurface, Config, ModuleName, Modules, WorkspaceIndicatorFormat},
+    config::{self, Config, ModuleName, Modules, WorkspaceIndicatorFormat},
     get_log_spec,
     i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
@@ -24,7 +24,7 @@ use crate::{
     osd::{self, Osd},
     outputs::{HasOutput, Outputs},
     services::{ReadOnlyService, xdg_icons},
-    theme::{AshellTheme, BarLayout, backdrop_color, darken_color, init_theme, use_theme},
+    theme::{AshellTheme, BarLayout, darken_color, init_theme, use_theme},
 };
 use flexi_logger::LoggerHandle;
 use iced::futures::StreamExt;
@@ -84,7 +84,7 @@ impl App {
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
             let mut outputs = Outputs::new(
-                BarLayout::from_appearance(&config.appearance.bar),
+                BarLayout::new(config.appearance.bar),
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
@@ -238,7 +238,7 @@ impl App {
                 );
                 let (bar_position, bar_layout, scale_factor) =
                     use_theme(|t| (t.bar_position, t.bar_layout(), t.scale_factor));
-                let new_layout = BarLayout::from_appearance(&config.appearance.bar);
+                let new_layout = BarLayout::new(config.appearance.bar);
                 if self.general_config.outputs != config.outputs
                     || bar_position != config.position
                     || bar_layout != new_layout
@@ -588,61 +588,63 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar_surface, menu, animations_enabled, bar_radius, blur) =
-                    use_theme(|t| {
-                        (
-                            t.space,
-                            t.bar_surface,
-                            t.menu,
-                            t.animations_enabled,
-                            t.bar_border_radius(),
-                            t.blur,
-                        )
-                    });
+                let (space, bar, menu, animations_enabled, theme_radius, blur) = use_theme(|t| {
+                    (
+                        t.space,
+                        t.bar,
+                        t.menu,
+                        t.animations_enabled,
+                        t.radius,
+                        t.blur,
+                    )
+                });
+                let (bar_bg_opacity, bar_border, bar_inset) =
+                    (bar.opacity.background, bar.border, bar.inset);
+                let radius = bar_border.radius.resolve(theme_radius);
+
+                let has_inset = bar_inset > 0.;
+
                 let centerbox = Centerbox::new([left, center, right])
                     .animated(animations_enabled)
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if bar_surface == BarSurface::Transparent {
-                        HEIGHT
-                    } else {
+                    .height(if has_inset {
                         HEIGHT - space.xs as f64
-                    } as f32)
-                    .padding(if bar_surface == BarSurface::Transparent {
-                        [space.xxs, space.xxs]
                     } else {
+                        HEIGHT
+                    } as f32)
+                    .padding(if has_inset {
                         [0.0, 0.0]
+                    } else {
+                        [space.xxs, space.xxs]
                     });
 
                 let menu_is_open = self.outputs.menu_is_open();
-                let bar_style = move |t: &Theme| container::Style {
-                    background: match bar_surface {
-                        BarSurface::Solid => Some({
-                            let bg = t.palette().background;
-                            if menu_is_open {
-                                darken_color(bg, menu.backdrop)
-                            } else {
-                                bg
-                            }
-                            .into()
-                        }),
-                        BarSurface::Transparent => {
-                            if menu_is_open {
-                                Some(backdrop_color(menu.backdrop).into())
-                            } else {
-                                None
-                            }
-                        }
-                    },
-                    border: iced::Border {
-                        radius: bar_radius,
+                let bar_style = move |t: &Theme| {
+                    let bg = t.palette().background.scale_alpha(bar_bg_opacity);
+
+                    container::Style {
+                        background: {
+                            Some(
+                                if menu_is_open {
+                                    darken_color(bg, menu.backdrop)
+                                } else {
+                                    bg
+                                }
+                                .into(),
+                            )
+                        },
+                        border: iced::Border {
+                            radius,
+                            color: bar_border.color.get_base(),
+                            width: bar_border.width,
+                        },
                         ..Default::default()
-                    },
-                    ..Default::default()
+                    }
                 };
                 // In Transparent the individual module groups carry the blur.
-                let status_bar: Element<'_, Message> = if blur && bar_surface == BarSurface::Solid {
+                let status_bar: Element<'_, Message> = if blur && bar_bg_opacity > 0. {
                     blur_container(centerbox).style(bar_style).into()
                 } else {
                     container(centerbox).style(bar_style).into()

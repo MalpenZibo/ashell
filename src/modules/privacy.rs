@@ -1,10 +1,13 @@
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::{
+        ModuleContent, ModuleView,
+        icons::{StaticIcon, icon},
+    },
     services::{ReadOnlyService, ServiceEvent, privacy::PrivacyService},
     theme::use_theme,
 };
 use iced::{
-    Alignment, Element, Subscription,
+    Alignment, Subscription,
     widget::{Row, container},
 };
 
@@ -35,12 +38,12 @@ impl Privacy {
         }
     }
 
-    pub fn view(&'_ self) -> Option<Element<'_, Message>> {
+    pub fn view(&'_ self) -> Option<ModuleView<'_, Message>> {
         let space = use_theme(|theme| theme.space);
         if let Some(service) = self.service.as_ref()
             && !service.no_access()
         {
-            Some(
+            Some(ModuleView::new(ModuleContent::Element(
                 container(
                     Row::with_capacity(3)
                         .push(
@@ -58,7 +61,7 @@ impl Privacy {
                     ..Default::default()
                 })
                 .into(),
-            )
+            )))
         } else {
             None
         }
