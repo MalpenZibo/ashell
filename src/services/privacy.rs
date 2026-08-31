@@ -9,7 +9,9 @@ use iced::{
 use inotify::{EventMask, Inotify, WatchMask};
 use log::{debug, error, info, warn};
 use pipewire::{context::ContextBox, main_loop::MainLoopBox};
-use std::{any::TypeId, fs, ops::Deref, path::Path, thread};
+use std::{
+    any::TypeId, cell::RefCell, collections::HashSet, fs, ops::Deref, path::Path, rc::Rc, thread,
+};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 const WEBCAM_DEVICE_PATH: &str = "/dev/video0";
@@ -92,10 +94,13 @@ impl PrivacyService {
             let core = unwrap_or_send_err!(context.connect(None), boot_tx);
             let registry = unwrap_or_send_err!(core.get_registry(), boot_tx);
 
+            let tracked_ids: Rc<RefCell<HashSet<u32>>> = Rc::new(RefCell::new(HashSet::new()));
+
             let _listener = registry
                 .add_listener_local()
                 .global({
                     let tx = tx.clone();
+                    let tracked_ids = Rc::clone(&tracked_ids);
                     move |global| {
                         if let Some(props) = global.props
                             && let Some(media) = props.get("media.class").filter(|v| {
@@ -103,6 +108,7 @@ impl PrivacyService {
                             })
                         {
                             debug!("New global: {global:?}");
+                            tracked_ids.borrow_mut().insert(global.id);
                             let _ = tx.send(PrivacyEvent::AddNode(ApplicationNode {
                                 id: global.id,
                                 media: if media == "Stream/Input/Video" {
@@ -117,8 +123,10 @@ impl PrivacyService {
                 .global_remove({
                     let tx = tx.clone();
                     move |id| {
-                        debug!("Remove global: {id}");
-                        let _ = tx.send(PrivacyEvent::RemoveNode(id));
+                        if tracked_ids.borrow_mut().remove(&id) {
+                            debug!("Remove tracked global: {id}");
+                            let _ = tx.send(PrivacyEvent::RemoveNode(id));
+                        }
                     }
                 })
                 .register();
