@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use iced::{
-    Alignment, Border, Element, Length, Task, Theme,
+    Alignment, Element, Length, Task, Theme,
     widget::{blur_container, container, progress_bar, row, text},
 };
 use tokio::time::sleep;
@@ -13,7 +13,7 @@ use crate::{
     modules::settings::network::NetworkSettings,
     services::idle_inhibitor::IdleInhibitorManager,
     t,
-    theme::use_theme,
+    theme::{surface_border, use_theme},
 };
 
 pub struct Osd {
@@ -190,13 +190,7 @@ impl Osd {
 
         let osd_style = move |t: &Theme| container::Style {
             background: Some(t.palette().background.into()),
-            border: Border::default()
-                .width(1)
-                .color(crate::theme::as_surface(
-                    t,
-                    t.extended_palette().background.weakest.color,
-                ))
-                .rounded(radius.xl),
+            border: surface_border(t, radius.xl),
             text_color: Some(match (state.kind, state.muted) {
                 (OsdKind::IdleInhibitor, true) => t.palette().danger,
                 (OsdKind::Airplane, true) => t.palette().danger,

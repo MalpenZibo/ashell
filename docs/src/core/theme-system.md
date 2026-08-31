@@ -40,12 +40,24 @@ surface via `HasOutput::surface()`.
 
 ### Paint vs ink
 
-Opacity is carried by `Palette::background` only. A colour that is *paint*, a
-fill that is part of the surface, must be wrapped in `as_surface(theme, color)`
-so it picks that opacity up. A colour that is *ink* (text, icons, accents, and
-marks drawn on top of the surface) stays opaque, so it keeps its contrast at
-any opacity. Marks that need to be subtle use a fixed ratio of the foreground
-(`ink(theme, alpha)`) rather than a scaled background.
+Opacity is carried by `Palette::background` only, so a fill has to pick it up
+explicitly. The `Paint` type makes that choice a type, not a convention:
+
+```rust
+Paint::surface(theme, color)  // part of the surface: carries its opacity
+Paint::opaque(color)          // drawn on the surface: keeps its contrast
+```
+
+The fill helpers (`card_style`, `surface_border`, the `button_style` family)
+take a `Paint`, so a raw palette colour will not compile where a fill is
+expected. That matters because the mistake is otherwise invisible: an
+un-opacified fill looks correct at the default `opacity = 1.0` and only goes
+wrong once a surface is made translucent.
+
+A colour that is *ink* (text, icons, accents) is not a `Paint` at all and
+stays a plain `Color`. Marks that need to be subtle use a fixed ratio of the
+foreground, `ink(theme, alpha)`, rather than a scaled background, so they read
+the same at any opacity.
 
 ## Design Tokens
 

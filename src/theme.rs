@@ -170,7 +170,7 @@ pub struct AshellTheme {
     surfaces: [SurfaceTheme; 4],
     /// Ink colours, for call sites that read one where there is no `&Theme` to
     /// hand. `background` here is the un-opacified base, so it is not what any
-    /// surface actually paints; use [`as_surface`] for fills.
+    /// surface actually paints; use [`Paint`] for fills.
     pub palette: Palette,
     pub space: Space,
     pub radius: Radius,
@@ -283,16 +283,69 @@ fn surface_opacity(theme: &Theme) -> f32 {
     theme.palette().background.a
 }
 
-/// `color` painted as part of the surface, so it carries the surface opacity.
-/// Anything drawn *on* the surface stays opaque or picks its own fixed alpha.
-pub fn as_surface(theme: &Theme, color: Color) -> Color {
-    color.scale_alpha(surface_opacity(theme))
+/// A colour that has already been resolved as paint: a fill, or the edge of a
+/// fill. Every such colour is one of two things, and [`Paint`] makes the call
+/// site say which:
+///
+/// - [`Paint::surface`], part of the surface, so it carries the surface
+///   opacity and disappears with it.
+/// - [`Paint::opaque`], drawn *on* the surface, so it keeps its contrast at
+///   any opacity.
+///
+/// A raw palette colour is neither, which is why the fill helpers here take a
+/// `Paint` rather than a `Color`: forgetting the opacity stops compiling
+/// instead of rendering correctly only at the default `opacity = 1.0`.
+#[derive(Debug, Clone, Copy)]
+pub struct Paint(Color);
+
+impl Paint {
+    /// `color` painted as part of the surface, so it carries its opacity.
+    pub fn surface(theme: &Theme, color: Color) -> Self {
+        Self(color.scale_alpha(surface_opacity(theme)))
+    }
+
+    /// `color` painted on top of the surface, keeping its own alpha.
+    pub fn opaque(color: Color) -> Self {
+        Self(color)
+    }
+
+    /// The hover overlay composited in, so hovering paints one layer rather
+    /// than stacking a second one and washing out the translucency.
+    pub fn hovered(self, theme: &Theme) -> Self {
+        Self(over(ink(theme, HOVER_OVERLAY), self.0))
+    }
+
+    /// Crossfade towards `to`. Alpha is interpolated with the colour, so a
+    /// fade from a surface fill to an opaque accent fades the opacity too.
+    pub fn lerp(self, to: Self, t: f32) -> Self {
+        Self(lerp_color(self.0, to.0, t))
+    }
+
+    /// The same paint faded to `factor` of its alpha, for disabled states.
+    pub fn scale_alpha(self, factor: f32) -> Self {
+        Self(self.0.scale_alpha(factor))
+    }
+
+    /// The resolved colour, for the few iced fields that take a bare `Color`.
+    pub fn color(self) -> Color {
+        self.0
+    }
 }
 
-/// `color` with the hover overlay composited in, so hovering paints one layer
-/// rather than stacking a second one and washing out the translucency.
-pub fn hovered(theme: &Theme, color: Color) -> Color {
-    over(ink(theme, HOVER_OVERLAY), color)
+impl From<Paint> for Background {
+    fn from(paint: Paint) -> Self {
+        Background::Color(paint.0)
+    }
+}
+
+/// The 1px edge of a translucent panel. It carries the surface opacity so the
+/// panel fades as one piece instead of keeping a hard outline behind nothing.
+pub fn surface_border(theme: &Theme, radius: impl Into<border::Radius>) -> Border {
+    Border {
+        color: Paint::surface(theme, theme.extended_palette().background.weakest.color).color(),
+        width: 1.0,
+        radius: radius.into(),
+    }
 }
 
 /// The raised panel every menu card is built from: a `background.weak` fill
@@ -300,10 +353,9 @@ pub fn hovered(theme: &Theme, color: Color) -> Color {
 pub fn card_style(radius: impl Into<border::Radius>) -> impl Fn(&Theme) -> container::Style {
     let radius = radius.into();
     move |theme| container::Style {
-        background: Some(Background::Color(as_surface(
-            theme,
-            theme.extended_palette().background.weak.color,
-        ))),
+        background: Some(
+            Paint::surface(theme, theme.extended_palette().background.weak.color).into(),
+        ),
         border: Border::default().rounded(radius),
         ..container::Style::default()
     }
@@ -509,22 +561,22 @@ impl AshellTheme {
 
             let (base_bg, hover_bg, base_text, hover_text, border_color) = match hierarchy {
                 ButtonHierarchy::Primary => (
-                    palette.primary,
-                    ext.primary.weak.color,
+                    Paint::opaque(palette.primary),
+                    Paint::opaque(ext.primary.weak.color),
                     ext.primary.base.text,
                     ext.primary.base.text,
                     palette.primary,
                 ),
                 ButtonHierarchy::Secondary => (
-                    as_surface(theme, ext.background.weak.color),
-                    as_surface(theme, ext.background.strong.color),
+                    Paint::surface(theme, ext.background.weak.color),
+                    Paint::surface(theme, ext.background.strong.color),
                     palette.text,
                     palette.text,
                     ext.background.weak.color,
                 ),
                 ButtonHierarchy::Danger => (
-                    palette.danger,
-                    ext.danger.weak.color,
+                    Paint::opaque(palette.danger),
+                    Paint::opaque(ext.danger.weak.color),
                     ext.danger.base.text,
                     ext.danger.base.text,
                     palette.danger,
@@ -697,9 +749,9 @@ impl AshellTheme {
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius = self.radius.xl;
         move |theme: &Theme, status: Status| {
-            let inactive_bg = as_surface(theme, theme.extended_palette().background.weak.color);
-            let active_bg = theme.extended_palette().primary.base.color;
-            let bg = lerp_color(inactive_bg, active_bg, active);
+            let inactive_bg = Paint::surface(theme, theme.extended_palette().background.weak.color);
+            let active_bg = Paint::opaque(theme.extended_palette().primary.base.color);
+            let bg = inactive_bg.lerp(active_bg, active);
 
             let mut base = button::Style {
                 background: Some(bg.into()),
@@ -719,9 +771,9 @@ impl AshellTheme {
                 Status::Active => base,
                 Status::Hovered => {
                     let inactive_hover =
-                        as_surface(theme, theme.extended_palette().background.strong.color);
-                    let active_hover = theme.extended_palette().primary.weak.color;
-                    base.background = Some(lerp_color(inactive_hover, active_hover, active).into());
+                        Paint::surface(theme, theme.extended_palette().background.strong.color);
+                    let active_hover = Paint::opaque(theme.extended_palette().primary.weak.color);
+                    base.background = Some(inactive_hover.lerp(active_hover, active).into());
                     base
                 }
                 _ => base,
@@ -738,11 +790,10 @@ impl AshellTheme {
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
         move |theme: &Theme, status: Status| {
-            // A filled indicator is part of the surface and carries its
-            // opacity; an accent or urgency mark is drawn on top and stays
-            // opaque so it keeps its contrast at any opacity.
-            let fill = |color: Color| Background::Color(as_surface(theme, color));
-            let opaque = Background::Color;
+            // An active or urgent workspace is a mark drawn on the bar, so it
+            // stays opaque; everything else is part of the bar and fades with it.
+            let fill = |color: Color| Paint::surface(theme, color);
+            let opaque = Paint::opaque;
             let primary = colors.map(|c| {
                 c.map_or_else(
                     || theme.extended_palette().primary,
@@ -772,17 +823,20 @@ impl AshellTheme {
             let (bg_strong, fg_strong) = resolve(|b| b.strong, |p| p.strong);
             let (bg_weak, fg_weak) = resolve(|b| b.weak, |p| p.weak);
             let mut base = button::Style {
-                background: Some(if is_urgent && is_empty {
-                    opaque(theme.extended_palette().danger.base.color)
-                } else if is_empty && is_active {
-                    opaque(theme.extended_palette().background.strong.color)
-                } else if is_empty {
-                    fill(theme.extended_palette().background.weak.color)
-                } else if is_active {
-                    opaque(bg_color)
-                } else {
-                    fill(bg_weak)
-                }),
+                background: Some(
+                    if is_urgent && is_empty {
+                        opaque(theme.extended_palette().danger.base.color)
+                    } else if is_empty && is_active {
+                        opaque(theme.extended_palette().background.strong.color)
+                    } else if is_empty {
+                        fill(theme.extended_palette().background.weak.color)
+                    } else if is_active {
+                        opaque(bg_color)
+                    } else {
+                        fill(bg_weak)
+                    }
+                    .into(),
+                ),
                 border: Border {
                     width: if is_urgent || is_empty { 1.0 } else { 0.0 },
                     color: if is_urgent {
@@ -810,17 +864,20 @@ impl AshellTheme {
             match status {
                 Status::Active => base,
                 Status::Hovered => {
-                    base.background = Some(if is_urgent && is_empty {
-                        opaque(theme.extended_palette().danger.strong.color)
-                    } else if is_empty && is_active {
-                        opaque(theme.extended_palette().background.strong.color)
-                    } else if is_empty {
-                        fill(theme.extended_palette().background.strong.color)
-                    } else if is_active {
-                        opaque(bg_color)
-                    } else {
-                        fill(bg_strong)
-                    });
+                    base.background = Some(
+                        if is_urgent && is_empty {
+                            opaque(theme.extended_palette().danger.strong.color)
+                        } else if is_empty && is_active {
+                            opaque(theme.extended_palette().background.strong.color)
+                        } else if is_empty {
+                            fill(theme.extended_palette().background.strong.color)
+                        } else if is_active {
+                            opaque(bg_color)
+                        } else {
+                            fill(bg_strong)
+                        }
+                        .into(),
+                    );
                     base.border.color = if is_urgent && is_active {
                         theme.extended_palette().danger.base.color
                     } else if is_urgent {
@@ -871,7 +928,8 @@ impl AshellTheme {
                 }
                 text_input::Status::Disabled => {
                     base.background =
-                        as_surface(theme, theme.extended_palette().background.weak.color).into();
+                        Paint::surface(theme, theme.extended_palette().background.weak.color)
+                            .into();
                     base.border.color = Color::TRANSPARENT;
                     base
                 }

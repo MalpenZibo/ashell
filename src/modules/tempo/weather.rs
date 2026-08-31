@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use chrono::{NaiveDate, NaiveDateTime};
 use iced::{
-    Background, Border, Degrees, Element, Length, Padding, Rotation, Theme,
+    Border, Degrees, Element, Length, Padding, Rotation, Theme,
     alignment::{Horizontal, Vertical},
     core::svg::Handle,
     widget::{Column, MouseArea, Row, Svg, column, container, row, svg, text},
@@ -15,7 +15,7 @@ use crate::{
     config::WeatherLocation,
     i18n::{UnitSystem, chrono_locale, unit_system},
     t,
-    theme::use_theme,
+    theme::{Paint, use_theme},
 };
 
 use super::{Message, Tempo};
@@ -50,10 +50,13 @@ impl Tempo {
                 } else {
                     container(text("•••••").size(font_size.sm))
                         .style(move |theme: &Theme| container::Style {
-                            background: Some(Background::Color(crate::theme::as_surface(
-                                theme,
-                                theme.extended_palette().background.strong.color,
-                            ))),
+                            background: Some(
+                                Paint::surface(
+                                    theme,
+                                    theme.extended_palette().background.strong.color,
+                                )
+                                .into(),
+                            ),
                             border: Border::default().rounded(radius.sm),
                             ..Default::default()
                         })

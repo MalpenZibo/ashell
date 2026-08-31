@@ -13,7 +13,7 @@ use crate::{
         },
     },
     t,
-    theme::use_theme,
+    theme::{Paint, surface_border, use_theme},
 };
 use chrono::{DateTime, Local};
 use iced::{
@@ -490,13 +490,7 @@ impl Notifications {
         let radius = use_theme(|t| t.radius);
         move |iced_theme: &Theme, status| {
             let mut border = match style {
-                NotificationStyle::Toast => Border::default()
-                    .width(1)
-                    .color(crate::theme::as_surface(
-                        iced_theme,
-                        iced_theme.extended_palette().background.weakest.color,
-                    ))
-                    .rounded(radius.lg),
+                NotificationStyle::Toast => surface_border(iced_theme, radius.lg),
                 NotificationStyle::Standalone => Border::default().rounded(radius.lg),
                 NotificationStyle::GroupHeader => Border::default().rounded(iced::border::Radius {
                     top_left: radius.lg,
@@ -523,7 +517,7 @@ impl Notifications {
                 border,
                 ..iced::widget::button::Style::default()
             };
-            let bg = crate::theme::as_surface(
+            let bg = Paint::surface(
                 iced_theme,
                 if style == NotificationStyle::Toast {
                     iced_theme.extended_palette().background.base.color
@@ -533,7 +527,7 @@ impl Notifications {
             );
             button_style.background = Some(
                 if matches!(status, iced::widget::button::Status::Hovered) {
-                    crate::theme::hovered(iced_theme, bg)
+                    bg.hovered(iced_theme)
                 } else {
                     bg
                 }
