@@ -17,21 +17,34 @@ use std::sync::RwLock;
 
 const MAX_SIMILAR_ICON_CANDIDATES: usize = 5;
 
+struct IconEntry {
+    name: Box<str>,
+    normalized: Option<Box<str>>,
+}
+
+impl IconEntry {
+    fn normalized(&self) -> &str {
+        self.normalized.as_deref().unwrap_or(&self.name)
+    }
+}
+
 static ICON_CACHE: LazyLock<RwLock<HashMap<String, Option<XdgIcon>>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
-static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(Cow<'static, str>, Cow<'static, str>)>> =
-    LazyLock::new(|| {
-        let names = load_system_icon_names();
-        names
-            .iter()
-            .filter_map(|name| {
-                let name_str = name.to_str()?;
-                let normalized = normalize_icon_name(name_str);
-                let normalized_cow = Cow::Owned(normalized.into_owned());
-                Some((Cow::Owned(name_str.to_string()), normalized_cow))
+static SYSTEM_ICON_ENTRIES: LazyLock<Vec<IconEntry>> = LazyLock::new(|| {
+    load_system_icon_names()
+        .iter()
+        .filter_map(|name| {
+            let name_str = name.to_str()?;
+            Some(IconEntry {
+                name: name_str.into(),
+                normalized: match normalize_icon_name(name_str) {
+                    Cow::Borrowed(_) => None,
+                    Cow::Owned(normalized) => Some(normalized.into_boxed_str()),
+                },
             })
-            .collect()
-    });
+        })
+        .collect()
+});
 static DESKTOP_ICON_INDEX: LazyLock<HashMap<String, String>> =
     LazyLock::new(build_desktop_icon_index);
 
@@ -158,18 +171,17 @@ fn find_similar_icon(icon_name: &str) -> Option<Vec<Cow<'static, str>>> {
     let normalized_no_separators = strip_icon_separators(normalized.as_ref());
     let mut matches: Vec<Cow<'static, str>> = Vec::with_capacity(MAX_SIMILAR_ICON_CANDIDATES);
 
-    for (candidate_name, candidate_normalized) in SYSTEM_ICON_ENTRIES.iter() {
-        if candidate_normalized.as_ref() == normalized.as_ref() {
+    for candidate in SYSTEM_ICON_ENTRIES.iter() {
+        let candidate_normalized = candidate.normalized();
+        if candidate_normalized == normalized.as_ref() {
             continue;
         }
 
-        if candidate_normalized.as_ref().contains(normalized.as_ref())
-            || normalized.as_ref().contains(candidate_normalized.as_ref())
-            || candidate_normalized
-                .as_ref()
-                .contains(normalized_no_separators.as_ref())
+        if candidate_normalized.contains(normalized.as_ref())
+            || normalized.as_ref().contains(candidate_normalized)
+            || candidate_normalized.contains(normalized_no_separators.as_ref())
         {
-            matches.push(Cow::Borrowed(candidate_name.as_ref()));
+            matches.push(Cow::Borrowed(&candidate.name));
             if matches.len() >= MAX_SIMILAR_ICON_CANDIDATES {
                 break;
             }
@@ -216,17 +228,17 @@ fn prefix_match_icon(icon_name: &str) -> Option<Cow<'static, str>> {
 
     if let Some(exact) = SYSTEM_ICON_ENTRIES
         .iter()
-        .find(|(_, norm)| norm.as_ref() == normalized.as_ref())
+        .find(|entry| entry.normalized() == normalized.as_ref())
     {
-        return Some(Cow::Borrowed(exact.0.as_ref()));
+        return Some(Cow::Borrowed(&exact.name));
     }
 
     let mut candidates: Vec<_> = SYSTEM_ICON_ENTRIES.iter().collect();
     for (idx, ch) in normalized.chars().enumerate() {
-        candidates.retain(|(_, name)| name.chars().nth(idx) == Some(ch));
+        candidates.retain(|entry| entry.normalized().chars().nth(idx) == Some(ch));
 
         if candidates.len() == 1 {
-            return Some(Cow::Borrowed(candidates[0].0.as_ref()));
+            return Some(Cow::Borrowed(&candidates[0].name));
         }
 
         if candidates.is_empty() {
@@ -234,9 +246,7 @@ fn prefix_match_icon(icon_name: &str) -> Option<Cow<'static, str>> {
         }
     }
 
-    candidates
-        .first()
-        .map(|(name, _)| Cow::Borrowed(name.as_ref()))
+    candidates.first().map(|entry| Cow::Borrowed(&*entry.name))
 }
 
 fn find_desktop_icon(icon_name: &str) -> Option<PathBuf> {
