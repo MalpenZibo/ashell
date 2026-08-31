@@ -117,9 +117,10 @@ impl NotificationDaemon {
         expire_timeout: i32,
     ) -> u32 {
         let id = if replaces_id == 0 {
-            self.next_id += 1;
+            self.next_id = self.next_id.checked_add(1).unwrap_or(1);
             self.next_id
         } else {
+            self.next_id = self.next_id.max(replaces_id);
             replaces_id
         };
 
