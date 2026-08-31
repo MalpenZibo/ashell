@@ -812,6 +812,8 @@ impl AshellTheme {
                 Status::Hovered => {
                     base.background = Some(if is_urgent && is_empty {
                         opaque(theme.extended_palette().danger.strong.color)
+                    } else if is_empty && is_active {
+                        opaque(theme.extended_palette().background.strong.color)
                     } else if is_empty {
                         fill(theme.extended_palette().background.strong.color)
                     } else if is_active {
