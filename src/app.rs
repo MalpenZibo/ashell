@@ -260,7 +260,8 @@ impl App {
                     ));
                 }
 
-                self.logger.set_new_spec(get_log_spec(&config.log_level));
+                self.logger
+                    .set_new_spec(get_log_spec(&config.logging.level));
                 tasks.push(self.refresh_config(config));
 
                 Task::batch(tasks)

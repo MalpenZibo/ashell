@@ -6,10 +6,11 @@ ashell does not currently have an automated test suite. Testing is done manually
 
 ## Debugging with Logs
 
-ashell writes logs to `$XDG_RUNTIME_DIR/ashell/`. To watch logs in real time:
+ashell writes logs into `$XDG_RUNTIME_DIR` (falling back to `/tmp/ashell/`).
+To watch logs in real time:
 
 ```bash
-tail -f $XDG_RUNTIME_DIR/ashell/*.log
+tail -f $XDG_RUNTIME_DIR/ashell_rCURRENT.log
 ```
 
 ### Adjusting Log Level
@@ -17,7 +18,8 @@ tail -f $XDG_RUNTIME_DIR/ashell/*.log
 In the config file:
 
 ```toml
-log_level = "debug"
+[logging]
+level = "debug"
 ```
 
 Common levels: `error`, `warn`, `info`, `debug`, `trace`.
@@ -25,12 +27,27 @@ Common levels: `error`, `warn`, `info`, `debug`, `trace`.
 You can also set per-module levels:
 
 ```toml
-log_level = "warn,ashell::services::audio=debug"
+[logging]
+level = "warn,ashell::services::audio=debug"
 ```
+
+### Logging to the Terminal
+
+To skip the log file entirely and see the output in the terminal that started
+ashell:
+
+```toml
+[logging]
+target = "stdout"   # or "stderr"
+```
+
+`target` and `directory` are read once at startup, so changing them needs a
+restart.
 
 ### Debug Build Logging
 
-In debug builds (`cargo build` without `--release`), all logs are also printed to stdout.
+In debug builds (`cargo build` without `--release`), all logs are also printed
+to stdout when `target = "file"`.
 
 ## Common Debugging Scenarios
 

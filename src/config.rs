@@ -23,10 +23,37 @@ use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LogTarget {
+    #[default]
+    File,
+    Stdout,
+    Stderr,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
+pub struct LoggingConfig {
+    pub level: String,
+    pub target: LogTarget,
+    pub directory: Option<PathBuf>,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            level: "warn".to_owned(),
+            target: LogTarget::default(),
+            directory: None,
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(default)]
 pub struct Config {
-    pub log_level: String,
+    pub logging: LoggingConfig,
     pub language: Option<String>,
     pub region: Option<String>,
     pub position: Position,
@@ -49,35 +76,6 @@ pub struct Config {
     pub animations: AnimationsConfig,
     pub enable_esc_key: bool,
     pub osd: OsdConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            log_level: "warn".to_owned(),
-            language: None,
-            region: None,
-            position: Position::default(),
-            layer: Layer::default(),
-            outputs: Outputs::default(),
-            modules: Modules::default(),
-            updates: None,
-            workspaces: WorkspacesModuleConfig::default(),
-            window_title: WindowTitleConfig::default(),
-            system_info: SystemInfoModuleConfig::default(),
-            notifications: NotificationsModuleConfig::default(),
-            tray: TrayModuleConfig::default(),
-            tempo: TempoModuleConfig::default(),
-            settings: SettingsModuleConfig::default(),
-            appearance: Appearance::default(),
-            media_player: MediaPlayerModuleConfig::default(),
-            keyboard_layout: KeyboardLayoutModuleConfig::default(),
-            animations: AnimationsConfig::default(),
-            custom_modules: vec![],
-            enable_esc_key: false,
-            osd: OsdConfig::default(),
-        }
-    }
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -1502,6 +1500,60 @@ impl Default for OsdConfig {
     }
 }
 
+/// Bootstrap-parse only the `[logging]` section from the config file.
+///
+/// This runs **before** the logger is initialized, so it must not use `log::*`
+/// and reports problems on `stderr` instead. A missing config file is not a
+/// problem; on any other failure it falls back to `LoggingConfig::default()`
+/// (file target, default directory). Extra top-level keys are ignored, typos
+/// are caught later by the full `Config` parse.
+pub fn read_logging_config(path: Option<&PathBuf>) -> LoggingConfig {
+    #[derive(Deserialize)]
+    struct LoggingConfigWrapper {
+        #[serde(default)]
+        logging: LoggingConfig,
+    }
+
+    let config_path = match path {
+        Some(p) => expand_path(p.clone()),
+        None => expand_path(PathBuf::from(DEFAULT_CONFIG_FILE_PATH)),
+    };
+
+    let config_path = match config_path {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!(
+                "ashell: warning: cannot expand the config path: {e}, using the default logging setup"
+            );
+            return LoggingConfig::default();
+        }
+    };
+
+    let content = match std::fs::read_to_string(&config_path) {
+        Ok(c) => c,
+        Err(e) => {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                eprintln!(
+                    "ashell: warning: cannot read {}: {e}, using the default logging setup",
+                    config_path.display()
+                );
+            }
+            return LoggingConfig::default();
+        }
+    };
+
+    match toml::from_str::<LoggingConfigWrapper>(&content) {
+        Ok(wrapper) => wrapper.logging,
+        Err(e) => {
+            eprintln!(
+                "ashell: warning: cannot read the [logging] section of {}, using the default logging setup:\n{e}",
+                config_path.display()
+            );
+            LoggingConfig::default()
+        }
+    }
+}
+
 pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
     match path {
         Some(p) => {
@@ -1535,7 +1587,7 @@ pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Er
     }
 }
 
-fn expand_path(path: PathBuf) -> Result<PathBuf, Box<dyn Error + Send>> {
+pub(crate) fn expand_path(path: PathBuf) -> Result<PathBuf, Box<dyn Error + Send>> {
     let str_path = path.to_string_lossy();
     let expanded =
         shellexpand::full(&str_path).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
