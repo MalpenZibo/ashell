@@ -1391,11 +1391,11 @@ impl Default for OsdConfig {
 
 /// Bootstrap-parse only the `[logging]` section from the config file.
 ///
-/// This runs **before** the logger is initialized, so it must not use `log::*`.
-/// On any error (missing file, parse failure, expansion failure) it silently
-/// returns `LoggingConfig::default()` (file target, default directory).
-/// Extra top-level keys are ignored — typos are caught later by the full
-/// `Config` parse.
+/// This runs **before** the logger is initialized, so it must not use `log::*`
+/// and reports problems on `stderr` instead. A missing config file is not a
+/// problem; on any other failure it falls back to `LoggingConfig::default()`
+/// (file target, default directory). Extra top-level keys are ignored, typos
+/// are caught later by the full `Config` parse.
 pub fn read_logging_config(path: Option<&PathBuf>) -> LoggingConfig {
     #[derive(Deserialize)]
     struct LoggingConfigWrapper {
@@ -1410,17 +1410,37 @@ pub fn read_logging_config(path: Option<&PathBuf>) -> LoggingConfig {
 
     let config_path = match config_path {
         Ok(p) => p,
-        Err(_) => return LoggingConfig::default(),
+        Err(e) => {
+            eprintln!(
+                "ashell: warning: cannot expand the config path: {e}, using the default logging setup"
+            );
+            return LoggingConfig::default();
+        }
     };
 
     let content = match std::fs::read_to_string(&config_path) {
         Ok(c) => c,
-        Err(_) => return LoggingConfig::default(),
+        Err(e) => {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                eprintln!(
+                    "ashell: warning: cannot read {}: {e}, using the default logging setup",
+                    config_path.display()
+                );
+            }
+            return LoggingConfig::default();
+        }
     };
 
-    toml::from_str::<LoggingConfigWrapper>(&content)
-        .map(|w| w.logging)
-        .unwrap_or_default()
+    match toml::from_str::<LoggingConfigWrapper>(&content) {
+        Ok(wrapper) => wrapper.logging,
+        Err(e) => {
+            eprintln!(
+                "ashell: warning: cannot read the [logging] section of {}, using the default logging setup:\n{e}",
+                config_path.display()
+            );
+            LoggingConfig::default()
+        }
+    }
 }
 
 pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
