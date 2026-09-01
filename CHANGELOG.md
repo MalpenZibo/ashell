@@ -1,5 +1,125 @@
 # Changelog
 
+## [0.10.0] - 2026-09-01
+
+### Changes
+
+### 💥 Breaking changes
+
+- add [logging] section with level, target and directory in config [@romanstingler](https://github.com/romanstingler) ([#923](https://github.com/MalpenZibo/ashell/issues/923))
+- Refactor/opacity model - unified opacity setting [@MalpenZibo](https://github.com/MalpenZibo) ([#903](https://github.com/MalpenZibo/ashell/issues/903))
+- Feat - media player bar visualizer improvement [@MalpenZibo](https://github.com/MalpenZibo) ([#878](https://github.com/MalpenZibo/ashell/issues/878))
+- feat(media\_player): support configurable indicator fields [@mengdehong](https://github.com/mengdehong) ([#786](https://github.com/MalpenZibo/ashell/issues/786))
+- feat(appearance): replace bar AppearanceStyle with dedicated settings [@MalpenZibo](https://github.com/MalpenZibo) ([#867](https://github.com/MalpenZibo/ashell/issues/867))
+- fix(config): use PascalCase for ToastPosition and TrayClickAction enums [@MalpenZibo](https://github.com/MalpenZibo) ([#837](https://github.com/MalpenZibo/ashell/issues/837))
+
+### 🚀 Features
+
+- add [logging] section with level, target and directory in config [@romanstingler](https://github.com/romanstingler) ([#923](https://github.com/MalpenZibo/ashell/issues/923))
+- Feat/per surface opacity [@MalpenZibo](https://github.com/MalpenZibo) ([#935](https://github.com/MalpenZibo/ashell/issues/935))
+- warn on unknown configuration fields during deserialization [@romanstingler](https://github.com/romanstingler) ([#922](https://github.com/MalpenZibo/ashell/issues/922))
+- autofocus password input on network dialog open [@romanstingler](https://github.com/romanstingler) ([#900](https://github.com/MalpenZibo/ashell/issues/900))
+- feat(blur): opt-in compositor blur behind translucent surfaces [@MalpenZibo](https://github.com/MalpenZibo) ([#866](https://github.com/MalpenZibo/ashell/issues/866))
+- Feat - media player bar visualizer improvement [@MalpenZibo](https://github.com/MalpenZibo) ([#878](https://github.com/MalpenZibo/ashell/issues/878))
+- Add NewIcon watcher [@SimoneFelici](https://github.com/SimoneFelici) ([#843](https://github.com/MalpenZibo/ashell/issues/843))
+- feat(media\_player): support configurable indicator fields [@mengdehong](https://github.com/mengdehong) ([#786](https://github.com/MalpenZibo/ashell/issues/786))
+- add support for bond network interfaces [@romanstingler](https://github.com/romanstingler) ([#835](https://github.com/MalpenZibo/ashell/issues/835))
+- feat(network): detect IWD connection state in known\_connections [@dacrab](https://github.com/dacrab) ([#827](https://github.com/MalpenZibo/ashell/issues/827))
+- add Name/IconAndName formats to show network name in indicator [@romanstingler](https://github.com/romanstingler) ([#812](https://github.com/MalpenZibo/ashell/issues/812))
+- Add configurable window icons to workspace indicators [@gwiazdorrr](https://github.com/gwiazdorrr) ([#495](https://github.com/MalpenZibo/ashell/issues/495))
+- feat(media\_player): add optional cava audio visualizer [@MalpenZibo](https://github.com/MalpenZibo) ([#872](https://github.com/MalpenZibo/ashell/issues/872))
+- feat(appearance): replace bar AppearanceStyle with dedicated settings [@MalpenZibo](https://github.com/MalpenZibo) ([#867](https://github.com/MalpenZibo/ashell/issues/867))
+- Auto highlight active workspace using color palette [@1randomguy](https://github.com/1randomguy) ([#856](https://github.com/MalpenZibo/ashell/issues/856))
+- feat(compositor): add MangoWC backend [@MalpenZibo](https://github.com/MalpenZibo) ([#846](https://github.com/MalpenZibo/ashell/issues/846))
+- Feat/generic backend simple [@MalpenZibo](https://github.com/MalpenZibo) ([#847](https://github.com/MalpenZibo/ashell/issues/847))
+- feat(i18n): german translation [@fuggerjaki61](https://github.com/fuggerjaki61) ([#839](https://github.com/MalpenZibo/ashell/issues/839))
+- support multiline JSON output in custom module [@romanstingler](https://github.com/romanstingler) ([#807](https://github.com/MalpenZibo/ashell/issues/807))
+- Add configurable mouse event handlers to CustomModule [@romanstingler](https://github.com/romanstingler) ([#735](https://github.com/MalpenZibo/ashell/issues/735))
+- feat(notifications): animate toast slide-in/out from screen edge [@MalpenZibo](https://github.com/MalpenZibo) ([#749](https://github.com/MalpenZibo/ashell/issues/749))
+- Feat/animate menu opening/closing [@MalpenZibo](https://github.com/MalpenZibo) ([#744](https://github.com/MalpenZibo/ashell/issues/744))
+- feat(components): add spinning loading indicator for refresh states [@MalpenZibo](https://github.com/MalpenZibo) ([#748](https://github.com/MalpenZibo/ashell/issues/748))
+- Feat/collapsible settings sub-menu [@MalpenZibo](https://github.com/MalpenZibo) ([#747](https://github.com/MalpenZibo/ashell/issues/747))
+- Feat/animate system info color [@MalpenZibo](https://github.com/MalpenZibo) ([#746](https://github.com/MalpenZibo/ashell/issues/746))
+
+### 🐞 Bug fixes
+
+- fix(notifications): keep the id counter ahead of replaced ids [@MalpenZibo](https://github.com/MalpenZibo) ([#940](https://github.com/MalpenZibo/ashell/issues/940))
+- prevent duplicate notification toasts from being queued [@romanstingler](https://github.com/romanstingler) ([#920](https://github.com/MalpenZibo/ashell/issues/920))
+- clamp tempo weather coordinates to valid ranges [@romanstingler](https://github.com/romanstingler) ([#937](https://github.com/MalpenZibo/ashell/issues/937))
+- Use notification hint image data for icon [@r3dArch](https://github.com/r3dArch) ([#934](https://github.com/MalpenZibo/ashell/issues/934))
+- fix(network): handle iwd station lifecycle after rfkill unblock [@Scott-Nx](https://github.com/Scott-Nx) ([#933](https://github.com/MalpenZibo/ashell/issues/933))
+- extract numeric prefix parsing for workspace index [@romanstingler](https://github.com/romanstingler) ([#929](https://github.com/MalpenZibo/ashell/issues/929))
+- fix(audio): reconnect to PulseAudio on connection loss instead of hanging [@romanstingler](https://github.com/romanstingler) ([#916](https://github.com/MalpenZibo/ashell/issues/916))
+- [Fix] Center OSD icons vertically/horizontally [@r3dArch](https://github.com/r3dArch) ([#910](https://github.com/MalpenZibo/ashell/issues/910))
+- reset network dialog state when menu opens [@romanstingler](https://github.com/romanstingler) ([#901](https://github.com/MalpenZibo/ashell/issues/901))
+- add configurable visualizer framerate and optimize cava lifecycle [@romanstingler](https://github.com/romanstingler) ([#897](https://github.com/MalpenZibo/ashell/issues/897))
+- only listen for Escape while it can close a menu [@romanstingler](https://github.com/romanstingler) ([#896](https://github.com/MalpenZibo/ashell/issues/896))
+- Fix empty tray shown when all icons blocked [@r3dArch](https://github.com/r3dArch) ([#894](https://github.com/MalpenZibo/ashell/issues/894))
+- Implement separator normalization [@SimoneFelici](https://github.com/SimoneFelici) ([#882](https://github.com/MalpenZibo/ashell/issues/882))
+- fix(hyprland) Switch main keyboard only [@impervius](https://github.com/impervius) ([#877](https://github.com/MalpenZibo/ashell/issues/877))
+- fix(copr): update container to fedora:latest and add proper spec dependencies [@dacrab](https://github.com/dacrab) ([#840](https://github.com/MalpenZibo/ashell/issues/840))
+- warn and auto-select weight when font\_name has no Normal(400) face [@romanstingler](https://github.com/romanstingler) ([#810](https://github.com/MalpenZibo/ashell/issues/810))
+- fix: patch hyprland-rs to fix window title deserialization [@romanstingler](https://github.com/romanstingler) ([#886](https://github.com/MalpenZibo/ashell/issues/886))
+- fix(updates): keep spinner state across config reload [@MalpenZibo](https://github.com/MalpenZibo) ([#875](https://github.com/MalpenZibo/ashell/issues/875))
+- workspaces: compare monitor names by equality, not substring [@johnnybravo-xyz](https://github.com/johnnybravo-xyz) ([#805](https://github.com/MalpenZibo/ashell/issues/805))
+- fix clippy warning [@romanstingler](https://github.com/romanstingler) ([#833](https://github.com/MalpenZibo/ashell/issues/833))
+- fix(logger): scope stdout log duplication to debug builds, guard OSD handler [@dacrab](https://github.com/dacrab) ([#829](https://github.com/MalpenZibo/ashell/issues/829))
+- fix(power): handle pending battery states [@Scott-Nx](https://github.com/Scott-Nx) ([#801](https://github.com/MalpenZibo/ashell/issues/801))
+- fix(config): use PascalCase for ToastPosition and TrayClickAction enums [@MalpenZibo](https://github.com/MalpenZibo) ([#837](https://github.com/MalpenZibo/ashell/issues/837))
+- Fix spinning static icon [@MalpenZibo](https://github.com/MalpenZibo) ([#836](https://github.com/MalpenZibo/ashell/issues/836))
+- fix(settings): display battery indicator for touchpad peripherals [@emilnymann](https://github.com/emilnymann) ([#820](https://github.com/MalpenZibo/ashell/issues/820))
+
+### 📚 Documentation
+
+- document shell execution of command options [@romanstingler](https://github.com/romanstingler) ([#939](https://github.com/MalpenZibo/ashell/issues/939))
+- note special workspaces are Hyprland-only [@romanstingler](https://github.com/romanstingler) ([#938](https://github.com/MalpenZibo/ashell/issues/938))
+- docs: add network backend support documentation and reorder sidebar [@romanstingler](https://github.com/romanstingler) ([#921](https://github.com/MalpenZibo/ashell/issues/921))
+- add troubleshooting guide for hybrid graphics display issues [@romanstingler](https://github.com/romanstingler) ([#803](https://github.com/MalpenZibo/ashell/issues/803))
+
+### 🧰 Maintenance
+
+- chore(deps): build against iced\_layershell v0.5.1 [@MalpenZibo](https://github.com/MalpenZibo) ([#944](https://github.com/MalpenZibo/ashell/issues/944))
+- refactor(config): let config.rs own config and log path resolution [@MalpenZibo](https://github.com/MalpenZibo) ([#943](https://github.com/MalpenZibo/ashell/issues/943))
+-  perf: reduce unnecessary service and icon cache overhead [@Scott-Nx](https://github.com/Scott-Nx) ([#941](https://github.com/MalpenZibo/ashell/issues/941))
+- organize full\_config.md into labeled sections [@romanstingler](https://github.com/romanstingler) ([#907](https://github.com/MalpenZibo/ashell/issues/907))
+- chore(docs): unfold configuration sidebar categories by default [@romanstingler](https://github.com/romanstingler) ([#906](https://github.com/MalpenZibo/ashell/issues/906))
+- log version at startup [@romanstingler](https://github.com/romanstingler) ([#899](https://github.com/MalpenZibo/ashell/issues/899))
+- chore(settings): drop Brightness from default indicators [@MalpenZibo](https://github.com/MalpenZibo) ([#876](https://github.com/MalpenZibo/ashell/issues/876))
+- perf(ci): improve Github Action cache usage [@MalpenZibo](https://github.com/MalpenZibo) ([#874](https://github.com/MalpenZibo/ashell/issues/874))
+- chore(deps): bump anyhow from 1.0.102 to 1.0.103 @[dependabot[bot]](https://github.com/apps/dependabot) ([#865](https://github.com/MalpenZibo/ashell/issues/865))
+- chore(deps): bump sysinfo from 0.39.3 to 0.39.5 @[dependabot[bot]](https://github.com/apps/dependabot) ([#864](https://github.com/MalpenZibo/ashell/issues/864))
+- chore(deps): bump itertools from 0.14.0 to 0.15.0 @[dependabot[bot]](https://github.com/apps/dependabot) ([#863](https://github.com/MalpenZibo/ashell/issues/863))
+- chore(deps): bump wayland-protocols from 0.32.12 to 0.32.13 @[dependabot[bot]](https://github.com/apps/dependabot) ([#861](https://github.com/MalpenZibo/ashell/issues/861))
+- chore(deps): bump actions/checkout from 6 to 7 @[dependabot[bot]](https://github.com/apps/dependabot) ([#860](https://github.com/MalpenZibo/ashell/issues/860))
+- chore(deps): bump nixbuild/nix-quick-install-action from 34 to 35 @[dependabot[bot]](https://github.com/apps/dependabot) ([#859](https://github.com/MalpenZibo/ashell/issues/859))
+- chore(deps): bump pnpm/action-setup from 5 to 6 @[dependabot[bot]](https://github.com/apps/dependabot) ([#858](https://github.com/MalpenZibo/ashell/issues/858))
+- chore(deps): bump actions/upload-pages-artifact from 3 to 5 @[dependabot[bot]](https://github.com/apps/dependabot) ([#857](https://github.com/MalpenZibo/ashell/issues/857))
+- refactor(app): extract Message enum and osd\_info into submodules [@dacrab](https://github.com/dacrab) ([#825](https://github.com/MalpenZibo/ashell/issues/825))
+- clarify wlr-foreign-toplevel state array format [@romanstingler](https://github.com/romanstingler) ([#855](https://github.com/MalpenZibo/ashell/issues/855))
+- Chore/website dependency audit [@MalpenZibo](https://github.com/MalpenZibo) ([#853](https://github.com/MalpenZibo/ashell/issues/853))
+- chore: remove dead code and unused items [@dacrab](https://github.com/dacrab) ([#831](https://github.com/MalpenZibo/ashell/issues/831))
+- refactor(network): rename AccessPoint to AccessPointData [@dacrab](https://github.com/dacrab) ([#828](https://github.com/MalpenZibo/ashell/issues/828))
+- refactor(theme): extract shared iced\_theme construction into helper functions [@dacrab](https://github.com/dacrab) ([#824](https://github.com/MalpenZibo/ashell/issues/824))
+- refactor(tempo): split monolithic module into submodules [@dacrab](https://github.com/dacrab) ([#822](https://github.com/MalpenZibo/ashell/issues/822))
+- chore: adopt AGENTS.md convention [@JockeM](https://github.com/JockeM) ([#818](https://github.com/MalpenZibo/ashell/issues/818))
+- Use better CPU icon [@two-horned](https://github.com/two-horned) ([#809](https://github.com/MalpenZibo/ashell/issues/809))
+
+### 🔧 Dependency updates
+
+- chore(deps): bump anyhow from 1.0.102 to 1.0.103 @[dependabot[bot]](https://github.com/apps/dependabot) ([#865](https://github.com/MalpenZibo/ashell/issues/865))
+- chore(deps): bump sysinfo from 0.39.3 to 0.39.5 @[dependabot[bot]](https://github.com/apps/dependabot) ([#864](https://github.com/MalpenZibo/ashell/issues/864))
+- chore(deps): bump itertools from 0.14.0 to 0.15.0 @[dependabot[bot]](https://github.com/apps/dependabot) ([#863](https://github.com/MalpenZibo/ashell/issues/863))
+- chore(deps): bump wayland-protocols from 0.32.12 to 0.32.13 @[dependabot[bot]](https://github.com/apps/dependabot) ([#861](https://github.com/MalpenZibo/ashell/issues/861))
+- chore(deps): bump actions/checkout from 6 to 7 @[dependabot[bot]](https://github.com/apps/dependabot) ([#860](https://github.com/MalpenZibo/ashell/issues/860))
+- chore(deps): bump nixbuild/nix-quick-install-action from 34 to 35 @[dependabot[bot]](https://github.com/apps/dependabot) ([#859](https://github.com/MalpenZibo/ashell/issues/859))
+- chore(deps): bump pnpm/action-setup from 5 to 6 @[dependabot[bot]](https://github.com/apps/dependabot) ([#858](https://github.com/MalpenZibo/ashell/issues/858))
+- chore(deps): bump actions/upload-pages-artifact from 3 to 5 @[dependabot[bot]](https://github.com/apps/dependabot) ([#857](https://github.com/MalpenZibo/ashell/issues/857))
+- patch hyprland-rs for non-UTF-8 window titles [@romanstingler](https://github.com/romanstingler) ([#813](https://github.com/MalpenZibo/ashell/issues/813))
+
+### Contributors
+
+❤️ A big thanks to [@1randomguy](https://github.com/1randomguy), [@dacrab](https://github.com/dacrab), [@emilnymann](https://github.com/emilnymann), [@fuggerjaki61](https://github.com/fuggerjaki61), [@gwiazdorrr](https://github.com/gwiazdorrr), [@impervius](https://github.com/impervius), [@JockeM](https://github.com/JockeM), [@johnnybravo-xyz](https://github.com/johnnybravo-xyz), [@mengdehong](https://github.com/mengdehong), [@r3dArch](https://github.com/r3dArch), [@romanstingler](https://github.com/romanstingler), [@Scott-Nx](https://github.com/Scott-Nx), [@SimoneFelici](https://github.com/SimoneFelici), [@two-horned](https://github.com/two-horned) and [@ashlcx](https://github.com/ashlcx)
+
 ## [0.9.0] - 2026-06-08
 
 Here we are with a new release! Thanks, everyone, for the support! 🎉
