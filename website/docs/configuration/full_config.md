@@ -22,7 +22,7 @@ position = "Top"             # "Top" (default) or "Bottom"
 [logging]
 # level = "warn"             # (default) "error", "warn", "info", or "debug"; supports per-module filters
 # target = "file"            # (default) "file", "stdout", or "stderr"
-# directory = "~/.local/log" # (default: $XDG_RUNTIME_DIR/ashell) supports ~ and $VAR
+# directory = "~/.local/log" # (default: $XDG_RUNTIME_DIR) supports ~ and $VAR
 
 # ── Modules ───────────────────────────────────────────────────────────────────
 

@@ -15,9 +15,11 @@ All these configurations are defined in the root of the `toml` file.
 
 The `[logging]` section controls log level, destination, and file location.
 
-By default, ashell logs at `warn` level to a file in `$XDG_RUNTIME_DIR/ashell/`
-(or `/tmp/ashell/` as a fallback). Log files are rotated daily or when they
-reach 10 MB, and the last 7 files are kept.
+By default, ashell logs at `warn` level to a file directly inside
+`$XDG_RUNTIME_DIR`, for example `/run/user/1000/ashell_rCURRENT.log`. When
+`$XDG_RUNTIME_DIR` is unset or is not a private per-user directory, the
+fallback is `/tmp/ashell/`. Log files are rotated daily or when they reach
+10 MB, and the last 7 files are kept.
 
 See [log levels](https://docs.rs/env_logger/latest/env_logger/#enabling-logging)
 for the full filter syntax.
@@ -27,7 +29,8 @@ for the full filter syntax.
 - `level` — Log verbosity: `"error"`, `"warn"`, `"info"`, or `"debug"` (default: `"warn"`).
 - `target` — Where to write logs: `"file"` (default), `"stdout"`, or `"stderr"`.
 - `directory` — Custom log directory (only used when `target = "file"`).
-  Supports `~` and environment variable expansion. Defaults to `$XDG_RUNTIME_DIR/ashell/`.
+  Supports `~` and environment variable expansion, and is created if missing.
+  Defaults to `$XDG_RUNTIME_DIR`.
 
 :::warning
 
@@ -40,7 +43,8 @@ The log destination is set once at startup and cannot be changed via hot-reload.
 
 On multi-user systems, avoid setting `directory` to a shared path like `/tmp/ashell`.
 The default `$XDG_RUNTIME_DIR` is per-user and avoids permission conflicts when
-multiple users run ashell on the same machine. See
+multiple users run ashell on the same machine; ashell only falls back to
+`/tmp/ashell` when `$XDG_RUNTIME_DIR` is unusable. See
 [#760](https://github.com/MalpenZibo/ashell/pull/760) for details.
 
 :::

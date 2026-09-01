@@ -62,17 +62,18 @@ The default config path is `~/.config/ashell/config.toml`.
 
 ## Logging
 
-ashell uses [flexi_logger](https://docs.rs/flexi_logger) and writes logs to `$XDG_RUNTIME_DIR/ashell/`.
+ashell uses [flexi_logger](https://docs.rs/flexi_logger) and writes logs into `$XDG_RUNTIME_DIR` (falling back to `/tmp/ashell/`).
 
 - Log files rotate daily and are kept for 7 days.
-- In debug builds, logs are also printed to stdout.
-- The log level is controlled by the `log_level` field in the config file (default: `"warn"`).
+- In debug builds, logs are also printed to stdout when `logging.target = "file"`.
+- The log level is controlled by the `logging.level` field in the config file (default: `"warn"`).
+- `logging.target` selects the destination: `"file"` (default), `"stdout"` or `"stderr"`; `logging.directory` overrides the log directory when the target is `"file"`.
 - The log level follows the [env_logger syntax](https://docs.rs/env_logger/latest/env_logger/#enabling-logging), e.g., `"debug"`, `"info"`, `"ashell=debug,iced=warn"`.
 
 To watch logs in real time:
 
 ```bash
-tail -f $XDG_RUNTIME_DIR/ashell/*.log
+tail -f $XDG_RUNTIME_DIR/ashell_rCURRENT.log
 ```
 
 ## IPC Socket

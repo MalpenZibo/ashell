@@ -25,14 +25,17 @@ The config path can also be overridden with the `--config-path` CLI flag, which 
 
 ## Logging
 
-ashell uses [flexi_logger](https://docs.rs/flexi_logger) which reads the log level from the config file's `log_level` field. The format follows [env_logger syntax](https://docs.rs/env_logger/latest/env_logger/#enabling-logging):
+ashell uses [flexi_logger](https://docs.rs/flexi_logger) which reads the log level from the config file's `logging.level` field. The format follows [env_logger syntax](https://docs.rs/env_logger/latest/env_logger/#enabling-logging):
 
 ```toml
 # In config.toml
-log_level = "debug"
-log_level = "warn,ashell::services=debug"
-log_level = "info,ashell::modules::settings=trace"
+[logging]
+level = "debug"
+# level = "warn,ashell::services=debug"
+# level = "info,ashell::modules::settings=trace"
 ```
+
+`logging.target` selects the destination (`"file"`, the default, or `"stdout"` / `"stderr"`) and `logging.directory` overrides the log directory used by the `"file"` target.
 
 ## Wayland
 
