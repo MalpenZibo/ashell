@@ -44,8 +44,7 @@ The log destination is set once at startup and cannot be changed via hot-reload.
 On multi-user systems, avoid setting `directory` to a shared path like `/tmp/ashell`.
 The default `$XDG_RUNTIME_DIR` is per-user and avoids permission conflicts when
 multiple users run ashell on the same machine; ashell only falls back to
-`/tmp/ashell` when `$XDG_RUNTIME_DIR` is unusable. See
-[#760](https://github.com/MalpenZibo/ashell/pull/760) for details.
+`/tmp/ashell` when `$XDG_RUNTIME_DIR` is unusable.
 
 :::
 
