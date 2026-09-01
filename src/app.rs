@@ -1,7 +1,7 @@
 use crate::{
     HEIGHT,
     components::{Centerbox, menu::MenuType},
-    config::{self, BarSurface, Config, ModuleName, Modules, WorkspaceIndicatorFormat},
+    config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
     get_log_spec,
     i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
@@ -219,12 +219,17 @@ impl App {
         workspaces_task
     }
 
-    pub fn theme(&self) -> Theme {
-        use_theme(|t| t.iced_theme.clone())
+    pub fn theme(&self, id: SurfaceId) -> Theme {
+        let surface = self
+            .outputs
+            .has(id)
+            .map_or(Surface::Bar, |output| output.surface());
+
+        use_theme(|t| t.surface(surface).iced_theme.clone())
     }
 
-    pub fn scale_factor(&self) -> f64 {
-        use_theme(|t| t.scale_factor)
+    pub fn scale_factor(&self, _id: SurfaceId) -> f32 {
+        use_theme(|t| t.scale_factor) as f32
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -596,7 +601,7 @@ impl App {
                             t.menu,
                             t.animations_enabled,
                             t.bar_border_radius(),
-                            t.blur,
+                            t.surface(Surface::Bar).blur,
                         )
                     });
                 let centerbox = Centerbox::new([left, center, right])

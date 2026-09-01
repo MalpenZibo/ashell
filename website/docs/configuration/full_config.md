@@ -202,6 +202,7 @@ enabled = false   # (default)
 # font_name = "Sans"           # (default: None) custom font family
 # scale_factor = 1.0           # (default) range: 0.0 < x <= 2.0
 # opacity = 1.0                # (default) range: 0.0 to 1.0, every surface ashell draws
+                               # or a table: [appearance.opacity] with default/bar/menu/osd/notifications
 # blur = "auto"                # (default) auto|always|never, compositor blur
 primary_color = "#7aa2f7"
 success_color = "#9ece6a"

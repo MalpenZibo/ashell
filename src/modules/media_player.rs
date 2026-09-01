@@ -1,6 +1,7 @@
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon, icon_button},
+    components::scrollable,
     components::{ButtonSize, MenuSize},
     config::{
         MediaPlayerFormat, MediaPlayerModuleConfig, MediaPlayerTextField, MediaPlayerVisualizer,
@@ -17,7 +18,7 @@ use crate::{
     utils::truncate_text,
 };
 use iced::{
-    Background, Border, Color, Element, Length, Subscription, Task, Theme,
+    Color, Element, Length, Subscription, Task,
     alignment::Vertical,
     futures::SinkExt,
     gradient::ColorStop,
@@ -25,7 +26,7 @@ use iced::{
     widget::{
         Stack,
         canvas::{self, Canvas, Fill, Frame, Geometry, Path},
-        column, container, image, row, scrollable, slider, space, text,
+        column, container, image, row, slider, space, text,
     },
 };
 use std::any::TypeId;
@@ -242,14 +243,8 @@ impl MediaPlayer {
     }
 
     pub fn menu_view<'a>(&'a self, is_closing: bool) -> Element<'a, Message> {
-        let (space, font_size, radius, palette) = use_theme(|theme| {
-            (
-                theme.space,
-                theme.font_size,
-                theme.radius,
-                theme.iced_theme.palette(),
-            )
-        });
+        let (space, font_size, radius, palette) =
+            use_theme(|theme| (theme.space, theme.font_size, theme.radius, theme.palette));
         container(match &self.service {
             None => Into::<Element<'a, Message>>::into(text(t!("media-player-not-connected"))),
             Some(service) => column!(
@@ -311,6 +306,7 @@ impl MediaPlayer {
                                 Message::SetVolume(d.service.clone(), v)
                             })
                             .width(LEFT_COLUMN_WIDTH)
+                            .style(crate::theme::slider_style)
                             .into()
                         });
                         let cover: Option<Element<'_, _>> = (!is_closing)
@@ -393,14 +389,7 @@ impl MediaPlayer {
                             content
                         };
                         container(body)
-                            .style(move |app_theme: &Theme| container::Style {
-                                background: Background::Color(
-                                    app_theme.extended_palette().background.weak.color,
-                                )
-                                .into(),
-                                border: Border::default().rounded(radius.lg),
-                                ..container::Style::default()
-                            })
+                            .style(crate::theme::card_style(radius.lg))
                             .width(Length::Fill)
                             .into()
                     }))
@@ -470,7 +459,7 @@ impl MediaPlayer {
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
         let (space, font_size, palette) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.iced_theme.palette()));
+            use_theme(|theme| (theme.space, theme.font_size, theme.palette));
         self.active_player().map(|player| {
             let has_text = self.config.indicator_format != MediaPlayerFormat::Icon;
             let label = || {

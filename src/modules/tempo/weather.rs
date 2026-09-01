@@ -2,19 +2,20 @@ use std::time::Duration;
 
 use chrono::{NaiveDate, NaiveDateTime};
 use iced::{
-    Background, Border, Degrees, Element, Length, Padding, Rotation, Theme,
+    Border, Degrees, Element, Length, Padding, Rotation, Theme,
     alignment::{Horizontal, Vertical},
     core::svg::Handle,
-    widget::{Column, MouseArea, Row, Svg, column, container, row, scrollable, svg, text},
+    widget::{Column, MouseArea, Row, Svg, column, container, row, svg, text},
 };
 use itertools::izip;
 use serde::{Deserialize, Deserializer};
 
 use crate::{
+    components::scrollable,
     config::WeatherLocation,
     i18n::{UnitSystem, chrono_locale, unit_system},
     t,
-    theme::use_theme,
+    theme::{Paint, use_theme},
 };
 
 use super::{Message, Tempo};
@@ -49,9 +50,13 @@ impl Tempo {
                 } else {
                     container(text("•••••").size(font_size.sm))
                         .style(move |theme: &Theme| container::Style {
-                            background: Some(Background::Color(
-                                theme.extended_palette().background.strong.color,
-                            )),
+                            background: Some(
+                                Paint::surface(
+                                    theme,
+                                    theme.extended_palette().background.strong.color,
+                                )
+                                .into(),
+                            ),
                             border: Border::default().rounded(radius.sm),
                             ..Default::default()
                         })
@@ -144,14 +149,7 @@ impl Tempo {
                         .width(Length::Fill),
                     )
                     .padding(space.md)
-                    .style(move |app_theme: &Theme| container::Style {
-                        background: Background::Color(
-                            app_theme.extended_palette().background.weak.color,
-                        )
-                        .into(),
-                        border: Border::default().rounded(radius.lg),
-                        ..container::Style::default()
-                    }),
+                    .style(crate::theme::card_style(radius.lg)),
                     container(
                         scrollable(
                             Row::with_children({
@@ -202,14 +200,7 @@ impl Tempo {
                         .horizontal()
                     )
                     .padding(space.sm)
-                    .style(move |app_theme: &Theme| container::Style {
-                        background: Background::Color(
-                            app_theme.extended_palette().background.weak.color,
-                        )
-                        .into(),
-                        border: Border::default().rounded(radius.lg),
-                        ..container::Style::default()
-                    }),
+                    .style(crate::theme::card_style(radius.lg)),
                     Column::with_children(
                         izip!(
                             &data.daily.time,
@@ -265,27 +256,20 @@ impl Tempo {
                                     .align_y(Vertical::Center),
                                 )
                                 .padding(space.sm)
-                                .style(move |app_theme: &Theme| container::Style {
-                                    background: Background::Color(
-                                        app_theme.extended_palette().background.weak.color,
-                                    )
-                                    .into(),
-                                    border: Border::default().rounded(iced::border::Radius {
-                                        top_left: if index == 0 { radius.lg } else { radius.sm },
-                                        top_right: if index == 0 { radius.lg } else { radius.sm },
-                                        bottom_right: if index == last_index {
-                                            radius.lg
-                                        } else {
-                                            radius.sm
-                                        },
-                                        bottom_left: if index == last_index {
-                                            radius.lg
-                                        } else {
-                                            radius.sm
-                                        },
-                                    }),
-                                    ..container::Style::default()
-                                })
+                                .style(crate::theme::card_style(iced::border::Radius {
+                                    top_left: if index == 0 { radius.lg } else { radius.sm },
+                                    top_right: if index == 0 { radius.lg } else { radius.sm },
+                                    bottom_right: if index == last_index {
+                                        radius.lg
+                                    } else {
+                                        radius.sm
+                                    },
+                                    bottom_left: if index == last_index {
+                                        radius.lg
+                                    } else {
+                                        radius.sm
+                                    },
+                                }))
                                 .into()
                             }
                         )

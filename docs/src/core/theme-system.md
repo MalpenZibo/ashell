@@ -6,7 +6,8 @@ The theme system is defined in `src/theme.rs`. It wraps iced's built-in theming 
 
 ```rust
 pub struct AshellTheme {
-    pub iced_theme: Theme,                                    // iced's built-in theme
+    surfaces: [SurfaceTheme; 4],                              // One theme per Surface
+    pub palette: Palette,                                     // Ink colours, no `&Theme` needed
     pub space: Space,                                         // Spacing tokens
     pub radius: Radius,                                       // Border radius tokens
     pub font_size: FontSize,                                  // Font size tokens
@@ -20,6 +21,43 @@ pub struct AshellTheme {
     pub scale_factor: f64,                                    // DPI scale factor
 }
 ```
+
+Each layer-shell surface is drawn with its own theme, so `appearance.opacity`
+can vary per surface:
+
+```rust
+pub enum Surface { Bar, Menu, Osd, Notifications }
+
+/// Everything that varies from one surface to the next.
+pub struct SurfaceTheme {
+    pub iced_theme: Theme,
+    pub blur: bool,
+}
+```
+
+Reach for one with `theme.surface(Surface::Menu)`. `App::theme(id)` picks the
+surface via `HasOutput::surface()`.
+
+### Paint vs ink
+
+Opacity is carried by `Palette::background` only, so a fill has to pick it up
+explicitly. The `Paint` type makes that choice a type, not a convention:
+
+```rust
+Paint::surface(theme, color)  // part of the surface: carries its opacity
+Paint::opaque(color)          // drawn on the surface: keeps its contrast
+```
+
+The fill helpers (`card_style`, `surface_border`, the `button_style` family)
+take a `Paint`, so a raw palette colour will not compile where a fill is
+expected. That matters because the mistake is otherwise invisible: an
+un-opacified fill looks correct at the default `opacity = 1.0` and only goes
+wrong once a surface is made translucent.
+
+A colour that is *ink* (text, icons, accents) is not a `Paint` at all and
+stays a plain `Color`. Marks that need to be subtle use a fixed ratio of the
+foreground, `ink(theme, alpha)`, rather than a scaled background, so they read
+the same at any opacity.
 
 ## Design Tokens
 
@@ -118,7 +156,7 @@ The theme is built from the config's `Appearance` section:
 impl AshellTheme {
     pub fn new(position: Position, appearance: &Appearance) -> Self {
         AshellTheme {
-            iced_theme: Theme::custom_with_fn(/* ... */),
+            surfaces: Surface::ALL.map(/* one theme per surface */),
             space: Space::default(),
             radius: Radius::default(),
             font_size: FontSize::default(),
@@ -132,4 +170,4 @@ impl AshellTheme {
 }
 ```
 
-The iced theme is created with `Theme::custom_with_fn()`, which builds a palette from the configured colors.
+Each iced theme is created with `Theme::custom_with_fn()`, which builds a palette from the configured colors. The derived `palette::Extended` does not depend on the opacity, so it is generated once and shared by all four surface themes.

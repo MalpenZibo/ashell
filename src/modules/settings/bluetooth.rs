@@ -3,7 +3,7 @@ use crate::{
     components::{
         ButtonSize, divider, format_indicator,
         icons::{StaticIcon, icon, icon_button},
-        quick_setting_button,
+        quick_setting_button, scrollable,
         spinning_icon::spinning_icon,
         styled_button,
     },
@@ -19,7 +19,7 @@ use crate::{
 use iced::{
     Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     alignment::{Horizontal, Vertical},
-    widget::{Column, MouseArea, Row, column, container, row, scrollable, text},
+    widget::{Column, MouseArea, Row, column, container, row, text},
 };
 use itertools::Itertools;
 use zbus::zvariant::OwnedObjectPath;
@@ -276,7 +276,7 @@ impl BluetoothSettings {
                                 .push(
                                     text(d.name.clone())
                                         .color_maybe(if d.connected {
-                                            Some(theme.iced_theme.palette().success)
+                                            Some(theme.palette.success)
                                         } else {
                                             None
                                         })
@@ -286,7 +286,7 @@ impl BluetoothSettings {
                                 .push(
                                     icon_button(StaticIcon::Remove)
                                         .on_press(Message::RemoveDevice(d.path.clone()))
-                                        .color(theme.iced_theme.palette().danger)
+                                        .color(theme.palette.danger)
                                         .size(ButtonSize::Small),
                                 )
                                 .align_y(Vertical::Center)

@@ -1,6 +1,7 @@
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
+    components::scrollable,
     components::spinning_icon::spinning_icon,
     components::{IconPosition, MenuSize, styled_button},
     config::UpdatesModuleConfig,
@@ -11,7 +12,7 @@ use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
     alignment::Horizontal,
     stream::channel,
-    widget::{Column, column, container, row, scrollable, text},
+    widget::{Column, column, container, row, text},
 };
 use log::error;
 use serde::Deserialize;

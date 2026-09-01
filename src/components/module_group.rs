@@ -1,4 +1,7 @@
-use crate::{config::BarSurface, theme::use_theme};
+use crate::{
+    config::{BarSurface, Surface},
+    theme::use_theme,
+};
 use iced::{
     Border, Color, Element,
     widget::{blur_container, container},
@@ -10,8 +13,13 @@ use iced::{
 /// - `Transparent` → wrap in a container with background color + rounded border,
 ///   using `blur_container` when compositor blur is enabled
 pub fn module_group<'a, Msg: 'static>(content: Element<'a, Msg>) -> Element<'a, Msg> {
-    let (bar_surface, radius, blur) =
-        use_theme(|theme| (theme.bar_surface, theme.radius, theme.blur));
+    let (bar_surface, radius, blur) = use_theme(|theme| {
+        (
+            theme.bar_surface,
+            theme.radius,
+            theme.surface(Surface::Bar).blur,
+        )
+    });
 
     match bar_surface {
         BarSurface::Solid => content,
