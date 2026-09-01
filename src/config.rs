@@ -2,6 +2,7 @@ use crate::app::Message;
 use crate::i18n::{UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
 use crate::utils::celsius_to_fahrenheit;
+use crate::utils::themes::PrebuiltTheme;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -1175,11 +1176,9 @@ impl<'de> Deserialize<'de> for Opacity {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
-#[serde(default)]
+#[derive(Clone, Debug)]
 pub struct Appearance {
     pub font_name: Option<String>,
-    #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
     pub opacity: Opacity,
     pub bar: BarAppearance,
@@ -1192,11 +1191,85 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
-    /// Blur the wallpaper behind ashell's translucent surfaces via
-    /// `ext-background-effect-v1`. No-op where the protocol is unsupported.
     pub blur: BlurMode,
+    pub theme: Option<String>,
 }
 
+// 2. Define a Shadow Struct that replicates your fields as raw Serde values
+#[derive(Deserialize)]
+struct AppearanceShadow {
+    font_name: Option<String>,
+    scale_factor: Option<serde_json::Value>, // Intercepted for your custom helper
+    bar: Option<BarAppearance>,
+    menu: Option<MenuAppearance>,
+    background_color: Option<BackgroundAppearanceColor>,
+    primary_color: Option<AppearanceColor>,
+    success_color: Option<AppearanceColor>,
+    warning_color: Option<AppearanceColor>,
+    danger_color: Option<AppearanceColor>,
+    text_color: Option<AppearanceColor>,
+    workspace_colors: Option<Vec<AppearanceColor>>,
+    special_workspace_colors: Option<Vec<AppearanceColor>>,
+    blur: Option<BlurMode>,
+    theme: Option<String>,
+}
+impl<'de> Deserialize<'de> for Appearance {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let shadow = AppearanceShadow::deserialize(deserializer)?;
+        let mut app = Appearance::default();
+        if let Some(ref theme_name) = shadow.theme {
+            app.theme = Some(theme_name.clone());
+            if let Some(theme) = PrebuiltTheme::parse(theme_name) {
+                theme.apply(&mut app);
+            }
+        }
+        if let Some(font) = shadow.font_name {
+            app.font_name = Some(font);
+        }
+        if let Some(bar_cfg) = shadow.bar {
+            app.bar = bar_cfg;
+        }
+        if let Some(menu_cfg) = shadow.menu {
+            app.menu = menu_cfg;
+        }
+        if let Some(bg_color) = shadow.background_color {
+            app.background_color = bg_color;
+        }
+        if let Some(primary) = shadow.primary_color {
+            app.primary_color = primary;
+        }
+        if let Some(success) = shadow.success_color {
+            app.success_color = success;
+        }
+        if let Some(warning) = shadow.warning_color {
+            app.warning_color = warning;
+        }
+        if let Some(danger) = shadow.danger_color {
+            app.danger_color = danger;
+        }
+        if let Some(text) = shadow.text_color {
+            app.text_color = text;
+        }
+        if let Some(workspaces) = shadow.workspace_colors {
+            app.workspace_colors = workspaces;
+        }
+        if let Some(special) = shadow.special_workspace_colors {
+            app.special_workspace_colors = Some(special);
+        }
+        if let Some(blur_cfg) = shadow.blur {
+            app.blur = blur_cfg;
+        }
+        if let Some(raw_scale) = shadow.scale_factor {
+            app.scale_factor =
+                scale_factor_deserializer(raw_scale).map_err(serde::de::Error::custom)?;
+        }
+
+        Ok(app)
+    }
+}
 /// When to ask the compositor for background blur.
 #[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -1285,6 +1358,7 @@ impl Default for Appearance {
             ],
             special_workspace_colors: None,
             blur: BlurMode::default(),
+            theme: None,
         }
     }
 }

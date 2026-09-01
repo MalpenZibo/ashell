@@ -4,7 +4,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 pub mod launcher;
 pub mod remote_value;
-
+pub mod themes;
 #[derive(Debug, Clone, Copy)]
 pub enum IndicatorState {
     Normal,
