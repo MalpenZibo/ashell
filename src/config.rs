@@ -50,6 +50,28 @@ impl Default for LoggingConfig {
     }
 }
 
+impl LoggingConfig {
+    pub fn log_directory(&self) -> PathBuf {
+        let default_directory = || {
+            crate::xdg::get_runtime_dir().unwrap_or_else(|| {
+                [std::env::temp_dir(), PathBuf::from("ashell")]
+                    .iter()
+                    .collect()
+            })
+        };
+
+        match &self.directory {
+            Some(directory) => expand_path(directory.clone()).unwrap_or_else(|e| {
+                eprintln!(
+                    "ashell: warning: cannot expand logging.directory {directory:?}: {e}, using the default"
+                );
+                default_directory()
+            }),
+            None => default_directory(),
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug, Default)]
 #[serde(default)]
 pub struct Config {
@@ -1500,13 +1522,8 @@ impl Default for OsdConfig {
     }
 }
 
-/// Bootstrap-parse only the `[logging]` section from the config file.
-///
-/// This runs **before** the logger is initialized, so it must not use `log::*`
-/// and reports problems on `stderr` instead. A missing config file is not a
-/// problem; on any other failure it falls back to `LoggingConfig::default()`
-/// (file target, default directory). Extra top-level keys are ignored, typos
-/// are caught later by the full `Config` parse.
+/// Parses just the `[logging]` table, before the logger exists: no `log::*`
+/// here, problems go to `stderr`.
 pub fn read_logging_config(path: Option<&PathBuf>) -> LoggingConfig {
     #[derive(Deserialize)]
     struct LoggingConfigWrapper {
@@ -1514,12 +1531,7 @@ pub fn read_logging_config(path: Option<&PathBuf>) -> LoggingConfig {
         logging: LoggingConfig,
     }
 
-    let config_path = match path {
-        Some(p) => expand_path(p.clone()),
-        None => expand_path(PathBuf::from(DEFAULT_CONFIG_FILE_PATH)),
-    };
-
-    let config_path = match config_path {
+    let config_path = match resolve_config_path(path.map(PathBuf::as_path)) {
         Ok(p) => p,
         Err(e) => {
             eprintln!(
@@ -1554,40 +1566,42 @@ pub fn read_logging_config(path: Option<&PathBuf>) -> LoggingConfig {
     }
 }
 
-pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
-    match path {
-        Some(p) => {
-            info!("Config path provided {p:?}");
-            expand_path(p).and_then(|expanded| {
-                if !expanded.exists() {
-                    Err(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::NotFound,
-                        format!("Config file does not exist: {}", expanded.display()),
-                    )))
-                } else {
-                    Ok((read_config(&expanded).unwrap_or_default(), expanded))
-                }
-            })
-        }
-        None => expand_path(PathBuf::from(DEFAULT_CONFIG_FILE_PATH)).map(|expanded| {
-            // Safety: DEFAULT_CONFIG_FILE_PATH is "~/.config/ashell/config.toml" which
-            // always has directory components. shellexpand only expands ~/$HOME and never
-            // strips path components, so .parent() always returns Some.
-            let parent = expanded
-                .parent()
-                .expect("Failed to get default config parent directory");
-
-            if !parent.exists() {
-                std::fs::create_dir_all(parent)
-                    .expect("Failed to create default config parent directory");
-            }
-
-            (read_config(&expanded).unwrap_or_default(), expanded)
-        }),
-    }
+fn resolve_config_path(path: Option<&Path>) -> Result<PathBuf, Box<dyn Error + Send>> {
+    expand_path(match path {
+        Some(p) => p.to_path_buf(),
+        None => PathBuf::from(DEFAULT_CONFIG_FILE_PATH),
+    })
 }
 
-pub(crate) fn expand_path(path: PathBuf) -> Result<PathBuf, Box<dyn Error + Send>> {
+pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
+    let explicit = path.is_some();
+    let expanded = resolve_config_path(path.as_deref())?;
+
+    if explicit {
+        info!("Config path provided {expanded:?}");
+
+        if !expanded.exists() {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Config file does not exist: {}", expanded.display()),
+            )));
+        }
+    } else {
+        // DEFAULT_CONFIG_FILE_PATH has a parent and shellexpand never strips components.
+        let parent = expanded
+            .parent()
+            .expect("Failed to get default config parent directory");
+
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)
+                .expect("Failed to create default config parent directory");
+        }
+    }
+
+    Ok((read_config(&expanded).unwrap_or_default(), expanded))
+}
+
+fn expand_path(path: PathBuf) -> Result<PathBuf, Box<dyn Error + Send>> {
     let str_path = path.to_string_lossy();
     let expanded =
         shellexpand::full(&str_path).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
