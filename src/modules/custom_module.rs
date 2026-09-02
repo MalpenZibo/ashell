@@ -152,13 +152,11 @@ impl Custom {
                 // Wrap the icon in a container to apply padding
                 let padded_icon_container = container(icon_element).padding([0, 1]);
 
-                let show_alert = if let Some(re) = &self.config.alert
-                    && re.is_match(&self.data.alt)
-                {
-                    true
-                } else {
-                    false
-                };
+                let show_alert = self
+                    .config
+                    .alert
+                    .as_ref()
+                    .is_some_and(|re| re.is_match(&self.data.alt));
 
                 let icon_with_alert = if show_alert {
                     let alert_canvas = canvas(AlertIndicator)
