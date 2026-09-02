@@ -24,8 +24,10 @@ use iced::{
 fn format_time_for_battery(battery: &BatteryData) -> String {
     match battery.status {
         BatteryStatus::Charging(duration) => {
-            if battery.capacity >= 100 || duration.is_zero() {
+            if battery.capacity >= 100 {
                 "100%".to_string()
+            } else if duration.is_zero() {
+                format!("{}%", battery.capacity)
             } else {
                 format_duration(&duration)
             }
@@ -39,10 +41,25 @@ fn format_time_for_battery(battery: &BatteryData) -> String {
                 format_duration(&duration)
             }
         }
-        BatteryStatus::NotCharging => format!("{}%", battery.capacity),
-        BatteryStatus::Unknown => String::new(),
+        BatteryStatus::NotCharging | BatteryStatus::Unknown => format!("{}%", battery.capacity),
         BatteryStatus::Full => "100%".to_string(),
     }
+}
+
+fn format_percentage_and_time(battery: &BatteryData) -> String {
+    let capacity = format!("{}%", battery.capacity);
+    let time = match battery.status {
+        BatteryStatus::Charging(duration) | BatteryStatus::Discharging(duration)
+            if battery.capacity < 100 && !duration.is_zero() =>
+        {
+            format_duration(&duration)
+        }
+        BatteryStatus::Discharging(_) if battery.capacity < 100 => {
+            t!("settings-power-calculating")
+        }
+        _ => return capacity,
+    };
+    format!("{capacity} {time}")
 }
 
 #[derive(Debug, Clone)]
@@ -267,13 +284,7 @@ impl PowerSettings {
                     SettingsFormat::Icon => {
                         convert::Into::<Element<'a, Message>>::into(icon(p.get_icon_state()))
                     }
-                    SettingsFormat::Percentage => row!(
-                        icon(p.kind.get_icon()),
-                        text(format!("{}%", p.data.capacity))
-                    )
-                    .spacing(space.xxs)
-                    .align_y(Alignment::Center)
-                    .into(),
+                    SettingsFormat::Percentage => text(format!("{}%", p.data.capacity)).into(),
                     SettingsFormat::IconAndPercentage => row!(
                         icon(p.get_icon_state()),
                         text(format!("{}%", p.data.capacity))
@@ -289,9 +300,23 @@ impl PowerSettings {
                     .spacing(space.xxs)
                     .align_y(Alignment::Center)
                     .into(),
-                    SettingsFormat::Name | SettingsFormat::IconAndName => {
-                        convert::Into::<Element<'a, Message>>::into(icon(p.get_icon_state()))
+                    SettingsFormat::Name => text(p.name.to_string()).into(),
+                    SettingsFormat::IconAndName => {
+                        row!(icon(p.get_icon_state()), text(p.name.to_string()))
+                            .spacing(space.xxs)
+                            .align_y(Alignment::Center)
+                            .into()
                     }
+                    SettingsFormat::PercentageAndTime => {
+                        text(format_percentage_and_time(&p.data)).into()
+                    }
+                    SettingsFormat::IconAndPercentageAndTime => row!(
+                        icon(p.get_icon_state()),
+                        text(format_percentage_and_time(&p.data))
+                    )
+                    .spacing(space.xxs)
+                    .align_y(Alignment::Center)
+                    .into(),
                 })
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(match state {
@@ -332,6 +357,10 @@ impl PowerSettings {
                 let label: String = match self.config.battery_format {
                     SettingsFormat::Time | SettingsFormat::IconAndTime => {
                         format_time_for_battery(&battery)
+                    }
+                    SettingsFormat::PercentageAndTime
+                    | SettingsFormat::IconAndPercentageAndTime => {
+                        format_percentage_and_time(&battery)
                     }
                     _ => format!("{}%", battery.capacity),
                 };

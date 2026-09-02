@@ -101,6 +101,8 @@ The possible values are:
 - `IconAndPercentage` - Show both the battery icon and percentage (default)
 - `Time` - Show smart time display (time to full when charging, time to empty when discharging, "100%" when full)
 - `IconAndTime` - Show battery icon with smart time display
+- `PercentageAndTime` - Show the battery percentage along with smart time display
+- `IconAndPercentageAndTime` - Show battery icon with battery percentage and smart time display
 
 ```toml
 [settings]
