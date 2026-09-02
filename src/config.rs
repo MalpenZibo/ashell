@@ -1,7 +1,6 @@
 use crate::app::Message;
-use crate::i18n::{UnitSystem, unit_system};
+use crate::i18n::{TemperatureUnit, UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
-use crate::utils::celsius_to_fahrenheit;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -305,23 +304,27 @@ pub struct SystemInfoTemperature {
     warn_threshold: Option<i32>,
     alert_threshold: Option<i32>,
     pub sensor: TemperatureSensor,
+    units: Option<TemperatureUnit>,
 }
 
 impl SystemInfoTemperature {
+    pub fn resolved_units(&self) -> TemperatureUnit {
+        self.units
+            .unwrap_or_else(|| unit_system().temperature_unit())
+    }
+
     pub fn warn_threshold(&self) -> i32 {
-        self.warn_threshold
-            .unwrap_or_else(|| match crate::i18n::unit_system() {
-                UnitSystem::Metric => DEFAULT_TEMP_WARN_CELSIUS,
-                UnitSystem::Imperial => celsius_to_fahrenheit(DEFAULT_TEMP_WARN_CELSIUS),
-            })
+        self.warn_threshold.unwrap_or_else(|| {
+            self.resolved_units()
+                .convert_celsius(DEFAULT_TEMP_WARN_CELSIUS)
+        })
     }
 
     pub fn alert_threshold(&self) -> i32 {
-        self.alert_threshold
-            .unwrap_or_else(|| match crate::i18n::unit_system() {
-                UnitSystem::Metric => DEFAULT_TEMP_ALERT_CELSIUS,
-                UnitSystem::Imperial => celsius_to_fahrenheit(DEFAULT_TEMP_ALERT_CELSIUS),
-            })
+        self.alert_threshold.unwrap_or_else(|| {
+            self.resolved_units()
+                .convert_celsius(DEFAULT_TEMP_ALERT_CELSIUS)
+        })
     }
 
     fn validate(&mut self) {

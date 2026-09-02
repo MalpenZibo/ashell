@@ -144,7 +144,12 @@ sensor = "Cpu"              # auto-detect by type
 # sensor = "k10temp Tctl"   # or pin an exact sensor label
 ```
 
-The temperature **unit** (Celsius or Fahrenheit) follows your locale / unit system (the global `region` option), so there is no separate temperature format option.
+The temperature **unit** follows your locale / unit system (the global `region` option) by default. Set `units` to `"Celsius"` or `"Fahrenheit"` to override it for this indicator only — useful if you want Fahrenheit for the weather but Celsius for hardware temperatures.
+
+```toml
+[system_info.temperature]
+units = "Celsius"           # override the locale unit system
+```
 
 To see available sensors on your system, you can check the output of `sensors` command or
 look at the component labels returned by the sysinfo library.
@@ -184,7 +189,7 @@ Higher values reduce CPU usage at the cost of less frequent updates.
 Each indicator type supports a `format` option that controls how its value is displayed in the status bar and menu. The format is configured in the corresponding `[system_info.<type>]` section.
 
 :::info
-Warning and alert color thresholds remain active regardless of the display format. For temperature, thresholds are interpreted in the unit determined by your locale / unit system — so if your locale uses Fahrenheit, set your thresholds in Fahrenheit (e.g., `warn_threshold = 140`).
+Warning and alert color thresholds remain active regardless of the display format. For temperature, thresholds are interpreted in the displayed unit (`units`, or the one determined by your locale / unit system) — so if the indicator shows Fahrenheit, set your thresholds in Fahrenheit (e.g., `warn_threshold = 140`).
 :::
 
 #### Example

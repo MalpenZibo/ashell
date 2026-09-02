@@ -6,7 +6,6 @@ use crate::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
     },
-    i18n::{UnitSystem, unit_system},
     t,
     theme::{lerp_color, use_theme},
     utils,
@@ -567,9 +566,10 @@ impl SystemInfo {
                                 format!("{} GiB", self.data.memory_swap_usage.fraction),
                         }
                     ))
-                    .push(self.data.temperature.celsius.map(|temp| {
+                    .push(self.data.temperature.celsius.map(|cel| {
                         Self::info_element(StaticIcon::Temp, t!("system-info-temperature"), {
-                            format!("{temp}{}", UnitSystem::Metric.temperature_symbol())
+                            let units = self.config.temperature.resolved_units();
+                            format!("{}{}", units.convert_celsius(cel), units.symbol())
                         })
                     }))
                     .push(
@@ -682,12 +682,14 @@ impl SystemInfo {
                 Some(t!("system-info-swap-indicator-prefix")),
             )),
 
-            SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|temp| {
+            SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
+                let units = self.config.temperature.resolved_units();
+                let value = units.convert_celsius(cel);
                 Self::indicator_info_element(
                     StaticIcon::Temp,
-                    (temp, UnitSystem::Metric.temperature_symbol()),
+                    (value, units.symbol()),
                     Some((
-                        temp,
+                        value,
                         self.config.temperature.warn_threshold(),
                         self.config.temperature.alert_threshold(),
                     )),

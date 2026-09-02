@@ -101,6 +101,10 @@ They are optional and fall back to your environment: `language` resolves from
 `$LC_ALL`, then `$LC_TIME`, then `$LANG`. The unit system additionally honors
 `$LC_MEASUREMENT` when set. If nothing matches, ashell defaults to `en-US`.
 
+Individual modules can opt out of the unit system: see
+[`system_info.temperature.units`](./modules/system_info.md#temperature) and
+[`tempo.wind_speed_unit`](./modules/tempo.md).
+
 ```toml
 language = "en-US"   # UI language
 region   = "it-IT"   # date format + unit system
