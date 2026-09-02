@@ -84,6 +84,28 @@ than redrawn, so silence costs nothing.
 > **Requires** `cava` to be installed and available on your `$PATH`. If `cava`
 > is missing the visualizer stays hidden.
 
+### Indicator Controls
+
+By default, clicking the indicator opens the media menu. Set
+`indicator_controls = true` to control playback directly from the bar without
+opening the menu:
+
+| Input       | Action                          |
+| ----------- | ------------------------------- |
+| Left click  | Previous track                  |
+| Middle click | Play/Pause                     |
+| Right click | Next track                      |
+| Scroll up/down | Volume up/down (5% steps)    |
+
+Controls target the currently playing player, or the last player that was
+playing when nothing is playing. While this option is enabled the media menu
+cannot be opened from the bar.
+
+```toml
+[media_player]
+indicator_controls = true
+```
+
 ## Menu
 
 The menu shows all active media players with playback controls:
