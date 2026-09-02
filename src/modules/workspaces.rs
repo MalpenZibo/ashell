@@ -1,8 +1,8 @@
 use crate::{
     components::icons::icon,
     config::{
-        AppearanceColor, InvertScrollDirection, WorkspaceIndicatorFormat, WorkspaceVisibilityMode,
-        WorkspacesModuleConfig,
+        AppearanceColor, InvertScrollDirection, WorkspaceFontSize, WorkspaceIndicatorFormat,
+        WorkspaceVisibilityMode, WorkspacesModuleConfig,
     },
     outputs::Outputs,
     services::{
@@ -567,7 +567,10 @@ impl Workspaces {
                                 } else {
                                     Message::ToggleSpecialWorkspace(w.id)
                                 };
-                                let font_size = theme.font_size.xs;
+                                let font_size = match self.config.font_size {
+                                    WorkspaceFontSize::Small => theme.font_size.xs,
+                                    WorkspaceFontSize::Large => theme.font_size.sm,
+                                };
                                 let height = theme.space.md;
 
                                 // Numbered workspaces animate to a fixed width; icon
