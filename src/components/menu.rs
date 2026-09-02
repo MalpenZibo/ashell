@@ -1,12 +1,12 @@
 use crate::app::{self, App};
 use crate::components::{self, ButtonUIRef};
-use crate::config::{BarSurface, Position};
-use crate::theme::{backdrop_color, use_theme};
+use crate::config::{BarSurface, Position, Surface};
+use crate::theme::{backdrop_color, surface_border, use_theme};
 use iced::alignment::Vertical;
 use iced::widget::container::Style;
 use iced::{
-    Anchor, Border, Element, KeyboardInteractivity, Layer, LayerShellSettings, Length, OutputId,
-    Padding, Pixels, SurfaceId, Task, Theme, destroy_layer_surface, new_layer_surface,
+    Anchor, Element, KeyboardInteractivity, Layer, LayerShellSettings, Length, OutputId, Padding,
+    Pixels, SurfaceId, Task, Theme, destroy_layer_surface, new_layer_surface,
     set_keyboard_interactivity,
     widget::{blur_container, container},
 };
@@ -308,17 +308,13 @@ impl App {
                 t.bar_surface,
                 t.bar_position,
                 t.menu.backdrop,
-                t.blur,
+                t.surface(Surface::Menu).blur,
             )
         });
 
         let menu_style = move |theme: &Theme| Style {
             background: Some(theme.palette().background.into()),
-            border: Border {
-                color: theme.extended_palette().background.weakest.color,
-                width: 1.,
-                radius: radius.lg.into(),
-            },
+            border: surface_border(theme, radius.lg),
             ..Default::default()
         };
         let menu_body = if blur {

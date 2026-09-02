@@ -98,6 +98,18 @@ pub enum HasOutput<'a> {
     Osd,
 }
 
+impl HasOutput<'_> {
+    /// Which themed surface this output is drawn as.
+    pub fn surface(&self) -> config::Surface {
+        match self {
+            HasOutput::Main => config::Surface::Bar,
+            HasOutput::Menu(_) => config::Surface::Menu,
+            HasOutput::Toast => config::Surface::Notifications,
+            HasOutput::Osd => config::Surface::Osd,
+        }
+    }
+}
+
 impl Outputs {
     pub fn iter(&self) -> std::slice::Iter<'_, (OutputKey, Option<ShellInfo>, Option<OutputId>)> {
         self.entries.iter()

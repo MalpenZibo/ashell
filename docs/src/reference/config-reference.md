@@ -6,7 +6,6 @@ Complete reference for all configuration options in `~/.config/ashell/config.tom
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `log_level` | String | `"warn"` | Log level ([env_logger syntax](https://docs.rs/env_logger)) |
 | `language` | Option\<String\> | auto | UI language (BCP-47 or POSIX, e.g. `"en-US"`). Auto-detected from `$LC_MESSAGES` / `$LANG` when unset |
 | `region` | Option\<String\> | auto | Regional formatting — dates and unit defaults (e.g. `"it-IT"`). Auto-detected from `$LC_TIME` / `$LANG` when unset |
 | `position` | `"Top"` \| `"Bottom"` | `"Bottom"` | Bar position on screen |
@@ -16,6 +15,9 @@ Complete reference for all configuration options in `~/.config/ashell/config.tom
 | `osd.enabled` | bool | `false` | Show OSD overlay for IPC volume/brightness/airplane commands |
 | `osd.timeout` | u64 | `1500` | OSD auto-hide delay in milliseconds |
 | `animations.enabled` | bool | `false` | Master toggle for UI animations (bar widths, menu open/close, toast slides, etc.) |
+| `logging.level` | String | `"warn"` | Log level ([env_logger syntax](https://docs.rs/env_logger)) |
+| `logging.target` | `"file"` \| `"stdout"` \| `"stderr"` | `"file"` | Where logs are written |
+| `logging.directory` | Option\<PathBuf\> | `$XDG_RUNTIME_DIR` | Log directory, only used when `logging.target = "file"`. Supports `~` and `$VAR` |
 
 ## Module Layout
 
@@ -36,6 +38,16 @@ font_name = "JetBrains Mono"   # Optional custom font
 scale_factor = 1.0              # DPI scale factor
 opacity = 1.0                   # 0.0-1.0, every surface ashell draws
 blur = "auto"                   # auto|always|never, compositor blur
+
+# `opacity` may instead be a table, replacing the scalar above. Any key may be
+# omitted and falls back to `default`. Keep it after every `[appearance]`
+# scalar, or those scalars become keys of this table.
+# [appearance.opacity]
+# default = 0.8
+# bar = 1.0
+# menu = 0.9
+# osd = 0.6
+# notifications = 0.9
 
 [appearance.bar]
 surface = "transparent"         # "transparent" or "solid"
@@ -140,7 +152,7 @@ alert_threshold = 80
 ```
 
 **Dependencies:**
-- Temperature monitoring reads the kernel `hwmon` sysfs interface directly (no extra package required). The `sensor` option is either a type keyword (`"Cpu"`, `"Gpu"`, `"Acpi"`, `"Nvme"`) for auto-detection or an exact hwmon label (e.g. `"acpitz temp1"`) — run `sensors` (from `lm_sensors`) to find the right name. The displayed unit follows the locale / unit system, not a per-module option.
+- Temperature monitoring reads the kernel `hwmon` sysfs interface directly (no extra package required). The `sensor` option is either a type keyword (`"Cpu"`, `"Gpu"`, `"Acpi"`, `"Nvme"`) for auto-detection or an exact hwmon label (e.g. `"acpitz temp1"`) — run `sensors` (from `lm_sensors`) to find the right name. The displayed unit follows the locale / unit system unless `units` (`"Celsius"` / `"Fahrenheit"`) overrides it.
 - CPU, memory, disk, and network info use standard kernel interfaces and do not need extra packages.
 
 ## Clock Module (Deprecated)

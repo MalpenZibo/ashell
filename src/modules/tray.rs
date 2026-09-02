@@ -5,6 +5,7 @@ use crate::{
         ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
         styled_button,
     },
+    components::{scrollable, toggler},
     config::{TrayClickAction, TrayModuleConfig},
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -17,7 +18,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
-    widget::{Column, Image, Row, Svg, container, scrollable, text, toggler},
+    widget::{Column, Image, Row, Svg, container, text},
 };
 use log::debug;
 

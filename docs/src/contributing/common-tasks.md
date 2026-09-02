@@ -115,7 +115,8 @@ To see debug output for a specific module:
 
 ```toml
 # In config.toml
-log_level = "warn,ashell::modules::my_module=debug"
+[logging]
+level = "warn,ashell::modules::my_module=debug"
 ```
 
 ## Testing Config Hot-Reload
@@ -123,4 +124,4 @@ log_level = "warn,ashell::modules::my_module=debug"
 1. Start ashell: `make start`
 2. Edit `~/.config/ashell/config.toml` in another terminal
 3. Save — changes should appear immediately
-4. Check logs if changes don't apply: `tail -f $XDG_RUNTIME_DIR/ashell/*.log`
+4. Check logs if changes don't apply: `tail -f $XDG_RUNTIME_DIR/ashell_rCURRENT.log`

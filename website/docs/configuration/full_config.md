@@ -10,13 +10,19 @@ Commented-out lines show the default; uncomment and change to customize.
 ```toml
 # ── General ───────────────────────────────────────────────────────────────────
 
-log_level = "warn"
 # language = "en-US"        # UI language; defaults to $LC_MESSAGES / $LANG
 # region   = "it-IT"        # date format + unit system; defaults to $LC_TIME / $LANG
 # outputs = "All"            # "All" (default), "Active", or { Targets = ["eDP-1"] }
 position = "Top"             # "Top" (default) or "Bottom"
 # layer = "Bottom"           # "Bottom" (default), "Top", or "Overlay"
 # enable_esc_key = false     # Pressing Escape closes open menus
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+
+[logging]
+# level = "warn"             # (default) "error", "warn", "info", or "debug"; supports per-module filters
+# target = "file"            # (default) "file", "stdout", or "stderr"
+# directory = "~/.local/log" # (default: $XDG_RUNTIME_DIR) supports ~ and $VAR
 
 # ── Modules ───────────────────────────────────────────────────────────────────
 
@@ -94,6 +100,7 @@ alert_threshold = 85
 # warn_threshold = 60     # (default: None, auto 60°C / 140°F based on unit system)
 # alert_threshold = 80    # (default: None, auto 80°C / 176°F based on unit system)
 # sensor = "Cpu"        # (default) type keyword: "Cpu", "Gpu", "Acpi", "Nvme" or exact label like "acpitz temp1"
+# units = "Celsius"       # (default: None = follow the unit system) or "Fahrenheit"
 
 [system_info.disk]
 # warn_threshold = 80     # (default)
@@ -202,6 +209,7 @@ enabled = false   # (default)
 # font_name = "Sans"           # (default: None) custom font family
 # scale_factor = 1.0           # (default) range: 0.0 < x <= 2.0
 # opacity = 1.0                # (default) range: 0.0 to 1.0, every surface ashell draws
+                               # or a table: [appearance.opacity] with default/bar/menu/osd/notifications
 # blur = "auto"                # (default) auto|always|never, compositor blur
 primary_color = "#7aa2f7"
 success_color = "#9ece6a"

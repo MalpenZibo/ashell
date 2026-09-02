@@ -1,4 +1,4 @@
-use crate::config::{Position, get_config};
+use crate::config::{LogTarget, Position, get_config};
 use crate::outputs::Outputs;
 use crate::theme::BarLayout;
 use app::App;
@@ -12,7 +12,6 @@ use iced::{
 };
 use log::{debug, error, info, warn};
 use std::backtrace::Backtrace;
-use std::env;
 use std::panic;
 use std::path::PathBuf;
 
@@ -193,26 +192,29 @@ fn main() -> iced::Result {
 
     debug!("args: {args:?}");
 
-    let logdir = xdg::get_runtime_dir()
-        .unwrap_or_else(|| [env::temp_dir(), PathBuf::from("ashell")].iter().collect());
-    let logger = Logger::with(
-        LogSpecBuilder::new()
-            .default(log::LevelFilter::Info)
-            .build(),
-    )
-    .log_to_file(FileSpec::default().directory(logdir))
-    .rotate(
-        Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),
-        Naming::Timestamps,
-        Cleanup::KeepLogFiles(7),
-    );
-    let logger = if cfg!(debug_assertions) {
+    let log_prefs = config::read_logging_config(args.config_path.as_ref());
+
+    let log_spec = LogSpecBuilder::new()
+        .default(log::LevelFilter::Info)
+        .build();
+    let logger = match log_prefs.target {
+        LogTarget::File => Logger::with(log_spec)
+            .log_to_file(FileSpec::default().directory(log_prefs.log_directory()))
+            .rotate(
+                Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),
+                Naming::Timestamps,
+                Cleanup::KeepLogFiles(7),
+            ),
+        LogTarget::Stdout => Logger::with(log_spec).log_to_stdout(),
+        LogTarget::Stderr => Logger::with(log_spec).log_to_stderr(),
+    };
+    let logger = if cfg!(debug_assertions) && matches!(log_prefs.target, LogTarget::File) {
         logger.duplicate_to_stdout(flexi_logger::Duplicate::All)
     } else {
         logger
     };
     let logger = logger.start().unwrap_or_else(|e| {
-        eprintln!("Failed to initialize file logger: {e}, falling back to stderr-only");
+        eprintln!("Failed to initialize logger: {e}, falling back to stderr-only");
         Logger::with(
             LogSpecBuilder::new()
                 .default(log::LevelFilter::Info)
@@ -234,7 +236,7 @@ fn main() -> iced::Result {
         std::process::exit(1);
     });
 
-    logger.set_new_spec(get_log_spec(&config.log_level));
+    logger.set_new_spec(get_log_spec(&config.logging.level));
 
     let font = if let Some(font_name) = &config.appearance.font_name {
         resolve_font(font_name)

@@ -6,7 +6,6 @@ use crate::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
     },
-    i18n::{UnitSystem, unit_system},
     t,
     theme::{lerp_color, use_theme},
     utils,
@@ -569,12 +568,8 @@ impl SystemInfo {
                     ))
                     .push(self.data.temperature.celsius.map(|cel| {
                         Self::info_element(StaticIcon::Temp, t!("system-info-temperature"), {
-                            let units = unit_system();
-                            let value = match units {
-                                UnitSystem::Metric => cel,
-                                UnitSystem::Imperial => utils::celsius_to_fahrenheit(cel),
-                            };
-                            format!("{value}{}", units.temperature_symbol())
+                            let units = self.config.temperature.resolved_units();
+                            format!("{}{}", units.convert_celsius(cel), units.symbol())
                         })
                     }))
                     .push(
@@ -688,16 +683,13 @@ impl SystemInfo {
             )),
 
             SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
-                let units = unit_system();
-                let temp_value = match units {
-                    UnitSystem::Metric => cel,
-                    UnitSystem::Imperial => utils::celsius_to_fahrenheit(cel),
-                };
+                let units = self.config.temperature.resolved_units();
+                let value = units.convert_celsius(cel);
                 Self::indicator_info_element(
                     StaticIcon::Temp,
-                    (temp_value, units.temperature_symbol()),
+                    (value, units.symbol()),
                     Some((
-                        temp_value,
+                        value,
                         self.config.temperature.warn_threshold(),
                         self.config.temperature.alert_threshold(),
                     )),

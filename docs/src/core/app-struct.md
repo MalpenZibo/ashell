@@ -80,7 +80,7 @@ fn refesh_config(&mut self, config: Box<Config>) {
     self.theme = AshellTheme::new(config.position, &config.appearance);
 
     // Update logger level
-    self.logger.set_new_spec(get_log_spec(&config.log_level));
+    self.logger.set_new_spec(get_log_spec(&config.logging.level));
 
     // Sync outputs (may create/destroy surfaces)
     let task = self.outputs.sync(/* ... */);
@@ -93,3 +93,6 @@ fn refesh_config(&mut self, config: Box<Config>) {
 ```
 
 This enables live editing of the config file without restarting ashell.
+Note that only `logging.level` is re-applied on reload: `logging.target` and
+`logging.directory` are read once at startup by `config::read_logging_config()`
+and need a restart.

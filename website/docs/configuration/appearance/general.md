@@ -110,17 +110,39 @@ margin = "sm"              # all edges
 
 ### Opacity
 
-The `opacity` field sets the opacity of every surface ashell draws — the bar,
-menus, notifications and the OSD. The value should be a float between `0.0`
-(fully transparent) and `1.0` (fully opaque, the default).
+The `opacity` field sets the opacity of the surfaces ashell draws. The value
+should be a float between `0.0` (fully transparent) and `1.0` (fully opaque,
+the default).
 
-It is applied once, to the theme's palette, so every background colour carries
-it while text and icons stay fully opaque and readable.
+It applies to the backgrounds a surface paints, so text and icons stay fully
+opaque and readable whatever opacity you pick.
+
+A single value covers every surface:
 
 ```toml
 [appearance]
 opacity = 0.8
 ```
+
+A table sets a `default` and overrides it per surface. Every key is optional,
+and anything you leave out falls back to `default`:
+
+```toml
+[appearance.opacity]
+default = 0.8
+bar = 1.0             # opaque, so it stays readable over the wallpaper
+menu = 0.9            # menus sit over arbitrary windows
+osd = 0.6
+notifications = 0.9
+```
+
+| Key | Surface |
+| --- | --- |
+| `default` | Every surface without its own override (`1.0` when omitted) |
+| `bar` | The status bar |
+| `menu` | Every menu opened from the bar, the notification centre included |
+| `osd` | The volume and brightness OSD |
+| `notifications` | Toast notifications |
 
 ## Menu Backdrop
 
@@ -147,7 +169,7 @@ no-op on compositors that do not support that protocol.
 
 | Value | Behaviour |
 | --- | --- |
-| `"auto"` (default) | Ask for blur when `opacity` is below `1.0` |
+| `"auto"` (default) | Ask for blur on each surface whose `opacity` is below `1.0` |
 | `"always"` | Ask for blur regardless of opacity |
 | `"never"` | Never ask |
 

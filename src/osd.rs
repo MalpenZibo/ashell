@@ -1,19 +1,19 @@
 use std::time::Duration;
 
 use iced::{
-    Alignment, Border, Element, Length, Task, Theme,
+    Alignment, Element, Length, Task, Theme,
     widget::{blur_container, container, progress_bar, row, text},
 };
 use tokio::time::sleep;
 
 use crate::{
     components::icons::{Icon, StaticIcon},
-    config::OsdConfig,
+    config::{OsdConfig, Surface},
     modules::settings::audio::AudioSettings,
     modules::settings::network::NetworkSettings,
     services::idle_inhibitor::IdleInhibitorManager,
     t,
-    theme::use_theme,
+    theme::{surface_border, use_theme},
 };
 
 pub struct Osd {
@@ -126,7 +126,7 @@ impl Osd {
         };
 
         let (space, font_size, radius, blur) =
-            use_theme(|t| (t.space, t.font_size, t.radius, t.blur));
+            use_theme(|t| (t.space, t.font_size, t.radius, t.surface(Surface::Osd).blur));
 
         let overdrive = matches!(state.kind, OsdKind::Volume) && state.value > 1.0;
 
@@ -146,14 +146,16 @@ impl Osd {
 
         let detail: Element<'_, Message> = match state.kind {
             OsdKind::Volume | OsdKind::Microphone | OsdKind::Brightness => {
-                let mut bar = progress_bar(0.0..=state.scale, state.value)
+                let bar = progress_bar(0.0..=state.scale, state.value)
                     .length(160.0)
                     .girth(8.0);
-                if state.muted {
-                    bar = bar.style(progress_bar::secondary);
+                let bar = if state.muted {
+                    bar.style(crate::theme::progress_bar_secondary)
                 } else if overdrive {
-                    bar = bar.style(progress_bar::danger);
-                }
+                    bar.style(crate::theme::progress_bar_danger)
+                } else {
+                    bar.style(crate::theme::progress_bar_primary)
+                };
                 if show_percentage {
                     let pct = (state.value * 100.0).round() as u32;
                     row![
@@ -188,10 +190,7 @@ impl Osd {
 
         let osd_style = move |t: &Theme| container::Style {
             background: Some(t.palette().background.into()),
-            border: Border::default()
-                .width(1)
-                .color(t.extended_palette().background.weakest.color)
-                .rounded(radius.xl),
+            border: surface_border(t, radius.xl),
             text_color: Some(match (state.kind, state.muted) {
                 (OsdKind::IdleInhibitor, true) => t.palette().danger,
                 (OsdKind::Airplane, true) => t.palette().danger,

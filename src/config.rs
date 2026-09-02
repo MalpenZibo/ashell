@@ -1,8 +1,7 @@
 use crate::app::Message;
-use crate::i18n::{UnitSystem, unit_system};
+use crate::i18n::{TemperatureUnit, UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
 use crate::theme::Space;
-use crate::utils::celsius_to_fahrenheit;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -11,7 +10,10 @@ use inotify::Inotify;
 use inotify::WatchMask;
 use log::{debug, error, info, warn};
 use regex::Regex;
-use serde::{Deserialize, Deserializer, de::Visitor};
+use serde::{
+    Deserialize, Deserializer,
+    de::{self, MapAccess, Visitor},
+};
 use serde_with::DisplayFromStr;
 use serde_with::serde_as;
 use std::path::PathBuf;
@@ -21,10 +23,59 @@ use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LogTarget {
+    #[default]
+    File,
+    Stdout,
+    Stderr,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
+pub struct LoggingConfig {
+    pub level: String,
+    pub target: LogTarget,
+    pub directory: Option<PathBuf>,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            level: "warn".to_owned(),
+            target: LogTarget::default(),
+            directory: None,
+        }
+    }
+}
+
+impl LoggingConfig {
+    pub fn log_directory(&self) -> PathBuf {
+        let default_directory = || {
+            crate::xdg::get_runtime_dir().unwrap_or_else(|| {
+                [std::env::temp_dir(), PathBuf::from("ashell")]
+                    .iter()
+                    .collect()
+            })
+        };
+
+        match &self.directory {
+            Some(directory) => expand_path(directory.clone()).unwrap_or_else(|e| {
+                eprintln!(
+                    "ashell: warning: cannot expand logging.directory {directory:?}: {e}, using the default"
+                );
+                default_directory()
+            }),
+            None => default_directory(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(default)]
 pub struct Config {
-    pub log_level: String,
+    pub logging: LoggingConfig,
     pub language: Option<String>,
     pub region: Option<String>,
     pub position: Position,
@@ -47,35 +98,6 @@ pub struct Config {
     pub animations: AnimationsConfig,
     pub enable_esc_key: bool,
     pub osd: OsdConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            log_level: "warn".to_owned(),
-            language: None,
-            region: None,
-            position: Position::default(),
-            layer: Layer::default(),
-            outputs: Outputs::default(),
-            modules: Modules::default(),
-            updates: None,
-            workspaces: WorkspacesModuleConfig::default(),
-            window_title: WindowTitleConfig::default(),
-            system_info: SystemInfoModuleConfig::default(),
-            notifications: NotificationsModuleConfig::default(),
-            tray: TrayModuleConfig::default(),
-            tempo: TempoModuleConfig::default(),
-            settings: SettingsModuleConfig::default(),
-            appearance: Appearance::default(),
-            media_player: MediaPlayerModuleConfig::default(),
-            keyboard_layout: KeyboardLayoutModuleConfig::default(),
-            animations: AnimationsConfig::default(),
-            custom_modules: vec![],
-            enable_esc_key: false,
-            osd: OsdConfig::default(),
-        }
-    }
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -283,23 +305,27 @@ pub struct SystemInfoTemperature {
     warn_threshold: Option<i32>,
     alert_threshold: Option<i32>,
     pub sensor: TemperatureSensor,
+    units: Option<TemperatureUnit>,
 }
 
 impl SystemInfoTemperature {
+    pub fn resolved_units(&self) -> TemperatureUnit {
+        self.units
+            .unwrap_or_else(|| unit_system().temperature_unit())
+    }
+
     pub fn warn_threshold(&self) -> i32 {
-        self.warn_threshold
-            .unwrap_or_else(|| match crate::i18n::unit_system() {
-                UnitSystem::Metric => DEFAULT_TEMP_WARN_CELSIUS,
-                UnitSystem::Imperial => celsius_to_fahrenheit(DEFAULT_TEMP_WARN_CELSIUS),
-            })
+        self.warn_threshold.unwrap_or_else(|| {
+            self.resolved_units()
+                .convert_celsius(DEFAULT_TEMP_WARN_CELSIUS)
+        })
     }
 
     pub fn alert_threshold(&self) -> i32 {
-        self.alert_threshold
-            .unwrap_or_else(|| match crate::i18n::unit_system() {
-                UnitSystem::Metric => DEFAULT_TEMP_ALERT_CELSIUS,
-                UnitSystem::Imperial => celsius_to_fahrenheit(DEFAULT_TEMP_ALERT_CELSIUS),
-            })
+        self.alert_threshold.unwrap_or_else(|| {
+            self.resolved_units()
+                .convert_celsius(DEFAULT_TEMP_ALERT_CELSIUS)
+        })
     }
 
     fn validate(&mut self) {
@@ -1079,16 +1105,120 @@ pub struct MenuAppearance {
     pub backdrop: f32,
 }
 
+/// A layer-shell surface. Each one is drawn with its own theme.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Surface {
+    Bar,
+    Menu,
+    Osd,
+    Notifications,
+}
+
+impl Surface {
+    pub const ALL: [Surface; 4] = [
+        Surface::Bar,
+        Surface::Menu,
+        Surface::Osd,
+        Surface::Notifications,
+    ];
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Opacity {
+    default: f32,
+    bar: Option<f32>,
+    menu: Option<f32>,
+    osd: Option<f32>,
+    notifications: Option<f32>,
+}
+
+impl Opacity {
+    pub fn get(&self, surface: Surface) -> f32 {
+        match surface {
+            Surface::Bar => self.bar,
+            Surface::Menu => self.menu,
+            Surface::Osd => self.osd,
+            Surface::Notifications => self.notifications,
+        }
+        .unwrap_or(self.default)
+    }
+}
+
+impl Default for Opacity {
+    fn default() -> Self {
+        Self {
+            default: 1.0,
+            bar: None,
+            menu: None,
+            osd: None,
+            notifications: None,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Opacity {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct OpacityVisitor;
+
+        impl<'de> Visitor<'de> for OpacityVisitor {
+            type Value = Opacity;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str(
+                    "a number between 0.0 and 1.0, or a table with `default` and per-surface overrides",
+                )
+            }
+
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<Opacity, E> {
+                Ok(Opacity {
+                    default: check_opacity(v).map_err(E::custom)?,
+                    ..Opacity::default()
+                })
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Opacity, E> {
+                self.visit_f64(v as f64)
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Opacity, E> {
+                self.visit_f64(v as f64)
+            }
+
+            fn visit_map<M: MapAccess<'de>>(self, map: M) -> Result<Opacity, M::Error> {
+                #[derive(Deserialize)]
+                struct Table {
+                    default: Option<f64>,
+                    bar: Option<f64>,
+                    menu: Option<f64>,
+                    osd: Option<f64>,
+                    notifications: Option<f64>,
+                }
+
+                let table = Table::deserialize(de::value::MapAccessDeserializer::new(map))?;
+                let check =
+                    |v: Option<f64>| v.map(check_opacity).transpose().map_err(de::Error::custom);
+
+                Ok(Opacity {
+                    default: check(table.default)?.unwrap_or(1.0),
+                    bar: check(table.bar)?,
+                    menu: check(table.menu)?,
+                    osd: check(table.osd)?,
+                    notifications: check(table.notifications)?,
+                })
+            }
+        }
+
+        deserializer.deserialize_any(OpacityVisitor)
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Appearance {
     pub font_name: Option<String>,
     #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
-    /// Opacity of every surface ashell draws. Applied once, to the palette, so
-    /// every background colour carries it and every text colour does not.
-    #[serde(deserialize_with = "opacity_deserializer")]
-    pub opacity: f32,
+    pub opacity: Opacity,
     pub bar: BarAppearance,
     pub menu: MenuAppearance,
     pub background_color: BackgroundAppearanceColor,
@@ -1150,27 +1280,16 @@ where
     Ok(v)
 }
 
-fn opacity_deserializer<'de, D>(deserializer: D) -> Result<f32, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let v = f32::deserialize(deserializer)?;
-
+fn check_opacity(v: f64) -> Result<f32, &'static str> {
     if v < 0.0 {
-        return Err(serde::de::Error::custom("Opacity cannot be negative"));
+        return Err("Opacity cannot be negative");
     }
 
     if v > 1.0 {
-        return Err(serde::de::Error::custom(
-            "Opacity cannot be greater than 1.0",
-        ));
+        return Err("Opacity cannot be greater than 1.0");
     }
 
-    Ok(v)
-}
-
-fn default_opacity() -> f32 {
-    1.0
+    Ok(v as f32)
 }
 
 impl Default for Appearance {
@@ -1178,7 +1297,7 @@ impl Default for Appearance {
         Self {
             font_name: None,
             scale_factor: 1.0,
-            opacity: default_opacity(),
+            opacity: Opacity::default(),
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
             background_color: BackgroundAppearanceColor::Complete {
@@ -1440,37 +1559,83 @@ impl Default for OsdConfig {
     }
 }
 
-pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
-    match path {
-        Some(p) => {
-            info!("Config path provided {p:?}");
-            expand_path(p).and_then(|expanded| {
-                if !expanded.exists() {
-                    Err(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::NotFound,
-                        format!("Config file does not exist: {}", expanded.display()),
-                    )))
-                } else {
-                    Ok((read_config(&expanded).unwrap_or_default(), expanded))
-                }
-            })
-        }
-        None => expand_path(PathBuf::from(DEFAULT_CONFIG_FILE_PATH)).map(|expanded| {
-            // Safety: DEFAULT_CONFIG_FILE_PATH is "~/.config/ashell/config.toml" which
-            // always has directory components. shellexpand only expands ~/$HOME and never
-            // strips path components, so .parent() always returns Some.
-            let parent = expanded
-                .parent()
-                .expect("Failed to get default config parent directory");
-
-            if !parent.exists() {
-                std::fs::create_dir_all(parent)
-                    .expect("Failed to create default config parent directory");
-            }
-
-            (read_config(&expanded).unwrap_or_default(), expanded)
-        }),
+/// Parses just the `[logging]` table, before the logger exists: no `log::*`
+/// here, problems go to `stderr`.
+pub fn read_logging_config(path: Option<&PathBuf>) -> LoggingConfig {
+    #[derive(Deserialize)]
+    struct LoggingConfigWrapper {
+        #[serde(default)]
+        logging: LoggingConfig,
     }
+
+    let config_path = match resolve_config_path(path.map(PathBuf::as_path)) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!(
+                "ashell: warning: cannot expand the config path: {e}, using the default logging setup"
+            );
+            return LoggingConfig::default();
+        }
+    };
+
+    let content = match std::fs::read_to_string(&config_path) {
+        Ok(c) => c,
+        Err(e) => {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                eprintln!(
+                    "ashell: warning: cannot read {}: {e}, using the default logging setup",
+                    config_path.display()
+                );
+            }
+            return LoggingConfig::default();
+        }
+    };
+
+    match toml::from_str::<LoggingConfigWrapper>(&content) {
+        Ok(wrapper) => wrapper.logging,
+        Err(e) => {
+            eprintln!(
+                "ashell: warning: cannot read the [logging] section of {}, using the default logging setup:\n{e}",
+                config_path.display()
+            );
+            LoggingConfig::default()
+        }
+    }
+}
+
+fn resolve_config_path(path: Option<&Path>) -> Result<PathBuf, Box<dyn Error + Send>> {
+    expand_path(match path {
+        Some(p) => p.to_path_buf(),
+        None => PathBuf::from(DEFAULT_CONFIG_FILE_PATH),
+    })
+}
+
+pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
+    let explicit = path.is_some();
+    let expanded = resolve_config_path(path.as_deref())?;
+
+    if explicit {
+        info!("Config path provided {expanded:?}");
+
+        if !expanded.exists() {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Config file does not exist: {}", expanded.display()),
+            )));
+        }
+    } else {
+        // DEFAULT_CONFIG_FILE_PATH has a parent and shellexpand never strips components.
+        let parent = expanded
+            .parent()
+            .expect("Failed to get default config parent directory");
+
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)
+                .expect("Failed to create default config parent directory");
+        }
+    }
+
+    Ok((read_config(&expanded).unwrap_or_default(), expanded))
 }
 
 fn expand_path(path: PathBuf) -> Result<PathBuf, Box<dyn Error + Send>> {

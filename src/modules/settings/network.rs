@@ -3,9 +3,9 @@ use crate::{
     components::{
         divider, format_indicator,
         icons::{StaticIcon, icon, icon_button},
-        quick_setting_button,
+        quick_setting_button, scrollable,
         spinning_icon::spinning_icon,
-        styled_button,
+        styled_button, toggler,
     },
     config::SettingsFormat,
     services::{
@@ -21,7 +21,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
-    widget::{Column, column, container, row, scrollable, text, toggler},
+    widget::{Column, column, container, row, text},
 };
 use log::{info, warn};
 

@@ -16,7 +16,7 @@ ashell --config-path /path/to/config.toml
 
 ```rust
 pub struct Config {
-    pub log_level: String,                          // Default: "warn"
+    pub logging: LoggingConfig,                     // Level, target and directory
     pub position: Position,                         // Top or Bottom
     pub layer: Layer,                               // Top, Bottom, or Overlay
     pub outputs: Outputs,                           // All, Active, or Targets
@@ -38,6 +38,26 @@ pub struct Config {
 ```
 
 Every field has a serde `#[serde(default)]` attribute, so **an empty config file is valid** — the bar works with zero configuration.
+
+## Logging Bootstrap
+
+The logger must exist before `get_config()` runs, but its destination lives in
+the config file. `config::read_logging_config()` solves this by parsing **only**
+the `[logging]` table into a throwaway wrapper struct, before the logger is
+initialized:
+
+```rust
+pub fn read_logging_config(path: Option<&PathBuf>) -> LoggingConfig
+```
+
+Because it runs before the logger exists it must not use `log::*`; problems are
+reported on `stderr` and it falls back to `LoggingConfig::default()`. Unknown
+top-level keys are skipped without being deserialized, so a broken `[modules]`
+section does not prevent the `[logging]` table from being read. Typos are still
+reported a moment later by the full `Config` parse.
+
+Only `logging.level` is re-applied on hot-reload; `logging.target` and
+`logging.directory` are fixed at startup.
 
 ## Module Layout
 
@@ -110,14 +130,16 @@ scale_factor = 1.0
 surface = "transparent"    # transparent or solid
 radius = "md"              # none|sm|md|lg|xl, CSS border-radius shorthand
 margin = "sm"              # none|xxs..xxl|number(pixels), CSS margin shorthand
-opacity = 0.9
+
+[appearance.opacity]
+default = 0.9
+bar = 1.0
 
 [appearance.background]
 base = "#1e1e2e"
 
 [appearance.menu]
-opacity = 0.95
-backdrop_blur = true
+backdrop = 0.3
 ```
 
 See the [Configuration Reference](../reference/config-reference.md) for a complete list of all configuration options.

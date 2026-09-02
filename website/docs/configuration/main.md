@@ -7,59 +7,82 @@ sidebar_position: 1
 This page contains the base configuration options for Ashell.
 
 It allows you to configure things like the log level, the monitor(s) used to
-render the status bar, and the bar’s position.
+render the status bar, and the bar's position.
 
 All these configurations are defined in the root of the `toml` file.
 
-## Log Level
+## Logging
 
-The log level controls the verbosity of logs.
+The `[logging]` section controls log level, destination, and file location.
 
-You can set it to a general level like `debug`, `info`, `warn`, or `error`,
-or specify fine-grained control to enable logs from specific modules
-in the codebase, e.g., `ashell::services::network=debug`.
+By default, ashell logs at `warn` level to a file directly inside
+`$XDG_RUNTIME_DIR`, for example `/run/user/1000/ashell_rCURRENT.log`. When
+`$XDG_RUNTIME_DIR` is unset or is not a private per-user directory, the
+fallback is `/tmp/ashell/`. Log files are rotated daily or when they reach
+10 MB, and the last 7 files are kept.
 
-See more about [log levels](https://docs.rs/env_logger/latest/env_logger/#enabling-logging).
+See [log levels](https://docs.rs/env_logger/latest/env_logger/#enabling-logging)
+for the full filter syntax.
+
+### Options
+
+- `level` — Log verbosity: `"error"`, `"warn"`, `"info"`, or `"debug"` (default: `"warn"`).
+- `target` — Where to write logs: `"file"` (default), `"stdout"`, or `"stderr"`.
+- `directory` — Custom log directory (only used when `target = "file"`).
+  Supports `~` and environment variable expansion, and is created if missing.
+  Defaults to `$XDG_RUNTIME_DIR`.
 
 :::warning
 
-This configuration **requires** restarting Ashell to take effect.
+Changing the `[logging]` section requires restarting ashell to take effect.
+The log destination is set once at startup and cannot be changed via hot-reload.
 
 :::
 
-### Log Examples
+:::caution
 
-Set the global log level to `debug` for all modules:
+On multi-user systems, avoid setting `directory` to a shared path like `/tmp/ashell`.
+The default `$XDG_RUNTIME_DIR` is per-user and avoids permission conflicts when
+multiple users run ashell on the same machine; ashell only falls back to
+`/tmp/ashell` when `$XDG_RUNTIME_DIR` is unusable.
 
-```toml
-log_level = "debug"
-```
+:::
 
-Set the log level for the `ashell` module only:
-
-```toml
-log_level = "ashell=debug"
-```
-
-Set the log level to `warn` for all modules, `info` for Ashell modules,
-and `debug` only for the network service:
+### Examples
 
 ```toml
-log_level = "warn,ashell=info,ashell::services::network=debug"
+[logging]
+level = "debug"
 ```
 
-To understand all possible module names you can use, check
-the [source code](https://github.com/MalpenZibo/ashell).  
-The `src` folder is the root of the `ashell` module, and every directory
-or file under it declares a module or submodule.
+```toml
+[logging]
+level = "warn,ashell=info,ashell::services::network=debug"
+```
 
-For example, the file `src/modules/media_player.rs` maps to the module `ashell::modules::media_player`.
+```toml
+[logging]
+target = "stdout"
+```
+
+```toml
+[logging]
+target = "file"
+directory = "~/.local/log/ashell"
+```
+
+The `level` option supports fine-grained control per Rust module, e.g.
+`"warn,ashell::services::network=debug"`. To understand all possible module
+names, check the [source code](https://github.com/MalpenZibo/ashell). The `src`
+folder is the root of the `ashell` module, and every directory or file under it
+declares a module or submodule. For example, `src/modules/media_player.rs` maps
+to `ashell::modules::media_player`.
 
 :::warning
 
-Don’t confuse Ashell features (called “modules”) with Rust modules
-(defined with `mod.rs` or in files).  
-In this configuration, we're referring to Rust modules.
+Don't confuse Ashell features (called "modules") with Rust modules
+(defined with `mod.rs` or in files). In this configuration, we're
+referring to Rust modules.
 
 :::
 
@@ -77,6 +100,10 @@ They are optional and fall back to your environment: `language` resolves from
 `$LC_ALL`, then `$LC_MESSAGES`, then `$LANG`, and `region` resolves from
 `$LC_ALL`, then `$LC_TIME`, then `$LANG`. The unit system additionally honors
 `$LC_MEASUREMENT` when set. If nothing matches, ashell defaults to `en-US`.
+
+Individual modules can opt out of the unit system: see
+[`system_info.temperature.units`](./modules/system_info.md#temperature) and
+[`tempo.wind_speed_unit`](./modules/tempo.md).
 
 ```toml
 language = "en-US"   # UI language
