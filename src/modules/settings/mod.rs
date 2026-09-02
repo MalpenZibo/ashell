@@ -891,7 +891,7 @@ impl Settings {
     }
 
     pub fn tooltip_view<'a>(&'a self, menu_type: &MenuType) -> Element<'a, Message> {
-        let space = use_theme(|t| t.space);
+        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
         let fallback = |label: String| -> Element<'a, Message> { iced::widget::text(label).into() };
         match menu_type {
             MenuType::AudioTooltip => {
@@ -940,14 +940,12 @@ impl Settings {
             MenuType::WifiTooltip => {
                 if let Some(label) = self.network.connected_wifi_label() {
                     let band = self.network.connected_wifi_band();
-                    let (font_size, primary) =
-                        use_theme(|t| (t.font_size, t.iced_theme.palette().primary));
                     let mut r = row![StaticIcon::Wifi4.to_text(), iced::widget::text(label)]
                         .spacing(space.xs);
                     if let Some(b) = band {
                         r = r.push(iced::widget::text(b).size(font_size.xs).style(
-                            move |_theme: &Theme| iced::widget::text::Style {
-                                color: Some(primary),
+                            |theme: &Theme| iced::widget::text::Style {
+                                color: Some(theme.palette().primary),
                             },
                         ));
                     }
