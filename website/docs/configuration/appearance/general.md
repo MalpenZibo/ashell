@@ -97,7 +97,7 @@ radius = "md"                       # all corners
 
 The `margin` field insets the bar from the screen edges, turning it into a
 floating bar. Values are steps of the spacing scale: `none` (default), `xxs`,
-`xs`, `sm`, `md`, `lg`, `xl`, `xxl`.
+`xs`, `sm`, `md`, `lg`, `xl`, `xxl`; or pixels as a float: `10`, `16.5`, `20.0`, etc.
 
 It uses CSS `margin` shorthand: a single value applies to all edges, two values
 are `[vertical, horizontal]`, and four values are `[top, right, bottom, left]`.
@@ -105,7 +105,7 @@ are `[vertical, horizontal]`, and four values are `[top, right, bottom, left]`.
 ```toml
 [appearance.bar]
 margin = "sm"              # all edges
-# margin = ["xs", "md"]    # vertical, horizontal
+# margin = ["xs", 20.0]    # vertical, horizontal
 ```
 
 ### Opacity

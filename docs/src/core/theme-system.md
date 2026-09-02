@@ -107,7 +107,7 @@ The `[appearance.bar].surface` field controls where the background is painted:
 - **`transparent`**: No continuous background. Each module (or module group) gets its own rounded container with the background color, creating a "floating islands" look. This is the default.
 - **`solid`**: Flat background color across the entire bar width; module groups render pass-through so the bar reads as a single surface.
 
-The bar surface can additionally be rounded (`radius`) and inset from the screen edges (`margin`); both use CSS shorthand over the radius/spacing scales.
+The bar surface can additionally be rounded (`radius`) and inset from the screen edges (`margin`); both use CSS shorthand over the radius/spacing scales. Additionally, margin can be an `f32` representing physical pixels.
 
 ## Color System
 

@@ -32,7 +32,7 @@ const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Reg
 const NERD_FONT_MONO: &[u8] =
     include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
 const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
-const HEIGHT: f64 = 34.;
+const HEIGHT: f64 = 26.;
 const TMP_FILE_SIZE: u64 = 10 * 1024 * 1024;
 const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")");
 
@@ -245,7 +245,7 @@ fn main() -> iced::Result {
     };
 
     let bar_layout = BarLayout::from_appearance(&config.appearance.bar);
-    let height = Outputs::get_height(bar_layout.surface, config.appearance.scale_factor);
+    let height = Outputs::get_height(config.appearance.scale_factor);
 
     let iced_layer = match config.layer {
         config::Layer::Top => Layer::Top,
@@ -270,7 +270,7 @@ fn main() -> iced::Result {
             config.position,
             config.appearance.scale_factor,
         ),
-        margin: Outputs::margin(bar_layout, config.appearance.scale_factor),
+        margin: bar_layout.margin.into(),
         size: Some((0, height as u32)),
         keyboard_interactivity: KeyboardInteractivity::None,
         namespace: "ashell-main-layer".into(),

@@ -610,16 +610,7 @@ impl App {
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if bar_surface == BarSurface::Transparent {
-                        HEIGHT
-                    } else {
-                        HEIGHT - space.xs as f64
-                    } as f32)
-                    .padding(if bar_surface == BarSurface::Transparent {
-                        [space.xxs, space.xxs]
-                    } else {
-                        [0.0, 0.0]
-                    });
+                    .height(HEIGHT as f32);
 
                 let menu_is_open = self.outputs.menu_is_open();
                 let bar_style = move |t: &Theme| container::Style {
