@@ -152,7 +152,7 @@ alert_threshold = 80
 ```
 
 **Dependencies:**
-- Temperature monitoring reads the kernel `hwmon` sysfs interface directly (no extra package required). The `sensor` option is either a type keyword (`"Cpu"`, `"Gpu"`, `"Acpi"`, `"Nvme"`) for auto-detection or an exact hwmon label (e.g. `"acpitz temp1"`) — run `sensors` (from `lm_sensors`) to find the right name. The displayed unit follows the locale / unit system, not a per-module option.
+- Temperature monitoring reads the kernel `hwmon` sysfs interface directly (no extra package required). The `sensor` option is either a type keyword (`"Cpu"`, `"Gpu"`, `"Acpi"`, `"Nvme"`) for auto-detection or an exact hwmon label (e.g. `"acpitz temp1"`) — run `sensors` (from `lm_sensors`) to find the right name. The displayed unit follows the locale / unit system unless `units` (`"Celsius"` / `"Fahrenheit"`) overrides it.
 - CPU, memory, disk, and network info use standard kernel interfaces and do not need extra packages.
 
 ## Clock Module (Deprecated)

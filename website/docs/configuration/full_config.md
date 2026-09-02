@@ -100,6 +100,7 @@ alert_threshold = 85
 # warn_threshold = 60     # (default: None, auto 60°C / 140°F based on unit system)
 # alert_threshold = 80    # (default: None, auto 80°C / 176°F based on unit system)
 # sensor = "Cpu"        # (default) type keyword: "Cpu", "Gpu", "Acpi", "Nvme" or exact label like "acpitz temp1"
+# units = "Celsius"       # (default: None = follow the unit system) or "Fahrenheit"
 
 [system_info.disk]
 # warn_threshold = 80     # (default)

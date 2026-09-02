@@ -7,7 +7,10 @@ use i18n_embed::{
     fluent::{FluentLanguageLoader, fluent_language_loader},
 };
 use log::warn;
+use serde::Deserialize;
 use unic_langid::LanguageIdentifier;
+
+use crate::utils::celsius_to_fahrenheit;
 
 const CATALOGS: &[(&str, &str)] = &[
     ("en-US", include_str!("../i18n/en-US/ashell.ftl")),
@@ -27,10 +30,36 @@ pub enum UnitSystem {
 }
 
 impl UnitSystem {
-    pub fn temperature_symbol(self) -> &'static str {
+    pub fn temperature_unit(self) -> TemperatureUnit {
         match self {
-            Self::Metric => "°C",
-            Self::Imperial => "°F",
+            Self::Metric => TemperatureUnit::Celsius,
+            Self::Imperial => TemperatureUnit::Fahrenheit,
+        }
+    }
+
+    pub fn temperature_symbol(self) -> &'static str {
+        self.temperature_unit().symbol()
+    }
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TemperatureUnit {
+    Celsius,
+    Fahrenheit,
+}
+
+impl TemperatureUnit {
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::Celsius => "°C",
+            Self::Fahrenheit => "°F",
+        }
+    }
+
+    pub fn convert_celsius(self, celsius: i32) -> i32 {
+        match self {
+            Self::Celsius => celsius,
+            Self::Fahrenheit => celsius_to_fahrenheit(celsius),
         }
     }
 }
