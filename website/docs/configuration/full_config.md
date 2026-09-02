@@ -169,6 +169,7 @@ microphone_indicator_format = "Icon"   # (default)
 network_indicator_format = "Icon"      # (default), "IconAndPercentage", "Percentage", "Name", "IconAndName" (Name/IconAndName show the SSID/interface/VPN name)
 bluetooth_indicator_format = "Icon"    # (default)
 brightness_indicator_format = "Icon"   # (default)
+# keyboard_backlight_slider = false     # (default) set true to show the built-in keyboard backlight slider
 volume_step = 5    # (default) step size for IPC volume up/down, range 1..=50
 max_volume = 100   # (default) max volume level, range 1..=200 (>100 enables overdrive)
 # remove_airplane_btn = false   # (default) set true to hide airplane mode button
