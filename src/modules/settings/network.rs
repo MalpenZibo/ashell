@@ -12,7 +12,7 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
             AccessPointData, ActiveConnectionInfo, KnownConnection, NetworkCommand, NetworkEvent,
-            NetworkService, Vpn, dbus::ConnectivityState,
+            NetworkService, Vpn, dbus::ConnectivityState, frequency_band,
         },
     },
     t,
@@ -384,17 +384,19 @@ impl NetworkSettings {
         self.service.as_ref().and_then(|service| {
             if service.wifi_present {
                 let active_connection = service.active_connections.iter().find_map(|c| match c {
-                    ActiveConnectionInfo::WiFi { name, strength, .. } => {
-                        Some((name, strength, c.get_icon()))
-                    }
+                    ActiveConnectionInfo::WiFi {
+                        name,
+                        strength,
+                        frequency,
+                    } => Some((name, strength, *frequency, c.get_icon())),
                     _ => None,
                 });
 
                 Some((
                     quick_setting_button(
-                        active_connection.map_or_else(|| StaticIcon::Wifi0, |(_, _, icon)| icon),
+                        active_connection.map_or_else(|| StaticIcon::Wifi0, |(_, _, _, icon)| icon),
                         t!("settings-network-wifi"),
-                        active_connection.map(|(name, _, _)| name.to_string()),
+                        active_connection.map(|(name, _, _, _)| name.to_string()),
                         service.wifi_enabled,
                         Message::ToggleWiFi,
                         Some(Message::OpenMore),
@@ -403,13 +405,17 @@ impl NetworkSettings {
                             sub_menu,
                             Message::ToggleWifiMenu,
                         )),
+                        active_connection.and_then(|(_, _, freq, _)| {
+                            frequency_band(freq).map(|b| b.to_string())
+                        }),
                     ),
                     service.wifi_enabled.then_some((
                         sub_menu == Some(SubMenu::Wifi),
                         Self::wifi_menu(
                             service,
                             id,
-                            active_connection.map(|(name, strength, _)| (name.as_str(), *strength)),
+                            active_connection
+                                .map(|(name, strength, _, _)| (name.as_str(), *strength)),
                             self.config.wifi_more_cmd.is_some(),
                         ),
                     )),
@@ -479,6 +485,7 @@ impl NetworkSettings {
                             } else {
                                 None
                             },
+                            None,
                         ),
                         Some((
                             sub_menu == Some(SubMenu::Vpn),
@@ -505,6 +512,7 @@ impl NetworkSettings {
                         service.airplane_mode,
                         Message::ToggleAirplaneMode,
                         Some(Message::OpenMore),
+                        None,
                         None,
                     ),
                     None,
@@ -566,7 +574,7 @@ impl NetworkSettings {
 
                             styled_button(
                                 Element::from(
-                                    container(
+                                    container({
                                         row!(
                                             icon(if ac.public {
                                                 ActiveConnectionInfo::get_wifi_icon(ac.strength)
@@ -575,10 +583,15 @@ impl NetworkSettings {
                                             })
                                             .width(Length::Shrink),
                                             text(ac.ssid.as_str()).width(Length::Fill),
+                                            text(frequency_band(ac.frequency).unwrap_or(""))
+                                                .size(font_size.xs)
+                                                .style(|theme: &Theme| text::Style {
+                                                    color: Some(theme.palette().primary),
+                                                }),
                                         )
                                         .align_y(Alignment::Center)
-                                        .spacing(8),
-                                    )
+                                        .spacing(space.xs)
+                                    })
                                     .style(move |theme: &Theme| {
                                         container::Style {
                                             text_color: if is_active {
@@ -710,6 +723,15 @@ impl NetworkSettings {
         self.service.as_ref().and_then(|service| {
             service.active_connections.iter().find_map(|c| match c {
                 ActiveConnectionInfo::WiFi { name, .. } => Some(name.clone()),
+                _ => None,
+            })
+        })
+    }
+
+    pub fn connected_wifi_band(&self) -> Option<&'static str> {
+        self.service.as_ref().and_then(|service| {
+            service.active_connections.iter().find_map(|c| match c {
+                ActiveConnectionInfo::WiFi { frequency, .. } => frequency_band(*frequency),
                 _ => None,
             })
         })
