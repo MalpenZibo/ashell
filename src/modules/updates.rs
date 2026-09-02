@@ -16,7 +16,7 @@ use iced::{
 };
 use log::error;
 use serde::Deserialize;
-use std::{convert, process::Stdio, time::Duration};
+use std::{process::Stdio, time::Duration};
 use tokio::{process, time::sleep};
 
 #[derive(Deserialize, Debug, Clone)]
@@ -200,9 +200,7 @@ impl Updates {
         let (space, font_size) = use_theme(|theme| (theme.space, theme.font_size));
         column!(
             if self.updates.is_empty() {
-                convert::Into::<Element<'_, _>>::into(
-                    container(text(t!("updates-up-to-date"))).padding(space.xs),
-                )
+                Element::from(container(text(t!("updates-up-to-date"))).padding(space.xs))
             } else {
                 let mut elements = column!(
                     styled_button(t!("updates-available", count = self.updates.len()))
