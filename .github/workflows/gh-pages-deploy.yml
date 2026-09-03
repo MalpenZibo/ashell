@@ -41,6 +41,9 @@ jobs:
       - name: Install dependencies
         run: pnpm i
 
+      - name: Sync changelog page
+        run: pnpm run changelog
+
       - name: Build website
         run: pnpm build
 
