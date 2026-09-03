@@ -180,6 +180,7 @@ volume_step = 5    # (default) step size for IPC volume up/down, range 1..=50
 max_volume = 100   # (default) max volume level, range 1..=200 (>100 enables overdrive)
 # remove_airplane_btn = false   # (default) set true to hide airplane mode button
 # remove_idle_btn = false       # (default) set true to hide idle inhibitor button
+# remove_dnd_btn = false        # (default) set true to hide do not disturb button
 indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "Brightness" ]
 # indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "PeripheralBattery", "Brightness" ]
 
