@@ -3,7 +3,7 @@
     <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg" alt="ashell" height="140"/>
   </a>
 </h1>
-<p align="center">A ready to go status bar for Wayland compositors.</p>
+<p align="center">A ready to go desktop shell for Wayland.</p>
 <p align="center">
     <a href="https://matrix.to/#/#ashell:matrix.org"><img alt="Matrix" src="https://img.shields.io/badge/matrix-%23ashell-blue?logo=matrix"></a>
     <a href="https://github.com/MalpenZibo/ashell/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/MalpenZibo/ashell"></a>
