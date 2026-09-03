@@ -113,6 +113,8 @@ pub enum StaticIcon {
     KeyboardBatteryLow,
     KeyboardBatteryAlert,
     KeyboardBatteryCharging,
+    KeyboardBacklightOn,
+    KeyboardBacklightOff,
     MouseBatteryFull,
     MouseBatteryMedium,
     MouseBatteryLow,
@@ -239,6 +241,8 @@ impl StaticIcon {
             StaticIcon::HeadphoneBatteryLow => "\u{c000c}",
             StaticIcon::HeadphoneBatteryAlert => "\u{c000d}",
             StaticIcon::HeadphoneBatteryCharging => "\u{c000e}",
+            StaticIcon::KeyboardBacklightOn => "\u{c000f}",
+            StaticIcon::KeyboardBacklightOff => "\u{c0010}",
             StaticIcon::GamepadBatteryFull => "\u{f074d}",
             StaticIcon::GamepadBatteryMedium => "\u{f074f}",
             StaticIcon::GamepadBatteryLow => "\u{f074e}",
@@ -251,7 +255,7 @@ impl StaticIcon {
         }
     }
 
-    fn is_custom_battery_icon(&self) -> bool {
+    fn is_custom_icon(&self) -> bool {
         matches!(
             self,
             StaticIcon::KeyboardBatteryFull
@@ -269,11 +273,13 @@ impl StaticIcon {
                 | StaticIcon::HeadphoneBatteryLow
                 | StaticIcon::HeadphoneBatteryAlert
                 | StaticIcon::HeadphoneBatteryCharging
+                | StaticIcon::KeyboardBacklightOn
+                | StaticIcon::KeyboardBacklightOff
         )
     }
 
     fn get_font(&self) -> &'static str {
-        if self.is_custom_battery_icon() {
+        if self.is_custom_icon() {
             "Ashell Custom Icon"
         } else {
             "Symbols Nerd Font"
@@ -281,7 +287,7 @@ impl StaticIcon {
     }
 
     fn get_font_mono(&self) -> &'static str {
-        if self.is_custom_battery_icon() {
+        if self.is_custom_icon() {
             "Ashell Custom Icon"
         } else {
             "Symbols Nerd Font Mono"

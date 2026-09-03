@@ -4,7 +4,7 @@ use crate::{
     components::{
         ButtonKind, IconPosition, divider, format_indicator,
         icons::{StaticIcon, icon},
-        quick_setting_button, styled_button,
+        quick_setting_button, slider_control, styled_button,
     },
     config::{PeripheralIndicators, SettingsFormat},
     services::{
@@ -13,11 +13,12 @@ use crate::{
     },
     t,
     theme::use_theme,
-    utils::{self, IndicatorState, format_duration},
+    utils::{self, IndicatorState, format_duration, remote_value},
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
+    mouse::ScrollDelta,
     widget::{Column, Row, column, container, row, text},
 };
 
@@ -51,11 +52,13 @@ pub enum Message {
     TogglePeripheralMenu,
     TogglePowerProfile,
     ToggleChargeLimit,
+    ToggleKbdBacklight,
     Suspend,
     Hibernate,
     Reboot,
     Shutdown,
     Logout,
+    KbdBacklightChanged(remote_value::Message<u32>),
     ConfigReloaded(PowerSettingsConfig),
 }
 
@@ -77,6 +80,7 @@ pub struct PowerSettingsConfig {
     pub peripheral_indicators: PeripheralIndicators,
     pub peripheral_battery_format: SettingsFormat,
     pub peripheral_expanded_by_default: bool,
+    pub keyboard_backlight_slider: bool,
 }
 
 impl PowerSettingsConfig {
@@ -92,6 +96,7 @@ impl PowerSettingsConfig {
         peripheral_indicators: PeripheralIndicators,
         peripheral_battery_format: SettingsFormat,
         peripheral_expanded_by_default: bool,
+        keyboard_backlight_slider: bool,
     ) -> Self {
         Self {
             suspend_cmd,
@@ -104,6 +109,7 @@ impl PowerSettingsConfig {
             peripheral_indicators,
             peripheral_battery_format,
             peripheral_expanded_by_default,
+            keyboard_backlight_slider,
         }
     }
 }
@@ -137,6 +143,23 @@ impl PowerSettings {
                 ServiceEvent::Error(_) => Action::None,
             },
             Message::TogglePeripheralMenu => Action::TogglePeripheralMenu,
+            Message::ToggleKbdBacklight => {
+                if let Some(service) = self.service.as_mut()
+                    && let Some(backlight) = service.kbd_backlight.as_mut()
+                {
+                    let new_value = if backlight.current.value() == 0 {
+                        backlight.retained.unwrap_or(backlight.max)
+                    } else {
+                        backlight.retained = Some(backlight.current.value());
+                        0
+                    };
+                    self.update(Message::KbdBacklightChanged(
+                        remote_value::Message::RequestAndTimeout(new_value),
+                    ))
+                } else {
+                    Action::None
+                }
+            }
             Message::TogglePowerProfile => match self.service.as_mut() {
                 Some(service) => Action::Command(
                     service
@@ -173,6 +196,24 @@ impl PowerSettings {
             }
             Message::Logout => {
                 utils::launcher::logout(&self.config.logout_cmd);
+                Action::None
+            }
+            Message::KbdBacklightChanged(message) => {
+                if let Some(service) = self.service.as_mut() {
+                    // Send
+                    if let Some(value) = message.value() {
+                        let _ = service.command(UPowerCommand::SetKbdBacklight(value));
+                    }
+                    // Drive UI updates
+                    if let Some(kbd_backlight) = service.kbd_backlight.as_mut() {
+                        return Action::Command(
+                            kbd_backlight
+                                .current
+                                .update(message)
+                                .map(Message::KbdBacklightChanged),
+                        );
+                    }
+                };
                 Action::None
             }
             Message::ConfigReloaded(config) => {
@@ -527,6 +568,41 @@ impl PowerSettings {
                 )
             })
         })
+    }
+
+    pub fn kbd_backlight_slider<'a>(&'a self) -> Option<Element<'a, Message>> {
+        if !self.config.keyboard_backlight_slider {
+            return None;
+        }
+        let backlight = self.service.as_ref()?.kbd_backlight.as_ref()?;
+        let current = backlight.current.value();
+        Some(
+            slider_control(
+                if current != 0 {
+                    StaticIcon::KeyboardBacklightOn
+                } else {
+                    StaticIcon::KeyboardBacklightOff
+                },
+                0..=backlight.max,
+                current,
+                Message::KbdBacklightChanged,
+                move |delta| {
+                    let y = match delta {
+                        ScrollDelta::Lines { y, .. } => y,
+                        ScrollDelta::Pixels { y, .. } => y,
+                    };
+                    let step = (5 * backlight.max / 100).max(1);
+                    let new = if y > 0.0 {
+                        (current + step).min(backlight.max)
+                    } else {
+                        current.saturating_sub(step)
+                    };
+                    Message::KbdBacklightChanged(remote_value::Message::RequestAndTimeout(new))
+                },
+            )
+            .on_icon_press(Message::ToggleKbdBacklight)
+            .into(),
+        )
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
