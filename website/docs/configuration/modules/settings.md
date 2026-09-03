@@ -58,6 +58,18 @@ options you can set commands to open the audio settings
 for sinks and sources, if not set the related buttons will not appear.  
 When configured, right-clicking the speaker or microphone indicators (or their quick settings buttons) launches the respective command immediately.
 
+With the `audio_sink_post_switch_cmd` and `audio_source_post_switch_cmd` options
+you can set commands that are automatically executed after switching the audio output or input device.
+This is useful for working around PipeWire or WirePlumber issues where audio doesn't
+properly route to the new device without a service restart.
+
+The command is executed asynchronously (fire-and-forget) via `bash -c` after every sink or source switch.
+
+```toml
+[settings]
+audio_sink_post_switch_cmd = "systemctl --user restart wireplumber"
+```
+
 With the `wifi_more_cmd`, `vpn_more_cmd` and `bluetooth_more_cmd` options  
 you can set commands to open the network, VPN and bluetooth settings.  
 Right-clicking the Wi-Fi, VPN, Bluetooth or airplane-mode quick settings buttons (and the Wi-Fi indicator in the bar) triggers these commands directly when they are set.
@@ -404,6 +416,7 @@ We also disable the airplane mode button and the idle inhibitor button.
 lock_cmd = "hyprlock &"
 audio_sinks_more_cmd = "pavucontrol -t 3"
 audio_sources_more_cmd = "pavucontrol -t 4"
+audio_sink_post_switch_cmd = "systemctl --user restart wireplumber"
 wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
