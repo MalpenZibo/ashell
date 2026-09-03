@@ -287,11 +287,12 @@ impl From<PowerProfile> for StaticIcon {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct KbdBacklight {
     pub max: u32,
     pub current: Remote<u32>,
     pub retained: Option<u32>,
+    commander: UnboundedSender<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -302,7 +303,6 @@ pub struct UPowerService {
     pub power_profile: PowerProfile,
     pub kbd_backlight: Option<KbdBacklight>,
     conn: zbus::Connection,
-    commander: UnboundedSender<u32>,
 }
 
 enum State {
@@ -438,10 +438,15 @@ impl UPowerService {
         let proxy = KbdBacklightProxy::new(conn).await.ok()?;
         let mut current = Remote::<u32>::default();
         current.receive(Self::safe_cast(proxy.get_brightness().await.ok()?));
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        Self::start_commander(conn.clone(), rx);
+
         Some(KbdBacklight {
             max: Self::safe_cast(proxy.get_max_brightness().await.ok()?),
             current,
             retained: None,
+            commander: tx,
         })
     }
 
@@ -851,9 +856,6 @@ impl UPowerService {
                             .map(|p| p.device.inner().path().clone())
                             .collect();
 
-                        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                        Self::start_commander(conn.clone(), rx);
-
                         let service = UPowerService {
                             system_battery: system_battery.as_ref().map(|b| b.0),
                             charge_limit,
@@ -861,7 +863,6 @@ impl UPowerService {
                             power_profile,
                             kbd_backlight,
                             conn: conn.clone(),
-                            commander: tx,
                         };
                         let _ = output.send(ServiceEvent::Init(service)).await;
 
@@ -943,7 +944,11 @@ impl Service for UPowerService {
     fn command(&mut self, command: Self::Command) -> iced::Task<ServiceEvent<Self>> {
         match command {
             UPowerCommand::SetKbdBacklight(brightness) => {
-                let _ = self.commander.send(brightness);
+                if let Some(kbd_backlight) = self.kbd_backlight.as_ref() {
+                    let _ = kbd_backlight.commander.send(brightness);
+                } else {
+                    error!("Keyboard backlight not initialised");
+                }
                 iced::Task::none()
             }
             UPowerCommand::TogglePowerProfile => {
