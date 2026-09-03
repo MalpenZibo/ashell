@@ -68,6 +68,22 @@ With the `remove_airplane_btn` option you can remove the airplane mode button.
 
 With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
+## Audio Feedback
+
+With the `audio_feedback` option you can enable or disable the audible beep
+played when adjusting the volume (default: `true`). The beep plays on slider
+drags, scroll wheel, mute toggles, and keyboard volume keys sent via IPC.
+
+The beep is a short embedded sound sample played on the active audio output.
+Beeps are rate-limited: a beep only plays if the volume has changed by at
+least 4% **and** at least 150ms have passed since the last beep, preventing
+rapid overlapping sounds.
+
+```toml
+[settings]
+audio_feedback = true
+```
+
 ## Tooltips
 
 By default, hovering over the status bar indicators shows a tooltip describing

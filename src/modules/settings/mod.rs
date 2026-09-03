@@ -222,6 +222,7 @@ impl Settings {
                 config.max_volume,
                 config.audio_indicator_format,
                 config.microphone_indicator_format,
+                config.audio_feedback,
             )),
             brightness: BrightnessSettings::new(config.brightness_indicator_format),
             network: NetworkSettings::new(NetworkSettingsConfig::new(
@@ -523,6 +524,7 @@ impl Settings {
                         config.max_volume,
                         config.audio_indicator_format,
                         config.microphone_indicator_format,
+                        config.audio_feedback,
                     )));
                 self.network.update(network::Message::ConfigReloaded(
                     NetworkSettingsConfig::new(
