@@ -55,23 +55,6 @@ radius = "none"                 # none|sm|md|lg|xl, CSS border-radius shorthand 
 margin = "none"                 # none|xxs..xxl, CSS margin shorthand
 ```
 
-### Colors
-
-```toml
-# Simple hex color
-[appearance]
-background = "#1e1e2e"
-
-# Complete color with variants
-[appearance.primary]
-base = "#cba6f7"
-strong = "#dbbcff"
-weak = "#a385d8"
-text = "#1e1e2e"
-```
-
-Available color fields: `background`, `text`, `primary`, `secondary`, `success`, `danger`.
-
 ### Menu Appearance
 
 ```toml
@@ -79,13 +62,34 @@ Available color fields: `background`, `text`, `primary`, `secondary`, `success`,
 backdrop = 0.3                  # darkening drawn behind an open menu
 ```
 
-### Workspace Colors
+## Colors Configuration (`colors.toml`)
+
+Colors are configured separately in `~/.config/ashell/colors.toml` (or via `--colors-path`).
 
 ```toml
-[appearance]
+# Simple hex color
+primary_color = "#cba6f7"
+success_color = "#a6e3a1"
+warning_color = "#f9e2af"
+danger_color = "#f38ba8"
+text_color = "#cdd6f4"
 workspace_colors = ["#cba6f7", "#f38ba8", "#a6e3a1", "#89b4fa"]
 special_workspace_colors = ["#fab387"]
+
+# Complete color with variants
+[primary_color]
+base = "#cba6f7"
+strong = "#dbbcff"
+weak = "#a385d8"
+text = "#1e1e2e"
+
+[background_color]
+base = "#1e1e2e"
+weak = "#313244"
+strong = "#45475a"
 ```
+
+Available color fields: `background_color`, `text_color`, `primary_color`, `success_color`, `warning_color`, `danger_color`, `workspace_colors`, `special_workspace_colors`.
 
 ## Updates Module
 

@@ -2,14 +2,15 @@
 
 The configuration system is defined in `src/config.rs`. ashell uses a TOML file for all user-facing settings.
 
-## Config File Location
+## Config File Locations
 
-Default path: `~/.config/ashell/config.toml`
+- General settings: `~/.config/ashell/config.toml`
+- Color palette: `~/.config/ashell/colors.toml`
 
-Override with the `--config-path` CLI flag:
+Override with the `--config-path` and `--colors-path` CLI flags:
 
 ```bash
-ashell --config-path /path/to/config.toml
+ashell --config-path /path/to/config.toml --colors-path /path/to/colors.toml
 ```
 
 ## The Config Struct
@@ -135,11 +136,10 @@ margin = "sm"              # none|xxs..xxl, CSS margin shorthand
 default = 0.9
 bar = 1.0
 
-[appearance.background]
-base = "#1e1e2e"
-
 [appearance.menu]
 backdrop = 0.3
 ```
+
+Color palette options (`background_color`, `primary_color`, etc.) are configured separately in `colors.toml`.
 
 See the [Configuration Reference](../reference/config-reference.md) for a complete list of all configuration options.

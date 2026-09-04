@@ -7,6 +7,8 @@ sidebar_position: 2
 With these configuration options, you can customize
 the color palette of your status bar.
 
+All color palette options are stored in `~/.config/ashell/colors.toml` (in the same configuration directory as `config.toml`). You can also override the path with the `--colors-path` CLI option.
+
 ## Color Syntax
 
 Each color can be specified as a simple hex color or as an object with variants.
@@ -20,7 +22,7 @@ primary_color = "#7aa2f7"
 ### Advanced Syntax
 
 ```toml
-[appearance.primary_color]
+[primary_color]
 base = "#7aa2f7"
 strong = "#8aacff"
 weak = "#6988e6"
@@ -54,7 +56,7 @@ The background color supports additional granularity. Beyond `base`, `weak`,
 `strong`, and `text`, you can also specify intermediate levels:
 
 ```toml
-[appearance.background_color]
+[background_color]
 base = "#1e1e2e"
 weakest = "#1a1a28"
 weaker = "#1c1c2c"
