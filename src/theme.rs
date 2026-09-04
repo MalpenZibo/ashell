@@ -363,12 +363,12 @@ pub fn card_style(radius: impl Into<border::Radius>) -> impl Fn(&Theme) -> conta
 
 fn base_palette(appearance: &Appearance) -> Palette {
     Palette {
-        background: appearance.background_color.get_base(),
-        text: appearance.text_color.get_base(),
-        primary: appearance.primary_color.get_base(),
-        success: appearance.success_color.get_base(),
-        warning: appearance.warning_color.get_base(),
-        danger: appearance.danger_color.get_base(),
+        background: appearance.palette.background_color.get_base(),
+        text: appearance.palette.text_color.get_base(),
+        primary: appearance.palette.primary_color.get_base(),
+        success: appearance.palette.success_color.get_base(),
+        warning: appearance.palette.warning_color.get_base(),
+        danger: appearance.palette.danger_color.get_base(),
     }
 }
 
@@ -377,7 +377,11 @@ fn base_palette(appearance: &Appearance) -> Palette {
 /// generated once and shared by all four surface themes.
 fn build_extended(appearance: &Appearance, palette: Palette) -> palette::Extended {
     let text = palette.text;
-    let bg_text = appearance.background_color.get_text().unwrap_or(text);
+    let bg_text = appearance
+        .palette
+        .background_color
+        .get_text()
+        .unwrap_or(text);
     // `mix` interpolates alpha too, so deriving from the translucent
     // colour would spread assorted alphas across the variants.
     let background = Color {
@@ -388,6 +392,7 @@ fn build_extended(appearance: &Appearance, palette: Palette) -> palette::Extende
     let default_bg = palette::Background::new(background, bg_text);
     let bg = |level, fallback| {
         appearance
+            .palette
             .background_color
             .get_pair(level, text)
             .unwrap_or(fallback)
@@ -396,22 +401,22 @@ fn build_extended(appearance: &Appearance, palette: Palette) -> palette::Extende
     let default_primary = palette::Primary::generate(
         palette.primary,
         background,
-        appearance.primary_color.get_text().unwrap_or(text),
+        appearance.palette.primary_color.get_text().unwrap_or(text),
     );
     let default_success = palette::Success::generate(
         palette.success,
         background,
-        appearance.success_color.get_text().unwrap_or(text),
+        appearance.palette.success_color.get_text().unwrap_or(text),
     );
     let default_warning = palette::Warning::generate(
         palette.warning,
         background,
-        appearance.warning_color.get_text().unwrap_or(text),
+        appearance.palette.warning_color.get_text().unwrap_or(text),
     );
     let default_danger = palette::Danger::generate(
         palette.danger,
         background,
-        appearance.danger_color.get_text().unwrap_or(text),
+        appearance.palette.danger_color.get_text().unwrap_or(text),
     );
 
     palette::Extended {
@@ -428,10 +433,12 @@ fn build_extended(appearance: &Appearance, palette: Palette) -> palette::Extende
         primary: palette::Primary {
             base: default_primary.base,
             weak: appearance
+                .palette
                 .primary_color
                 .get_weak_pair(text)
                 .unwrap_or(default_primary.weak),
             strong: appearance
+                .palette
                 .primary_color
                 .get_strong_pair(text)
                 .unwrap_or(default_primary.strong),
@@ -440,10 +447,12 @@ fn build_extended(appearance: &Appearance, palette: Palette) -> palette::Extende
         success: palette::Success {
             base: default_success.base,
             weak: appearance
+                .palette
                 .success_color
                 .get_weak_pair(text)
                 .unwrap_or(default_success.weak),
             strong: appearance
+                .palette
                 .success_color
                 .get_strong_pair(text)
                 .unwrap_or(default_success.strong),
@@ -451,10 +460,12 @@ fn build_extended(appearance: &Appearance, palette: Palette) -> palette::Extende
         warning: palette::Warning {
             base: default_warning.base,
             weak: appearance
+                .palette
                 .warning_color
                 .get_weak_pair(text)
                 .unwrap_or(default_warning.weak),
             strong: appearance
+                .palette
                 .warning_color
                 .get_strong_pair(text)
                 .unwrap_or(default_warning.strong),
@@ -462,10 +473,12 @@ fn build_extended(appearance: &Appearance, palette: Palette) -> palette::Extende
         danger: palette::Danger {
             base: default_danger.base,
             weak: appearance
+                .palette
                 .danger_color
                 .get_weak_pair(text)
                 .unwrap_or(default_danger.weak),
             strong: appearance
+                .palette
                 .danger_color
                 .get_strong_pair(text)
                 .unwrap_or(default_danger.strong),
@@ -503,8 +516,8 @@ fn base_theme_from_appearance(
         bar_radius: appearance.bar.radius,
         bar_margin: appearance.bar.margin,
         menu: appearance.menu,
-        workspace_colors: appearance.workspace_colors.clone(),
-        special_workspace_colors: appearance.special_workspace_colors.clone(),
+        workspace_colors: appearance.palette.workspace_colors.clone(),
+        special_workspace_colors: appearance.palette.special_workspace_colors.clone(),
         scale_factor: appearance.scale_factor,
         animations_enabled,
         palette,

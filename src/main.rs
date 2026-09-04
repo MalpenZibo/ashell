@@ -42,6 +42,9 @@ struct Args {
     #[arg(short, long, value_parser = clap::value_parser!(PathBuf))]
     config_path: Option<PathBuf>,
 
+    #[arg(long, value_parser = clap::value_parser!(PathBuf))]
+    colors_path: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -230,11 +233,12 @@ fn main() -> iced::Result {
 
     info!("ashell {VERSION}");
 
-    let (config, config_path) = get_config(args.config_path).unwrap_or_else(|err| {
-        error!("Failed to read config: {err}");
+    let (config, config_path, colors_path) = get_config(args.config_path, args.colors_path)
+        .unwrap_or_else(|err| {
+            error!("Failed to read config: {err}");
 
-        std::process::exit(1);
-    });
+            std::process::exit(1);
+        });
 
     logger.set_new_spec(get_log_spec(&config.logging.level));
 
@@ -254,7 +258,7 @@ fn main() -> iced::Result {
     };
 
     iced::application(
-        App::new((logger, config.clone(), config_path)),
+        App::new((logger, config.clone(), config_path, colors_path)),
         App::update,
         App::view,
     )

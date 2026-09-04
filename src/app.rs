@@ -53,6 +53,7 @@ pub struct GeneralConfig {
 
 pub struct App {
     config_path: PathBuf,
+    colors_path: PathBuf,
     logger: LoggerHandle,
     pub general_config: GeneralConfig,
     pub outputs: Outputs,
@@ -80,7 +81,7 @@ pub use message::Message;
 
 impl App {
     pub fn new(
-        (logger, config, config_path): (LoggerHandle, Config, PathBuf),
+        (logger, config, config_path, colors_path): (LoggerHandle, Config, PathBuf, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
             let mut outputs = Outputs::new(
@@ -118,6 +119,7 @@ impl App {
             (
                 App {
                     config_path,
+                    colors_path,
                     logger,
                     general_config: GeneralConfig {
                         outputs: config.outputs,
@@ -732,7 +734,7 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.left)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.center)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.right)),
-            config::subscription(&self.config_path),
+            config::subscription(&self.config_path, &self.colors_path),
             crate::services::logind::LogindService::subscribe().map(|event| match event {
                 crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,
                 _ => Message::None,

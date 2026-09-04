@@ -211,13 +211,6 @@ enabled = false   # (default)
 # opacity = 1.0                # (default) range: 0.0 to 1.0, every surface ashell draws
                                # or a table: [appearance.opacity] with default/bar/menu/osd/notifications
 # blur = "auto"                # (default) auto|always|never, compositor blur
-primary_color = "#7aa2f7"
-success_color = "#9ece6a"
-warning_color = "#e0af68"
-danger_color = "#f7768e"
-text_color = "#a9b1d6"
-workspace_colors = [ "#7aa2f7", "#9ece6a" ]
-# special_workspace_colors = [ "#7aa2f7", "#9ece6a" ]  # (default: None, falls back to workspace_colors)
 
 [appearance.bar]
 surface = "transparent"  # (default) or "solid"
@@ -226,8 +219,22 @@ surface = "transparent"  # (default) or "solid"
 
 [appearance.menu]
 # backdrop = 0.0   # (default) darkening drawn behind an open menu
+```
 
-[appearance.background_color]
+## Colors Configuration (`colors.toml`)
+
+Color palette configuration is stored in `~/.config/ashell/colors.toml`:
+
+```toml
+primary_color = "#7aa2f7"
+success_color = "#9ece6a"
+warning_color = "#e0af68"
+danger_color = "#f7768e"
+text_color = "#a9b1d6"
+workspace_colors = [ "#7aa2f7", "#9ece6a" ]
+# special_workspace_colors = [ "#7aa2f7", "#9ece6a" ]  # (default: None, falls back to workspace_colors)
+
+[background_color]
 base = "#1a1b26"
 weak = "#24273a"
 strong = "#414868"

@@ -21,6 +21,7 @@ use std::{collections::HashMap, error::Error, ops::Deref, path::Path};
 use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
+pub const DEFAULT_COLORS_FILE_PATH: &str = "~/.config/ashell/colors.toml";
 
 #[derive(Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "lowercase")]
@@ -837,7 +838,7 @@ fn hex_to_pair(hex: HexColor, text: Option<HexColor>, text_fallback: Color) -> p
     )
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum AppearanceColor {
     Simple(HexColor),
@@ -883,7 +884,7 @@ impl AppearanceColor {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum BackgroundAppearanceColor {
     Simple(HexColor),
@@ -1178,6 +1179,92 @@ impl<'de> Deserialize<'de> for Opacity {
     }
 }
 
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct PaletteConfig {
+    pub background_color: BackgroundAppearanceColor,
+    pub primary_color: AppearanceColor,
+    pub success_color: AppearanceColor,
+    pub warning_color: AppearanceColor,
+    pub danger_color: AppearanceColor,
+    pub text_color: AppearanceColor,
+    pub workspace_colors: Vec<AppearanceColor>,
+    pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+}
+
+impl Default for PaletteConfig {
+    fn default() -> Self {
+        Self {
+            background_color: BackgroundAppearanceColor::Complete {
+                base: HexColor::rgb(26, 27, 38),
+                weakest: None,
+                weaker: None,
+                weak: Some(HexColor::rgb(36, 39, 58)),
+                neutral: None,
+                strong: Some(HexColor::rgb(65, 72, 104)),
+                stronger: None,
+                strongest: None,
+                text: None,
+            },
+            primary_color: AppearanceColor::Simple(PRIMARY),
+            success_color: AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
+            warning_color: AppearanceColor::Simple(HexColor::rgb(224, 175, 104)),
+            danger_color: AppearanceColor::Simple(HexColor::rgb(247, 118, 142)),
+            text_color: AppearanceColor::Simple(HexColor::rgb(169, 177, 214)),
+            workspace_colors: vec![
+                AppearanceColor::Simple(PRIMARY),
+                AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
+            ],
+            special_workspace_colors: None,
+        }
+    }
+}
+
+/// Legacy color fields that were previously part of `[appearance]` in `config.toml`.
+/// Kept for backward compatibility: when no `colors.toml` is present these values
+/// are used as a fallback before falling back to built-in defaults.
+#[derive(Deserialize, Clone, Debug, Default)]
+pub struct LegacyColors {
+    pub background_color: Option<BackgroundAppearanceColor>,
+    pub primary_color: Option<AppearanceColor>,
+    pub success_color: Option<AppearanceColor>,
+    pub warning_color: Option<AppearanceColor>,
+    pub danger_color: Option<AppearanceColor>,
+    pub text_color: Option<AppearanceColor>,
+    pub workspace_colors: Option<Vec<AppearanceColor>>,
+    pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+}
+
+impl LegacyColors {
+    /// Returns `true` if at least one color field was explicitly set.
+    pub fn has_any(&self) -> bool {
+        self.background_color.is_some()
+            || self.primary_color.is_some()
+            || self.success_color.is_some()
+            || self.warning_color.is_some()
+            || self.danger_color.is_some()
+            || self.text_color.is_some()
+            || self.workspace_colors.is_some()
+            || self.special_workspace_colors.is_some()
+    }
+
+    /// Merge into a `PaletteConfig`, using `defaults` for any unset fields.
+    pub fn into_palette(self, defaults: PaletteConfig) -> PaletteConfig {
+        PaletteConfig {
+            background_color: self.background_color.unwrap_or(defaults.background_color),
+            primary_color: self.primary_color.unwrap_or(defaults.primary_color),
+            success_color: self.success_color.unwrap_or(defaults.success_color),
+            warning_color: self.warning_color.unwrap_or(defaults.warning_color),
+            danger_color: self.danger_color.unwrap_or(defaults.danger_color),
+            text_color: self.text_color.unwrap_or(defaults.text_color),
+            workspace_colors: self.workspace_colors.unwrap_or(defaults.workspace_colors),
+            special_workspace_colors: self
+                .special_workspace_colors
+                .or(defaults.special_workspace_colors),
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Appearance {
@@ -1187,17 +1274,15 @@ pub struct Appearance {
     pub opacity: Opacity,
     pub bar: BarAppearance,
     pub menu: MenuAppearance,
-    pub background_color: BackgroundAppearanceColor,
-    pub primary_color: AppearanceColor,
-    pub success_color: AppearanceColor,
-    pub warning_color: AppearanceColor,
-    pub danger_color: AppearanceColor,
-    pub text_color: AppearanceColor,
-    pub workspace_colors: Vec<AppearanceColor>,
-    pub special_workspace_colors: Option<Vec<AppearanceColor>>,
     /// Blur the wallpaper behind ashell's translucent surfaces via
     /// `ext-background-effect-v1`. No-op where the protocol is unsupported.
     pub blur: BlurMode,
+    #[serde(skip)]
+    pub palette: PaletteConfig,
+    /// Legacy color fields from `config.toml` — used as fallback when
+    /// `colors.toml` is absent. Flattened so serde reads them transparently.
+    #[serde(flatten)]
+    pub legacy_colors: LegacyColors,
 }
 
 /// When to ask the compositor for background blur.
@@ -1266,28 +1351,9 @@ impl Default for Appearance {
             opacity: Opacity::default(),
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
-            background_color: BackgroundAppearanceColor::Complete {
-                base: HexColor::rgb(26, 27, 38),
-                weakest: None,
-                weaker: None,
-                weak: Some(HexColor::rgb(36, 39, 58)),
-                neutral: None,
-                strong: Some(HexColor::rgb(65, 72, 104)),
-                stronger: None,
-                strongest: None,
-                text: None,
-            },
-            primary_color: AppearanceColor::Simple(PRIMARY),
-            success_color: AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
-            warning_color: AppearanceColor::Simple(HexColor::rgb(224, 175, 104)),
-            danger_color: AppearanceColor::Simple(HexColor::rgb(247, 118, 142)),
-            text_color: AppearanceColor::Simple(HexColor::rgb(169, 177, 214)),
-            workspace_colors: vec![
-                AppearanceColor::Simple(PRIMARY),
-                AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
-            ],
-            special_workspace_colors: None,
             blur: BlurMode::default(),
+            palette: PaletteConfig::default(),
+            legacy_colors: LegacyColors::default(),
         }
     }
 }
@@ -1576,9 +1642,99 @@ fn resolve_config_path(path: Option<&Path>) -> Result<PathBuf, Box<dyn Error + S
     })
 }
 
-pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
-    let explicit = path.is_some();
-    let expanded = resolve_config_path(path.as_deref())?;
+fn resolve_colors_path(
+    path: Option<&Path>,
+    config_path: &Path,
+) -> Result<PathBuf, Box<dyn Error + Send>> {
+    if let Some(p) = path {
+        return expand_path(p.to_path_buf());
+    }
+
+    if let Some(parent) = config_path.parent() {
+        let sibling_colors = parent.join("colors.toml");
+        if sibling_colors.exists() {
+            return Ok(sibling_colors);
+        }
+    }
+
+    expand_path(PathBuf::from(DEFAULT_COLORS_FILE_PATH))
+}
+
+pub fn read_colors(path: &Path) -> Result<PaletteConfig, Box<dyn Error + Send>> {
+    let content =
+        std::fs::read_to_string(path).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
+
+    info!("Decoding colors file {path:?}");
+
+    let value: toml::Value =
+        toml::from_str(&content).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
+
+    let (content_to_parse, target_name) = if let Some(table) = value.as_table() {
+        if let Some(palette) = table.get("palette") {
+            (
+                toml::to_string(palette).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?,
+                "nested [palette]",
+            )
+        } else if let Some(colors) = table.get("colors") {
+            (
+                toml::to_string(colors).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?,
+                "nested [colors]",
+            )
+        } else if let Some(appearance) = table.get("appearance") {
+            (
+                toml::to_string(appearance).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?,
+                "nested [appearance]",
+            )
+        } else {
+            (content, "root table")
+        }
+    } else {
+        (content, "root table")
+    };
+
+    debug!("Parsing colors from {target_name}");
+    let de = toml::Deserializer::parse(&content_to_parse)
+        .map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
+    let mut unknown_fields = Vec::new();
+    let res = serde_ignored::deserialize(de, |field| {
+        unknown_fields.push(field.to_string());
+    });
+
+    match res {
+        Ok(palette) => {
+            for field in &unknown_fields {
+                let msg = format!("Unknown color configuration field ignored: {field}");
+                warn!("{msg}");
+                eprintln!("ashell: warning: {msg}");
+            }
+            info!("Colors file loaded successfully");
+            Ok(palette)
+        }
+        Err(e) => {
+            warn!("Failed to parse colors file: {e}");
+            Err(Box::new(e))
+        }
+    }
+}
+
+pub fn load_config_and_colors(config_path: &Path, colors_path: &Path) -> Config {
+    let mut config = read_config(config_path).unwrap_or_default();
+    if colors_path.exists() {
+        config.appearance.palette = read_colors(colors_path).unwrap_or_default();
+    } else if config.appearance.legacy_colors.has_any() {
+        // Backward compatibility: fall back to color fields set in config.toml
+        let legacy = std::mem::take(&mut config.appearance.legacy_colors);
+        config.appearance.palette = legacy.into_palette(PaletteConfig::default());
+    }
+    config
+}
+
+pub fn get_config(
+    config_path: Option<PathBuf>,
+    colors_path: Option<PathBuf>,
+) -> Result<(Config, PathBuf, PathBuf), Box<dyn Error + Send>> {
+    let explicit = config_path.is_some();
+    let expanded = resolve_config_path(config_path.as_deref())?;
 
     if explicit {
         info!("Config path provided {expanded:?}");
@@ -1601,7 +1757,23 @@ pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Er
         }
     }
 
-    Ok((read_config(&expanded).unwrap_or_default(), expanded))
+    let explicit_colors = colors_path.is_some();
+    let expanded_colors = resolve_colors_path(colors_path.as_deref(), &expanded)?;
+
+    if explicit_colors {
+        info!("Colors path provided {expanded_colors:?}");
+
+        if !expanded_colors.exists() {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Colors file does not exist: {}", expanded_colors.display()),
+            )));
+        }
+    }
+
+    let config = load_config_and_colors(&expanded, &expanded_colors);
+
+    Ok((config, expanded, expanded_colors))
 }
 
 fn expand_path(path: PathBuf) -> Result<PathBuf, Box<dyn Error + Send>> {
@@ -1649,115 +1821,327 @@ enum Event {
     Removed,
 }
 
-pub fn subscription(path: &Path) -> Subscription<Message> {
-    let path = path.to_path_buf();
+pub fn subscription(config_path: &Path, colors_path: &Path) -> Subscription<Message> {
+    let config_path = config_path.to_path_buf();
+    let colors_path = colors_path.to_path_buf();
 
-    Subscription::run_with(path, |path| {
-        let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.clone());
+    Subscription::run_with((config_path, colors_path), |(config_path, colors_path)| {
+        let config_path =
+            std::fs::canonicalize(config_path).unwrap_or_else(|_| config_path.clone());
+        let colors_path =
+            std::fs::canonicalize(colors_path).unwrap_or_else(|_| colors_path.clone());
         channel(100, async move |mut output| {
-            match (path.parent(), path.file_name(), Inotify::init()) {
-                (Some(folder), Some(file_name), Ok(inotify)) => {
-                    debug!("Watching config file at {path:?}");
+            let config_parent = config_path.parent();
+            let config_name = config_path.file_name().map(|n| n.to_os_string());
+            let colors_parent = colors_path.parent();
+            let colors_name = colors_path.file_name().map(|n| n.to_os_string());
 
-                    let res = inotify.watches().add(
-                        folder,
-                        WatchMask::CREATE | WatchMask::DELETE | WatchMask::MOVE | WatchMask::MODIFY,
-                    );
+            let inotify = match Inotify::init() {
+                Ok(inotify) => inotify,
+                Err(e) => {
+                    error!("Failed to initialize inotify: {e}");
+                    return;
+                }
+            };
 
-                    if let Err(e) = res {
-                        error!("Failed to add watch for {folder:?}: {e}");
-                        return;
-                    }
+            let mut watch_folders = std::collections::HashSet::new();
+            if let Some(folder) = config_parent {
+                watch_folders.insert(folder.to_path_buf());
+            }
+            if let Some(folder) = colors_parent {
+                watch_folders.insert(folder.to_path_buf());
+            }
 
-                    let buffer = [0; 1024];
-                    let stream = inotify.into_event_stream(buffer);
+            if watch_folders.is_empty() {
+                error!("Neither config nor colors path has a parent directory to watch");
+                return;
+            }
 
-                    if let Ok(stream) = stream {
-                        let mut stream = stream.ready_chunks(10);
+            for folder in &watch_folders {
+                debug!("Watching folder for changes: {folder:?}");
+                let res = inotify.watches().add(
+                    folder,
+                    WatchMask::CREATE | WatchMask::DELETE | WatchMask::MOVE | WatchMask::MODIFY,
+                );
+                if let Err(e) = res {
+                    error!("Failed to add watch for {folder:?}: {e}");
+                    return;
+                }
+            }
 
-                        debug!("Starting config file watch loop");
+            let buffer = [0; 1024];
+            let stream = inotify.into_event_stream(buffer);
 
-                        loop {
-                            let events = stream.next().await.unwrap_or(vec![]);
+            if let Ok(stream) = stream {
+                let mut stream = stream.ready_chunks(10);
 
-                            debug!("Received inotify events: {events:?}");
+                debug!("Starting config/colors file watch loop");
 
-                            let mut file_event = None;
+                loop {
+                    let events = stream.next().await.unwrap_or(vec![]);
 
-                            for event in events {
-                                debug!("Event: {event:?}");
-                                match event {
-                                    Ok(inotify::Event {
-                                        name: Some(name),
-                                        mask: EventMask::DELETE | EventMask::MOVED_FROM,
-                                        ..
-                                    }) if file_name == name => {
-                                        debug!("File deleted or moved");
-                                        file_event = Some(Event::Removed);
-                                    }
-                                    Ok(inotify::Event {
-                                        name: Some(name),
-                                        mask:
-                                            EventMask::CREATE | EventMask::MODIFY | EventMask::MOVED_TO,
-                                        ..
-                                    }) if file_name == name => {
-                                        debug!("File created or moved");
+                    debug!("Received inotify events: {events:?}");
 
-                                        file_event = Some(Event::Changed);
-                                    }
-                                    _ => {
-                                        debug!("Ignoring event");
-                                    }
-                                }
+                    let mut file_event = None;
+
+                    for event in events {
+                        debug!("Event: {event:?}");
+                        match event {
+                            Ok(inotify::Event {
+                                name: Some(name),
+                                mask: EventMask::DELETE | EventMask::MOVED_FROM,
+                                ..
+                            }) if config_name.as_deref() == Some(&name)
+                                || colors_name.as_deref() == Some(&name) =>
+                            {
+                                debug!("Config or colors file deleted or moved");
+                                file_event = Some(Event::Removed);
                             }
-
-                            match file_event {
-                                Some(Event::Changed) => {
-                                    info!("Reload config file");
-
-                                    let path_clone = path.clone();
-                                    let new_config = tokio::task::spawn_blocking(move || {
-                                        read_config(&path_clone).unwrap_or_default()
-                                    })
-                                    .await
-                                    .unwrap_or_default();
-
-                                    let _ = output
-                                        .send(Message::ConfigChanged(Box::new(new_config)))
-                                        .await;
-                                }
-                                Some(Event::Removed) => {
-                                    // wait and double check if the file is really gone
-                                    sleep(Duration::from_millis(500)).await;
-
-                                    if !path.exists() {
-                                        info!("Config file removed");
-                                        let _ = output
-                                            .send(Message::ConfigChanged(Box::default()))
-                                            .await;
-                                    }
-                                }
-                                None => {
-                                    debug!("No relevant file event detected.");
-                                }
+                            Ok(inotify::Event {
+                                name: Some(name),
+                                mask: EventMask::CREATE | EventMask::MODIFY | EventMask::MOVED_TO,
+                                ..
+                            }) if config_name.as_deref() == Some(&name)
+                                || colors_name.as_deref() == Some(&name) =>
+                            {
+                                debug!("Config or colors file created or modified");
+                                file_event = Some(Event::Changed);
+                            }
+                            _ => {
+                                debug!("Ignoring event");
                             }
                         }
-                    } else {
-                        error!("Failed to create inotify event stream");
+                    }
+
+                    match file_event {
+                        Some(Event::Changed) => {
+                            info!("Reload config and colors files");
+
+                            let config_path_clone = config_path.clone();
+                            let colors_path_clone = colors_path.clone();
+                            let new_config = tokio::task::spawn_blocking(move || {
+                                load_config_and_colors(&config_path_clone, &colors_path_clone)
+                            })
+                            .await
+                            .unwrap_or_default();
+
+                            let _ = output
+                                .send(Message::ConfigChanged(Box::new(new_config)))
+                                .await;
+                        }
+                        Some(Event::Removed) => {
+                            // wait and double check if the files are really gone
+                            sleep(Duration::from_millis(500)).await;
+
+                            info!("Config or colors file removed, reloading configuration");
+                            let config_path_clone = config_path.clone();
+                            let colors_path_clone = colors_path.clone();
+                            let new_config = tokio::task::spawn_blocking(move || {
+                                load_config_and_colors(&config_path_clone, &colors_path_clone)
+                            })
+                            .await
+                            .unwrap_or_default();
+
+                            let _ = output
+                                .send(Message::ConfigChanged(Box::new(new_config)))
+                                .await;
+                        }
+                        None => {
+                            debug!("No relevant file event detected.");
+                        }
                     }
                 }
-                (None, _, _) => {
-                    error!(
-                        "Config file path does not have a parent directory, cannot watch for changes"
-                    );
-                }
-                (_, None, _) => {
-                    error!("Config file path does not have a file name, cannot watch for changes");
-                }
-                (_, _, Err(e)) => {
-                    error!("Failed to initialize inotify: {e}");
-                }
+            } else {
+                error!("Failed to create inotify event stream");
             }
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_colors_direct() {
+        let toml_str = r##"
+            primary_color = "#ff0000"
+            success_color = "#00ff00"
+            warning_color = "#ffff00"
+            danger_color = "#ff00ff"
+            text_color = "#ffffff"
+            workspace_colors = ["#ff0000", "#00ff00"]
+
+            [background_color]
+            base = "#111111"
+            weak = "#222222"
+            strong = "#333333"
+        "##;
+        let dir = std::env::temp_dir().join(format!("ashell_test_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let file_path = dir.join("colors.toml");
+        std::fs::write(&file_path, toml_str).unwrap();
+
+        let palette = read_colors(&file_path).unwrap();
+        assert_eq!(
+            palette.primary_color.get_base(),
+            hex_to_color(HexColor::rgb(255, 0, 0))
+        );
+        assert_eq!(
+            palette.background_color.get_base(),
+            hex_to_color(HexColor::rgb(17, 17, 17))
+        );
+        assert_eq!(palette.workspace_colors.len(), 2);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_parse_colors_nested_palette() {
+        let toml_str = r##"
+            [palette]
+            primary_color = "#123456"
+            success_color = "#654321"
+        "##;
+        let dir = std::env::temp_dir().join(format!("ashell_test_palette_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let file_path = dir.join("colors.toml");
+        std::fs::write(&file_path, toml_str).unwrap();
+
+        let palette = read_colors(&file_path).unwrap();
+        assert_eq!(
+            palette.primary_color.get_base(),
+            hex_to_color(HexColor::rgb(0x12, 0x34, 0x56))
+        );
+        assert_eq!(
+            palette.success_color.get_base(),
+            hex_to_color(HexColor::rgb(0x65, 0x43, 0x21))
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_parse_colors_nested_appearance() {
+        let toml_str = r##"
+            [appearance]
+            primary_color = "#abcdef"
+        "##;
+        let dir = std::env::temp_dir().join(format!("ashell_test_app_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let file_path = dir.join("colors.toml");
+        std::fs::write(&file_path, toml_str).unwrap();
+
+        let palette = read_colors(&file_path).unwrap();
+        assert_eq!(
+            palette.primary_color.get_base(),
+            hex_to_color(HexColor::rgb(0xab, 0xcd, 0xef))
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_config_and_colors() {
+        let dir = std::env::temp_dir().join(format!("ashell_test_load_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let config_file = dir.join("config.toml");
+        let colors_file = dir.join("colors.toml");
+
+        std::fs::write(
+            &config_file,
+            r#"
+            [appearance]
+            scale_factor = 1.5
+        "#,
+        )
+        .unwrap();
+
+        std::fs::write(
+            &colors_file,
+            r##"
+            primary_color = "#00ffaa"
+        "##,
+        )
+        .unwrap();
+
+        let config = load_config_and_colors(&config_file, &colors_file);
+        assert_eq!(config.appearance.scale_factor, 1.5);
+        assert_eq!(
+            config.appearance.palette.primary_color.get_base(),
+            hex_to_color(HexColor::rgb(0, 255, 170))
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_config_legacy_colors_fallback() {
+        let dir = std::env::temp_dir().join(format!("ashell_test_legacy_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let config_file = dir.join("config.toml");
+        let non_existent_colors_file = dir.join("non_existent_colors.toml");
+
+        std::fs::write(
+            &config_file,
+            r##"
+            [appearance]
+            scale_factor = 1.2
+            primary_color = "#112233"
+            success_color = "#445566"
+        "##,
+        )
+        .unwrap();
+
+        let config = load_config_and_colors(&config_file, &non_existent_colors_file);
+        assert_eq!(config.appearance.scale_factor, 1.2);
+        assert_eq!(
+            config.appearance.palette.primary_color.get_base(),
+            hex_to_color(HexColor::rgb(0x11, 0x22, 0x33))
+        );
+        assert_eq!(
+            config.appearance.palette.success_color.get_base(),
+            hex_to_color(HexColor::rgb(0x44, 0x55, 0x66))
+        );
+        // Default color for unset fields
+        assert_eq!(
+            config.appearance.palette.danger_color.get_base(),
+            hex_to_color(HexColor::rgb(247, 118, 142))
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_colors_toml_takes_precedence_over_legacy_config() {
+        let dir = std::env::temp_dir().join(format!("ashell_test_prec_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let config_file = dir.join("config.toml");
+        let colors_file = dir.join("colors.toml");
+
+        std::fs::write(
+            &config_file,
+            r##"
+            [appearance]
+            primary_color = "#111111"
+        "##,
+        )
+        .unwrap();
+
+        std::fs::write(
+            &colors_file,
+            r##"
+            primary_color = "#999999"
+        "##,
+        )
+        .unwrap();
+
+        let config = load_config_and_colors(&config_file, &colors_file);
+        assert_eq!(
+            config.appearance.palette.primary_color.get_base(),
+            hex_to_color(HexColor::rgb(0x99, 0x99, 0x99))
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
