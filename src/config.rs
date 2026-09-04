@@ -1220,6 +1220,51 @@ impl Default for PaletteConfig {
     }
 }
 
+/// Legacy color fields that were previously part of `[appearance]` in `config.toml`.
+/// Kept for backward compatibility: when no `colors.toml` is present these values
+/// are used as a fallback before falling back to built-in defaults.
+#[derive(Deserialize, Clone, Debug, Default)]
+pub struct LegacyColors {
+    pub background_color: Option<BackgroundAppearanceColor>,
+    pub primary_color: Option<AppearanceColor>,
+    pub success_color: Option<AppearanceColor>,
+    pub warning_color: Option<AppearanceColor>,
+    pub danger_color: Option<AppearanceColor>,
+    pub text_color: Option<AppearanceColor>,
+    pub workspace_colors: Option<Vec<AppearanceColor>>,
+    pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+}
+
+impl LegacyColors {
+    /// Returns `true` if at least one color field was explicitly set.
+    pub fn has_any(&self) -> bool {
+        self.background_color.is_some()
+            || self.primary_color.is_some()
+            || self.success_color.is_some()
+            || self.warning_color.is_some()
+            || self.danger_color.is_some()
+            || self.text_color.is_some()
+            || self.workspace_colors.is_some()
+            || self.special_workspace_colors.is_some()
+    }
+
+    /// Merge into a `PaletteConfig`, using `defaults` for any unset fields.
+    pub fn into_palette(self, defaults: PaletteConfig) -> PaletteConfig {
+        PaletteConfig {
+            background_color: self.background_color.unwrap_or(defaults.background_color),
+            primary_color: self.primary_color.unwrap_or(defaults.primary_color),
+            success_color: self.success_color.unwrap_or(defaults.success_color),
+            warning_color: self.warning_color.unwrap_or(defaults.warning_color),
+            danger_color: self.danger_color.unwrap_or(defaults.danger_color),
+            text_color: self.text_color.unwrap_or(defaults.text_color),
+            workspace_colors: self.workspace_colors.unwrap_or(defaults.workspace_colors),
+            special_workspace_colors: self
+                .special_workspace_colors
+                .or(defaults.special_workspace_colors),
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Appearance {
@@ -1234,6 +1279,10 @@ pub struct Appearance {
     pub blur: BlurMode,
     #[serde(skip)]
     pub palette: PaletteConfig,
+    /// Legacy color fields from `config.toml` — used as fallback when
+    /// `colors.toml` is absent. Flattened so serde reads them transparently.
+    #[serde(flatten)]
+    pub legacy_colors: LegacyColors,
 }
 
 /// When to ask the compositor for background blur.
@@ -1304,6 +1353,7 @@ impl Default for Appearance {
             menu: MenuAppearance::default(),
             blur: BlurMode::default(),
             palette: PaletteConfig::default(),
+            legacy_colors: LegacyColors::default(),
         }
     }
 }
@@ -1671,6 +1721,10 @@ pub fn load_config_and_colors(config_path: &Path, colors_path: &Path) -> Config 
     let mut config = read_config(config_path).unwrap_or_default();
     if colors_path.exists() {
         config.appearance.palette = read_colors(colors_path).unwrap_or_default();
+    } else if config.appearance.legacy_colors.has_any() {
+        // Backward compatibility: fall back to color fields set in config.toml
+        let legacy = std::mem::take(&mut config.appearance.legacy_colors);
+        config.appearance.palette = legacy.into_palette(PaletteConfig::default());
     }
     config
 }
@@ -2016,6 +2070,76 @@ mod tests {
         assert_eq!(
             config.appearance.palette.primary_color.get_base(),
             hex_to_color(HexColor::rgb(0, 255, 170))
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_config_legacy_colors_fallback() {
+        let dir = std::env::temp_dir().join(format!("ashell_test_legacy_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let config_file = dir.join("config.toml");
+        let non_existent_colors_file = dir.join("non_existent_colors.toml");
+
+        std::fs::write(
+            &config_file,
+            r##"
+            [appearance]
+            scale_factor = 1.2
+            primary_color = "#112233"
+            success_color = "#445566"
+        "##,
+        )
+        .unwrap();
+
+        let config = load_config_and_colors(&config_file, &non_existent_colors_file);
+        assert_eq!(config.appearance.scale_factor, 1.2);
+        assert_eq!(
+            config.appearance.palette.primary_color.get_base(),
+            hex_to_color(HexColor::rgb(0x11, 0x22, 0x33))
+        );
+        assert_eq!(
+            config.appearance.palette.success_color.get_base(),
+            hex_to_color(HexColor::rgb(0x44, 0x55, 0x66))
+        );
+        // Default color for unset fields
+        assert_eq!(
+            config.appearance.palette.danger_color.get_base(),
+            hex_to_color(HexColor::rgb(247, 118, 142))
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_colors_toml_takes_precedence_over_legacy_config() {
+        let dir = std::env::temp_dir().join(format!("ashell_test_prec_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let config_file = dir.join("config.toml");
+        let colors_file = dir.join("colors.toml");
+
+        std::fs::write(
+            &config_file,
+            r##"
+            [appearance]
+            primary_color = "#111111"
+        "##,
+        )
+        .unwrap();
+
+        std::fs::write(
+            &colors_file,
+            r##"
+            primary_color = "#999999"
+        "##,
+        )
+        .unwrap();
+
+        let config = load_config_and_colors(&config_file, &colors_file);
+        assert_eq!(
+            config.appearance.palette.primary_color.get_base(),
+            hex_to_color(HexColor::rgb(0x99, 0x99, 0x99))
         );
 
         let _ = std::fs::remove_dir_all(&dir);
