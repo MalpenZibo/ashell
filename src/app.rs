@@ -620,17 +620,13 @@ impl App {
             Message::LoadConfig(config) => {
                 self.config_path = config;
 
-                let mut tasks = vec![];
                 match get_config(Some(self.config_path.clone())) {
-                    Ok((config, _)) => {
-                        tasks.push(self.refresh_config(Box::new(config)));
-                    }
+                    Ok((config, _)) => self.update(Message::ConfigChanged(Box::new(config))),
                     Err(e) => {
-                        info!("Invalid config {e:?}")
+                        info!("Invalid config {e:?}");
+                        Task::none()
                     }
                 }
-
-                Task::Batch(tasks)
             }
         }
     }
