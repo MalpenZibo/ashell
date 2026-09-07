@@ -64,6 +64,10 @@ pub enum IpcCommand {
         #[arg(long)]
         no_osd: bool,
     },
+    LoadConfig {
+        #[arg(short, long)]
+        file: PathBuf,
+    },
 }
 
 impl IpcCommand {
@@ -80,6 +84,7 @@ impl IpcCommand {
             | IpcCommand::BrightnessDown { no_osd }
             | IpcCommand::ToggleAirplaneMode { no_osd }
             | IpcCommand::ToggleIdleInhibitor { no_osd } => *no_osd,
+            IpcCommand::LoadConfig { .. } => false,
         }
     }
 }
@@ -100,8 +105,12 @@ impl fmt::Display for IpcCommand {
             IpcCommand::BrightnessDown { .. } => "brightness-down",
             IpcCommand::ToggleAirplaneMode { .. } => "toggle-airplane-mode",
             IpcCommand::ToggleIdleInhibitor { .. } => "toggle-idle-inhibitor",
+            IpcCommand::LoadConfig { .. } => "load-config",
         };
         write!(f, "{base}")?;
+        if let IpcCommand::LoadConfig { file } = self {
+            write!(f, " {}", file.display())?;
+        }
         if self.no_osd() {
             write!(f, "{NO_OSD_SUFFIX}")?;
         }
@@ -117,7 +126,13 @@ impl FromStr for IpcCommand {
             Some(base) => (base, true),
             None => (s, false),
         };
-        match cmd {
+
+        let mut parts = cmd.splitn(2, char::is_whitespace);
+        let name = parts.next().unwrap_or("").trim();
+        let rest = parts.next().map(str::trim).filter(|s| !s.is_empty());
+
+        println!("ok {}", s);
+        match name {
             "toggle-visibility" => Ok(IpcCommand::ToggleVisibility),
             "volume-up" => Ok(IpcCommand::VolumeUp { no_osd }),
             "volume-down" => Ok(IpcCommand::VolumeDown { no_osd }),
@@ -129,6 +144,12 @@ impl FromStr for IpcCommand {
             "brightness-down" => Ok(IpcCommand::BrightnessDown { no_osd }),
             "toggle-airplane-mode" => Ok(IpcCommand::ToggleAirplaneMode { no_osd }),
             "toggle-idle-inhibitor" => Ok(IpcCommand::ToggleIdleInhibitor { no_osd }),
+            "load-config" => match rest {
+                Some(file) => Ok(IpcCommand::LoadConfig {
+                    file: PathBuf::from(file),
+                }),
+                None => Err(anyhow!("config requires a file path")),
+            },
             _ => Err(anyhow!("unknown IPC command: {s:?}")),
         }
     }
