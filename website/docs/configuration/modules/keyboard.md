@@ -11,6 +11,9 @@ There are two keyboard modules available in the status bar.
 The Keyboard Layout module displays the current keyboard layout and allows
 switching between layouts by clicking on the module.
 
+It is available on Hyprland, Niri and MangoWC. The generic Wayland backend
+cannot report the active layout, so the module renders nothing there.
+
 You can add an optional configuration to map a keyboard layout label
 to another label using the `labels` configuration.
 
@@ -38,5 +41,8 @@ the "Italian" layout to the 🇮🇹 flag.
 
 ## Keyboard Submap
 
-This module displays the current keyboard submap in use. It only appears when a submap is active. You can find more information
-about submap in the [Hyprland documentation](https://wiki.hypr.land/Configuring/Binds/#submaps).
+This module displays the current keyboard submap in use. It only appears when a
+submap is active, and it is available on Hyprland and MangoWC only (on MangoWC
+the equivalent concept is the *key mode*, and the `default` mode counts as no
+submap). You can find more information
+about submap in the [Hyprland documentation](https://wiki.hypr.land/Configuring/Binds/#submaps) or the [MangoWC documentation](https://mangowm.github.io/docs/bindings/keys#key-modes-submaps).

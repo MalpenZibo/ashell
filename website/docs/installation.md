@@ -121,18 +121,38 @@ emerge gui-apps/ashell
 
 ## Building from Source
 
-To build Ashell from source, ensure the following dependencies are installed:
+To build Ashell from source, ensure the following dependencies are installed.
 
-- Rust (with `cargo`)
-- wayland-protocols
-- clang
-- libxkbcommon
-- wayland
-- dbus
-- libpipewire
-- libpulse
+### Build dependencies
 
-Then, from the root of the repository, run:
+- Rust with `cargo`: minimum supported version **1.89**
+- `pkg-config`
+- `clang` / `llvm`: required by `bindgen` to generate the `libpulse`,
+  `libpipewire`, and `libudev` bindings
+- development headers for `libxkbcommon`, `wayland`, `libudev`, `libpipewire`,
+  and `libpulse`
+- `git` (optional): the build script embeds the current commit hash into
+  `ashell --version`, falling back to `unknown` when `git` is unavailable
+
+### Runtime dependencies
+
+- `libxkbcommon`
+- `wayland`
+- `libudev`
+- `libpipewire`
+- `libpulse`
+- a running D-Bus session bus
+- a working graphics stack for `wgpu`: a Vulkan loader, or Mesa/libGL when
+  falling back to the OpenGL backend
+
+Package names differ between distributions, and the development packages
+usually pull in their matching runtime libraries. See
+[Troubleshooting](./configuration/troubleshooting.md) if the bar builds but
+fails to render.
+
+### Building
+
+From the root of the repository, run:
 
 ```bash
 cargo build --release

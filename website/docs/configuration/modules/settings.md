@@ -14,6 +14,8 @@ It displays in the status bar indicators about:
 - Network status
 - Bluetooth connection status
 - Battery status
+- Peripheral battery status
+- Screen brightness
 - Power profile
 - Idle inhibitor status
 - VPN connection status
@@ -33,7 +35,7 @@ And lets you interact with these settings:
 - Lock the screen
 - Suspend, hibernate, logout, reboot, or shutdown the system
 
-You can configure some function of this module.
+You can configure this module.
 
 With the `lock_cmd` option you can set a command to lock  
 the system, if not set the related button will not appear.
@@ -99,11 +101,29 @@ enable_tooltips = false
 
 With the format options you can customize how different indicators are displayed in the status bar.
 
-All format options support the same values:
+Every format option accepts the same set of values, but not every indicator has
+something meaningful to show for each of them. The values are:
 
-- `Icon` - Show only the icon
-- `Percentage` (or `Value`) - Show only the numeric value (percentage, count, or strength)
-- `IconAndPercentage` (or `IconAndValue`) - Show both the icon and the numeric value (default)
+| Value | Shows |
+| --- | --- |
+| `Icon` | Only the icon |
+| `Percentage` (alias `Value`) | Only the value (percentage, count, or strength) |
+| `IconAndPercentage` (alias `IconAndValue`) | The icon followed by the value |
+| `Time` | Only the remaining time (battery indicators) |
+| `IconAndTime` | The icon followed by the remaining time |
+| `Name` | Only the name |
+| `IconAndName` | The icon followed by the name |
+
+:::info
+`Name` and `IconAndName` change what is rendered only for the **network**
+indicator, which is the one that has a name to show. Every other indicator has
+no name, so it keeps rendering its usual value: `Name` behaves like
+`Percentage` and `IconAndName` like `IconAndPercentage`. The one exception is
+`peripheral_battery_format`, where both values fall back to icon-only.
+
+The defaults are not uniform either: `battery_format` defaults to
+`IconAndPercentage`, every other format option defaults to `Icon`.
+:::
 
 ### Battery Format
 
@@ -118,6 +138,8 @@ The possible values are:
 - `IconAndTime` - Show battery icon with smart time display
 - `PercentageAndTime` - Show the battery percentage along with smart time display
 - `IconAndPercentageAndTime` - Show battery icon with battery percentage and smart time display
+- `Name` - Accepted, but a battery has no name: renders like `Percentage`
+- `IconAndName` - Accepted, but renders like `IconAndPercentage`
 
 ```toml
 [settings]
@@ -141,8 +163,11 @@ The `Time` and `IconAndTime` formats provide intelligent time display:
 
 - **When charging**: Shows time until full (e.g., "45m", "2h 15m")
 - **When discharging**: Shows time until empty (e.g., "1h 30m", "3h 45m")
-- **When at 100%**: Shows "100%"
-- **When calculating**: Shows "Calculating..." for system battery, empty for peripherals
+- **When at 100%, full, or charging with no estimate yet**: Shows "100%"
+- **When discharging with no estimate yet**: Shows "Calculating..." (translated),
+  for both the system battery and peripherals
+- **When not charging**: Shows the plain percentage
+- **When the battery status is unknown**: Shows nothing
 
 ```toml
 [settings]
@@ -160,9 +185,11 @@ peripheral_battery_format = "IconAndTime"
 
 ### Peripheral Battery Format
 
-In the same way it's possible to customize the peripheral battery indicator format.
-The possible values are the same as above, but you need to use
-the `peripheral_battery_format` option.
+In the same way it's possible to customize the peripheral battery indicator
+format with the `peripheral_battery_format` option. It accepts the same values,
+except that `Name` and `IconAndName` render icon-only here; a peripheral
+battery has no name to display in the bar.
+
 The default value is `Icon`.
 
 With the `peripheral_indicators` you can decide which peripheral battery indicators
@@ -203,6 +230,7 @@ peripheral_expanded_by_default = true
 ### Audio Format
 
 With the `audio_indicator_format` option you can customize the audio volume indicator format.
+The value it shows is the current output volume as a percentage.
 
 The default value is `Icon`.
 
@@ -257,13 +285,17 @@ The default value is `Icon`.
 [settings]
 network_indicator_format = "IconAndPercentage"
 # or, to show the SSID next to the wifi icon:
-network_indicator_format = "IconAndName"
+# network_indicator_format = "IconAndName"
 ```
 
 ### Bluetooth Format
 
 With the `bluetooth_indicator_format` option you can customize the bluetooth indicator format.
-When devices are connected, this shows the number of connected devices.
+The value it shows is the number of connected devices.
+
+The indicator is only rendered while Bluetooth is on. When no device is
+connected there is no count to show, so the bar falls back to a plain Bluetooth
+icon whatever format you set.
 
 The default value is `Icon`.
 
@@ -303,33 +335,6 @@ backlight through firmware shortcuts.
 Clicking the icon on the left of the slider toggles the backlight off and back
 on, restoring the level it had before it was switched off. Scrolling over the
 slider changes the level in 5% steps.
-
-## Peripheral Indicators
-
-With the `peripheral_indicators` you can decide which peripheral battery indicators
-are shown in the status bar.
-
-The possible values are:
-
-- `All` - Show all peripheral battery indicators (default)
-- `Specific` - Show only the peripheral battery indicators in the specified categories.
-  The possible categories are:
-  - `Keyboard`
-  - `Mouse`
-  - `Headphones`
-  - `Gamepad`
-
-```toml
-[settings]
-battery_format = "IconAndPercentage"
-peripheral_battery_format = "Icon"
-peripheral_indicators = { Specific = ["Gamepad", "Keyboard"] }
-audio_indicator_format = "Icon"
-network_indicator_format = "Icon"
-bluetooth_indicator_format = "Icon"
-brightness_indicator_format = "Icon"
-```
-
 ## Status Bar Indicators
 
 With the `indicators` option you can customize which status indicators
@@ -353,7 +358,7 @@ Available indicators are:
 # Customize which indicators to show and their order
 indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone"]
 
-# Default indicators (shown in this order):
+# The default, for reference (shown in this order):
 indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery"]
 ```
 
