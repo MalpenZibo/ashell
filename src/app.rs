@@ -1,7 +1,10 @@
 use crate::{
     HEIGHT,
     components::{Centerbox, menu::MenuType},
-    config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
+    config::{
+        self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat,
+        get_config,
+    },
     get_log_spec,
     i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
@@ -532,6 +535,12 @@ impl App {
                         );
                         modules::settings::Action::None
                     }
+                    IpcCommand::LoadConfig { .. } => {
+                        warn!(
+                            "IpcCommand::LoadConfig reached IpcOsdCommand handler; use Message::LoadConfig instead"
+                        );
+                        modules::settings::Action::None
+                    }
                 };
                 if let settings::Action::Command(task) = action {
                     tasks.push(task.map(Message::Settings));
@@ -581,6 +590,17 @@ impl App {
                         })
                         .collect::<Vec<_>>(),
                 )
+            }
+            Message::LoadConfig(config) => {
+                self.config_path = config;
+
+                match get_config(Some(self.config_path.clone())) {
+                    Ok((config, _)) => self.update(Message::ConfigChanged(Box::new(config))),
+                    Err(e) => {
+                        info!("Invalid config {e:?}");
+                        Task::none()
+                    }
+                }
             }
         }
     }
@@ -777,6 +797,7 @@ impl App {
             self.settings.subscription().map(Message::Settings),
             crate::ipc::subscription().map(|cmd| match cmd {
                 IpcCommand::ToggleVisibility => Message::ToggleVisibility,
+                IpcCommand::LoadConfig { file } => Message::LoadConfig(file),
                 other => Message::IpcOsdCommand(other),
             }),
         ])

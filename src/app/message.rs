@@ -6,6 +6,7 @@ use crate::{
     osd,
 };
 use iced::{OutputEvent, SurfaceId};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -33,4 +34,5 @@ pub enum Message {
     ResumeFromSleep,
     None,
     ToggleVisibility,
+    LoadConfig(PathBuf),
 }

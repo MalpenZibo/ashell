@@ -86,6 +86,7 @@ Available commands:
 | `brightness-down`        | Decrease screen brightness by 5%     |
 | `toggle-airplane-mode`   | Toggle airplane mode                 |
 | `toggle-idle-inhibitor`  | Toggle idle inhibitor                |
+| `load-config`            | Loads a config passed through        |
 
 
 Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD (On-Screen Display)

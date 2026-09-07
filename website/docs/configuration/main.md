@@ -199,6 +199,14 @@ Alternatively, you can still use a `SIGUSR1` signal:
 kill -SIGUSR1 $(pidof ashell)
 ```
 
+## Config Load
+
+You can load another config file, this can be useful for managing different themes
+
+```bash
+ashell msg load-config -f ~/.config/ashell/mac_bar.toml
+```
+
 ## OSD (On-Screen Display)
 
 Ashell can show a transient overlay when volume, microphone, brightness, airplane mode
