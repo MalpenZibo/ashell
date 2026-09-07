@@ -131,7 +131,6 @@ impl FromStr for IpcCommand {
         let name = parts.next().unwrap_or("").trim();
         let rest = parts.next().map(str::trim).filter(|s| !s.is_empty());
 
-        println!("ok {}", s);
         match name {
             "toggle-visibility" => Ok(IpcCommand::ToggleVisibility),
             "volume-up" => Ok(IpcCommand::VolumeUp { no_osd }),
