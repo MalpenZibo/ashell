@@ -583,12 +583,15 @@ impl NetworkSettings {
                                             })
                                             .width(Length::Shrink),
                                             text(ac.ssid.as_str()).width(Length::Fill),
-                                            text(frequency_band(ac.frequency).unwrap_or(""))
+                                        )
+                                        .extend(frequency_band(ac.frequency).map(|band| {
+                                            text(band)
                                                 .size(font_size.xs)
                                                 .style(|theme: &Theme| text::Style {
                                                     color: Some(theme.palette().primary),
-                                                }),
-                                        )
+                                                })
+                                                .into()
+                                        }))
                                         .align_y(Alignment::Center)
                                         .spacing(space.xs)
                                     })
