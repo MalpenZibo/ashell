@@ -61,15 +61,20 @@ Displays system information such as CPU usage, memory usage, and disk space.
 ### KeyboardLayout
 
 Displays the current keyboard layout and allows switching between layouts.
+Available on Hyprland, Niri and MangoWC.
 
 ### KeyboardSubmap
 
-Displays the current keyboard submap.
+Displays the current keyboard submap, when one is active. Available on Hyprland
+and MangoWC.
 
-### CustomModule
+### Custom modules
 
-Allows creating custom modules with user-defined functionality.
-See the [custom module documentation](./custom_module.md) for details.
+Custom modules are declared in `[[CustomModule]]` blocks and placed in a section
+by their own `name`, not by the literal string `CustomModule`. Any name in
+`[modules]` that is not one of the built-in modules above is resolved as a
+custom module. See the [custom module documentation](./custom_module.md) for
+details.
 
 ### Tray
 
@@ -81,7 +86,8 @@ Pairs a customizable clock with compact weather info in the bar, plus a menu tha
 
 ### Privacy
 
-Provides privacy-related features, such as toggling microphone and camera access.
+Shows an indicator while the microphone, the webcam or screen sharing is in use.
+It is read-only: it reports usage, it does not toggle access.
 
 ### MediaPlayer
 

@@ -21,6 +21,8 @@ with that text, or only the media icon. Configure this with the
 | `IconAndText`  | Displays the icon followed by the text (default).          |
 | `Icon`         | Displays only the media icon in the status bar.            |
 
+`Title` and `IconAndTitle` are accepted as aliases of `Text` and `IconAndText`.
+
 Use `Icon` if you want a compact indicator or have limited space.
 
 ### Indicator Fields

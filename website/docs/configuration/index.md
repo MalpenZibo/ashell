@@ -13,7 +13,7 @@ Ashell does **not** create this file automatically.
 :::
 
 Ashell watches this file for changes and will apply updates
-immediately—so you can tweak the configuration while Ashell is running.
+immediately, so you can tweak the configuration while Ashell is running.
 
 See more about the [TOML format](https://toml.io/en/).
 
@@ -75,17 +75,22 @@ Available commands:
 
 | Command                  | Description                          |
 | ------------------------ | ------------------------------------ |
-| `toggle-visibility`      | Toggle the bar on/off                |
-| `volume-up`              | Increase sink volume by 5%           |
-| `volume-down`            | Decrease sink volume by 5%           |
-| `volume-toggle-mute`     | Toggle sink mute                     |
-| `microphone-up`          | Increase source volume by 5%         |
-| `microphone-down`        | Decrease source volume by 5%         |
-| `microphone-toggle-mute` | Toggle source mute                   |
-| `brightness-up`          | Increase screen brightness by 5%     |
-| `brightness-down`        | Decrease screen brightness by 5%     |
-| `toggle-airplane-mode`   | Toggle airplane mode                 |
-| `toggle-idle-inhibitor`  | Toggle idle inhibitor                |
+| `toggle-visibility`      | Toggle the bar on/off                                        |
+| `volume-up`              | Increase sink volume by `settings.volume_step` (default 5%)  |
+| `volume-down`            | Decrease sink volume by `settings.volume_step` (default 5%)  |
+| `volume-toggle-mute`     | Toggle sink mute                                             |
+| `microphone-up`          | Increase source volume by 5% (fixed)                         |
+| `microphone-down`        | Decrease source volume by 5% (fixed)                         |
+| `microphone-toggle-mute` | Toggle source mute                                           |
+| `brightness-up`          | Increase screen brightness by 5% of the device maximum       |
+| `brightness-down`        | Decrease screen brightness by 5% of the device maximum       |
+| `toggle-airplane-mode`   | Toggle airplane mode                                         |
+| `toggle-idle-inhibitor`  | Toggle idle inhibitor                                        |
+
+Only `volume-up` / `volume-down` honour
+[`settings.volume_step`](./modules/settings.md#volume-step); the microphone and
+brightness steps are fixed. Sink volume is also capped by
+[`settings.max_volume`](./modules/settings.md#max-volume).
 
 
 Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD (On-Screen Display)
@@ -95,4 +100,9 @@ overlay by default. Add `--no-osd` to suppress it:
 ashell msg volume-up --no-osd
 ```
 
-The socket is created at `$XDG_RUNTIME_DIR/ashell.sock`.
+The socket is created at `$XDG_RUNTIME_DIR/ashell.sock`. When
+`$XDG_RUNTIME_DIR` is unset or unusable, ashell falls back to
+`$TMPDIR/ashell-<uid>.sock` (typically `/tmp/ashell-1000.sock`).
+
+If another ashell instance already owns the socket, the new instance still
+starts but runs without IPC and logs a warning.

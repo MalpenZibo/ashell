@@ -122,17 +122,28 @@ enable_virtual_desktops = true
 
 ## Urgent Workspace Highlighting
 
-On Niri, when a window on a non-focused workspace requests attention, that
-workspace is highlighted with the danger palette color until you visit it.
-Hyprland support is not implemented yet.
+When a window on a non-focused workspace requests attention, that workspace is
+highlighted with the danger palette color until you visit it. This works on
+Niri and on generic Wayland compositors that report the workspace urgent state
+(`ext-workspace-v1`), as well as MangoWC. Hyprland does not report urgent states
+yet, so the highlight never triggers there.
 
 ## Workspace Scrolling Direction
 
-You can use the `invert_scroll_direction` field to choose whether to invert the scrolling direction for mice and trackpads:
+Scrolling over the workspace indicator switches workspace. By default, scrolling
+up goes to the *previous* workspace and scrolling down to the *next* one, for
+both mice and trackpads.
 
-- `All`: Enables both *Mouse* and *Trackpad* options below.
-- `Mouse`: Scrolling up will go to the next workspace and down will go to the previous one
-- `Trackpad`: Swiping up will go to the previous workspace and down will go to the next one
+Use the `invert_scroll_direction` field to invert that, independently per device
+kind (ashell distinguishes them by the kind of scroll event the compositor
+sends: discrete steps for a wheel, smooth deltas for a trackpad):
+
+- `All`: Inverts both the mouse wheel and the trackpad.
+- `Mouse`: Inverts the mouse wheel only. Scrolling up goes to the next workspace and down to the previous one.
+- `Trackpad`: Inverts the trackpad only. Swiping up goes to the next workspace and down to the previous one.
+
+Scrolling is not available on the generic Wayland backend, which can activate a
+workspace but not step to the neighbouring one.
 
 ## Window Icons
 
@@ -173,8 +184,19 @@ indicator_format = "Name"
 group_by_monitor = false
 enable_workspace_filling = false
 disable_special_workspaces = false
-invert_scroll_direction = None
+enable_virtual_desktops = false
+workspace_names = []
+# max_workspaces is unset by default: omit the key to disable the limit
+# invert_scroll_direction is unset by default: omit the key to keep the
+# default scroll direction
 ```
+
+:::warning
+TOML has no `None` literal. Leave optional keys such as `max_workspaces` and
+`invert_scroll_direction` out of the file to keep their defaults. Writing
+`invert_scroll_direction = None` is a parse error that makes ashell fall back
+to the *entire* default config.
+:::
 
 ## Examples
 

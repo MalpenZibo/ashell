@@ -62,7 +62,13 @@ Memory Swap uses the same `format` setting as Memory (`[system_info.memory]`). I
 The Disk indicator displays the disk space usage for a specific path.
 
 To enable this indicator, add `{ Disk = "path" }` or `{ Disk = "path", Name = "label" }` to the `indicators` configuration,
-where `path` is the path to the disk you want to monitor and `label` is an optional name to display for the disk.
+where `path` is the **mount point** of the filesystem you want to monitor (e.g. `/`
+or `/home`, as shown by `df`) and `label` is an optional name to display for it.
+
+:::warning
+`Disk` matches the mount point, not the block device. A device node such as
+`/dev/sda1` never matches, and the indicator is silently omitted from the bar.
+:::
 
 You can change the display format using the `format` option in `[system_info.disk]`:
 
@@ -151,8 +157,26 @@ The temperature **unit** follows your locale / unit system (the global `region` 
 units = "Celsius"           # override the locale unit system
 ```
 
-To see available sensors on your system, you can check the output of `sensors` command or
-look at the component labels returned by the sysinfo library.
+ashell reads hardware sensors through the `sysinfo` crate, which builds each
+label as `<hwmon chip name> <sensor label>`, so the value you write in `sensor`
+is **not** the bare label printed by `sensors`. `sensors` shows the chip as a
+heading (`k10temp-pci-00c3`) and the sensor below it (`Tctl`); the label ashell
+expects joins the two: `k10temp Tctl`.
+
+To list the labels exactly as ashell sees them, read them straight from `hwmon`:
+
+```bash
+for d in /sys/class/hwmon/hwmon*; do
+  chip=$(cat "$d/name")
+  for f in "$d"/temp*_label; do
+    [ -e "$f" ] && echo "$chip $(cat "$f")"
+  done
+done
+```
+
+Alternatively, run ashell with `level = "info"` in the `[logging]` section: it
+logs the label of the sensor it auto-detected, and warns when a configured label
+was not found.
 
 For NVMe SSDs, you'll need to find the model number first:
 
@@ -186,10 +210,18 @@ Higher values reduce CPU usage at the cost of less frequent updates.
 
 ## Display Formats
 
-Each indicator type supports a `format` option that controls how its value is displayed in the status bar and menu. The format is configured in the corresponding `[system_info.<type>]` section.
+The `Cpu`, `Memory` and `Disk` indicator types each support a `format` option
+that controls how their value is displayed in the status bar and menu. The
+format is configured in the corresponding `[system_info.<type>]` section.
+
+`MemorySwap` has no section of its own: it reuses `[system_info.memory]` for
+both its `format` and its thresholds.
+
+The remaining indicators (`Temperature`, `IpAddress`, `DownloadSpeed`,
+`UploadSpeed`) always show their value directly and have no `format` option.
 
 :::info
-Warning and alert color thresholds remain active regardless of the display format. For temperature, thresholds are interpreted in the displayed unit (`units`, or the one determined by your locale / unit system) — so if the indicator shows Fahrenheit, set your thresholds in Fahrenheit (e.g., `warn_threshold = 140`).
+Warning and alert color thresholds remain active regardless of the display format. For temperature, thresholds are interpreted in the displayed unit (`units`, or the one determined by your locale / unit system), so if the indicator shows Fahrenheit, set your thresholds in Fahrenheit. The built-in temperature defaults are 60 / 80 in Celsius and 140 / 176 in Fahrenheit; ashell picks the pair matching the resolved unit.
 :::
 
 #### Example
@@ -214,21 +246,22 @@ You can also configure the warning and alert thresholds for the following indica
 - Disk
 - Temperature
 
-To configure a threshold, you can add the following to your configuration:
+Each one is configured in its own table, `[system_info.<indicator>]`, where
+`<indicator>` is one of `cpu`, `memory`, `disk` or `temperature`:
 
 ```toml
-[system_info.threshold_type]
+[system_info.cpu]
 warn_threshold = 60
 alert_threshold = 80
 ```
 
-Where **threshold_type** is the type of indicator you want to  
-configure and can be one of:
+:::info
+`warn_threshold` must be lower than `alert_threshold`. If it is not, ashell logs
+a warning and lowers `warn_threshold` to match `alert_threshold`.
 
-- `cpu`
-- `memory`
-- `disk`
-- `temperature`
+`MemorySwap` has no table of its own and reuses the `[system_info.memory]`
+thresholds.
+:::
 
 ## Default Configuration
 
@@ -254,8 +287,15 @@ format = "Percentage"
 # mounts = ["/", "/home"]  # uncomment to whitelist specific mount points
 
 [system_info.temperature]
-warn_threshold = 60
-alert_threshold = 80
 sensor = "Cpu"  # type keyword ("Cpu", "Gpu", "Acpi", "Nvme") or an exact sensor label
 # sensor = "k10temp Tctl"  # example: pin an exact sensor label
+# warn_threshold and alert_threshold are unset by default. Omit them and ashell
+# uses 60 / 80 in Celsius, or 140 / 176 when the resolved unit is Fahrenheit.
+# units is unset by default: omit it to follow the locale unit system.
 ```
+
+:::warning
+TOML has no `None` literal. Leave `warn_threshold`, `alert_threshold` and
+`units` out of the file to keep their defaults. Writing `warn_threshold = None`
+is a parse error that makes ashell fall back to the *entire* default config.
+:::
