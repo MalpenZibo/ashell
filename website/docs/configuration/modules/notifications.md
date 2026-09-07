@@ -98,6 +98,8 @@ How long (in milliseconds) a toast is shown before auto-dismissing when the appl
 
 Maximum number of toasts that can be visible at the same time. When this limit is reached, the oldest toast is removed to make room for a new one.
 
+Setting it to `0` suppresses toasts entirely (any visible ones are cleared when the next notification arrives), the same effect as `toast = false`.
+
 **Type:** `integer`
 **Default:** `5`
 

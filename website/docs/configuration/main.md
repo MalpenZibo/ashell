@@ -26,9 +26,9 @@ for the full filter syntax.
 
 ### Options
 
-- `level` — Log verbosity: `"error"`, `"warn"`, `"info"`, or `"debug"` (default: `"warn"`).
-- `target` — Where to write logs: `"file"` (default), `"stdout"`, or `"stderr"`.
-- `directory` — Custom log directory (only used when `target = "file"`).
+- `level` sets the log verbosity: `"error"`, `"warn"`, `"info"`, or `"debug"` (default: `"warn"`).
+- `target` sets where to write logs: `"file"` (default), `"stdout"`, or `"stderr"`.
+- `directory` sets a custom log directory (only used when `target = "file"`).
   Supports `~` and environment variable expansion, and is created if missing.
   Defaults to `$XDG_RUNTIME_DIR`.
 
@@ -99,16 +99,39 @@ Both accept a BCP-47 / POSIX-style locale identifier (e.g. `"en-US"`, `"it-IT"`)
 They are optional and fall back to your environment: `language` resolves from
 `$LC_ALL`, then `$LC_MESSAGES`, then `$LANG`, and `region` resolves from
 `$LC_ALL`, then `$LC_TIME`, then `$LANG`. The unit system additionally honors
-`$LC_MEASUREMENT` when set. If nothing matches, ashell defaults to `en-US`.
+`$LC_MEASUREMENT` when set, independently of `region`.
 
-Individual modules can opt out of the unit system: see
-[`system_info.temperature.units`](./modules/system_info.md#temperature) and
-[`tempo.wind_speed_unit`](./modules/tempo.md).
+When nothing matches, the two options fall back separately: `language` falls
+back to `en-US`, and `region` falls back to `en-GB` (so dates use day/month
+ordering and the unit system is metric).
 
 ```toml
 language = "en-US"   # UI language
 region   = "it-IT"   # date format + unit system
 ```
+
+### Available translations
+
+ashell currently ships UI translations for:
+
+- `en-US` (also the fallback for any unmatched language)
+- `de-DE`
+- `fr-FR`
+
+Setting `language` to anything else is not an error; untranslated strings just
+fall back to English. `region` is not restricted to this list: it accepts any
+locale the `chrono` crate knows, so you can pair an English UI with, say,
+Italian date formatting.
+
+### Unit system
+
+`region` (or `$LC_MEASUREMENT`) selects imperial units only for `en_US`,
+`en_LR` and `my_MM`. Every other locale, including `en-GB`, resolves to metric.
+Imperial means Fahrenheit for temperatures and mph for wind speed.
+
+Individual modules can opt out of the unit system: see
+[`system_info.temperature.units`](./modules/system_info.md#temperature) and
+[`tempo.wind_speed_unit`](./modules/tempo.md).
 
 ## Outputs
 
