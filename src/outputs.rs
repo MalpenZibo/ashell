@@ -606,6 +606,15 @@ impl Outputs {
             .any(|(_, shell_info, _)| shell_info.as_ref().is_some_and(|si| si.menu.is_open()))
     }
 
+    /// True while some menu still needs the bar surfaces to receive keys.
+    fn menu_needs_keyboard(&self) -> bool {
+        self.entries.iter().any(|(_, shell_info, _)| {
+            shell_info
+                .as_ref()
+                .is_some_and(|si| si.menu.is_open() && !si.menu.is_closing())
+        })
+    }
+
     /// True while a menu of `menu_type` is open on any output.
     pub fn menu_of_type_is_open(&self, menu_type: &MenuType) -> bool {
         self.entries.iter().any(|(_, shell_info, _)| {
@@ -680,29 +689,26 @@ impl Outputs {
         };
 
         if request_keyboard {
-            if self.menu_is_open() {
+            if self.menu_needs_keyboard() {
                 Task::batch(vec![
                     task,
                     set_keyboard_interactivity(id, KeyboardInteractivity::OnDemand),
                 ])
             } else {
-                Task::batch(vec![
-                    task,
-                    set_keyboard_interactivity(id, KeyboardInteractivity::None),
-                ])
+                self.maybe_release_all_keyboards(task, request_keyboard)
             }
         } else {
             task
         }
     }
 
-    /// Disable keyboard interactivity on all outputs if no menus remain open.
+    /// Disable keyboard interactivity on all outputs once no open menu needs it.
     fn maybe_release_all_keyboards(
         &self,
         task: Task<crate::app::Message>,
         esc_button_enabled: bool,
     ) -> Task<crate::app::Message> {
-        if esc_button_enabled && !self.menu_is_open() {
+        if esc_button_enabled && !self.menu_needs_keyboard() {
             let keyboard_tasks = self
                 .entries
                 .iter()
