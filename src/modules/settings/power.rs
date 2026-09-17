@@ -21,45 +21,31 @@ use iced::{
     widget::{Column, Row, column, container, row, text},
 };
 
-fn format_time_for_battery(battery: &BatteryData) -> String {
+fn battery_time(battery: &BatteryData) -> Option<String> {
     match battery.status {
-        BatteryStatus::Charging(duration) => {
-            if battery.capacity >= 100 {
-                "100%".to_string()
-            } else if duration.is_zero() {
-                format!("{}%", battery.capacity)
-            } else {
-                format_duration(&duration)
-            }
-        }
-        BatteryStatus::Discharging(duration) => {
-            if battery.capacity >= 100 {
-                "100%".to_string()
-            } else if duration.is_zero() {
+        BatteryStatus::Charging(duration) | BatteryStatus::Discharging(duration)
+            if battery.capacity < 100 =>
+        {
+            Some(if duration.is_zero() {
                 t!("settings-power-calculating")
             } else {
                 format_duration(&duration)
-            }
+            })
         }
-        BatteryStatus::NotCharging | BatteryStatus::Unknown => format!("{}%", battery.capacity),
-        BatteryStatus::Full => "100%".to_string(),
+        _ => None,
     }
+}
+
+fn format_time_for_battery(battery: &BatteryData) -> String {
+    battery_time(battery).unwrap_or_else(|| format!("{}%", battery.capacity))
 }
 
 fn format_percentage_and_time(battery: &BatteryData) -> String {
     let capacity = format!("{}%", battery.capacity);
-    let time = match battery.status {
-        BatteryStatus::Charging(duration) | BatteryStatus::Discharging(duration)
-            if battery.capacity < 100 && !duration.is_zero() =>
-        {
-            format_duration(&duration)
-        }
-        BatteryStatus::Discharging(_) if battery.capacity < 100 => {
-            t!("settings-power-calculating")
-        }
-        _ => return capacity,
-    };
-    format!("{capacity} {time}")
+    match battery_time(battery) {
+        Some(time) => format!("{capacity} {time}"),
+        None => capacity,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -573,13 +559,10 @@ impl PowerSettings {
                     BatteryStatus::Unknown => t!("settings-power-status-unknown"),
                     BatteryStatus::Full => t!("settings-power-status-full"),
                 };
-                let details = match battery.status {
-                    BatteryStatus::Charging(_) | BatteryStatus::Discharging(_)
-                        if battery.capacity < 95 =>
-                    {
-                        format_time_for_battery(&battery)
-                    }
-                    _ => String::new(),
+                let details = if battery.capacity < 95 {
+                    battery_time(&battery).unwrap_or_default()
+                } else {
+                    String::new()
                 };
                 (capacity, status_label, details)
             })
