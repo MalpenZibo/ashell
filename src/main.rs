@@ -245,7 +245,7 @@ fn main() -> iced::Result {
     };
 
     let bar_layout = BarLayout::from_appearance(&config.appearance.bar);
-    let height = Outputs::get_height(config.appearance.scale_factor);
+    let height = Outputs::get_height(bar_layout, config.appearance.scale_factor);
 
     let iced_layer = match config.layer {
         config::Layer::Top => Layer::Top,
