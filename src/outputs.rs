@@ -153,15 +153,17 @@ impl Outputs {
         Menu::with_animations(self.animations_enabled)
     }
 
-    pub fn get_height(scale_factor: f64) -> f64 {
-        HEIGHT * scale_factor
+    /// Surface height: the content height plus the vertical padding, all scaled.
+    /// Padding is rendered inside the surface by iced, so it scales with it.
+    pub fn get_height(layout: BarLayout, scale_factor: f64) -> f64 {
+        (HEIGHT + layout.vertical_padding()) * scale_factor
     }
 
     /// Space reserved on the anchored edge: the bar height plus the margin that
     /// pushes the bar away from that edge.
     pub fn exclusive_zone(layout: BarLayout, position: Position, scale_factor: f64) -> i32 {
         let (top, _, bottom, _) = layout.margin.into();
-        Self::get_height(scale_factor) as i32
+        Self::get_height(layout, scale_factor) as i32
             + match position {
                 Position::Top => bottom,
                 Position::Bottom => top,
@@ -175,7 +177,7 @@ impl Outputs {
         layer: config::Layer,
         scale_factor: f64,
     ) -> (SurfaceId, Task<Message>) {
-        let height = Self::get_height(scale_factor);
+        let height = Self::get_height(layout, scale_factor);
 
         let iced_layer = match layer {
             config::Layer::Top => Layer::Top,
@@ -550,7 +552,7 @@ impl Outputs {
             );
             shell_info.layout = layout;
             shell_info.scale_factor = scale_factor;
-            let height = Self::get_height(scale_factor);
+            let height = Self::get_height(layout, scale_factor);
             tasks.push(Task::batch(vec![
                 set_size(shell_info.id, (0, height as u32)),
                 set_exclusive_zone(
@@ -855,7 +857,7 @@ impl Outputs {
             if *oid == Some(target) {
                 info.as_ref().and_then(|i| {
                     i.output_logical_height.map(|h| {
-                        let bar = Self::get_height(i.scale_factor) as u32;
+                        let bar = Self::get_height(i.layout, i.scale_factor) as u32;
                         h.saturating_sub(bar)
                     })
                 })
