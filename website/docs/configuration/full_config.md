@@ -166,7 +166,7 @@ audio_sources_more_cmd = "pavucontrol -t 4"
 wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueberry"
-battery_format = "IconAndPercentage"  # (default), "Icon", "Percentage", "Time", "IconAndTime"
+battery_format = "IconAndPercentage"  # (default), "Icon", "Percentage", "Time", "IconAndTime", "PercentageAndTime", "IconAndPercentageAndTime"
 # battery_hide_when_full = false  # (default)
 # peripheral_indicators = "All"   # (default) or { Specific = ["Keyboard", "Mouse", "Headphones", "Gamepad"] }
 peripheral_battery_format = "Icon"  # (default), "IconAndPercentage", "Percentage", etc.
