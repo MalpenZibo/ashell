@@ -417,7 +417,7 @@ pub fn best_icon_pixmap(icons: &[Icon]) -> Option<&Icon> {
 /// Split a registered service name into its unique sender and object path.
 /// A method-registered item is `<unique-sender>/<object-path>`; a
 /// well-known-name registration is a bare `<object-path>`.
-fn split_service_name(name: &str) -> (&str, &str) {
+pub(crate) fn split_service_name(name: &str) -> (&str, &str) {
     match name.find('/') {
         Some(idx) => (&name[..idx], &name[idx..]),
         None => (name, "/StatusNotifierItem"),

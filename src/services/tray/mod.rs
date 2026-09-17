@@ -89,12 +89,6 @@ async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Op
     None
 }
 
-fn split_service_name(name: &str) -> (&str, &str) {
-    match name.find('/') {
-        Some(idx) => (&name[..idx], &name[idx..]),
-        None => (name, "/StatusNotifierItem"),
-    }
-}
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Registered(Box<StatusNotifierItem>),
@@ -168,7 +162,7 @@ pub struct StatusNotifierItem {
 
 impl StatusNotifierItem {
     pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
-        let (dest, path) = split_service_name(&name);
+        let (dest, path) = dbus::split_service_name(&name);
 
         let item_proxy = StatusNotifierItemProxy::builder(conn)
             .destination(dest.to_owned())?
@@ -409,7 +403,7 @@ impl TrayService {
 
             let new_icon = item.item_proxy.receive_new_icon().await;
             if let Ok(new_icon) = new_icon {
-                let (dest, path) = split_service_name(&name);
+                let (dest, path) = dbus::split_service_name(&name);
                 // NewIcon has no matching PropertiesChanged, so a cached read would be stale;
                 let uncached_proxy = StatusNotifierItemProxy::builder(conn)
                     .destination(dest.to_owned())?
@@ -591,14 +585,16 @@ impl ReadOnlyService for TrayService {
         match event {
             TrayEvent::Registered(new_item) => {
                 let new_item = *new_item;
-                match self
-                    .data
-                    .0
-                    .iter_mut()
-                    .find(|item| item.name == new_item.name)
-                {
-                    Some(existing_item) => {
-                        *existing_item = new_item;
+                // Dedup by stable SNI `Id` first (some clients register under
+                // multiple names — e.g. unique-name and well-known-name — but
+                // share the same `Id`), then fall back to `name`-based lookup.
+                let existing_idx = self.data.0.iter().position(|item| {
+                    (!new_item.item_id.is_empty() && item.item_id == new_item.item_id)
+                        || item.name == new_item.name
+                });
+                match existing_idx {
+                    Some(idx) => {
+                        self.data.0[idx] = new_item;
                     }
                     _ => {
                         self.data.0.push(new_item);
@@ -763,7 +759,7 @@ impl Service for TrayService {
 
 #[cfg(test)]
 mod tests {
-    use super::{ItemStatus, pixmap_to_icon, split_service_name};
+    use super::{ItemStatus, pixmap_to_icon};
     use crate::services::tray::dbus::Icon;
 
     fn valid_pixmap(width: i32, height: i32) -> Icon {
@@ -852,28 +848,5 @@ mod tests {
     #[test]
     fn pixmap_to_icon_returns_none_for_empty_vec() {
         assert!(pixmap_to_icon(Vec::new()).is_none());
-    }
-
-    #[test]
-    fn split_service_name_splits_unique_sender_from_path() {
-        let (sender, path) = split_service_name(":1.131/StatusNotifierItem");
-        assert_eq!(sender, ":1.131");
-        assert_eq!(path, "/StatusNotifierItem");
-    }
-
-    #[test]
-    fn split_service_name_defaults_path_for_bare_name() {
-        let (sender, path) = split_service_name("org.kde.StatusNotifierItem-123");
-        assert_eq!(sender, "org.kde.StatusNotifierItem-123");
-        assert_eq!(path, "/StatusNotifierItem");
-    }
-
-    #[test]
-    fn split_service_name_handles_bare_path() {
-        // A bare path (leading `/`) splits at index 0: the sender is the
-        // empty string and the path is the bare path itself.
-        let (sender, path) = split_service_name("/StatusNotifierItem");
-        assert_eq!(sender, "");
-        assert_eq!(path, "/StatusNotifierItem");
     }
 }
