@@ -111,6 +111,7 @@ impl Config {
         if let Some(ref mut updates) = self.updates {
             updates.validate();
         }
+        self.appearance.bar.margin.validate();
         self.system_info.validate();
         self.tempo.validate();
         self.settings.validate();
@@ -1002,6 +1003,19 @@ impl Default for MarginSize {
     }
 }
 
+impl MarginSize {
+    /// Layer-shell accepts negative margins, which silently push the bar off
+    /// screen; a negative or non-finite length here is always a mistake.
+    fn validate(&mut self, edge: &str) {
+        if let MarginSize::Pixels(pixels) = *self
+            && (!pixels.is_finite() || pixels < 0.0)
+        {
+            warn!("appearance.bar.margin {edge} ({pixels}) is not a valid length, using 0");
+            *self = MarginSize::Pixels(0.0);
+        }
+    }
+}
+
 impl From<MarginSize> for i32 {
     fn from(value: MarginSize) -> Self {
         match value {
@@ -1077,6 +1091,15 @@ impl<'de> Deserialize<'de> for BarMargin {
             bottom,
             left,
         })
+    }
+}
+
+impl BarMargin {
+    fn validate(&mut self) {
+        self.top.validate("top");
+        self.right.validate("right");
+        self.bottom.validate("bottom");
+        self.left.validate("left");
     }
 }
 
