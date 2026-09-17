@@ -514,6 +514,7 @@ impl PowerSettings {
                         Message::TogglePowerProfile,
                         None,
                         None,
+                        None,
                     ),
                     None,
                 ))
@@ -535,6 +536,7 @@ impl PowerSettings {
                         None,
                         charge_limit.enabled,
                         Message::ToggleChargeLimit,
+                        None,
                         None,
                         None,
                     ),

@@ -21,6 +21,7 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
     on_press: Msg,
     on_right_press: Option<Msg>,
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
+    header_end: Option<String>,
 ) -> Element<'a, Msg> {
     let target: f32 = if active { 1.0 } else { 0.0 };
     let icon_kind: IconKind = icon.into();
@@ -32,7 +33,8 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
                           subtitle: Option<String>,
                           icon_kind: IconKind,
                           on_press: Msg,
-                          with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>|
+                          with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
+                          header_end: Option<String>|
           -> Element<'a, Msg> {
         let (submenu_btn_style, settings_btn_style) = use_theme(|theme| {
             (
@@ -40,11 +42,18 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
                 theme.quick_settings_button_style(t),
             )
         });
+        let title_el: Element<'a, Msg> = match header_end {
+            Some(end) => row!(text(title).size(font_size.sm), text(end).size(font_size.xs),)
+                .spacing(space.xxs)
+                .align_y(Alignment::Center)
+                .into(),
+            None => text(title).size(font_size.sm).into(),
+        };
         let main_content = row!(
             icon_kind.to_text().size(font_size.lg),
             container(
                 Column::with_capacity(2)
-                    .push(text(title).size(font_size.sm))
+                    .push(title_el)
                     .push(
                         subtitle
                             .map(|s| { text(s).wrapping(text::Wrapping::None).size(font_size.xs) })
@@ -92,12 +101,21 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
                 icon_kind.clone(),
                 on_press.clone(),
                 with_submenu.clone(),
+                header_end.clone(),
             )
         })
         .animation(Easing::EASE.quick())
         .into()
     } else {
-        build_btn(target, title, subtitle, icon_kind, on_press, with_submenu)
+        build_btn(
+            target,
+            title,
+            subtitle,
+            icon_kind,
+            on_press,
+            with_submenu,
+            header_end,
+        )
     };
 
     if let Some(on_right_press) = on_right_press {
