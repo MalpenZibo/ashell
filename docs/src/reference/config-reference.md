@@ -53,6 +53,7 @@ blur = "auto"                   # auto|always|never, compositor blur
 surface = "transparent"         # "transparent" or "solid"
 radius = "none"                 # none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
 margin = "none"                 # none|xxs..xxl|number(pixels), CSS margin shorthand
+                                # always screen pixels, not scaled by scale_factor
 ```
 
 ### Colors

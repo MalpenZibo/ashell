@@ -108,6 +108,11 @@ margin = "sm"              # all edges
 # margin = ["xs", 20.0]    # vertical, horizontal
 ```
 
+Margins are always in screen pixels and are **not** affected by
+`scale_factor`: the compositor applies them outside the bar, so a scale token
+like `sm` is the same distance at any scale. Changing `scale_factor` resizes the
+bar itself but leaves the gap around it unchanged.
+
 ### Opacity
 
 The `opacity` field sets the opacity of the surfaces ashell draws. The value
