@@ -1,6 +1,7 @@
 use crate::app::Message;
 use crate::i18n::{TemperatureUnit, UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
+use crate::theme::Space;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -110,6 +111,7 @@ impl Config {
         if let Some(ref mut updates) = self.updates {
             updates.validate();
         }
+        self.appearance.bar.margin.validate();
         self.system_info.validate();
         self.tempo.validate();
         self.settings.validate();
@@ -992,6 +994,41 @@ pub enum SpaceSize {
     Xxl,
 }
 
+#[derive(Deserialize, Copy, Clone, PartialEq, Debug)]
+#[serde(untagged)]
+pub enum MarginSize {
+    SpaceSize(SpaceSize),
+    Pixels(f32),
+}
+
+impl Default for MarginSize {
+    fn default() -> Self {
+        Self::SpaceSize(SpaceSize::default())
+    }
+}
+
+impl MarginSize {
+    /// Layer-shell accepts negative margins, which silently push the bar off
+    /// screen; a negative or non-finite length here is always a mistake.
+    fn validate(&mut self, edge: &str) {
+        if let MarginSize::Pixels(pixels) = *self
+            && (!pixels.is_finite() || pixels < 0.0)
+        {
+            warn!("appearance.bar.margin {edge} ({pixels}) is not a valid length, using 0");
+            *self = MarginSize::Pixels(0.0);
+        }
+    }
+}
+
+impl From<MarginSize> for i32 {
+    fn from(value: MarginSize) -> Self {
+        match value {
+            MarginSize::SpaceSize(space_size) => Space::default().resolve(space_size) as i32,
+            MarginSize::Pixels(pixels) => pixels as i32,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum CssShorthand<T> {
@@ -1040,24 +1077,44 @@ impl<'de> Deserialize<'de> for BarRadius {
 
 /// Per-edge margin selection, deserialized with CSS `margin` shorthand:
 /// 1 value = all edges, 2 = `[vertical, horizontal]`, 4 = `[top, right, bottom, left]`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct BarMargin {
-    pub top: SpaceSize,
-    pub right: SpaceSize,
-    pub bottom: SpaceSize,
-    pub left: SpaceSize,
+    pub top: MarginSize,
+    pub right: MarginSize,
+    pub bottom: MarginSize,
+    pub left: MarginSize,
 }
 
 impl<'de> Deserialize<'de> for BarMargin {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let [top, right, bottom, left] =
-            CssShorthand::<SpaceSize>::deserialize(deserializer)?.expand()?;
+            CssShorthand::<MarginSize>::deserialize(deserializer)?.expand()?;
         Ok(Self {
             top,
             right,
             bottom,
             left,
         })
+    }
+}
+
+impl BarMargin {
+    fn validate(&mut self) {
+        self.top.validate("top");
+        self.right.validate("right");
+        self.bottom.validate("bottom");
+        self.left.validate("left");
+    }
+}
+
+impl From<BarMargin> for (i32, i32, i32, i32) {
+    fn from(value: BarMargin) -> Self {
+        (
+            value.top.into(),
+            value.right.into(),
+            value.bottom.into(),
+            value.left.into(),
+        )
     }
 }
 
