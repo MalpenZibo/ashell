@@ -180,6 +180,9 @@ weather_format = "{temp}°C"
 # Enable/disable hover tooltips on status indicators (audio, bluetooth, wifi, battery)
 enable_tooltips = true
 
+# Show a slider for the built-in keyboard backlight, under the brightness slider
+keyboard_backlight_slider = false
+
 # Custom buttons in the settings panel
 [[settings.custom_buttons]]
 icon = "\u{f023}"
@@ -197,6 +200,7 @@ on_click = "vpn-toggle"
 | Brightness | systemd-logind (usually present) |
 | Network | `networkmanager` or `iwd` |
 | Power (battery) | `upower` |
+| Keyboard backlight | `upower` (built-in keyboard only) |
 
 ## Media Player Module
 
