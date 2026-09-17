@@ -22,3 +22,5 @@ vendor
 # mdbook build output
 docs/book/
 
+# IDE
+.vscode/

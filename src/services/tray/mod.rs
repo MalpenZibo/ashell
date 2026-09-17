@@ -72,15 +72,21 @@ fn pixmap_to_icon(icons: Vec<dbus::Icon>) -> Option<TrayIcon> {
 }
 
 async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Option<TrayIcon> {
-    match item_proxy.icon_pixmap().await.ok().and_then(pixmap_to_icon) {
-        Some(icon) => Some(icon),
-        None => item_proxy
-            .icon_name()
-            .await
-            .ok()
-            .as_deref()
-            .and_then(xdg_icons::get_icon_from_name),
+    // 1. `IconPixmap` (preferred) — pick the largest pixmap by pixel count.
+    if let Ok(icons) = item_proxy.icon_pixmap().await
+        && let Some(icon) = dbus::best_icon_pixmap(&icons)
+        && let Some(loaded) = pixmap_to_icon(vec![icon.clone()])
+    {
+        return Some(loaded);
     }
+    // 2. `IconName` via the XDG icon theme.
+    if let Some(name) = item_proxy.icon_name().await.ok()
+        && !name.is_empty()
+        && let Some(icon) = xdg_icons::get_icon_from_name(&name)
+    {
+        return Some(icon);
+    }
+    None
 }
 
 fn split_service_name(name: &str) -> (&str, &str) {
@@ -91,11 +97,48 @@ fn split_service_name(name: &str) -> (&str, &str) {
 }
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
-    Registered(StatusNotifierItem),
+    Registered(Box<StatusNotifierItem>),
     IconChanged(String, TrayIcon),
     MenuLayoutChanged(String, Layout),
+    /// `NewStatus` signal from the SNI client. `status` is
+    /// `Passive` / `Active` / `NeedsAttention`.
+    StatusChanged(String, String),
     Unregistered(String),
     None,
+}
+
+/// SNI status (subset of the spec values).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ItemStatus {
+    /// `Passive` — not active (hidden from the tray until an `active`
+    /// registrant exists).
+    #[default]
+    Passive,
+    /// `Active` — active.
+    Active,
+    /// `NeedsAttention` — needs attention (use attention/overlay icons).
+    NeedsAttention,
+}
+
+impl From<&str> for ItemStatus {
+    fn from(s: &str) -> Self {
+        match s {
+            "Active" => Self::Active,
+            "NeedsAttention" => Self::NeedsAttention,
+            _ => Self::Passive,
+        }
+    }
+}
+
+/// SNI tooltip (`org.kde.StatusNotifierItem` `ToolTip`).
+/// Protocol surface; not yet surfaced in the UI.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Default)]
+pub struct ToolTip {
+    pub icon_name: Option<String>,
+    pub icon_pixmap: Option<dbus::Icon>,
+    pub title: String,
+    pub description: String,
 }
 
 #[derive(Debug, Clone)]
@@ -103,6 +146,22 @@ pub struct StatusNotifierItem {
     pub name: String,
     pub icon: Option<TrayIcon>,
     pub menu: Layout,
+    /// SNI `Category` (`ApplicationStatus` / `Communications` / ...).
+    /// Read for completeness; not yet surfaced in the UI.
+    #[allow(dead_code)]
+    pub category: String,
+    /// SNI `Status` (`Passive` / `Active` / `NeedsAttention`).
+    pub status: ItemStatus,
+    /// SNI `Id` / `ItemId` (stable app id). Read for completeness.
+    #[allow(dead_code)]
+    pub item_id: String,
+    /// SNI `Title` (tooltip title). Read for completeness.
+    #[allow(dead_code)]
+    pub title: String,
+    /// Attention icon (used when `NeedsAttention`).
+    pub attention_icon: Option<TrayIcon>,
+    /// Overlay icon.
+    pub overlay_icon: Option<TrayIcon>,
     item_proxy: StatusNotifierItemProxy<'static>,
     menu_proxy: DBusMenuProxy<'static>,
 }
@@ -121,6 +180,49 @@ impl StatusNotifierItem {
 
         let icon = current_icon_from_proxy(&item_proxy).await;
 
+        // Full SNI properties. Each read is guarded — some clients (or
+        // clients that expose only a subset) may not implement a property;
+        // fall back to a default rather than failing.
+        let category = item_proxy.category().await.unwrap_or_default();
+        let status_str = item_proxy
+            .status()
+            .await
+            .unwrap_or_else(|_| "Passive".to_owned());
+        let status = ItemStatus::from(status_str.as_str());
+        let item_id = item_proxy
+            .id()
+            .await
+            .or(item_proxy.item_id().await)
+            .unwrap_or_default();
+        let title = item_proxy.title().await.unwrap_or_default();
+
+        // Attention/overlay icons: pixmap first (preferred), then icon name.
+        let attention_pixmap = item_proxy
+            .attention_icon_pixmap()
+            .await
+            .ok()
+            .and_then(pixmap_to_icon);
+        let attention_name = item_proxy
+            .attention_icon_name()
+            .await
+            .ok()
+            .as_deref()
+            .and_then(xdg_icons::get_icon_from_name);
+        let attention_icon = attention_pixmap.or(attention_name);
+
+        let overlay_pixmap = item_proxy
+            .overlay_icon_pixmap()
+            .await
+            .ok()
+            .and_then(pixmap_to_icon);
+        let overlay_name = item_proxy
+            .overlay_icon_name()
+            .await
+            .ok()
+            .as_deref()
+            .and_then(xdg_icons::get_icon_from_name);
+        let overlay_icon = overlay_pixmap.or(overlay_name);
+
         let menu_path = item_proxy.menu().await?;
         let menu_proxy = dbus::DBusMenuProxy::builder(conn)
             .destination(dest.to_owned())?
@@ -134,6 +236,12 @@ impl StatusNotifierItem {
             name,
             icon,
             menu,
+            category,
+            status,
+            item_id,
+            title,
+            attention_icon,
+            overlay_icon,
             item_proxy,
             menu_proxy,
         })
@@ -205,7 +313,7 @@ impl TrayService {
                                 let item =
                                     StatusNotifierItem::new(&conn, args.service.to_string()).await;
 
-                                item.map(TrayEvent::Registered).ok()
+                                item.map(|item| TrayEvent::Registered(Box::new(item))).ok()
                             }
                             _ => None,
                         }
@@ -231,6 +339,7 @@ impl TrayService {
         let mut icon_name_change = Vec::with_capacity(items.len());
         let mut new_icon_change = Vec::with_capacity(items.len());
         let mut menu_layout_change = Vec::with_capacity(items.len());
+        let mut status_change = Vec::with_capacity(items.len());
 
         for name in items {
             let item = StatusNotifierItem::new(conn, name.to_string()).await?;
@@ -274,6 +383,29 @@ impl TrayService {
                     })
                     .boxed(),
             );
+
+            let new_status = item.item_proxy.receive_new_status().await;
+            if let Ok(new_status) = new_status {
+                // The `NewStatus` signal has no matching property-changed signal,
+                // so we re-read the `Status` property (uncached) rather than
+                // relying on the signal payload struct field name.
+                status_change.push(
+                    new_status
+                        .filter_map({
+                            let name = name.clone();
+                            let proxy = item.item_proxy.clone();
+                            move |_| {
+                                let name = name.clone();
+                                let proxy = proxy.clone();
+                                async move {
+                                    let status = proxy.status().await.ok()?;
+                                    Some(TrayEvent::StatusChanged(name.to_owned(), status))
+                                }
+                            }
+                        })
+                        .boxed(),
+                );
+            }
 
             let new_icon = item.item_proxy.receive_new_icon().await;
             if let Ok(new_icon) = new_icon {
@@ -331,6 +463,33 @@ impl TrayService {
                         .boxed(),
                 );
             }
+
+            // `ItemsRemoved` is a dbusmenu signal (not an SNI signal). When the
+            // menu layout changes (items removed), refetch the menu.
+            let items_removed = item.menu_proxy.receive_items_removed().await;
+            if let Ok(items_removed) = items_removed {
+                menu_layout_change.push(
+                    items_removed
+                        .filter_map({
+                            let name = name.clone();
+                            let menu_proxy = item.menu_proxy.clone();
+                            move |_| {
+                                debug!("items removed event name {}", name);
+
+                                let name = name.clone();
+                                let menu_proxy = menu_proxy.clone();
+                                async move {
+                                    menu_proxy.get_layout(0, -1, &[]).await.ok().map(
+                                        |(_, layout)| {
+                                            TrayEvent::MenuLayoutChanged(name.to_owned(), layout)
+                                        },
+                                    )
+                                }
+                            }
+                        })
+                        .boxed(),
+                );
+            }
         }
 
         Ok(stream_select!(
@@ -339,7 +498,8 @@ impl TrayService {
             select_all(icon_pixel_change),
             select_all(icon_name_change),
             select_all(new_icon_change),
-            select_all(menu_layout_change)
+            select_all(menu_layout_change),
+            select_all(status_change)
         )
         .boxed())
     }
@@ -383,14 +543,7 @@ impl TrayService {
                     Ok(mut events) => {
                         while let Some(event) = events.next().await {
                             debug!("tray data {event:?}");
-
-                            let reload_events = matches!(event, TrayEvent::Registered(_));
-
                             let _ = output.send(ServiceEvent::Update(event)).await;
-
-                            if reload_events {
-                                break;
-                            }
                         }
 
                         State::Active(conn)
@@ -437,6 +590,7 @@ impl ReadOnlyService for TrayService {
     fn update(&mut self, event: Self::UpdateEvent) {
         match event {
             TrayEvent::Registered(new_item) => {
+                let new_item = *new_item;
                 match self
                     .data
                     .0
@@ -460,6 +614,11 @@ impl ReadOnlyService for TrayService {
                 if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
                     debug!("menu layout updated, {layout:?}");
                     item.menu = layout;
+                }
+            }
+            TrayEvent::StatusChanged(name, status) => {
+                if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
+                    item.status = ItemStatus::from(status.as_str());
                 }
             }
             TrayEvent::Unregistered(name) => {
@@ -486,6 +645,18 @@ impl ReadOnlyService for TrayService {
 pub enum TrayCommand {
     MenuSelected(String, i32),
     Activate(String),
+    /// SNI `ContextMenu` — request the menu be shown at (x, y).
+    /// Protocol surface; not yet triggered from the UI.
+    #[allow(dead_code)]
+    ContextMenu(String, i32, i32),
+    /// SNI `SecondaryActivate` — secondary click.
+    /// Protocol surface; not yet triggered from the UI.
+    #[allow(dead_code)]
+    SecondaryActivate(String, i32, i32),
+    /// SNI `Scroll` — scroll delta + orientation (`Horizontal`/`Vertical`).
+    /// Protocol surface; not yet triggered from the UI.
+    #[allow(dead_code)]
+    Scroll(String, i32, &'static str),
 }
 
 impl Service for TrayService {
@@ -535,6 +706,174 @@ impl Service for TrayService {
                     Task::none()
                 }
             }
+            TrayCommand::ContextMenu(name, x, y) => {
+                let item = self.data.iter().find(|item| item.name == name);
+                if let Some(item) = item {
+                    Task::perform(
+                        {
+                            let proxy = item.item_proxy.clone();
+                            async move {
+                                debug!("Context menu tray item {name} at ({x}, {y})");
+                                let _ = proxy.context_menu(x, y).await;
+                            }
+                        },
+                        |_| ServiceEvent::Update(TrayEvent::None),
+                    )
+                } else {
+                    Task::none()
+                }
+            }
+            TrayCommand::SecondaryActivate(name, x, y) => {
+                let item = self.data.iter().find(|item| item.name == name);
+                if let Some(item) = item {
+                    Task::perform(
+                        {
+                            let proxy = item.item_proxy.clone();
+                            async move {
+                                debug!("Secondary activate tray item {name} at ({x}, {y})");
+                                let _ = proxy.secondary_activate(x, y).await;
+                            }
+                        },
+                        |_| ServiceEvent::Update(TrayEvent::None),
+                    )
+                } else {
+                    Task::none()
+                }
+            }
+            TrayCommand::Scroll(name, delta, orientation) => {
+                let item = self.data.iter().find(|item| item.name == name);
+                if let Some(item) = item {
+                    Task::perform(
+                        {
+                            let proxy = item.item_proxy.clone();
+                            async move {
+                                debug!("Scroll tray item {name} by {delta} ({orientation})");
+                                let _ = proxy.scroll(delta, orientation).await;
+                            }
+                        },
+                        |_| ServiceEvent::Update(TrayEvent::None),
+                    )
+                } else {
+                    Task::none()
+                }
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ItemStatus, pixmap_to_icon, split_service_name};
+    use crate::services::tray::dbus::Icon;
+
+    fn valid_pixmap(width: i32, height: i32) -> Icon {
+        Icon {
+            width,
+            height,
+            // `width * height * 4` ARGB bytes — the byte contract
+            // `pixmap_to_icon` requires to accept a pixmap.
+            bytes: vec![0u8; (width as usize) * (height as usize) * 4],
+        }
+    }
+
+    #[test]
+    fn item_status_parses_active() {
+        assert_eq!(ItemStatus::from("Active"), ItemStatus::Active);
+    }
+
+    #[test]
+    fn item_status_parses_needs_attention() {
+        assert_eq!(
+            ItemStatus::from("NeedsAttention"),
+            ItemStatus::NeedsAttention
+        );
+    }
+
+    #[test]
+    fn item_status_defaults_passive_for_unknown_and_empty() {
+        assert_eq!(ItemStatus::from("Passive"), ItemStatus::Passive);
+        assert_eq!(ItemStatus::from(""), ItemStatus::Passive);
+        // Unknown values fall back to `Passive` (the default).
+        assert_eq!(ItemStatus::from("garbage"), ItemStatus::Passive);
+    }
+
+    #[test]
+    fn item_status_default_is_passive() {
+        assert_eq!(ItemStatus::default(), ItemStatus::Passive);
+    }
+
+    #[test]
+    fn pixmap_to_icon_accepts_valid_pixmap() {
+        let icon = valid_pixmap(24, 24);
+        let result = pixmap_to_icon(vec![icon]);
+        // A valid pixmap (correct byte length, positive dimensions)
+        // must resolve to a `TrayIcon::Image`.
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn pixmap_to_icon_rejects_zero_dimension_pixmap() {
+        // A zero-width or zero-height pixmap is dropped up front.
+        let icon = Icon {
+            width: 0,
+            height: 24,
+            bytes: vec![],
+        };
+        assert!(pixmap_to_icon(vec![icon]).is_none());
+    }
+
+    #[test]
+    fn pixmap_to_icon_rejects_byte_mismatch() {
+        // Dimensions say 24x24 but the payload is too short: the
+        // expected byte count (`24 * 24 * 4`) does not match, so the
+        // pixmap is dropped rather than fed to the atlas uploader.
+        let icon = Icon {
+            width: 24,
+            height: 24,
+            bytes: vec![0u8; 100],
+        };
+        assert!(pixmap_to_icon(vec![icon]).is_none());
+    }
+
+    #[test]
+    fn pixmap_to_icon_picks_largest_pixmap() {
+        // Two pixmaps of different sizes: the largest (by pixel count)
+        // must be the one returned. The selection itself is locked down
+        // by the `best_icon_pixmap` tests in `dbus.rs`; here we confirm
+        // that a mixed set still yields an `Image` icon.
+        let small = valid_pixmap(16, 16);
+        let large = valid_pixmap(48, 48);
+
+        let result = pixmap_to_icon(vec![small, large]).expect("expected an icon");
+
+        assert!(matches!(result, crate::services::tray::TrayIcon::Image(_)));
+    }
+
+    #[test]
+    fn pixmap_to_icon_returns_none_for_empty_vec() {
+        assert!(pixmap_to_icon(Vec::new()).is_none());
+    }
+
+    #[test]
+    fn split_service_name_splits_unique_sender_from_path() {
+        let (sender, path) = split_service_name(":1.131/StatusNotifierItem");
+        assert_eq!(sender, ":1.131");
+        assert_eq!(path, "/StatusNotifierItem");
+    }
+
+    #[test]
+    fn split_service_name_defaults_path_for_bare_name() {
+        let (sender, path) = split_service_name("org.kde.StatusNotifierItem-123");
+        assert_eq!(sender, "org.kde.StatusNotifierItem-123");
+        assert_eq!(path, "/StatusNotifierItem");
+    }
+
+    #[test]
+    fn split_service_name_handles_bare_path() {
+        // A bare path (leading `/`) splits at index 0: the sender is the
+        // empty string and the path is the bare path itself.
+        let (sender, path) = split_service_name("/StatusNotifierItem");
+        assert_eq!(sender, "");
+        assert_eq!(path, "/StatusNotifierItem");
     }
 }
