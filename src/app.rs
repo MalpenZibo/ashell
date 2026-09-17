@@ -310,13 +310,22 @@ impl App {
                     .close_menu(id, None, self.general_config.enable_esc_key)
             }
             Message::FinishCloseMenu(id) => self.outputs.finish_close_menu(id),
-            Message::Custom(name, msg) => {
-                if let Some(custom) = self.custom.get_mut(&name) {
-                    custom.update(msg);
+            Message::Custom(name, msg) => match msg {
+                modules::custom_module::Message::TooltipHover(ui_ref, id) => self
+                    .outputs
+                    .toggle_menu(id, MenuType::CustomTooltip(name), ui_ref, false),
+                modules::custom_module::Message::TooltipUnhover(id) => self.outputs.close_menu(
+                    id,
+                    Some(MenuType::CustomTooltip(name)),
+                    self.general_config.enable_esc_key,
+                ),
+                other => {
+                    if let Some(custom) = self.custom.get_mut(&name) {
+                        custom.update(other);
+                    }
+                    Task::none()
                 }
-
-                Task::none()
-            }
+            },
             Message::Updates(msg) => {
                 if let Some(updates) = self.updates.as_mut() {
                     match updates.update(msg) {
@@ -716,6 +725,18 @@ impl App {
                         self.settings
                             .tooltip_view(&open_menu.menu_type)
                             .map(Message::Settings),
+                        ui_ref,
+                    ),
+                    MenuType::CustomTooltip(name) => self.menu_wrapper(
+                        id,
+                        self.custom
+                            .get(name)
+                            .map(|custom| {
+                                custom
+                                    .tooltip_view()
+                                    .map(|msg| Message::Custom(name.clone(), msg))
+                            })
+                            .unwrap_or_else(|| Row::new().into()),
                         ui_ref,
                     ),
                 }
