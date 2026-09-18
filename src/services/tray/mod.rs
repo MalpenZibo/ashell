@@ -164,9 +164,16 @@ impl StatusNotifierItem {
     pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
         let (dest, path) = dbus::split_service_name(&name);
 
+        // Disable property caching: zbus would otherwise call `GetAll`
+        // on `/StatusNotifierItem` at `build()` time, which emits a
+        // WARN ("Object does not exist at path /StatusNotifierItem")
+        // when the client has not yet exported the object. The
+        // subsequent explicit property reads (below) work the same
+        // without a cached baseline.
         let item_proxy = StatusNotifierItemProxy::builder(conn)
             .destination(dest.to_owned())?
             .path(path.to_owned())?
+            .cache_properties(zbus::proxy::CacheProperties::No)
             .build()
             .await?;
 

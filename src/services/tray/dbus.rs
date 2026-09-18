@@ -263,6 +263,12 @@ impl StatusNotifierWatcher {
 
         // Slow path: probe the standard object path for the SNI interface.
         // A single property read (`IconName`) confirms the item exists.
+        // Disable property caching so zbus does not call `GetAll` on
+        // `/StatusNotifierItem` at `build()` time — that emits a WARN
+        // ("Object does not exist at path /StatusNotifierItem") on every
+        // 3s discovery tick for names that do not yet (or no longer)
+        // expose the object. The probe only needs a single method
+        // call (`icon_name`), which works without a cached property.
         let builder = match StatusNotifierItemProxy::builder(conn)
             .destination(name.to_owned())
             .and_then(|b| b.path("/StatusNotifierItem"))
@@ -270,6 +276,9 @@ impl StatusNotifierWatcher {
             Ok(b) => b,
             Err(_) => return false,
         };
+        // `.cache_properties` is infallible (returns `Builder`, not `Result`);
+        // call it before `.build()` so the `GetAll` side-effect never fires.
+        let builder = builder.cache_properties(zbus::proxy::CacheProperties::No);
         match builder.build().await {
             Ok(proxy) => tokio::time::timeout(Duration::from_millis(500), proxy.icon_name())
                 .await
