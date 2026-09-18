@@ -166,7 +166,7 @@ audio_sources_more_cmd = "pavucontrol -t 4"
 wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueberry"
-battery_format = "IconAndPercentage"  # (default), "Icon", "Percentage", "Time", "IconAndTime"
+battery_format = "IconAndPercentage"  # (default), "Icon", "Percentage", "Time", "IconAndTime", "PercentageAndTime", "IconAndPercentageAndTime"
 # battery_hide_when_full = false  # (default)
 # peripheral_indicators = "All"   # (default) or { Specific = ["Keyboard", "Mouse", "Headphones", "Gamepad"] }
 peripheral_battery_format = "Icon"  # (default), "IconAndPercentage", "Percentage", etc.
@@ -176,6 +176,7 @@ microphone_indicator_format = "Icon"   # (default)
 network_indicator_format = "Icon"      # (default), "IconAndPercentage", "Percentage", "Name", "IconAndName" (Name/IconAndName show the SSID/interface/VPN name)
 bluetooth_indicator_format = "Icon"    # (default)
 brightness_indicator_format = "Icon"   # (default)
+# keyboard_backlight_slider = false     # (default) set true to show the built-in keyboard backlight slider
 volume_step = 5    # (default) step size for IPC volume up/down, range 1..=50
 max_volume = 100   # (default) max volume level, range 1..=200 (>100 enables overdrive)
 # remove_airplane_btn = false   # (default) set true to hide airplane mode button
@@ -222,7 +223,8 @@ workspace_colors = [ "#7aa2f7", "#9ece6a" ]
 [appearance.bar]
 surface = "transparent"  # (default) or "solid"
 # radius = "none"          # (default) none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
-# margin = "none"          # (default) none|xxs|xs|sm|md|lg|xl|xxl, CSS margin shorthand
+# margin = "none"          # (default) none|xxs|xs|sm|md|lg|xl|xxl|number(pixels), CSS margin shorthand
+# padding = "xxs"         # (default) same values as margin, applied inside the bar
 
 [appearance.menu]
 # backdrop = 0.0   # (default) darkening drawn behind an open menu

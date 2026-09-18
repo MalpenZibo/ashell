@@ -52,7 +52,10 @@ blur = "auto"                   # auto|always|never, compositor blur
 [appearance.bar]
 surface = "transparent"         # "transparent" or "solid"
 radius = "none"                 # none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
-margin = "none"                 # none|xxs..xxl, CSS margin shorthand
+margin = "none"                 # none|xxs..xxl|number(pixels), CSS margin shorthand
+                                # always screen pixels, not scaled by scale_factor
+padding = "xxs"                 # (default) same values, inset inside the bar
+                                # drawn inside the bar, so it does scale
 ```
 
 ### Colors
@@ -180,6 +183,9 @@ weather_format = "{temp}°C"
 # Enable/disable hover tooltips on status indicators (audio, bluetooth, wifi, battery)
 enable_tooltips = true
 
+# Show a slider for the built-in keyboard backlight, under the brightness slider
+keyboard_backlight_slider = false
+
 # Custom buttons in the settings panel
 [[settings.custom_buttons]]
 icon = "\u{f023}"
@@ -197,6 +203,7 @@ on_click = "vpn-toggle"
 | Brightness | systemd-logind (usually present) |
 | Network | `networkmanager` or `iwd` |
 | Power (battery) | `upower` |
+| Keyboard backlight | `upower` (built-in keyboard only) |
 
 ## Media Player Module
 

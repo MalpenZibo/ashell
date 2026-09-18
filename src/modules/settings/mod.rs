@@ -214,6 +214,7 @@ impl Settings {
                 config.peripheral_indicators,
                 config.peripheral_battery_format,
                 config.peripheral_expanded_by_default,
+                config.keyboard_backlight_slider,
             )),
             audio: AudioSettings::new(AudioSettingsConfig::new(
                 config.audio_sinks_more_cmd,
@@ -514,6 +515,7 @@ impl Settings {
                         config.peripheral_indicators,
                         config.peripheral_battery_format,
                         config.peripheral_expanded_by_default,
+                        config.keyboard_backlight_slider,
                     )));
                 self.audio
                     .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
@@ -656,6 +658,7 @@ impl Settings {
                                 Message::ToggleInhibitIdle,
                                 None,
                                 None,
+                                None,
                             ),
                             None,
                         )
@@ -685,6 +688,7 @@ impl Settings {
                             button.tooltip.clone(),
                             is_active,
                             Message::CustomButton(button.name.clone()),
+                            None,
                             None,
                             None,
                         ),
@@ -752,6 +756,11 @@ impl Settings {
                 .push(audio_sinks_group)
                 .push(audio_sources_group)
                 .push(self.brightness.slider().map(|e| e.map(Message::Brightness)))
+                .push(
+                    self.power
+                        .kbd_backlight_slider()
+                        .map(|e| e.map(Message::Power)),
+                )
                 .push(quick_settings)
                 .spacing(space.md)
                 .into()
@@ -889,7 +898,7 @@ impl Settings {
     }
 
     pub fn tooltip_view<'a>(&'a self, menu_type: &MenuType) -> Element<'a, Message> {
-        let space = use_theme(|t| t.space);
+        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
         let fallback = |label: String| -> Element<'a, Message> { iced::widget::text(label).into() };
         match menu_type {
             MenuType::AudioTooltip => {
@@ -937,9 +946,17 @@ impl Settings {
             }
             MenuType::WifiTooltip => {
                 if let Some(label) = self.network.connected_wifi_label() {
-                    row![StaticIcon::Wifi4.to_text(), iced::widget::text(label)]
-                        .spacing(space.xs)
-                        .into()
+                    let band = self.network.connected_wifi_band();
+                    let mut r = row![StaticIcon::Wifi4.to_text(), iced::widget::text(label)]
+                        .spacing(space.xs);
+                    if let Some(b) = band {
+                        r = r.push(iced::widget::text(b).size(font_size.xs).style(
+                            |theme: &Theme| iced::widget::text::Style {
+                                color: Some(theme.palette().primary),
+                            },
+                        ));
+                    }
+                    r.into()
                 } else {
                     fallback(t!("settings-tooltip-empty-wifi"))
                 }

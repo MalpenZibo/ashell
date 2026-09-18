@@ -594,7 +594,7 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar_surface, menu, animations_enabled, bar_radius, blur) =
+                let (space, bar_surface, menu, animations_enabled, bar_radius, blur, bar_layout) =
                     use_theme(|t| {
                         (
                             t.space,
@@ -603,6 +603,7 @@ impl App {
                             t.animations_enabled,
                             t.bar_border_radius(),
                             t.surface(Surface::Bar).blur,
+                            t.bar_layout(),
                         )
                     });
                 let centerbox = Centerbox::new([left, center, right])
@@ -610,16 +611,8 @@ impl App {
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if bar_surface == BarSurface::Transparent {
-                        HEIGHT
-                    } else {
-                        HEIGHT - space.xs as f64
-                    } as f32)
-                    .padding(if bar_surface == BarSurface::Transparent {
-                        [space.xxs, space.xxs]
-                    } else {
-                        [0.0, 0.0]
-                    });
+                    .height((HEIGHT + bar_layout.vertical_padding()) as f32)
+                    .padding(bar_layout.padding());
 
                 let menu_is_open = self.outputs.menu_is_open();
                 let bar_style = move |t: &Theme| container::Style {
