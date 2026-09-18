@@ -45,6 +45,7 @@ To enable this indicator, add `Memory` to the `indicators` configuration.
 You can change the display format using the `format` option in `[system_info.memory]`:
 
 - `"Percentage"` (default) — shows memory usage as a percentage (e.g., `64%`)
+- `"Amount"` — shows memory usage gigabytes in a compact manner (e.g., `11.7G`)
 - `"Fraction"` — shows used and total memory in GiB (e.g., `5.12/15.89 GiB`)
 
 ### Memory Swap
