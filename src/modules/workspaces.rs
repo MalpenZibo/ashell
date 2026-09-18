@@ -406,11 +406,17 @@ impl Workspaces {
 
                 // Start from the scrolled bar's monitor (Active, else Visible), so
                 // each bar scrolls its own monitor; fall back to the global active.
+                //
+                // Special workspaces (negative id) are skipped throughout: an open
+                // one is Active and sorts to the front of `ui_workspaces`, so it
+                // would win this search and anchor navigation on itself instead of
+                // the focused normal workspace.
                 let pos = monitor
                     .as_deref()
                     .and_then(|name| {
                         self.ui_workspaces.iter().position(|w| {
-                            !w.monitor.is_empty()
+                            w.id > 0
+                                && !w.monitor.is_empty()
                                 && name.contains(w.monitor.as_str())
                                 && matches!(w.displayed, Displayed::Active | Displayed::Visible)
                         })
@@ -418,7 +424,7 @@ impl Workspaces {
                     .or_else(|| {
                         self.ui_workspaces
                             .iter()
-                            .position(|w| w.displayed == Displayed::Active)
+                            .position(|w| w.id > 0 && w.displayed == Displayed::Active)
                     });
 
                 let Some(pos) = pos else {
@@ -435,6 +441,12 @@ impl Workspaces {
                 );
 
                 let in_current_group = |w: &&UiWorkspace| -> bool {
+                    // Special workspaces are toggled, not focused, so scrolling
+                    // must never land on one and dispatch `ChangeWorkspace`.
+                    if w.id < 0 {
+                        return false;
+                    }
+
                     if !restrict_to_monitor {
                         return true;
                     }
