@@ -28,6 +28,7 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 | MPRIS | `org.mpris.MediaPlayer2.Player` | `services/mpris/dbus.rs` | Playback control | MPRIS-compatible player |
 | StatusNotifier | `org.kde.StatusNotifierWatcher` | `services/tray/dbus.rs` | System tray icon registration | — |
 | StatusNotifier | `org.kde.StatusNotifierItem` | `services/tray/dbus.rs` | Individual tray icons | — |
+| StatusNotifier | `com.canonical.dbusmenu` | `services/tray/dbus.rs` | Tray menu layout (SNI context menus) | — |
 | Portal | `org.freedesktop.portal.Desktop` | `services/privacy.rs` | Privacy indicators (mic/camera) | `pipewire` |
 
 ## Checking D-Bus Availability

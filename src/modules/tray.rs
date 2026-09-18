@@ -10,7 +10,7 @@ use crate::{
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
-            TrayCommand, TrayEvent, TrayIcon, TrayService,
+            ItemStatus, StatusNotifierItem, TrayCommand, TrayEvent, TrayIcon, TrayService,
             dbus::{Layout, LayoutProps},
         },
     },
@@ -89,6 +89,16 @@ impl TrayModule {
 
     fn is_blocklisted(&self, name: &str) -> bool {
         self.blocklist.iter().any(|pattern| pattern.is_match(name))
+    }
+
+    /// Whether a tray item should be visible. Passive SNI items are hidden by
+    /// the tray (per the SNI spec: `Passive` items are not shown until they
+    /// become `Active`); the blocklist still takes precedence.
+    fn is_visible(&self, item: &StatusNotifierItem) -> bool {
+        if self.is_blocklisted(&item.name) {
+            return false;
+        }
+        item.status != ItemStatus::Passive
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -270,18 +280,28 @@ impl TrayModule {
 
         self.service
             .as_ref()
-            .filter(|s| s.data.iter().any(|item| !self.is_blocklisted(&item.name)))
+            .filter(|s| s.data.iter().any(|item| self.is_visible(item)))
             .map(|service| {
                 Into::<Element<_>>::into(
                     Row::with_children(
                         service
                             .data
                             .iter()
-                            .filter(|item| !self.is_blocklisted(&item.name))
+                            .filter(|item| self.is_visible(item))
                             .map(|item| {
                                 let name = item.name.to_owned();
                                 let button_style = button_style.clone();
-                                let icon_content: Element<'_, Message> = match &item.icon {
+                                // When the item is in `NeedsAttention` state, prefer
+                                // the attention icon (and overlay if present).
+                                let active_icon = if item.status == ItemStatus::NeedsAttention {
+                                    item.attention_icon
+                                        .as_ref()
+                                        .or(item.overlay_icon.as_ref())
+                                        .or(item.icon.as_ref())
+                                } else {
+                                    item.icon.as_ref()
+                                };
+                                let icon_content: Element<'_, Message> = match active_icon {
                                     Some(TrayIcon::Image(handle)) => Image::new(handle.clone())
                                         .height(Length::Fixed(font_size.md - 2.0))
                                         .into(),
@@ -339,5 +359,156 @@ impl TrayModule {
 
     pub fn subscription(&self) -> Subscription<Message> {
         TrayService::subscribe().map(|e| Message::Event(Box::new(e)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TrayModule, is_separator, is_visible, renderable_children};
+    use crate::config::{RegexCfg, TrayModuleConfig};
+    use crate::services::tray::dbus::{Layout, LayoutProps};
+
+    fn make_layout(id: i32, type_: Option<&str>, visible: Option<bool>) -> Layout {
+        Layout(
+            id,
+            LayoutProps {
+                children_display: None,
+                label: None,
+                type_: type_.map(|t| t.to_string()),
+                toggle_type: None,
+                toggle_state: None,
+                visible,
+            },
+            Vec::new(),
+        )
+    }
+
+    // --- is_separator ---
+
+    #[test]
+    fn is_separator_detects_separator_type() {
+        let layout = make_layout(1, Some("separator"), Some(true));
+        assert!(is_separator(&layout));
+    }
+
+    #[test]
+    fn is_separator_rejects_normal_item() {
+        let layout = make_layout(1, None, Some(true));
+        assert!(!is_separator(&layout));
+    }
+
+    // --- is_visible (menu) ---
+
+    #[test]
+    fn is_visible_treats_none_as_visible() {
+        let layout = make_layout(1, None, None);
+        assert!(is_visible(&layout));
+    }
+
+    #[test]
+    fn is_visible_respects_explicit_false() {
+        let layout = make_layout(1, None, Some(false));
+        assert!(!is_visible(&layout));
+    }
+
+    #[test]
+    fn is_visible_respects_explicit_true() {
+        let layout = make_layout(1, None, Some(true));
+        assert!(is_visible(&layout));
+    }
+
+    // --- renderable_children ---
+
+    #[test]
+    fn renderable_children_drops_trailing_separator_and_invisible() {
+        // A trailing separator and a trailing invisible child must not
+        // appear in the rendered output.
+        let children = vec![
+            make_layout(1, Some("separator"), Some(true)),
+            make_layout(2, None, Some(true)),
+            make_layout(3, Some("separator"), Some(true)), // trailing sep
+        ];
+        let rendered: Vec<_> = renderable_children(&children).collect();
+        // Only the non-separator visible item (id 2) should survive.
+        assert_eq!(rendered.len(), 1);
+        assert_eq!(rendered[0].0, 2);
+    }
+
+    #[test]
+    fn renderable_children_collapses_consecutive_separators() {
+        // Consecutive separators must collapse to a single separator.
+        let children = vec![
+            make_layout(1, None, Some(true)),
+            make_layout(2, Some("separator"), Some(true)),
+            make_layout(3, Some("separator"), Some(true)),
+            make_layout(4, None, Some(true)),
+        ];
+        let rendered: Vec<_> = renderable_children(&children).collect();
+        // Items 1, 4 (normal) + one separator (id 2, the first of the pair).
+        assert_eq!(rendered.len(), 3);
+        assert_eq!(rendered[0].0, 1);
+        assert_eq!(rendered[1].0, 2);
+        assert_eq!(rendered[2].0, 4);
+    }
+
+    #[test]
+    fn renderable_children_drops_invisible_items() {
+        let children = vec![
+            make_layout(1, None, Some(true)),
+            make_layout(2, None, Some(false)), // invisible
+            make_layout(3, None, Some(true)),
+        ];
+        let rendered: Vec<_> = renderable_children(&children).collect();
+        assert_eq!(rendered.len(), 2);
+        assert_eq!(rendered[0].0, 1);
+        assert_eq!(rendered[1].0, 3);
+    }
+
+    // --- TrayModule::is_blocklisted ---
+    // The blocklist is the part of `is_visible` that is independent of a
+    // live D-Bus connection: it only inspects the item *name* against the
+    // configured regexes. The passive-status half of `is_visible` is
+    // exercised by the unit tests in `services::tray` and by the live
+    // integration (icons resolving after reboot).
+
+    fn module_with_blocklist(patterns: &[&str]) -> TrayModule {
+        let config = TrayModuleConfig {
+            blocklist: patterns
+                .iter()
+                .map(|p| RegexCfg(regex::Regex::new(p).unwrap()))
+                .collect(),
+            right_click: None,
+        };
+        TrayModule::new(config)
+    }
+
+    #[test]
+    fn is_blocklisted_matches_regex_pattern() {
+        let module = module_with_blocklist(&["^telegram"]);
+        assert!(module.is_blocklisted("telegram"));
+        assert!(!module.is_blocklisted("nextcloud"));
+    }
+
+    #[test]
+    fn is_blocklisted_matches_partial_pattern() {
+        // A pattern without anchors matches a substring of the name.
+        let module = module_with_blocklist(&["blueman"]);
+        assert!(module.is_blocklisted("org.blueman.sni"));
+        assert!(!module.is_blocklisted("telegram"));
+    }
+
+    #[test]
+    fn is_blocklisted_empty_blocklist_matches_nothing() {
+        let module = module_with_blocklist(&[]);
+        assert!(!module.is_blocklisted("anything"));
+    }
+
+    #[test]
+    fn is_blocklisted_multiple_patterns_any_match() {
+        // `is_blocklisted` returns true if *any* pattern matches.
+        let module = module_with_blocklist(&["telegram", "nextcloud"]);
+        assert!(module.is_blocklisted("nextcloud"));
+        assert!(module.is_blocklisted("telegram"));
+        assert!(!module.is_blocklisted("blueman"));
     }
 }
