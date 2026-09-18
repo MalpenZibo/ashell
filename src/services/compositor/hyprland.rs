@@ -76,9 +76,11 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
             format!("hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))")
         }
         CompositorCommand::FocusSpecialWorkspace(name) => {
+            let name = escape_lua_string(&name);
             format!("hl.dispatch(hl.dsp.focus({{ workspace = \"special:{name}\" }}))")
         }
         CompositorCommand::ToggleSpecialWorkspace(name) => {
+            let name = escape_lua_string(&name);
             format!("hl.dispatch(hl.dsp.workspace.toggle_special(\"{name}\"))")
         }
         CompositorCommand::FocusMonitor(id) => {
@@ -96,6 +98,8 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
             return Ok(());
         }
         CompositorCommand::CustomDispatch(dispatcher, args) => {
+            let dispatcher = escape_lua_string(&dispatcher);
+            let args = escape_lua_string(&args);
             format!("hl.dispatch(hl.dsp.{dispatcher}({args}))")
         }
     };
@@ -112,6 +116,13 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     } else {
         dispatch_hyprlang(cmd)
     }
+}
+
+// Names reach the Lua layer by string interpolation, so quotes and
+// backslashes must be escaped or a workspace/dispatcher name containing
+// them breaks the generated program.
+fn escape_lua_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 #[derive(Debug, Clone, Default)]

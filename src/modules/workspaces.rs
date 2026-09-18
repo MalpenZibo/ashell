@@ -411,7 +411,7 @@ impl Workspaces {
                     .and_then(|name| {
                         self.ui_workspaces.iter().position(|w| {
                             !w.monitor.is_empty()
-                                && name.contains(w.monitor.as_str())
+                                && name == w.monitor.as_str()
                                 && matches!(w.displayed, Displayed::Active | Displayed::Visible)
                         })
                     })
