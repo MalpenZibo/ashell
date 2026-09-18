@@ -686,6 +686,7 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
     pub remove_airplane_btn: bool,
     pub remove_idle_btn: bool,
+    pub audio_feedback: bool,
     pub enable_tooltips: bool,
     pub indicators: Vec<SettingsIndicator>,
     #[serde(rename = "CustomButton")]
@@ -721,6 +722,7 @@ impl Default for SettingsModuleConfig {
             bluetooth_more_cmd: Default::default(),
             remove_airplane_btn: Default::default(),
             remove_idle_btn: Default::default(),
+            audio_feedback: true,
             enable_tooltips: true,
             indicators: vec![
                 SettingsIndicator::IdleInhibitor,
