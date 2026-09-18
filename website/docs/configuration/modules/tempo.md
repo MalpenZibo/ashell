@@ -16,7 +16,7 @@ forecast, and a seven-day outlook.
     - A calendar with month navigation and highlighted selections.
     - Current city, timestamp, weather description, feels-like temperature, humidity, and wind information.
     - A horizontally scrollable hourly forecast.
-    - A vertically stacked seven-day forecast with dominant wind direction and speeds.
+    - A vertically stacked seven-day forecast with dominant wind direction, speeds, and mean daily humidity.
 
 ## Configuration
 
