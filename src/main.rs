@@ -114,23 +114,23 @@ fn fontdb_stretch_to_iced(stretch: fontdb::Stretch) -> FontStretch {
 // Remove once iced exposes face selection. Loads the system font DB a second
 // time (cosmic-text already loads it internally); acceptable as a one-shot
 // startup cost paid only when `font_name` is set.
-fn resolve_font(name: &str) -> Font {
+fn resolve_font(name: &str, requested_weight: u16) -> Font {
     let mut db = fontdb::Database::new();
     db.load_system_fonts();
 
-    // Find the best matching face for the requested Normal/Normal/Normal.
-    // cosmic-text's font matcher re-scores all faces and prefers a face whose
-    // weight/stretch/style are closest to the requested ones. So if the user
-    // asks for `Weight::Normal` (400) but the font only has a face with
-    // weight=500 (Medium), the matcher will prefer a different font with
-    // weight=400 — a silent fallback. To work around this, we detect the
-    // closest available face in the requested family and pass its actual
+    // Find the best matching face for the requested weight with Normal
+    // style/stretch. cosmic-text's font matcher re-scores all faces and
+    // prefers a face whose weight/stretch/style are closest to the requested
+    // ones. So if the user asks for `Weight::Normal` (400) but the font only
+    // has a face with weight=500 (Medium), the matcher will prefer a different
+    // font with weight=400 — a silent fallback. To work around this, we detect
+    // the closest available face in the requested family and pass its actual
     // weight to iced so the matcher's scoring keeps us on the right font.
     let best_face = db
         .faces()
         .filter(|f| f.families.iter().any(|(fam, _)| fam == name))
         .min_by_key(|f| {
-            // Score: prefer Normal style/stretch, then closest weight to 400.
+            // Score: prefer Normal style/stretch, then closest weight.
             let style_penalty = if f.style == fontdb::Style::Normal {
                 0
             } else {
@@ -141,7 +141,7 @@ fn resolve_font(name: &str) -> Font {
             } else {
                 100
             };
-            let weight_penalty = f.weight.0.abs_diff(400) / 10;
+            let weight_penalty = f.weight.0.abs_diff(requested_weight) / 10;
             style_penalty + stretch_penalty + weight_penalty
         });
 
@@ -154,9 +154,9 @@ fn resolve_font(name: &str) -> Font {
     let weight = face.weight;
     let iced_weight = fontdb_weight_to_iced(weight);
 
-    if weight != fontdb::Weight::NORMAL {
+    if weight.0 != requested_weight {
         warn!(
-            "Font '{name}' has no face with weight=Normal(400) style=Normal. \
+            "Font '{name}' has no face with weight={requested_weight} style=Normal. \
              Using the closest available face (weight={}, style={:?}). \
              Note: text rendered in a different weight (e.g. Bold) may look \
              the same as regular text, since this font has no separate faces \
@@ -239,9 +239,12 @@ fn main() -> iced::Result {
     logger.set_new_spec(get_log_spec(&config.logging.level));
 
     let font = if let Some(font_name) = &config.appearance.font_name {
-        resolve_font(font_name)
+        resolve_font(font_name, config.appearance.font_weight.value())
     } else {
-        Font::DEFAULT
+        Font {
+            weight: fontdb_weight_to_iced(fontdb::Weight(config.appearance.font_weight.value())),
+            ..Font::DEFAULT
+        }
     };
 
     let geometry = Outputs::bar_geometry(

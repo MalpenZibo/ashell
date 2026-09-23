@@ -33,12 +33,31 @@ fc-list | cut -d: -f2 | sort -u
 
 :::
 
-:::info Font weight
+## Font Weight
 
-ashell picks the face whose declared weight is closest to Normal (400). If the
-font has no face with weight 400 (for example, Terminus TTF's Regular face reports
-weight 500/Medium), ashell uses the closest available face. Text that requests a
-different weight (e.g. Bold) will then look the same as regular text.
+You can pick which weight of the font to use by setting the `font_weight` field.
+This is useful for fonts that ship a single face with a weight other than Normal,
+or when you prefer a lighter or bolder look. The default is `"normal"`.
+
+Allowed values: `"thin"` (100), `"extralight"` (200), `"light"` (300),
+`"normal"` (400), `"medium"` (500), `"semibold"` (600), `"bold"` (700),
+`"extrabold"` (800), `"black"` (900).
+
+```toml
+[appearance]
+font_name = "Inter"
+font_weight = "light"
+```
+
+Like `font_name`, changing `font_weight` requires restarting ashell.
+
+:::info How the face is picked
+
+ashell picks the face of `font_name` whose declared weight is closest to
+`font_weight`. If the font has no face with that exact weight (for example,
+Terminus TTF's Regular face reports weight 500/Medium), ashell uses the closest
+available face and logs a warning. Text that requests a different weight
+(e.g. Bold) will then look the same as regular text.
 
 This is also why ashell **cannot use bitmap fonts** (`.bdf`/`.pcf`), which are
 the format of the `terminus-font` package on Arch Linux — only TrueType (`.ttf`)
