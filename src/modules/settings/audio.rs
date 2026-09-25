@@ -13,6 +13,7 @@ use crate::{
     t,
     theme::use_theme,
     utils::IndicatorState,
+    utils::audio_feedback::AudioFeedback,
     utils::remote_value::{self, Remote},
 };
 use iced::{
@@ -61,6 +62,7 @@ pub struct AudioSettingsConfig {
     pub max_volume: u8,
     pub indicator_format: SettingsFormat,
     pub microphone_indicator_format: SettingsFormat,
+    pub audio_feedback: bool,
 }
 
 impl AudioSettingsConfig {
@@ -71,6 +73,7 @@ impl AudioSettingsConfig {
         max_volume: u8,
         indicator_format: SettingsFormat,
         microphone_indicator_format: SettingsFormat,
+        audio_feedback: bool,
     ) -> Self {
         Self {
             sinks_more_cmd,
@@ -79,6 +82,7 @@ impl AudioSettingsConfig {
             max_volume,
             indicator_format,
             microphone_indicator_format,
+            audio_feedback,
         }
     }
 }
@@ -86,6 +90,7 @@ impl AudioSettingsConfig {
 pub struct AudioSettings {
     config: AudioSettingsConfig,
     service: Option<AudioService>,
+    audio_feedback: AudioFeedback,
 }
 
 pub struct SubmenuEntry {
@@ -103,9 +108,15 @@ pub enum SliderType {
 
 impl AudioSettings {
     pub fn new(config: AudioSettingsConfig) -> Self {
+        let audio_feedback = if config.audio_feedback {
+            AudioFeedback::enabled()
+        } else {
+            AudioFeedback::disabled()
+        };
         Self {
             config,
             service: None,
+            audio_feedback,
         }
     }
 
@@ -236,6 +247,7 @@ impl AudioSettings {
             Message::ToggleSinkMute => {
                 if let Some(service) = self.service.as_mut() {
                     let _ = service.command(AudioCommand::ToggleSinkMute);
+                    self.audio_feedback.play_mute_toggle();
                 }
                 Action::None
             }
@@ -243,6 +255,7 @@ impl AudioSettings {
                 if let Some(service) = self.service.as_mut() {
                     if let Some(value) = message.value() {
                         let _ = service.command(AudioCommand::SinkVolume(value));
+                        self.audio_feedback.play(value);
                     }
                     return Action::Task(
                         service
@@ -262,6 +275,7 @@ impl AudioSettings {
             Message::ToggleSourceMute => {
                 if let Some(service) = self.service.as_mut() {
                     let _ = service.command(AudioCommand::ToggleSourceMute);
+                    self.audio_feedback.play_mute_toggle();
                 }
                 Action::None
             }
@@ -269,6 +283,7 @@ impl AudioSettings {
                 if let Some(service) = self.service.as_mut() {
                     if let Some(value) = message.value() {
                         let _ = service.command(AudioCommand::SourceVolume(value));
+                        self.audio_feedback.play(value);
                     }
                     return Action::Task(
                         service
@@ -316,6 +331,13 @@ impl AudioSettings {
             Message::ToggleSinksMenu => Action::ToggleSinksMenu,
             Message::ToggleSourcesMenu => Action::ToggleSourcesMenu,
             Message::ConfigReloaded(config) => {
+                if config.audio_feedback != self.config.audio_feedback {
+                    self.audio_feedback = if config.audio_feedback {
+                        AudioFeedback::enabled()
+                    } else {
+                        AudioFeedback::disabled()
+                    };
+                }
                 self.config = config;
                 Action::None
             }
