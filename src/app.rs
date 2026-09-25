@@ -411,16 +411,12 @@ impl App {
             Message::OutputEvent(event) => match event {
                 OutputEvent::Added(info) => {
                     info!("Output created: {info:?}");
-                    // Pass both the canonical name and the full EDID
-                    // description down to Outputs::add. The workspace
-                    // visibility filter compares against just the
-                    // canonical `info.name` (matches `w.monitor` from
-                    // the compositor); name_in_config / has_name keep
-                    // matching against the concatenated description
-                    // too so #312's fuzzy-EDID-alias config behaviour
-                    // is preserved.
+                    // Keep canonical workspace identity separate from description-based
+                    // target matching, which may include monitor serial numbers.
                     let name = info.name.as_str();
-                    let description = format!("{} {} {}", info.name, info.make, info.model);
+                    let description = info
+                        .description
+                        .unwrap_or_else(|| format!("{} {} {}", info.name, info.make, info.model));
 
                     let (bar_layout, bar_position, scale_factor) =
                         use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
