@@ -136,6 +136,8 @@ static CPU_MATCHES: [SensorMatch<'static>; 2] = [
         "coretemp Package id 0",
         "coretemp Core 0",
         "coretemp Physical id 0",
+        "k10temp Tctl",
+        "k10temp Tdie",
     ]),
     SensorMatch::StartsWith(&["k10temp", "applesmc"]),
 ];
