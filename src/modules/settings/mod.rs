@@ -98,7 +98,7 @@ pub enum Message {
     Audio(audio::Message),
     Brightness(brightness::Message),
     ToggleInhibitIdle,
-    Lock,
+    Lock(SurfaceId),
     Power(power::Message),
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
@@ -273,6 +273,7 @@ impl Settings {
                     Action::None
                 }
                 power::Action::Command(task) => Action::Command(task.map(Message::Power)),
+                power::Action::CloseMenu(id) => Action::CloseMenu(id),
             },
             Message::Audio(msg) => match self.audio.update(msg) {
                 audio::Action::None => Action::None,
@@ -367,11 +368,11 @@ impl Settings {
                 }
                 Action::None
             }
-            Message::Lock => {
+            Message::Lock(id) => {
                 if let Some(lock_cmd) = &self.lock_cmd {
                     crate::utils::launcher::execute_command(lock_cmd);
                 }
-                Action::None
+                Action::CloseMenu(id)
             }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
@@ -594,7 +595,7 @@ impl Settings {
                 .push(
                     self.lock_cmd
                         .as_ref()
-                        .map(|_| icon_button(StaticIcon::Lock).on_press(Message::Lock)),
+                        .map(|_| icon_button(StaticIcon::Lock).on_press(Message::Lock(id))),
                 )
                 .push(
                     icon_button(if self.sub_menu == Some(SubMenu::Power) {
@@ -717,7 +718,7 @@ impl Settings {
                 col = col.push(
                     collapsible(
                         self.sub_menu == Some(SubMenu::Power),
-                        sub_menu_wrapper(self.power.menu().map(Message::Power)),
+                        sub_menu_wrapper(self.power.menu(id).map(Message::Power)),
                     )
                     .animated(animated)
                     .open_padding_top(space.md),

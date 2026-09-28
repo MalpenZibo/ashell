@@ -16,7 +16,7 @@ use crate::{
     utils::{self, IndicatorState, format_duration, remote_value},
 };
 use iced::{
-    Alignment, Element, Length, Subscription, Task, Theme,
+    Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
     alignment::Vertical,
     mouse::ScrollDelta,
     widget::{Column, Row, column, container, row, text},
@@ -56,11 +56,11 @@ pub enum Message {
     TogglePowerProfile,
     ToggleChargeLimit,
     ToggleKbdBacklight,
-    Suspend,
-    Hibernate,
-    Reboot,
-    Shutdown,
-    Logout,
+    Suspend(SurfaceId),
+    Hibernate(SurfaceId),
+    Reboot(SurfaceId),
+    Shutdown(SurfaceId),
+    Logout(SurfaceId),
     KbdBacklightChanged(remote_value::Message<u32>),
     ConfigReloaded(PowerSettingsConfig),
 }
@@ -69,6 +69,7 @@ pub enum Action {
     None,
     TogglePeripheralMenu,
     Command(Task<Message>),
+    CloseMenu(SurfaceId),
 }
 
 #[derive(Debug, Clone)]
@@ -179,27 +180,27 @@ impl PowerSettings {
                 ),
                 _ => Action::None,
             },
-            Message::Suspend => {
+            Message::Suspend(id) => {
                 utils::launcher::suspend(&self.config.suspend_cmd);
-                Action::None
+                Action::CloseMenu(id)
             }
-            Message::Hibernate => {
+            Message::Hibernate(id) => {
                 if let Some(hibernate_cmd) = &self.config.hibernate_cmd {
                     utils::launcher::hibernate(hibernate_cmd);
                 }
-                Action::None
+                Action::CloseMenu(id)
             }
-            Message::Reboot => {
+            Message::Reboot(id) => {
                 utils::launcher::reboot(&self.config.reboot_cmd);
-                Action::None
+                Action::CloseMenu(id)
             }
-            Message::Shutdown => {
+            Message::Shutdown(id) => {
                 utils::launcher::shutdown(&self.config.shutdown_cmd);
-                Action::None
+                Action::CloseMenu(id)
             }
-            Message::Logout => {
+            Message::Logout(id) => {
                 utils::launcher::logout(&self.config.logout_cmd);
-                Action::None
+                Action::CloseMenu(id)
             }
             Message::KbdBacklightChanged(message) => {
                 if let Some(service) = self.service.as_mut() {
@@ -226,31 +227,31 @@ impl PowerSettings {
         }
     }
 
-    pub fn menu<'a>(&'a self) -> Element<'a, Message> {
+    pub fn menu<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
         column!(
             styled_button(t!("settings-power-suspend"))
                 .icon(StaticIcon::Suspend, IconPosition::Before)
-                .on_press(Message::Suspend)
+                .on_press(Message::Suspend(id))
                 .width(Length::Fill),
             self.config.hibernate_cmd.as_ref().map(|_| {
                 styled_button(t!("settings-power-hibernate"))
                     .icon(StaticIcon::Hibernate, IconPosition::Before)
-                    .on_press(Message::Hibernate)
+                    .on_press(Message::Hibernate(id))
                     .width(Length::Fill)
             }),
             styled_button(t!("settings-power-reboot"))
                 .icon(StaticIcon::Reboot, IconPosition::Before)
-                .on_press(Message::Reboot)
+                .on_press(Message::Reboot(id))
                 .width(Length::Fill),
             styled_button(t!("settings-power-shutdown"))
                 .icon(StaticIcon::Power, IconPosition::Before)
-                .on_press(Message::Shutdown)
+                .on_press(Message::Shutdown(id))
                 .width(Length::Fill),
             divider(),
             styled_button(t!("settings-power-logout"))
                 .icon(StaticIcon::Logout, IconPosition::Before)
-                .on_press(Message::Logout)
+                .on_press(Message::Logout(id))
                 .width(Length::Fill),
         )
         .padding(space.xs)
