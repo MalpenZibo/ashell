@@ -50,9 +50,7 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
         },
         CompositorCommand::CustomDispatch(action, args) => {
             if action == "spawn" {
-                Action::Spawn {
-                    command: args.split_whitespace().map(String::from).collect(),
-                }
+                Action::SpawnSh { command: args }
             } else {
                 return Err(anyhow!("Unknown custom dispatch: {}", action));
             }
