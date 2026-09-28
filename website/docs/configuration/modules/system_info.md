@@ -45,7 +45,7 @@ To enable this indicator, add `Memory` to the `indicators` configuration.
 You can change the display format using the `format` option in `[system_info.memory]`:
 
 - `"Percentage"` (default) — shows memory usage as a percentage (e.g., `64%`)
-- `"Amount"` — shows memory usage gigabytes in a compact manner (e.g., `11.7G`)
+- `"Amount"` — shows used memory in GiB (e.g., `11.7 GiB`)
 - `"Fraction"` — shows used and total memory in GiB (e.g., `5.12/15.89 GiB`)
 
 ### Memory Swap
@@ -55,7 +55,7 @@ The Memory Swap indicator displays the current memory swap usage as a percentage
 To enable this indicator, add `MemorySwap` to the `indicators` configuration.
 
 :::info
-Memory Swap uses the same `format` setting as Memory (`[system_info.memory]`). If you set Memory to `"Fraction"`, the swap indicator will also display as a fraction.
+Memory Swap uses the same `format` setting as Memory (`[system_info.memory]`). If you set Memory to `"Amount"` or `"Fraction"`, the swap indicator uses the same format.
 :::
 
 ### Disk

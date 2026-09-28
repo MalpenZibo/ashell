@@ -558,7 +558,9 @@ impl SystemInfo {
                                 format!("{}%", self.data.memory_usage.percentage),
                             MemoryFormat::Fraction =>
                                 format!("{} GiB", self.data.memory_usage.fraction),
-                        MemoryFormat::Amount => format!("{:.2} GiB", self.data.memory_usage.amount)}
+                            MemoryFormat::Amount =>
+                                format!("{:.1} GiB", self.data.memory_usage.amount),
+                        }
                     ))
                     .push(Self::info_element(
                         StaticIcon::Mem,
@@ -568,7 +570,9 @@ impl SystemInfo {
                                 format!("{}%", self.data.memory_swap_usage.percentage),
                             MemoryFormat::Fraction =>
                                 format!("{} GiB", self.data.memory_swap_usage.fraction),
-                        MemoryFormat::Amount => format!("{:.2} GiB", self.data.memory_swap_usage.amount)}
+                            MemoryFormat::Amount =>
+                                format!("{:.1} GiB", self.data.memory_swap_usage.amount),
+                        }
                     ))
                     .push(self.data.temperature.celsius.map(|cel| {
                         Self::info_element(StaticIcon::Temp, t!("system-info-temperature"), {
@@ -663,7 +667,9 @@ impl SystemInfo {
                         (self.data.memory_usage.percentage.to_string(), "%")
                     }
                     MemoryFormat::Fraction => (self.data.memory_usage.fraction.clone(), " GiB"),
-                    MemoryFormat::Amount => (format!("{:.1}", self.data.memory_usage.amount), " GiB"),
+                    MemoryFormat::Amount => {
+                        (format!("{:.1}", self.data.memory_usage.amount), " GiB")
+                    }
                 },
                 Some((
                     self.data.memory_usage.percentage,
@@ -682,7 +688,9 @@ impl SystemInfo {
                     MemoryFormat::Fraction => {
                         (self.data.memory_swap_usage.fraction.clone(), " GiB")
                     }
-                    MemoryFormat::Amount => (format!("{:.1}", self.data.memory_swap_usage.amount), " GiB")
+                    MemoryFormat::Amount => {
+                        (format!("{:.1}", self.data.memory_swap_usage.amount), " GiB")
+                    }
                 },
                 Some((
                     self.data.memory_swap_usage.percentage,
