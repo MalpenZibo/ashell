@@ -76,9 +76,11 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
             format!("hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))")
         }
         CompositorCommand::FocusSpecialWorkspace(name) => {
+            let name = escape_lua_string(&name);
             format!("hl.dispatch(hl.dsp.focus({{ workspace = \"special:{name}\" }}))")
         }
         CompositorCommand::ToggleSpecialWorkspace(name) => {
+            let name = escape_lua_string(&name);
             format!("hl.dispatch(hl.dsp.workspace.toggle_special(\"{name}\"))")
         }
         CompositorCommand::FocusMonitor(id) => {
@@ -96,6 +98,10 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
             return Ok(());
         }
         CompositorCommand::CustomDispatch(dispatcher, args) => {
+            // `dispatcher` is a Lua identifier and `args` is spliced in as a raw
+            // Lua expression (e.g. `{ workspace = "3" }`), not a string literal —
+            // escaping either would break valid input. The contract here is that
+            // the caller hands us Lua.
             format!("hl.dispatch(hl.dsp.{dispatcher}({args}))")
         }
     };
@@ -112,6 +118,21 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     } else {
         dispatch_hyprlang(cmd)
     }
+}
+
+// Names reach the Lua layer by string interpolation, so quotes, backslashes
+// and control characters must be escaped or a workspace name containing them
+// breaks the generated program.
+// TODO: switch to `hyprland::lua::{quote_string, escape_string}` once
+// hyprland-rs#399 lands, since it also covers the remaining control
+// characters as zero-padded \ddd sequences.
+fn escape_lua_string(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
 }
 
 #[derive(Debug, Clone, Default)]
@@ -290,4 +311,24 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
             Some(internal_state.submap.clone())
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::escape_lua_string;
+
+    #[test]
+    fn quotes_and_backslashes_are_escaped() {
+        assert_eq!(escape_lua_string(r#"a\b"c"#), r#"a\\b\"c"#);
+    }
+
+    #[test]
+    fn control_characters_are_escaped() {
+        assert_eq!(escape_lua_string("a\nb\rc\td"), r"a\nb\rc\td");
+    }
+
+    #[test]
+    fn plain_names_are_untouched() {
+        assert_eq!(escape_lua_string("special:2"), "special:2");
+    }
 }

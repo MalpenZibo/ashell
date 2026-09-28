@@ -59,6 +59,7 @@ pub enum Message {
     MenuToggled(String, i32),
     MenuOpened(String),
     Activate(String),
+    ConfigReloaded(TrayModuleConfig),
 }
 
 pub enum Action {
@@ -169,6 +170,11 @@ impl TrayModule {
                 }
                 _ => Action::None,
             },
+            Message::ConfigReloaded(config) => {
+                self.blocklist = config.blocklist;
+                self.right_click = config.right_click;
+                Action::None
+            }
         }
     }
 

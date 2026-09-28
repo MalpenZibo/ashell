@@ -214,6 +214,8 @@ impl App {
             .update(modules::notifications::Message::ConfigReloaded(
                 config.notifications,
             ));
+        self.tray
+            .update(modules::tray::Message::ConfigReloaded(config.tray));
         self.osd.update(osd::Message::ConfigReloaded(config.osd));
 
         workspaces_task
