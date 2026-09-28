@@ -142,9 +142,6 @@ sends: discrete steps for a wheel, smooth deltas for a trackpad):
 - `Mouse`: Inverts the mouse wheel only. Scrolling up goes to the next workspace and down to the previous one.
 - `Trackpad`: Inverts the trackpad only. Swiping up goes to the next workspace and down to the previous one.
 
-Scrolling is not available on the generic Wayland backend, which can activate a
-workspace but not step to the neighbouring one.
-
 ## Window Icons
 
 By default the workspace indicator shows only the workspace name or number

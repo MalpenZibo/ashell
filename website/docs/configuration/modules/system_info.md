@@ -159,18 +159,27 @@ units = "Celsius"           # override the locale unit system
 ```
 
 ashell reads hardware sensors through the `sysinfo` crate, which builds each
-label as `<hwmon chip name> <sensor label>`, so the value you write in `sensor`
-is **not** the bare label printed by `sensors`. `sensors` shows the chip as a
-heading (`k10temp-pci-00c3`) and the sensor below it (`Tctl`); the label ashell
-expects joins the two: `k10temp Tctl`.
+label from the `hwmon` data, so the value you write in `sensor` is **not** the
+bare label printed by `sensors`. The label is the chip name, followed by the
+sensor label (`tempN_label`) and the device model when they exist. A sensor
+with neither is named after its channel (`temp1`). For example:
 
-To list the labels exactly as ashell sees them, read them straight from `hwmon`:
+- `k10temp Tctl`: chip and sensor label
+- `nvme Composite CT1000T705SSD3`: chip, sensor label and device model
+- `acpitz temp1`: chip and channel, the sensor has no label
+
+To list the labels exactly as ashell sees them, run this in `sh` or `bash`:
 
 ```bash
 for d in /sys/class/hwmon/hwmon*; do
   chip=$(cat "$d/name")
-  for f in "$d"/temp*_label; do
-    [ -e "$f" ] && echo "$chip $(cat "$f")"
+  model=$(cat "$d/device/model" 2>/dev/null | sed 's/[[:space:]]*$//')
+  for f in "$d"/temp*_input; do
+    [ -e "$f" ] || continue
+    n=$(basename "$f" _input)
+    label=$(cat "$d/${n}_label" 2>/dev/null)
+    [ -z "$label" ] && [ -z "$model" ] && label=$n
+    echo "$chip${label:+ $label}${model:+ $model}"
   done
 done
 ```
@@ -193,7 +202,7 @@ Common sensor labels include:
 
 - `acpitz temp1` - ACPI thermal zone
 - `coretemp Package id 0` - Intel CPU temperature
-- `k10temp Tctl` - AMD Ryzen CPU temperature
+- `k10temp Tctl` / `k10temp Tdie` - AMD Ryzen CPU temperature
 - `amdgpu edge` - AMD GPU temperature
 - `nvme Composite MODEL_NAME` - NVMe SSD temperature (use model from `lsblk` output)
 

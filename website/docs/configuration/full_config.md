@@ -187,8 +187,7 @@ bluetooth_more_cmd = "blueberry"
 battery_format = "IconAndPercentage"  # (default), "Icon", "Percentage", "IconAndPercentage", "Time", "IconAndTime", "Name", "IconAndName", "PercentageAndTime", "IconAndPercentageAndTime"
 # battery_hide_when_full = false  # (default)
 # peripheral_indicators = "All"   # (default) or { Specific = ["Keyboard", "Mouse", "Headphones", "Gamepad"] }
-peripheral_battery_format = "Icon"  # (default), "IconAndPercentage", "Percentage", "Time", "IconAndTime"
-                                    # ("Name"/"IconAndName" render icon-only here)
+peripheral_battery_format = "Icon"  # (default), "Percentage", "IconAndPercentage", "Time", "IconAndTime", "Name", "IconAndName", "PercentageAndTime", "IconAndPercentageAndTime"
 # peripheral_expanded_by_default = false  # (default)
 audio_indicator_format = "Icon"        # (default), "IconAndPercentage", "Percentage", etc.
 microphone_indicator_format = "Icon"   # (default)

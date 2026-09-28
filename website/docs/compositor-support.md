@@ -36,8 +36,7 @@ backs.
 | Feature | Hyprland | Niri | MangoWC | Generic Wayland |
 | --- | :---: | :---: | :---: | :---: |
 | Active window * | ✅ | ✅ | ✅ | ✅ |
-| Workspaces: list and click to focus | ✅ | ✅ | ✅ | ✅ |
-| Workspaces: scroll to switch | ✅ | ✅ | ✅ | ❌ |
+| Workspaces: list, click and scroll to switch | ✅ | ✅ | ✅ | ✅ |
 | Workspaces: empty/occupied distinction ** | ✅ | ✅ | ✅ | ❌ |
 | Workspaces: urgent highlight | ❌ | ✅ | ✅ | ✅ |
 | Workspaces: window icons *** | ✅ | ✅ | ❌ | ❌ |

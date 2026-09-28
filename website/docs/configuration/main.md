@@ -98,8 +98,9 @@ Ashell supports localization through two independent root-level options.
 Both accept a BCP-47 / POSIX-style locale identifier (e.g. `"en-US"`, `"it-IT"`).
 They are optional and fall back to your environment: `language` resolves from
 `$LC_ALL`, then `$LC_MESSAGES`, then `$LANG`, and `region` resolves from
-`$LC_ALL`, then `$LC_TIME`, then `$LANG`. The unit system additionally honors
-`$LC_MEASUREMENT` when set, independently of `region`.
+`$LC_ALL`, then `$LC_TIME`, then `$LANG`. The unit system resolves from
+`region`, then `$LC_ALL`, then `$LC_MEASUREMENT`, then `$LANG`; if none of them
+is set it follows the date/time locale.
 
 When nothing matches, the two options fall back separately: `language` falls
 back to `en-US`, and `region` falls back to `en-GB` (so dates use day/month

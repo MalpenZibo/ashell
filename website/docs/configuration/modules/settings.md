@@ -113,13 +113,14 @@ something meaningful to show for each of them. The values are:
 | `IconAndTime` | The icon followed by the remaining time |
 | `Name` | Only the name |
 | `IconAndName` | The icon followed by the name |
+| `PercentageAndTime` | The value followed by the remaining time (battery indicators) |
+| `IconAndPercentageAndTime` | The icon, the value and the remaining time |
 
 :::info
-`Name` and `IconAndName` change what is rendered only for the **network**
-indicator, which is the one that has a name to show. Every other indicator has
-no name, so it keeps rendering its usual value: `Name` behaves like
-`Percentage` and `IconAndName` like `IconAndPercentage`. The one exception is
-`peripheral_battery_format`, where both values fall back to icon-only.
+`Name` and `IconAndName` show a name for the **network** (SSID) and
+**peripheral** (device name) indicators; every other indicator keeps showing
+its value: `Name` behaves like `Percentage` and `IconAndName` like
+`IconAndPercentage`.
 
 The defaults are not uniform either: `battery_format` defaults to
 `IconAndPercentage`, every other format option defaults to `Icon`.
@@ -134,7 +135,7 @@ The possible values are:
 - `Icon` - Show only the battery icon
 - `Percentage` - Show only the battery percentage
 - `IconAndPercentage` - Show both the battery icon and percentage (default)
-- `Time` - Show smart time display (time to full when charging, time to empty when discharging, "100%" when full)
+- `Time` - Show smart time display (time to full when charging, time to empty when discharging, the percentage when full)
 - `IconAndTime` - Show battery icon with smart time display
 - `PercentageAndTime` - Show the battery percentage along with smart time display
 - `IconAndPercentageAndTime` - Show battery icon with battery percentage and smart time display
@@ -163,11 +164,12 @@ The `Time` and `IconAndTime` formats provide intelligent time display:
 
 - **When charging**: Shows time until full (e.g., "45m", "2h 15m")
 - **When discharging**: Shows time until empty (e.g., "1h 30m", "3h 45m")
-- **When at 100%, full, or charging with no estimate yet**: Shows "100%"
-- **When discharging with no estimate yet**: Shows "Calculating..." (translated),
+- **When charging or discharging with no estimate yet**: Shows "Calculating..." (translated),
   for both the system battery and peripherals
-- **When not charging**: Shows the plain percentage
-- **When the battery status is unknown**: Shows nothing
+- **Otherwise** (full or at 100%, not charging, unknown): Shows the plain percentage
+
+`PercentageAndTime` and `IconAndPercentageAndTime` append the same time to the
+percentage, and show only the percentage when there is no time to add.
 
 ```toml
 [settings]
@@ -186,9 +188,8 @@ peripheral_battery_format = "IconAndTime"
 ### Peripheral Battery Format
 
 In the same way it's possible to customize the peripheral battery indicator
-format with the `peripheral_battery_format` option. It accepts the same values,
-except that `Name` and `IconAndName` render icon-only here; a peripheral
-battery has no name to display in the bar.
+format with the `peripheral_battery_format` option. It accepts the same values;
+`Name` and `IconAndName` show the device name.
 
 The default value is `Icon`.
 
