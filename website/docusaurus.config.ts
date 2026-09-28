@@ -62,7 +62,7 @@ const config: Config = {
         hashed: true,
         indexDocs: true,
         indexBlog: false,
-        indexPages: false,
+        indexPages: true,
         docsRouteBasePath: "/",
         searchBarShortcutHint: false,
       },
@@ -91,6 +91,11 @@ const config: Config = {
         {
           to: "gallery",
           label: "Gallery",
+          position: "left",
+        },
+        {
+          to: "changelog",
+          label: "Changelog",
           position: "left",
         },
         {
@@ -146,6 +151,10 @@ const config: Config = {
         {
           title: "More",
           items: [
+            {
+              label: "Changelog",
+              to: "/changelog",
+            },
             {
               label: "GitHub",
               href: "https://github.com/MalpenZibo/ashell",

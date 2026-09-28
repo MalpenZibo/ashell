@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
-        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarRadius,
-        BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize, Surface,
+        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarPadding,
+        BarRadius, BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize, Surface,
     },
 };
 use iced::{
@@ -109,25 +109,37 @@ impl Radius {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BarLayout {
     pub surface: BarSurface,
-    pub margin: (f32, f32, f32, f32),
+    pub margin: BarMargin,
+    pub padding: BarPadding,
 }
 
 impl BarLayout {
     pub fn from_appearance(bar: &BarAppearance) -> Self {
-        Self::new(bar.surface, bar.margin)
+        Self::new(bar.surface, bar.margin, bar.padding)
     }
 
-    fn new(surface: BarSurface, margin: BarMargin) -> Self {
-        let space = Space::default();
+    fn new(surface: BarSurface, margin: BarMargin, padding: BarPadding) -> Self {
         Self {
             surface,
-            margin: (
-                space.resolve(margin.top),
-                space.resolve(margin.right),
-                space.resolve(margin.bottom),
-                space.resolve(margin.left),
-            ),
+            margin,
+            padding,
         }
+    }
+
+    /// Padding resolved to logical pixels, as iced renders it.
+    pub fn padding(&self) -> iced::Padding {
+        iced::Padding {
+            top: self.padding.top.into(),
+            right: self.padding.right.into(),
+            bottom: self.padding.bottom.into(),
+            left: self.padding.left.into(),
+        }
+    }
+
+    /// Extra surface height the padding needs on top of the content height.
+    pub fn vertical_padding(&self) -> f64 {
+        let p = self.padding();
+        f64::from(p.top + p.bottom)
     }
 }
 
@@ -179,6 +191,7 @@ pub struct AshellTheme {
     pub bar_surface: BarSurface,
     pub bar_radius: BarRadius,
     pub bar_margin: BarMargin,
+    pub bar_padding: BarPadding,
     pub menu: MenuAppearance,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
@@ -502,6 +515,7 @@ fn base_theme_from_appearance(
         bar_surface: appearance.bar.surface,
         bar_radius: appearance.bar.radius,
         bar_margin: appearance.bar.margin,
+        bar_padding: appearance.bar.padding,
         menu: appearance.menu,
         workspace_colors: appearance.workspace_colors.clone(),
         special_workspace_colors: appearance.special_workspace_colors.clone(),
@@ -533,7 +547,7 @@ impl AshellTheme {
     }
 
     pub fn bar_layout(&self) -> BarLayout {
-        BarLayout::new(self.bar_surface, self.bar_margin)
+        BarLayout::new(self.bar_surface, self.bar_margin, self.bar_padding)
     }
 
     pub fn bar_border_radius(&self) -> border::Radius {

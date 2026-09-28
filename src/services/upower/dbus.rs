@@ -469,3 +469,19 @@ pub trait PowerProfiles {
     #[zbus(property)]
     fn set_active_profile(&self, profile: &str) -> zbus::Result<()>;
 }
+
+#[proxy(
+    default_service = "org.freedesktop.UPower",
+    default_path = "/org/freedesktop/UPower/KbdBacklight",
+    interface = "org.freedesktop.UPower.KbdBacklight"
+)]
+pub trait KbdBacklight {
+    fn get_max_brightness(&self) -> zbus::Result<i32>;
+
+    fn get_brightness(&self) -> zbus::Result<i32>;
+
+    fn set_brightness(&self, value: i32) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    fn brightness_changed(&self, value: i32) -> zbus::Result<()>;
+}

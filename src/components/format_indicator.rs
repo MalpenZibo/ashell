@@ -50,12 +50,14 @@ impl<'a, Msg: 'static + Clone> From<FormatIndicator<'a, Msg>> for Element<'a, Ms
 
         let content = match fi.format {
             SettingsFormat::Icon => fi.icon.to_text().into(),
-            SettingsFormat::Percentage | SettingsFormat::Time | SettingsFormat::Name => {
-                fi.label_element
-            }
+            SettingsFormat::Percentage
+            | SettingsFormat::Time
+            | SettingsFormat::Name
+            | SettingsFormat::PercentageAndTime => fi.label_element,
             SettingsFormat::IconAndPercentage
             | SettingsFormat::IconAndTime
-            | SettingsFormat::IconAndName => row![fi.icon.to_text(), fi.label_element]
+            | SettingsFormat::IconAndName
+            | SettingsFormat::IconAndPercentageAndTime => row![fi.icon.to_text(), fi.label_element]
                 .spacing(space.xxs)
                 .align_y(Alignment::Center)
                 .into(),

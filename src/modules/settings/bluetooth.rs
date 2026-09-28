@@ -201,6 +201,7 @@ impl BluetoothSettings {
                         sub_menu,
                         Message::ToggleSubMenu,
                     )),
+                    None,
                 ),
                 self.bluetooth_menu(id)
                     .map(|menu| (sub_menu == Some(SubMenu::Bluetooth), menu)),

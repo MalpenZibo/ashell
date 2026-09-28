@@ -544,10 +544,12 @@ impl NetworkDbus<'_> {
                                     .build()
                                     .await?;
 
+                            let freq = access_point.frequency().await.unwrap_or_default();
                             info.push(ActiveConnectionInfo::WiFi {
                                 name: String::from_utf8_lossy(&access_point.ssid().await?)
                                     .into_owned(),
                                 strength: access_point.strength().await.unwrap_or_default(),
+                                frequency: freq,
                             });
                         }
                     }

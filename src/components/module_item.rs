@@ -71,11 +71,12 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
         if has_action {
             let mut button = position_button(
                 container(item.content)
+                    .padding([0.0, 1.0])
                     .align_y(Alignment::Center)
                     .height(Length::Fill)
                     .clip(true),
             )
-            .padding([0.0, space.xs])
+            .padding([0.0, space.xs - 1.0])
             .height(Length::Fill)
             .style(module_button_style);
 

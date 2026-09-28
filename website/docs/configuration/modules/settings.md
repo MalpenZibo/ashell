@@ -26,6 +26,7 @@ And lets you interact with these settings:
 - Toggle VPN connection
 - Toggle airplane mode
 - Change brightness
+- Change the keyboard backlight
 - Toggle bluetooth
 - Change power profile
 - Toggle idle inhibitor
@@ -101,6 +102,8 @@ The possible values are:
 - `IconAndPercentage` - Show both the battery icon and percentage (default)
 - `Time` - Show smart time display (time to full when charging, time to empty when discharging, "100%" when full)
 - `IconAndTime` - Show battery icon with smart time display
+- `PercentageAndTime` - Show the battery percentage along with smart time display
+- `IconAndPercentageAndTime` - Show battery icon with battery percentage and smart time display
 
 ```toml
 [settings]
@@ -265,6 +268,27 @@ The default value is `Icon`.
 [settings]
 brightness_indicator_format = "IconAndPercentage"
 ```
+
+## Keyboard Backlight
+
+With the `keyboard_backlight_slider` option you can show a slider for the
+built-in keyboard backlight, right below the brightness slider.
+
+The default value is `false`.
+
+```toml
+[settings]
+keyboard_backlight_slider = true
+```
+
+The slider is only rendered when the option is enabled **and** UPower reports a
+built-in keyboard backlight, so enabling it on a machine without one changes
+nothing. USB and Bluetooth keyboards are not covered: they handle their own
+backlight through firmware shortcuts.
+
+Clicking the icon on the left of the slider toggles the backlight off and back
+on, restoring the level it had before it was switched off. Scrolling over the
+slider changes the level in 5% steps.
 
 ## Peripheral Indicators
 

@@ -129,7 +129,8 @@ scale_factor = 1.0
 [appearance.bar]
 surface = "transparent"    # transparent or solid
 radius = "md"              # none|sm|md|lg|xl, CSS border-radius shorthand
-margin = "sm"              # none|xxs..xxl, CSS margin shorthand
+margin = "sm"              # none|xxs..xxl|number(pixels), CSS margin shorthand
+padding = "xxs"            # (default) same values, inset inside the bar
 
 [appearance.opacity]
 default = 0.9

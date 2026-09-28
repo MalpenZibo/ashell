@@ -97,7 +97,7 @@ radius = "md"                       # all corners
 
 The `margin` field insets the bar from the screen edges, turning it into a
 floating bar. Values are steps of the spacing scale: `none` (default), `xxs`,
-`xs`, `sm`, `md`, `lg`, `xl`, `xxl`.
+`xs`, `sm`, `md`, `lg`, `xl`, `xxl`; or pixels as a float: `10`, `16.5`, `20.0`, etc.
 
 It uses CSS `margin` shorthand: a single value applies to all edges, two values
 are `[vertical, horizontal]`, and four values are `[top, right, bottom, left]`.
@@ -105,8 +105,36 @@ are `[vertical, horizontal]`, and four values are `[top, right, bottom, left]`.
 ```toml
 [appearance.bar]
 margin = "sm"              # all edges
-# margin = ["xs", "md"]    # vertical, horizontal
+# margin = ["xs", 20.0]    # vertical, horizontal
 ```
+
+Margins are always in screen pixels and are **not** affected by
+`scale_factor`: the compositor applies them outside the bar, so a scale token
+like `sm` is the same distance at any scale. Changing `scale_factor` resizes the
+bar itself but leaves the gap around it unchanged.
+
+### Padding
+
+The `padding` field insets the bar *content* from the edges of the bar itself.
+It accepts the same values and CSS shorthand as `margin`, and defaults to `xxs`.
+
+The difference from `margin` is where the space lives. `margin` moves the whole
+bar away from the screen edge, so the gap belongs to the compositor: a solid bar
+stops spanning the full width, and the bar no longer receives clicks or scroll
+events at the screen edge. `padding` keeps the bar where it is and moves only
+its content, so a solid bar keeps its full-width background and the whole bar
+stays reachable by throwing the pointer at the screen edge.
+
+```toml
+[appearance.bar]
+padding = "xxs"            # (default) all edges
+# padding = ["xxs", "sm"]  # vertical, horizontal
+# padding = 6              # pixels
+```
+
+Padding is drawn inside the bar, so it scales with `scale_factor` like the rest
+of the interface. `margin` is applied by the compositor and is always in screen
+pixels.
 
 ### Opacity
 
