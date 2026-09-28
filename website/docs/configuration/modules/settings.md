@@ -64,7 +64,9 @@ you can set commands that are automatically executed after switching the audio o
 This is useful for working around PipeWire or WirePlumber issues where audio doesn't
 properly route to the new device without a service restart.
 
-The command is executed asynchronously (fire-and-forget) via `bash -c` after every sink or source switch.
+The command is executed asynchronously (fire-and-forget) via `bash -c` once the device
+selected in the menu has become the new default. If the audio server picks a different
+device instead (for example an output with nothing connected), the command is not run.
 
 ```toml
 [settings]
