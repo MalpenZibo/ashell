@@ -246,30 +246,32 @@ impl Tempo {
                                         .spacing(space.xxs)
                                         .align_y(Vertical::Center)
                                         .width(Length::FillPortion(5)),
-                                        row!(
-                                            svg(Handle::from_memory(include_bytes!(
-                                                "../../../assets/weather_icon/drop.svg"
-                                            )))
-                                            .height(font_size.md)
-                                            .width(Length::Fixed(font_size.md)),
-                                            text(format!("{humidity}%"))
+                                        column!(
+                                            row!(
+                                                svg(Handle::from_memory(include_bytes!(
+                                                    "../../../assets/weather_icon/drop.svg"
+                                                )))
+                                                .height(font_size.sm)
+                                                .width(Length::Fixed(font_size.sm)),
+                                                text(format!("{humidity}%")).size(font_size.sm)
+                                            )
+                                            .spacing(space.xxs)
+                                            .align_y(Vertical::Center),
+                                            row!(
+                                                svg(Handle::from_memory(include_bytes!(
+                                                    "../../../assets/weather_icon/wind.svg"
+                                                )))
+                                                .height(font_size.sm)
+                                                .width(Length::Fixed(font_size.sm))
+                                                .rotation(Rotation::Floating(
+                                                    Degrees(*wind_dir as f32 + 90.).into()
+                                                )),
+                                                text(format!("{} {wind}", wind_speed.round()))
+                                                    .size(font_size.sm)
+                                            )
+                                            .spacing(space.xxs)
+                                            .align_y(Vertical::Center)
                                         )
-                                        .spacing(space.xxs)
-                                        .align_y(Vertical::Center)
-                                        .width(Length::FillPortion(3)),
-                                        row!(
-                                            svg(Handle::from_memory(include_bytes!(
-                                                "../../../assets/weather_icon/wind.svg"
-                                            )))
-                                            .height(font_size.md)
-                                            .width(Length::Fixed(font_size.md))
-                                            .rotation(Rotation::Floating(
-                                                Degrees(*wind_dir as f32 + 90.).into()
-                                            )),
-                                            text(format!("{} {wind}", wind_speed.round()))
-                                        )
-                                        .spacing(space.xxs)
-                                        .align_y(Vertical::Center)
                                         .width(Length::FillPortion(3))
                                     )
                                     .spacing(space.sm)
