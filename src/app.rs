@@ -414,9 +414,11 @@ impl App {
                     // Keep canonical workspace identity separate from description-based
                     // target matching, which may include monitor serial numbers.
                     let name = info.name.as_str();
-                    let description = info
-                        .description
-                        .unwrap_or_else(|| format!("{} {} {}", info.name, info.make, info.model));
+                    // Preserve existing targets even when the compositor uses different separators.
+                    let description = match info.description {
+                        Some(d) => format!("{} {} {} {d}", info.name, info.make, info.model),
+                        None => format!("{} {} {}", info.name, info.make, info.model),
+                    };
 
                     let (bar_layout, bar_position, scale_factor) =
                         use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));

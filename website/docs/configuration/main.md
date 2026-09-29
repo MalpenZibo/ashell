@@ -137,6 +137,14 @@ Render the status bar on a specific list of monitors:
 outputs = { Targets = ["DP-1", "eDP-1"] }
 ```
 
+Targets match connector names or case-sensitive substrings of the combined
+`name make model` and compositor-provided Wayland description.
+
+Wayland descriptions have no standard format and may differ from labels shown by
+`hyprctl monitors` or `niri msg outputs`. Use `wayland-info` to inspect the
+advertised descriptions, preserving their spacing and punctuation in your targets.
+Serial-number targets only work when the serial is included in the Wayland description.
+
 ## Position & Layer
 
 Configure the bar position and Wayland layer.

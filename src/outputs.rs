@@ -68,9 +68,9 @@ impl OverlaySurface {
 /// Pair of strings identifying an output. `name` is the canonical
 /// short name reported by the compositor (e.g. `eDP-1`) — used for
 /// strict equality checks against workspace events (`has_name`) and
-/// as the layer-shell surface key. `description` is the compositor-provided
-/// description, falling back to name + make + model when unavailable — used
-/// only for substring matching of user-configured output targets.
+/// as the layer-shell surface key. `description` combines name + make + model
+/// with the compositor-provided description, when available — used only for
+/// substring matching of user-configured output targets.
 #[derive(Debug, Clone)]
 pub struct OutputKey {
     pub name: String,
