@@ -563,7 +563,22 @@ impl App {
                 _ => Task::none(),
             },
             Message::None => Task::none(),
-            Message::ToggleVisibility => self.outputs.toggle_visibility(),
+            Message::ToggleVisibility => {
+                let task = self.outputs.toggle_visibility();
+
+                if self.outputs.bar_is_shown() {
+                    task
+                } else {
+                    // A menu surface spans the whole output and keeps accepting
+                    // input there, so hiding the bar has to close it instead of
+                    // leaving it floating over the desktop.
+                    Task::batch(vec![
+                        task,
+                        self.outputs
+                            .close_all_menus(self.general_config.enable_esc_key),
+                    ])
+                }
+            }
         }
     }
 
