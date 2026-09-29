@@ -442,7 +442,7 @@ We also disable the airplane mode button and the idle inhibitor button.
 lock_cmd = "hyprlock &"
 audio_sinks_more_cmd = "pavucontrol -t 3"
 audio_sources_more_cmd = "pavucontrol -t 4"
-audio_sink_post_switch_cmd = "systemctl --user restart wireplumber"
+# audio_sink_post_switch_cmd = "systemctl --user restart wireplumber"
 wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
