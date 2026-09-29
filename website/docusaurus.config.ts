@@ -6,7 +6,7 @@ import type * as Preset from "@docusaurus/preset-classic";
 
 const config: Config = {
   title: "Ashell",
-  tagline: "A ready to go status bar for Wayland compositors",
+  tagline: "A ready to go desktop shell for Wayland",
   favicon: "img/favicon.svg",
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
