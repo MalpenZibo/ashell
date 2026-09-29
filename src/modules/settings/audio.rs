@@ -8,7 +8,7 @@ use crate::{
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        audio::{AudioCommand, AudioService, ChannelVolumesExt, DevicePortType, Port},
+        audio::{AudioCommand, AudioEvent, AudioService, ChannelVolumesExt, DevicePortType, Port},
     },
     t,
     theme::use_theme,
@@ -21,10 +21,16 @@ use iced::{
     widget::{Column, Text, column, container, row, text},
 };
 use libpulse_binding::volume::Volume;
+use std::time::{Duration, Instant};
 
 pub const NORMAL_VOLUME: u32 = Volume::NORMAL.0;
 
 const VOL_PERCENT: u32 = NORMAL_VOLUME / 100;
+
+/// How long a requested default device switch may take to show up in
+/// `ServerInfo`. After that the post switch command is no longer run for it,
+/// e.g. when WirePlumber picked a different device instead.
+const SWITCH_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -57,6 +63,8 @@ pub enum Action {
 pub struct AudioSettingsConfig {
     pub sinks_more_cmd: Option<String>,
     pub sources_more_cmd: Option<String>,
+    pub sink_post_switch_cmd: Option<String>,
+    pub source_post_switch_cmd: Option<String>,
     pub volume_step: u8,
     pub max_volume: u8,
     pub indicator_format: SettingsFormat,
@@ -64,9 +72,12 @@ pub struct AudioSettingsConfig {
 }
 
 impl AudioSettingsConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         sinks_more_cmd: Option<String>,
         sources_more_cmd: Option<String>,
+        sink_post_switch_cmd: Option<String>,
+        source_post_switch_cmd: Option<String>,
         volume_step: u8,
         max_volume: u8,
         indicator_format: SettingsFormat,
@@ -75,6 +86,8 @@ impl AudioSettingsConfig {
         Self {
             sinks_more_cmd,
             sources_more_cmd,
+            sink_post_switch_cmd,
+            source_post_switch_cmd,
             volume_step,
             max_volume,
             indicator_format,
@@ -86,6 +99,8 @@ impl AudioSettingsConfig {
 pub struct AudioSettings {
     config: AudioSettingsConfig,
     service: Option<AudioService>,
+    pending_sink_switch: Option<(String, Instant)>,
+    pending_source_switch: Option<(String, Instant)>,
 }
 
 pub struct SubmenuEntry {
@@ -106,6 +121,8 @@ impl AudioSettings {
         Self {
             config,
             service: None,
+            pending_sink_switch: None,
+            pending_source_switch: None,
         }
     }
 
@@ -209,17 +226,46 @@ impl AudioSettings {
         }
     }
 
+    /// Consumes the pending switch if `default` is the device it was waiting for.
+    fn take_switched(pending: &mut Option<(String, Instant)>, default: &str) -> bool {
+        pending.take_if(|(_, requested)| requested.elapsed() > SWITCH_TIMEOUT);
+        pending.take_if(|(name, _)| name == default).is_some()
+    }
+
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Event(event) => match event {
                 ServiceEvent::Init(service) => {
                     self.service = Some(service);
+                    self.pending_sink_switch = None;
+                    self.pending_source_switch = None;
 
                     Action::None
                 }
                 ServiceEvent::Update(data) => {
                     if let Some(service) = self.service.as_mut() {
+                        let (sink_switched, source_switched) = match &data {
+                            AudioEvent::ServerInfo(info) => (
+                                Self::take_switched(
+                                    &mut self.pending_sink_switch,
+                                    &info.default_sink,
+                                ),
+                                Self::take_switched(
+                                    &mut self.pending_source_switch,
+                                    &info.default_source,
+                                ),
+                            ),
+                            _ => (false, false),
+                        };
+
                         service.update(data);
+
+                        if sink_switched && let Some(cmd) = &self.config.sink_post_switch_cmd {
+                            crate::utils::launcher::execute_command(cmd);
+                        }
+                        if source_switched && let Some(cmd) = &self.config.source_post_switch_cmd {
+                            crate::utils::launcher::execute_command(cmd);
+                        }
 
                         if !service.has_multiple_sinks() {
                             return Action::CloseSubMenu;
@@ -255,6 +301,9 @@ impl AudioSettings {
             }
             Message::DefaultSinkChanged(name, port) => {
                 if let Some(service) = self.service.as_mut() {
+                    if name != service.server_info.default_sink {
+                        self.pending_sink_switch = Some((name.clone(), Instant::now()));
+                    }
                     let _ = service.command(AudioCommand::DefaultSink(name, port));
                 }
                 Action::None
@@ -281,6 +330,9 @@ impl AudioSettings {
             }
             Message::DefaultSourceChanged(name, port) => {
                 if let Some(service) = self.service.as_mut() {
+                    if name != service.server_info.default_source {
+                        self.pending_source_switch = Some((name.clone(), Instant::now()));
+                    }
                     let _ = service.command(AudioCommand::DefaultSource(name, port));
                 }
                 Action::None
