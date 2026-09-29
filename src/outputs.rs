@@ -227,10 +227,9 @@ impl Outputs {
         }
     }
 
-    /// Create a bar surface. `LayerShellSettings` has no input region, and
-    /// commands batched with the creation run before the surface exists, so a
-    /// hidden bar gets its region once it enters an output (see
-    /// `surface_entered_output`).
+    /// Create a bar surface. `LayerShellSettings` has no input region, so it
+    /// is sent as a command batched with the creation; iced_layershell replays
+    /// commands for a surface that doesn't exist yet once it is created.
     fn create_output_layers<Message: 'static>(
         layout: BarLayout,
         output_id: Option<OutputId>,
@@ -258,7 +257,10 @@ impl Outputs {
             anchor: geometry.anchor,
         });
 
-        (id, main_task)
+        (
+            id,
+            Task::batch(vec![main_task, set_input_region(id, geometry.input_region)]),
+        )
     }
 
     /// Match a user-supplied output spec against an output's name +
@@ -968,22 +970,12 @@ impl Outputs {
 
     /// Track which output the toast/OSD overlay is mapped on, populated from
     /// `OutputEvent::SurfaceEnteredOutput` after the compositor maps the
-    /// surface. Also the first point where a new bar surface can take its
-    /// input region.
+    /// surface.
     pub fn surface_entered_output<Message: 'static>(
         &mut self,
         surface_id: SurfaceId,
         output_id: OutputId,
     ) -> Task<Message> {
-        if self.visibility == BarVisibility::Hidden
-            && let Some((_, Some(si), _)) = self
-                .entries
-                .iter()
-                .find(|(_, si, _)| si.as_ref().is_some_and(|si| si.id == surface_id))
-        {
-            return si.geometry(self.visibility).apply(surface_id);
-        }
-
         let mut toast_output_changed = false;
         if let Some(toast) = self.toast.as_mut()
             && toast.id == surface_id
