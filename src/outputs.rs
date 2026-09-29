@@ -789,12 +789,16 @@ impl Outputs {
         self.toast_width = width;
 
         // Anchor both vertical edges so height 0 → full output height.
+        // Center toasts skip the horizontal anchor so the compositor centers them.
         let anchor = match position {
             config::ToastPosition::TopLeft | config::ToastPosition::BottomLeft => {
                 Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT
             }
             config::ToastPosition::TopRight | config::ToastPosition::BottomRight => {
                 Anchor::TOP | Anchor::BOTTOM | Anchor::RIGHT
+            }
+            config::ToastPosition::TopCenter | config::ToastPosition::BottomCenter => {
+                Anchor::TOP | Anchor::BOTTOM
             }
         };
 
@@ -837,10 +841,17 @@ impl Outputs {
             config::ToastPosition::TopRight | config::ToastPosition::BottomRight => {
                 (self.toast_width as i32 - content_w).max(0)
             }
+            config::ToastPosition::TopCenter | config::ToastPosition::BottomCenter => {
+                (self.toast_width as i32 - content_w).max(0) / 2
+            }
         };
         let y = match position {
-            config::ToastPosition::TopLeft | config::ToastPosition::TopRight => 0,
-            config::ToastPosition::BottomLeft | config::ToastPosition::BottomRight => self
+            config::ToastPosition::TopLeft
+            | config::ToastPosition::TopRight
+            | config::ToastPosition::TopCenter => 0,
+            config::ToastPosition::BottomLeft
+            | config::ToastPosition::BottomRight
+            | config::ToastPosition::BottomCenter => self
                 .toast_usable_height(toast.output)
                 .map_or(0, |h| (h as i32) - content_h),
         };

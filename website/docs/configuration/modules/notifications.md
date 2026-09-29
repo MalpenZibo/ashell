@@ -82,9 +82,9 @@ Whether to show transient toast popups when notifications arrive.
 
 ### toast_position
 
-The corner of the screen where toast notifications appear.
+The corner or edge of the screen where toast notifications appear.
 
-**Type:** `string` — one of `"TopLeft"`, `"TopRight"`, `"BottomLeft"`, `"BottomRight"`
+**Type:** `string` — one of `"TopLeft"`, `"TopRight"`, `"TopCenter"`, `"BottomLeft"`, `"BottomRight"`, `"BottomCenter"`
 **Default:** `"TopRight"`
 
 ### toast_timeout

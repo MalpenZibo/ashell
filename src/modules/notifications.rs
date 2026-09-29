@@ -700,6 +700,8 @@ impl Notifications {
         let slide_direction = match self.config.toast_position {
             ToastPosition::TopRight | ToastPosition::BottomRight => SlideDirection::Right,
             ToastPosition::TopLeft | ToastPosition::BottomLeft => SlideDirection::Left,
+            ToastPosition::TopCenter => SlideDirection::Up,
+            ToastPosition::BottomCenter => SlideDirection::Down,
         };
         let card_width = MenuSize::Medium.size();
         // A toast is alone on its surface, so it publishes its own blur region.
@@ -738,12 +740,17 @@ impl Notifications {
         }
 
         let v_align = match self.config.toast_position {
-            ToastPosition::TopLeft | ToastPosition::TopRight => Alignment::Start,
-            ToastPosition::BottomLeft | ToastPosition::BottomRight => Alignment::End,
+            ToastPosition::TopLeft | ToastPosition::TopRight | ToastPosition::TopCenter => {
+                Alignment::Start
+            }
+            ToastPosition::BottomLeft
+            | ToastPosition::BottomRight
+            | ToastPosition::BottomCenter => Alignment::End,
         };
         let h_align = match self.config.toast_position {
             ToastPosition::TopLeft | ToastPosition::BottomLeft => Alignment::Start,
             ToastPosition::TopRight | ToastPosition::BottomRight => Alignment::End,
+            ToastPosition::TopCenter | ToastPosition::BottomCenter => Alignment::Center,
         };
 
         let toast_content = sensor(

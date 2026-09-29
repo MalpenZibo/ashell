@@ -14,6 +14,8 @@ type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Th
 pub enum SlideDirection {
     Left,
     Right,
+    Up,
+    Down,
 }
 
 struct State {
@@ -56,8 +58,15 @@ where
 
     fn off_screen(&self) -> f32 {
         match self.direction {
-            SlideDirection::Right => self.slide_distance,
-            SlideDirection::Left => -self.slide_distance,
+            SlideDirection::Right | SlideDirection::Down => self.slide_distance,
+            SlideDirection::Left | SlideDirection::Up => -self.slide_distance,
+        }
+    }
+
+    fn offset_vector(&self, offset: f32) -> Vector {
+        match self.direction {
+            SlideDirection::Left | SlideDirection::Right => Vector::new(offset, 0.0),
+            SlideDirection::Up | SlideDirection::Down => Vector::new(0.0, offset),
         }
     }
 }
@@ -148,7 +157,7 @@ where
             off_screen
         };
 
-        let translated_child = child_node.translate(Vector::new(offset, 0.0));
+        let translated_child = child_node.translate(self.offset_vector(offset));
         layout::Node::with_children(child_size, vec![translated_child])
     }
 
