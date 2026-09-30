@@ -1,7 +1,7 @@
-use super::{BatteryHealth, ChargeLimit};
+use super::BatteryHealth;
 use log::debug;
 use std::ops::Deref;
-use zbus::{ObjectPath, OwnedObjectPath, proxy};
+use zbus::{OwnedObjectPath, proxy};
 
 pub struct UPowerDbus<'a>(UPowerProxy<'a>);
 
@@ -13,11 +13,20 @@ impl<'a> Deref for UPowerDbus<'a> {
     }
 }
 
+pub struct ChargeThreshold {
+    pub enabled: bool,
+    pub device: DeviceProxy<'static>,
+}
+
 #[derive(Default)]
 pub struct SystemBattery(Vec<DeviceProxy<'static>>);
 
 impl SystemBattery {
-    pub async fn charge_limit(&self) -> Option<ChargeLimit> {
+    pub fn devices(&self) -> &[DeviceProxy<'static>] {
+        &self.0
+    }
+
+    pub async fn charge_threshold(&self) -> Option<ChargeThreshold> {
         for device in &self.0 {
             let Ok(introspection) = device.inner().introspect().await else {
                 continue;
@@ -35,9 +44,9 @@ impl SystemBattery {
                 continue;
             };
 
-            return Some(ChargeLimit {
+            return Some(ChargeThreshold {
                 enabled,
-                device_path: device.inner().path().to_owned(),
+                device: device.clone(),
             });
         }
 
@@ -208,13 +217,6 @@ impl SystemBattery {
             energy_full_design,
             charge_cycles,
         })
-    }
-
-    pub fn get_devices_path(self) -> Vec<ObjectPath<'static>> {
-        self.0
-            .into_iter()
-            .map(|device| device.inner().path().to_owned())
-            .collect()
     }
 }
 
@@ -428,18 +430,6 @@ impl UPowerDbus<'_> {
         .await
     }
 
-    pub async fn get_device(
-        &self,
-        path: &ObjectPath<'static>,
-    ) -> anyhow::Result<DeviceProxy<'static>> {
-        let device = DeviceProxy::builder(self.inner().connection())
-            .path(path)
-            .build()
-            .await?;
-
-        Ok(device)
-    }
-
     async fn get_battery_devices(
         &self,
         f: fn(UpDeviceKind, bool) -> bool,
@@ -450,19 +440,16 @@ impl UPowerDbus<'_> {
 
         let mut res = Vec::new();
 
-        for device in devices {
-            let device = DeviceProxy::builder(self.inner().connection())
-                .path(device)
-                .build()
-                .await?;
-
-            let device_type = device
-                .device_type()
-                .await?
-                .try_into()
-                .unwrap_or(UpDeviceKind::Unknown);
-
-            let power_supply = device.power_supply().await?;
+        for path in devices {
+            // A device can vanish between EnumerateDevices and its property reads
+            let (device, device_type, power_supply) = match self.battery_device(path.clone()).await
+            {
+                Ok(device) => device,
+                Err(err) => {
+                    debug!("Skipping upower device {path}: {err}");
+                    continue;
+                }
+            };
 
             debug!(
                 "Device: {}, Type: {}, Power Supply: {}",
@@ -477,6 +464,26 @@ impl UPowerDbus<'_> {
         }
 
         Ok(res)
+    }
+
+    async fn battery_device(
+        &self,
+        path: OwnedObjectPath,
+    ) -> zbus::Result<(DeviceProxy<'static>, UpDeviceKind, bool)> {
+        let device = DeviceProxy::builder(self.inner().connection())
+            .path(path)
+            .build()
+            .await?;
+
+        let device_type = device
+            .device_type()
+            .await?
+            .try_into()
+            .unwrap_or(UpDeviceKind::Unknown);
+
+        let power_supply = device.power_supply().await?;
+
+        Ok((device, device_type, power_supply))
     }
 }
 

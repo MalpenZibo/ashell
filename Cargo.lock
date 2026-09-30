@@ -160,7 +160,6 @@ dependencies = [
  "linicon-theme",
  "log",
  "niri-ipc",
- "pin-project-lite",
  "pipewire",
  "qrcode",
  "regex",
@@ -195,6 +194,8 @@ dependencies = [
  "futures",
  "inotify",
  "log",
+ "pin-project-lite",
+ "serde",
  "tokio",
  "zbus",
 ]
