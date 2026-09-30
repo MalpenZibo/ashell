@@ -61,7 +61,10 @@ depends = [
 ]
 
 [dependencies]
-ashell-services = { path = "crates/ashell-services", features = ["bluetooth"] }
+ashell-services = { path = "crates/ashell-services", features = [
+  "bluetooth",
+  "rfkill",
+] }
 iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.6.0", features = [
   "tokio",
   "advanced",
