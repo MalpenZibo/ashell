@@ -15,8 +15,8 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 | IWD | `net.connman.iwd.Network` | `services/network/iwd_dbus/` | WiFi network connections | `iwd` |
 | IWD | `net.connman.iwd.KnownNetwork` | `services/network/iwd_dbus/` | Saved networks | `iwd` |
 | IWD | `net.connman.iwd.Device` | `services/network/iwd_dbus/` | Wireless device | `iwd` |
-| UPower | `org.freedesktop.UPower` | `services/upower/dbus.rs` | Power daemon | `upower` |
-| UPower | `org.freedesktop.UPower.Device` | `services/upower/dbus.rs` | Battery/device info | `upower` |
+| UPower | `org.freedesktop.UPower` | `crates/ashell-services/src/upower/dbus.rs` | Power daemon | `upower` |
+| UPower | `org.freedesktop.UPower.Device` | `crates/ashell-services/src/upower/dbus.rs` | Battery/device info | `upower` |
 | logind | `org.freedesktop.login1.Manager` | `services/logind.rs` | Sleep/wake detection, power actions | systemd-logind |
 | logind | `org.freedesktop.login1.Session` | `services/brightness.rs` | Brightness control via SetBrightness | systemd-logind |
 

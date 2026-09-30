@@ -73,7 +73,6 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 | `linicon-theme` | 1.2.0 | Icon theme resolution |
 | `shellexpand` | 3 | Tilde/env var expansion in paths |
 | `parking_lot` | 0.12.5 | Synchronization primitives |
-| `pin-project-lite` | 0.2.16 | Pin projection (for throttle stream) |
 | `libc` | 0.2.182 | System call interfaces |
 
 ## Build Dependencies

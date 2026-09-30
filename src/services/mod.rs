@@ -10,7 +10,6 @@ pub mod mpris;
 pub mod network;
 pub mod notifications;
 pub mod privacy;
-mod throttle;
 pub mod tray;
 pub mod upower;
 pub mod xdg_icons;

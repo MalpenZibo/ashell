@@ -9,7 +9,10 @@ use crate::{
     config::{PeripheralIndicators, SettingsFormat},
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        upower::{BatteryData, BatteryStatus, PowerProfile, UPowerCommand, UPowerService},
+        upower::{
+            BatteryData, BatteryDataExt, BatteryStatus, PeripheralDeviceKindExt, PeripheralExt,
+            PowerProfile, UPowerCommand, UPowerService,
+        },
     },
     t,
     theme::use_theme,
