@@ -2,16 +2,16 @@ use crate::{rfkill, stream::channel};
 use dbus::{BatteryProxy, BluetoothDbus, DeviceProxy};
 use futures::{
     SinkExt, Stream, StreamExt,
-    stream::{pending, select_all},
+    stream::{BoxStream, select_all},
     stream_select,
 };
-use log::{error, info};
-use std::pin::Pin;
+use log::{debug, error, info, warn};
+use std::time::Duration;
 use zbus::zvariant::OwnedObjectPath;
 
 mod dbus;
 
-type EventStream = Pin<Box<dyn Stream<Item = ()> + Send>>;
+const DISCOVERY_DURATION: Duration = Duration::from_secs(15);
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum BluetoothState {
@@ -20,7 +20,7 @@ pub enum BluetoothState {
     Inactive,
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct BluetoothDevice {
     pub name: String,
     pub battery: Option<u8>,
@@ -29,11 +29,37 @@ pub struct BluetoothDevice {
     pub paired: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct BluetoothData {
     pub state: BluetoothState,
     pub devices: Vec<BluetoothDevice>,
     pub discovering: bool,
+}
+
+impl Default for BluetoothData {
+    fn default() -> Self {
+        Self {
+            state: BluetoothState::Unavailable,
+            devices: Vec::new(),
+            discovering: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum BluetoothCommand {
+    Toggle,
+    StartDiscovery,
+    PairDevice(OwnedObjectPath),
+    ConnectDevice(OwnedObjectPath),
+    DisconnectDevice(OwnedObjectPath),
+    RemoveDevice(OwnedObjectPath),
+}
+
+#[derive(PartialEq, Eq)]
+enum Change {
+    Topology,
+    Property,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +78,7 @@ impl Bluetooth {
         Self::read_data(&self.conn).await
     }
 
+    /// Yields the current state once subscribed, then a fresh snapshot on every change.
     pub fn updates(&self) -> impl Stream<Item = BluetoothData> + Send + 'static {
         let conn = self.conn.clone();
 
@@ -59,23 +86,54 @@ impl Bluetooth {
             loop {
                 info!("Listening for bluetooth events");
 
-                let mut events = match Self::events(&conn).await {
-                    Ok(events) => events,
+                let mut changes = match Self::changes(&conn).await {
+                    Ok(changes) => changes,
                     Err(err) => {
                         error!("Failed to listen for bluetooth events: {err}");
                         return;
                     }
                 };
 
-                while events.next().await.is_some() {
-                    if let Ok(data) = Self::read_data(&conn).await
-                        && output.send(data).await.is_err()
-                    {
-                        return;
+                loop {
+                    match Self::read_data(&conn).await {
+                        Ok(data) => {
+                            if output.send(data).await.is_err() {
+                                return;
+                            }
+                        }
+                        Err(err) => warn!("Failed to read bluetooth data: {err}"),
+                    }
+
+                    match changes.next().await {
+                        Some(Change::Property) => {}
+                        Some(Change::Topology) | None => break,
                     }
                 }
             }
         })
+    }
+
+    pub async fn execute(&self, command: BluetoothCommand) -> anyhow::Result<()> {
+        debug!("Bluetooth command: {command:?}");
+
+        match command {
+            BluetoothCommand::Toggle => {
+                match Self::read_state(&BluetoothDbus::new(&self.conn).await?).await? {
+                    BluetoothState::Unavailable => Ok(()),
+                    BluetoothState::Active => self.set_powered(false).await,
+                    BluetoothState::Inactive => self.set_powered(true).await,
+                }
+            }
+            BluetoothCommand::StartDiscovery => {
+                self.start_discovery().await?;
+                tokio::time::sleep(DISCOVERY_DURATION).await;
+                self.stop_discovery().await
+            }
+            BluetoothCommand::PairDevice(device) => self.pair_device(&device).await,
+            BluetoothCommand::ConnectDevice(device) => self.connect_device(&device).await,
+            BluetoothCommand::DisconnectDevice(device) => self.disconnect_device(&device).await,
+            BluetoothCommand::RemoveDevice(device) => self.remove_device(&device).await,
+        }
     }
 
     pub async fn set_powered(&self, powered: bool) -> anyhow::Result<()> {
@@ -141,17 +199,21 @@ impl Bluetooth {
         Ok(())
     }
 
+    async fn read_state(bluetooth: &BluetoothDbus<'_>) -> anyhow::Result<BluetoothState> {
+        let state = bluetooth.state().await?;
+
+        Ok(match state {
+            BluetoothState::Active if rfkill::bluetooth_soft_blocked().await? => {
+                BluetoothState::Inactive
+            }
+            state => state,
+        })
+    }
+
     async fn read_data(conn: &zbus::Connection) -> anyhow::Result<BluetoothData> {
         let bluetooth = BluetoothDbus::new(conn).await?;
 
-        let state = bluetooth.state().await?;
-        let rfkill_soft_block = rfkill::bluetooth_soft_blocked().await?;
-
-        let state = match state {
-            BluetoothState::Unavailable => BluetoothState::Unavailable,
-            BluetoothState::Active if rfkill_soft_block => BluetoothState::Inactive,
-            state => state,
-        };
+        let state = Self::read_state(&bluetooth).await?;
         let devices = bluetooth.devices().await?;
         let discovering = bluetooth.discovering().await.unwrap_or(false);
 
@@ -162,10 +224,10 @@ impl Bluetooth {
         })
     }
 
-    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = ()> + use<>> {
+    async fn changes(conn: &zbus::Connection) -> anyhow::Result<BoxStream<'static, Change>> {
         let bluetooth = BluetoothDbus::new(conn).await?;
 
-        let interface_changed = stream_select!(
+        let topology = stream_select!(
             bluetooth
                 .bluez
                 .receive_interfaces_added()
@@ -177,68 +239,76 @@ impl Bluetooth {
                 .await?
                 .map(|_| {}),
         )
-        .boxed();
+        .map(|_| Change::Topology);
 
-        let combined = match bluetooth.adapter.as_ref() {
-            Some(adapter) => {
-                let powered = adapter.receive_powered_changed().await.map(|_| {});
-                let discovering = adapter.receive_discovering_changed().await.map(|_| {});
-                let rfkill = rfkill::soft_block_changes().await?;
-                let devices = bluetooth.devices().await?;
-
-                let mut batteries: Vec<EventStream> = Vec::with_capacity(devices.len());
-                let mut device_properties: Vec<EventStream> = Vec::with_capacity(devices.len());
-                for device in devices {
-                    let conn = bluetooth.bluez.inner().connection();
-
-                    let battery = BatteryProxy::builder(conn)
-                        .path(device.path.clone())?
-                        .build()
-                        .await?;
-                    batteries.push(
-                        battery
-                            .receive_percentage_changed()
-                            .await
-                            .map(|_| {})
-                            .boxed(),
-                    );
-
-                    let device_proxy = DeviceProxy::builder(conn)
-                        .path(device.path)?
-                        .build()
-                        .await?;
-                    let connected_changed: EventStream = device_proxy
-                        .receive_connected_changed()
-                        .await
-                        .map(|_| {})
-                        .boxed();
-                    device_properties.push(connected_changed);
-                }
-
-                let battery_events = if batteries.is_empty() {
-                    pending().boxed()
-                } else {
-                    select_all(batteries).boxed()
-                };
-
-                let device_property_events = if device_properties.is_empty() {
-                    pending().boxed()
-                } else {
-                    select_all(device_properties).boxed()
-                };
-
-                Box::pin(stream_select!(
-                    interface_changed,
-                    powered,
-                    discovering,
-                    rfkill,
-                    battery_events,
-                    device_property_events,
-                ))
-            }
-            _ => interface_changed,
+        let Some(adapter) = bluetooth.adapter.as_ref() else {
+            return Ok(topology.boxed());
         };
 
-        Ok(combined)
+        // Property streams yield their current value first: skip it, updates() reads a snapshot
+        let mut properties: Vec<BoxStream<'static, ()>> = vec![
+            adapter
+                .receive_powered_changed()
+                .await
+                .skip(1)
+                .map(|_| {})
+                .boxed(),
+            adapter
+                .receive_discovering_changed()
+                .await
+                .skip(1)
+                .map(|_| {})
+                .boxed(),
+            rfkill::soft_block_changes().await?.boxed(),
+        ];
+
+        let conn = bluetooth.bluez.inner().connection();
+        for device in bluetooth.devices().await? {
+            let device_proxy = DeviceProxy::builder(conn)
+                .path(device.path.clone())?
+                .build()
+                .await?;
+            properties.push(
+                device_proxy
+                    .receive_connected_changed()
+                    .await
+                    .skip(1)
+                    .map(|_| {})
+                    .boxed(),
+            );
+            properties.push(
+                device_proxy
+                    .receive_paired_changed()
+                    .await
+                    .skip(1)
+                    .map(|_| {})
+                    .boxed(),
+            );
+            properties.push(
+                device_proxy
+                    .receive_alias_changed()
+                    .await
+                    .skip(1)
+                    .map(|_| {})
+                    .boxed(),
+            );
+
+            let battery = BatteryProxy::builder(conn)
+                .path(device.path)?
+                .build()
+                .await?;
+            properties.push(
+                battery
+                    .receive_percentage_changed()
+                    .await
+                    .skip(1)
+                    .map(|_| {})
+                    .boxed(),
+            );
+        }
+
+        let properties = select_all(properties).map(|_| Change::Property);
+
+        Ok(stream_select!(topology, properties).boxed())
     }
 }
