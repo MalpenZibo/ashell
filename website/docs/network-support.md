@@ -32,6 +32,7 @@ unavailable.
 | VPN management | ✅ | ❌ |
 | Airplane mode | ✅ | ✅ |
 | Connectivity state | ✅ | ✅ |
+| Share Wi-Fi (QR code) | ✅ | ❌ |
 
 A ❌ means the backend does not support that feature; the corresponding UI
 element is hidden or unavailable when running under that backend.
@@ -42,4 +43,7 @@ element is hidden or unavailable when running under that backend.
   wired connections.
 - **VPN management** - VPN support (including WireGuard) requires NetworkManager.
   The VPN toggle and sub-menu are hidden when running under IWD.
-
+- **Share Wi-Fi** - The QR code needs the saved passphrase, which NetworkManager
+  hands out over D-Bus. IWD keeps passphrases in root-only files and has no D-Bus
+  call to read them, so the share button is hidden under IWD. See
+  [Share Wi-Fi](./configuration/modules/settings.md#share-wi-fi).
