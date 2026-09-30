@@ -428,7 +428,7 @@ impl Dispatch<ExtWorkspaceManagerV1, ()> for GenericState {
             }
             ext_workspace_manager_v1::Event::Workspace { workspace } => {
                 let id = workspace.id();
-                // Start at 1: the UI treats id <= 0 as a special workspace.
+                // Start at 1: the UI only treats positive ids as numbered.
                 state.next_workspace_id += 1;
                 let numeric_id = state.next_workspace_id;
                 state.workspaces.insert(

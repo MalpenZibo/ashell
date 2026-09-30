@@ -38,6 +38,11 @@ fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
                 id,
             )))?;
         }
+        CompositorCommand::FocusNamedWorkspace(name) => {
+            Dispatch::call(DispatchType::Workspace(
+                WorkspaceIdentifierWithSpecial::Name(name.as_str()),
+            ))?;
+        }
         CompositorCommand::FocusSpecialWorkspace(name) => {
             Dispatch::call(DispatchType::Workspace(
                 WorkspaceIdentifierWithSpecial::Special(Some(name.as_str())),
@@ -74,6 +79,10 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
     let lua = match cmd {
         CompositorCommand::FocusWorkspace(id) => {
             format!("hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))")
+        }
+        CompositorCommand::FocusNamedWorkspace(name) => {
+            let name = escape_lua_string(&name);
+            format!("hl.dispatch(hl.dsp.focus({{ workspace = \"name:{name}\" }}))")
         }
         CompositorCommand::FocusSpecialWorkspace(name) => {
             let name = escape_lua_string(&name);
@@ -227,6 +236,15 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
         .map_err(|e| anyhow::anyhow!(e))
 }
 
+const SPECIAL_WORKSPACE_ID_START: i32 = -99;
+const SPECIAL_WORKSPACE_ID_END: i32 = -2;
+
+/// Mirrors Hyprland's `CWorkspaceQueryCore::isSpecial`. Named workspaces are
+/// negative too (from -1337 down), so `id < 0` is not enough.
+fn is_special_workspace_id(id: i32) -> bool {
+    (SPECIAL_WORKSPACE_ID_START..=SPECIAL_WORKSPACE_ID_END).contains(&id)
+}
+
 fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorState> {
     let collect_classes = super::should_collect_window_classes();
 
@@ -256,7 +274,7 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
                 monitor: w.monitor,
                 monitor_id: w.monitor_id,
                 windows: w.windows,
-                is_special: w.id < 0,
+                is_special: is_special_workspace_id(w.id),
                 has_urgent: false,
                 window_classes,
             }
@@ -315,7 +333,7 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
 
 #[cfg(test)]
 mod tests {
-    use super::escape_lua_string;
+    use super::{escape_lua_string, is_special_workspace_id};
 
     #[test]
     fn quotes_and_backslashes_are_escaped() {
@@ -330,5 +348,26 @@ mod tests {
     #[test]
     fn plain_names_are_untouched() {
         assert_eq!(escape_lua_string("special:2"), "special:2");
+    }
+
+    #[test]
+    fn special_workspace_ids_are_special() {
+        for id in [-99, -50, -3, -2] {
+            assert!(is_special_workspace_id(id), "{id} should be special");
+        }
+    }
+
+    #[test]
+    fn named_workspace_ids_are_not_special() {
+        for id in [-1, -100, -1337, -1338, -2000] {
+            assert!(!is_special_workspace_id(id), "{id} should not be special");
+        }
+    }
+
+    #[test]
+    fn numbered_workspace_ids_are_not_special() {
+        for id in [0, 1, 10] {
+            assert!(!is_special_workspace_id(id), "{id} should not be special");
+        }
     }
 }
