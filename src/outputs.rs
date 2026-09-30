@@ -103,11 +103,9 @@ impl OverlaySurface {
 /// Pair of strings identifying an output. `name` is the canonical
 /// short name reported by the compositor (e.g. `eDP-1`) — used for
 /// strict equality checks against workspace events (`has_name`) and
-/// as the layer-shell surface key. `description` includes the EDID
-/// (e.g. `eDP-1 Make Model Serial`) — used only for the fuzzy
-/// substring matching in `name_in_config`, so users can alias
-/// outputs by any string that appears in the EDID (the behaviour
-/// added by #312).
+/// as the layer-shell surface key. `description` combines name + make + model
+/// with the compositor-provided description, when available — used only for
+/// substring matching of user-configured output targets.
 #[derive(Debug, Clone)]
 pub struct OutputKey {
     pub name: String,
@@ -266,9 +264,7 @@ impl Outputs {
     /// Match a user-supplied output spec against an output's name +
     /// description pair. Returns true when:
     ///   - the spec equals the canonical name (`info.name`), OR
-    ///   - the spec appears anywhere in the description (`info.name +
-    ///     info.make + info.model`), preserving #312's fuzzy alias
-    ///     matching by EDID substring.
+    ///   - the spec appears anywhere in the description.
     fn matches_spec(name: &str, description: &str, spec: &str) -> bool {
         name == spec || description.contains(spec)
     }
