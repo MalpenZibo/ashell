@@ -15,7 +15,11 @@ Using the `mode` field, you can choose what information to display:
 - `InitialTitle`: The window's initial title text (ex - *kitty* instead of *hyprctl clients*)
 - `InitialClass`: The initial application name or class. This is unlikely to differ from the current class but Hyprland exposes it
 
-Note that *InitialTitle* and *InitialClass* are Hyprland-only and should not be used when running Niri.
+Note that *InitialTitle* and *InitialClass* come from Hyprland-specific data.
+On every other backend (Niri, MangoWC and the generic Wayland fallback) they
+resolve to an empty value (and log a warning), so the window title area stays
+blank. See
+[Compositor Support](../../compositor-support.md).
 
 ## Title Length Control
 
