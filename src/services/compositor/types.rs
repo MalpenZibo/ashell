@@ -130,6 +130,7 @@ pub enum CompositorEvent {
 #[allow(dead_code)]
 pub enum CompositorCommand {
     FocusWorkspace(i32),
+    FocusNamedWorkspace(String),
     FocusSpecialWorkspace(String),
     FocusMonitor(i128),
     ToggleSpecialWorkspace(String),
