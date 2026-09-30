@@ -72,7 +72,6 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 | `freedesktop-icons` | 0.4 | XDG icon lookup |
 | `linicon-theme` | 1.2.0 | Icon theme resolution |
 | `shellexpand` | 3 | Tilde/env var expansion in paths |
-| `pin-project-lite` | 0.2.16 | Pin projection (for throttle stream) |
 | `libc` | 0.2.182 | System call interfaces |
 
 ## Build Dependencies

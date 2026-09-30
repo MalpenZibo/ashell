@@ -99,13 +99,10 @@ src/
 │   ├── tray/
 │   │   ├── mod.rs            # System tray service
 │   │   └── dbus.rs           # StatusNotifierItem D-Bus proxies
-│   ├── upower/
-│   │   ├── mod.rs            # Battery/power service
-│   │   └── dbus.rs           # UPower D-Bus proxies
+│   ├── upower.rs            # iced glue for the ashell-services UPower service
 │   ├── privacy.rs           # Privacy monitoring (PipeWire)
 │   ├── idle_inhibitor.rs    # Idle/sleep prevention
 │   ├── logind.rs            # systemd-logind (sleep/wake detection)
-│   ├── throttle.rs          # Stream rate-limiting utility
 │   └── xdg_icons.rs         # XDG icon theme lookup and caching
 │
 └── utils/
