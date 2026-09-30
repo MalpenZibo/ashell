@@ -320,7 +320,14 @@ impl App {
             )),
             ModuleName::Notifications => Some((
                 self.notifications.view().map(Message::Notifications),
-                Some(OnModulePress::ToggleMenu(MenuType::Notifications)),
+                Some(OnModulePress::ToggleMenuWithExtra {
+                    menu_type: MenuType::Notifications,
+                    on_right_press: Some(Box::new(Message::Notifications(
+                        notifications::Message::ToggleDnd,
+                    ))),
+                    on_scroll_up: None,
+                    on_scroll_down: None,
+                }),
             )),
         }
     }
