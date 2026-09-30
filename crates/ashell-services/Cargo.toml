@@ -11,7 +11,7 @@ publish = false
 
 [features]
 full = ["bluetooth", "rfkill"]
-bluetooth = ["rfkill", "dep:anyhow", "dep:log", "dep:tokio", "dep:zbus"]
+bluetooth = ["rfkill", "dep:anyhow", "dep:log", "dep:tokio", "dep:zbus", "tokio/time"]
 rfkill = ["dep:anyhow", "dep:inotify", "dep:log", "dep:tokio", "tokio/process"]
 
 [dependencies]
