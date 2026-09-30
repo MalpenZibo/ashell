@@ -106,6 +106,8 @@ impl App {
 
             let notifications = Notifications::new(config.notifications, config.animations.enabled);
 
+            let notifications_module_enabled = config.modules.contains(&ModuleName::Notifications);
+
             let needs_icons = config.modules.contains(&ModuleName::Tray)
                 || config.workspaces.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
             let warm_icons = if needs_icons {
@@ -135,7 +137,7 @@ impl App {
                     tray: TrayModule::new(config.tray),
                     tempo: Tempo::new(config.tempo),
                     privacy: Privacy::default(),
-                    settings: Settings::new(config.settings),
+                    settings: Settings::new(config.settings, notifications_module_enabled),
                     notifications,
                     media_player: MediaPlayer::new(config.media_player),
                     osd: Osd::new(config.osd),
@@ -211,6 +213,11 @@ impl App {
 
         self.tempo
             .update(modules::tempo::Message::ConfigReloaded(config.tempo));
+        self.settings.set_notifications_module_enabled(
+            self.general_config
+                .modules
+                .contains(&ModuleName::Notifications),
+        );
         self.settings
             .update(modules::settings::Message::ConfigReloaded(Box::new(
                 config.settings,
@@ -440,6 +447,11 @@ impl App {
                 modules::settings::Action::CloseTooltipMenu(id, menu_type) => self
                     .outputs
                     .close_menu(id, Some(menu_type), self.general_config.enable_esc_key),
+                modules::settings::Action::SetDnd(dnd) => {
+                    self.settings.set_dnd(dnd);
+                    self.notifications.set_do_not_disturb(dnd);
+                    Task::none()
+                }
             },
             Message::OutputEvent(event) => match event {
                 OutputEvent::Added(info) => {
@@ -538,6 +550,11 @@ impl App {
                     let position = self.notifications.toast_position();
                     self.outputs
                         .update_toast_input_region(content_size, position)
+                }
+                modules::notifications::Action::SetDnd(dnd) => {
+                    self.settings.set_dnd(dnd);
+                    self.notifications.set_do_not_disturb(dnd);
+                    Task::none()
                 }
             },
             Message::IpcOsdCommand(cmd) => {

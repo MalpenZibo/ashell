@@ -100,6 +100,9 @@ settings-power-charge-cycles =
 ## Settings — idle inhibitor
 settings-idle-inhibitor = Idle Inhibitor
 
+## Settings — do not disturb
+settings-dnd = Do Not Disturb
+
 ## Settings — tooltips
 settings-tooltip-empty = Nothing to show
 settings-tooltip-empty-audio = No active audio device
