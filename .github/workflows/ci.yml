@@ -27,6 +27,7 @@ jobs:
           filters: |
             code:
               - 'src/**'
+              - 'crates/**'
               - 'assets/**'
               - 'build.rs'
               - 'Cargo.toml'
@@ -52,7 +53,7 @@ jobs:
 
       - name: Clippy
         if: steps.filter.outputs.code == 'true'
-        run: cargo clippy --all-features -- -D warnings
+        run: cargo clippy --workspace --all-features -- -D warnings
 
       - name: Build
         if: steps.filter.outputs.code == 'true'

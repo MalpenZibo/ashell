@@ -27,5 +27,5 @@ fmt:
 	cargo fmt
 
 check: fmt
-	cargo check
-	cargo clippy -- -D warnings
+	cargo check --workspace
+	cargo clippy --workspace -- -D warnings
