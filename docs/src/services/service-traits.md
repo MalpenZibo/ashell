@@ -6,18 +6,19 @@ The service abstraction is defined in `src/services/mod.rs`. It provides a stand
 
 Services are being moved to the `ashell-services` workspace crate (`crates/ashell-services/`), which does not depend on iced or any other UI toolkit. The crate imposes no service trait: the traits on this page are iced glue and stay in ashell. Each crate service is a plain API built on `futures` types, typically:
 
-- a cloneable **handle** holding the connection, with async methods for each command;
-- a **snapshot** method returning the current state;
-- an **updates** stream yielding a fresh snapshot on every change.
+- plain data types (`PartialEq`, with a `Default` for the unavailable state) so reactive UIs can diff them;
+- a cloneable **handle** holding the connection;
+- a **command** enum and an `execute(command)` method on the handle, which owns the command semantics (e.g. what toggling means, how long discovery lasts);
+- an **updates** stream that yields the current state as soon as it is subscribed, then a fresh snapshot on every change. It is the single source of truth: commands return only success or failure, and their effect arrives through the stream.
 
 ```rust
 let bluetooth = Bluetooth::connect().await?;
-let data = bluetooth.data().await?;
 let mut updates = pin!(bluetooth.updates());
-bluetooth.set_powered(true).await?;
+let initial = updates.next().await;
+bluetooth.execute(BluetoothCommand::Toggle).await?;
 ```
 
-ashell wraps each of them in a small module under `src/services/` (e.g. `src/services/bluetooth.rs`) that implements `ReadOnlyService`/`Service`: `subscribe` connects, sends `Init` with the handle and the first snapshot, then forwards the updates stream; `command` maps each command to the handle's methods. Other UIs write their own glue on the same API.
+ashell wraps each of them in a small module under `src/services/` (e.g. `src/services/bluetooth.rs`) that implements `ReadOnlyService`/`Service`: `subscribe` connects, sends `Init` with the handle and the first snapshot, then forwards the rest of the stream as `Update`s; `command` runs `execute` and produces no message. Other UIs write their own glue on the same API.
 
 Each service sits behind a cargo feature of the same name (`full` enables all of them), so consumers only compile the services, and pull in the system dependencies, they need. The crate has no default features.
 
