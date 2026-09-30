@@ -19,7 +19,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 // source for dbus: https://git.kernel.org/pub/scm/network/wireless/iwd.git/tree/doc
 //info!("{:?}",n.inner().introspect().await?); => can use this to generate proxy implementations
 
-use crate::services::bluetooth::BluetoothService;
+use ashell_services::bluetooth::Bluetooth;
 
 use zbus::interface;
 
@@ -98,7 +98,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
         let nm = self;
 
         // airplane mode
-        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block()
+        let bluetooth_soft_blocked = Bluetooth::check_rfkill_soft_block()
             .await
             .unwrap_or_default();
 
