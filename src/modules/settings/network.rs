@@ -99,7 +99,7 @@ pub enum Message {
     ToggleVPNMenu,
     WifiMenuOpened,
     PasswordDialogConfirmed(String, String),
-    OpenNetworkDialogConfirmed(String),
+    OpenNetworkDialogConfirmed(String, bool),
     ConfigReloaded(NetworkSettingsConfig),
 }
 
@@ -156,6 +156,13 @@ impl NetworkSettings {
         self.service.as_ref().map(|s| s.airplane_mode)
     }
 
+    /// Whether the active backend can join a network without saving it.
+    pub fn supports_temporary_connections(&self) -> bool {
+        self.service
+            .as_ref()
+            .is_some_and(|s| s.supports_temporary_connections())
+    }
+
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Event(event) => match event {
@@ -193,7 +200,11 @@ impl NetworkSettings {
             Message::SelectAccessPoint(ac) => match self.service.as_mut() {
                 Some(service) => Action::Command(
                     service
-                        .command(NetworkCommand::SelectAccessPoint((ac, None)))
+                        .command(NetworkCommand::SelectAccessPoint {
+                            access_point: ac,
+                            password: None,
+                            connect_once: false,
+                        })
                         .map(Message::Event),
                 ),
                 _ => Action::None,
@@ -265,7 +276,11 @@ impl NetworkSettings {
                         let password = (!password.is_empty()).then_some(password);
                         Action::Command(
                             service
-                                .command(NetworkCommand::SelectAccessPoint((ap, password)))
+                                .command(NetworkCommand::SelectAccessPoint {
+                                    access_point: ap,
+                                    password,
+                                    connect_once: false,
+                                })
                                 .map(Message::Event),
                         )
                     } else {
@@ -277,28 +292,34 @@ impl NetworkSettings {
                 }
                 _ => Action::None,
             },
-            Message::OpenNetworkDialogConfirmed(ssid) => match self.service.as_mut() {
-                Some(service) => {
-                    let ap = service
-                        .wireless_access_points
-                        .iter()
-                        .find(|ap| ap.ssid == ssid)
-                        .cloned();
-                    if let Some(ap) = ap {
-                        Action::Command(
-                            service
-                                .command(NetworkCommand::SelectAccessPoint((ap, None)))
-                                .map(Message::Event),
-                        )
-                    } else {
-                        warn!(
-                            "Unable to confirm open network dialog: access point '{ssid}' no longer available"
-                        );
-                        Action::None
+            Message::OpenNetworkDialogConfirmed(ssid, connect_once) => {
+                match self.service.as_mut() {
+                    Some(service) => {
+                        let ap = service
+                            .wireless_access_points
+                            .iter()
+                            .find(|ap| ap.ssid == ssid)
+                            .cloned();
+                        if let Some(ap) = ap {
+                            Action::Command(
+                                service
+                                    .command(NetworkCommand::SelectAccessPoint {
+                                        access_point: ap,
+                                        password: None,
+                                        connect_once,
+                                    })
+                                    .map(Message::Event),
+                            )
+                        } else {
+                            warn!(
+                                "Unable to confirm open network dialog: access point '{ssid}' no longer available"
+                            );
+                            Action::None
+                        }
                     }
+                    _ => Action::None,
                 }
-                _ => Action::None,
-            },
+            }
             Message::ConfigReloaded(config) => {
                 self.config = config;
                 Action::None

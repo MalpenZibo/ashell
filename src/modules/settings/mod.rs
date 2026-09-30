@@ -67,6 +67,7 @@ struct NetworkDialogState {
     ssid: String,
     password: Option<String>,
     kind: NetworkDialogKind,
+    connect_once: bool,
 }
 
 impl NetworkDialogState {
@@ -75,6 +76,7 @@ impl NetworkDialogState {
             ssid,
             password: Some(String::new()),
             kind: NetworkDialogKind::Password,
+            connect_once: false,
         }
     }
 
@@ -83,6 +85,7 @@ impl NetworkDialogState {
             ssid,
             password: None,
             kind: NetworkDialogKind::OpenNetworkWarning,
+            connect_once: false,
         }
     }
 }
@@ -386,6 +389,13 @@ impl Settings {
 
                     Action::None
                 }
+                password_dialog::Message::ConnectOnceToggled(connect_once) => {
+                    if let Some(dialog) = &mut self.network_dialog {
+                        dialog.connect_once = connect_once;
+                    }
+
+                    Action::None
+                }
                 password_dialog::Message::DialogConfirmed(id) => {
                     let action = if let Some(dialog) = self.network_dialog.take() {
                         let message = match dialog.kind {
@@ -396,7 +406,10 @@ impl Settings {
                                 )
                             }
                             NetworkDialogKind::OpenNetworkWarning => {
-                                network::Message::OpenNetworkDialogConfirmed(dialog.ssid)
+                                network::Message::OpenNetworkDialogConfirmed(
+                                    dialog.ssid,
+                                    dialog.connect_once,
+                                )
                             }
                         };
 
@@ -583,6 +596,8 @@ impl Settings {
                 dialog.password.as_deref().unwrap_or(""),
                 self.network_dialog_show_password,
                 matches!(dialog.kind, NetworkDialogKind::OpenNetworkWarning),
+                self.network.supports_temporary_connections(),
+                dialog.connect_once,
             )
             .map(Message::PasswordDialog)
         } else {

@@ -242,7 +242,14 @@ impl super::NetworkBackend for IwdDbus<'_> {
         &self,
         ap: &AccessPointData,
         password: Option<String>,
+        connect_once: bool,
     ) -> anyhow::Result<()> {
+        // IWD has no volatile join; see
+        // https://github.com/MalpenZibo/ashell/issues/509. The UI hides the option here.
+        if connect_once {
+            warn!("Temporary connections are unsupported on the IWD backend, connecting normally");
+        }
+
         // Get the agent manager
         let agent_manager = self.agent_manager().await?;
 
