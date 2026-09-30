@@ -1,7 +1,5 @@
-use crate::services::{
-    bluetooth::BluetoothService,
-    network::{NetworkBackend, NetworkData, NetworkEvent},
-};
+use crate::services::network::{NetworkBackend, NetworkData, NetworkEvent};
+use ashell_services::bluetooth::Bluetooth;
 
 use super::{AccessPointData, ActiveConnectionInfo, KnownConnection, Vpn};
 use iced::futures::{Stream, StreamExt, stream::select_all};
@@ -21,7 +19,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
         let nm = self;
 
         // airplane mode
-        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block()
+        let bluetooth_soft_blocked = Bluetooth::check_rfkill_soft_block()
             .await
             .unwrap_or_default();
 

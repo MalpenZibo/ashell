@@ -1,0 +1,29 @@
+[package]
+name = "ashell-services"
+description = "UI-agnostic backend services for ashell"
+version = "0.11.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+full = ["bluetooth"]
+bluetooth = [
+  "dep:anyhow",
+  "dep:inotify",
+  "dep:log",
+  "dep:tokio",
+  "dep:zbus",
+  "tokio/process",
+]
+
+[dependencies]
+futures = "0.3"
+anyhow = { workspace = true, optional = true }
+inotify = { workspace = true, optional = true }
+log = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+zbus = { workspace = true, optional = true }

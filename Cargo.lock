@@ -140,6 +140,7 @@ version = "0.11.0"
 dependencies = [
  "allsorts",
  "anyhow",
+ "ashell-services",
  "chrono",
  "chrono-tz",
  "clap",
@@ -182,6 +183,18 @@ dependencies = [
  "wayland-client",
  "wayland-protocols",
  "wayland-protocols-wlr",
+ "zbus",
+]
+
+[[package]]
+name = "ashell-services"
+version = "0.11.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "inotify",
+ "log",
+ "tokio",
  "zbus",
 ]
 
