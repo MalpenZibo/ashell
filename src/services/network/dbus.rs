@@ -136,10 +136,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             if let Some(pass) = password {
                 conn_settings.insert(
                     "802-11-wireless-security",
-                    HashMap::from([
-                        ("psk", Value::Str(pass.into())),
-                        ("key-mgmt", Value::Str("wpa-psk".into())),
-                    ]),
+                    HashMap::from([("psk", Value::Str(pass.into()))]),
                 );
             }
 
