@@ -31,7 +31,7 @@ use iced::futures::StreamExt;
 use iced::{
     Alignment, Element, Length, OutputEvent, Subscription, SurfaceId, Task, Theme,
     event::listen_with,
-    keyboard, set_exclusive_zone,
+    keyboard,
     widget::{Row, blur_container, container, mouse_area},
 };
 use log::{debug, info, warn};
@@ -70,7 +70,6 @@ pub struct App {
     pub media_player: MediaPlayer,
     pub notifications: Notifications,
     pub osd: Osd,
-    pub visible: bool,
 }
 
 mod message;
@@ -140,7 +139,6 @@ impl App {
                     notifications,
                     media_player: MediaPlayer::new(config.media_player),
                     osd: Osd::new(config.osd),
-                    visible: true,
                 },
                 warm_icons,
             )
@@ -566,25 +564,20 @@ impl App {
             },
             Message::None => Task::none(),
             Message::ToggleVisibility => {
-                self.visible = !self.visible;
-                let (bar_layout, bar_position, scale_factor) =
-                    use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
-                let zone = if self.visible {
-                    Outputs::exclusive_zone(bar_layout, bar_position, scale_factor)
-                } else {
-                    0
-                };
+                let task = self.outputs.toggle_visibility();
 
-                Task::batch(
-                    self.outputs
-                        .iter()
-                        .filter_map(|(_, shell_info, _)| {
-                            shell_info
-                                .as_ref()
-                                .map(|info| set_exclusive_zone(info.id, zone))
-                        })
-                        .collect::<Vec<_>>(),
-                )
+                if self.outputs.bar_is_shown() {
+                    task
+                } else {
+                    // A menu surface spans the whole output and keeps accepting
+                    // input there, so hiding the bar has to close it instead of
+                    // leaving it floating over the desktop.
+                    Task::batch(vec![
+                        task,
+                        self.outputs
+                            .close_all_menus(self.general_config.enable_esc_key),
+                    ])
+                }
             }
         }
     }
@@ -592,7 +585,7 @@ impl App {
     pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
-                if !self.visible {
+                if !self.outputs.bar_is_shown() {
                     return Row::new().into();
                 }
 
