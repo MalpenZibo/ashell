@@ -2,6 +2,27 @@
 
 The service abstraction is defined in `src/services/mod.rs`. It provides a standard interface for all backend services.
 
+## UI-agnostic services (`ashell-services`)
+
+Services are being moved to the `ashell-services` workspace crate (`crates/ashell-services/`), which does not depend on iced or any other UI toolkit. The crate imposes no service trait: the traits on this page are iced glue and stay in ashell. Each crate service is a plain API built on `futures` types, typically:
+
+- a cloneable **handle** holding the connection, with async methods for each command;
+- a **snapshot** method returning the current state;
+- an **updates** stream yielding a fresh snapshot on every change.
+
+```rust
+let bluetooth = Bluetooth::connect().await?;
+let data = bluetooth.data().await?;
+let mut updates = pin!(bluetooth.updates());
+bluetooth.set_powered(true).await?;
+```
+
+ashell wraps each of them in a small module under `src/services/` (e.g. `src/services/bluetooth.rs`) that implements `ReadOnlyService`/`Service`: `subscribe` connects, sends `Init` with the handle and the first snapshot, then forwards the updates stream; `command` maps each command to the handle's methods. Other UIs write their own glue on the same API.
+
+Each service sits behind a cargo feature of the same name (`full` enables all of them), so consumers only compile the services, and pull in the system dependencies, they need. The crate has no default features.
+
+Currently migrated: Bluetooth (`bluetooth` feature). Shared helpers that are not services live in plain modules, e.g. `rfkill` (soft-block state and change notifications, used by both bluetooth and network).
+
 ## ServiceEvent
 
 All services communicate through a common event enum:
@@ -42,7 +63,7 @@ For services that accept commands (bidirectional):
 
 ```rust
 pub trait Service: ReadOnlyService {
-    type Command;
+    type Command: Send + 'static;
 
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>>;
 }

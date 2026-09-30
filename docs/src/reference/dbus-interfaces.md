@@ -6,9 +6,9 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 
 | Service | Interface | Proxy File | Purpose | Required Package |
 |---------|-----------|------------|---------|-----------------|
-| BlueZ | `org.bluez.Adapter1` | `services/bluetooth/dbus.rs` | Bluetooth adapter control | `bluez` |
-| BlueZ | `org.bluez.Device1` | `services/bluetooth/dbus.rs` | Bluetooth device management | `bluez` |
-| BlueZ | `org.bluez.Battery1` | `services/bluetooth/dbus.rs` | Bluetooth device battery level | `bluez` |
+| BlueZ | `org.bluez.Adapter1` | `crates/ashell-services/src/bluetooth/dbus.rs` | Bluetooth adapter control | `bluez` |
+| BlueZ | `org.bluez.Device1` | `crates/ashell-services/src/bluetooth/dbus.rs` | Bluetooth device management | `bluez` |
+| BlueZ | `org.bluez.Battery1` | `crates/ashell-services/src/bluetooth/dbus.rs` | Bluetooth device battery level | `bluez` |
 | NetworkManager | `org.freedesktop.NetworkManager` | `services/network/dbus.rs` | Network state and connections | `networkmanager` |
 | NetworkManager | `org.freedesktop.NetworkManager.Device` | `services/network/dbus.rs` | Network device info | `networkmanager` |
 | NetworkManager | `org.freedesktop.NetworkManager.Connection.Active` | `services/network/dbus.rs` | Active connections | `networkmanager` |
