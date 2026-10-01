@@ -158,13 +158,15 @@ impl App {
             layer: config.layer,
             enable_esc_key: config.enable_esc_key,
         };
-        let custom = config
+        let mut previous = std::mem::take(&mut self.custom);
+        self.custom = config
             .custom_modules
             .into_iter()
-            .map(|o| (o.name.clone(), Custom::new(o)))
+            .map(|o| {
+                let prev = previous.remove(&o.name);
+                (o.name.clone(), Custom::reconfigure(prev, o))
+            })
             .collect();
-
-        self.custom = custom;
         let existing_updates = self.updates.take();
         self.updates = config.updates.map(|updates_config| {
             let mut updates =
@@ -767,5 +769,97 @@ impl App {
                 other => Message::IpcOsdCommand(other),
             }),
         ])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modules::custom_module::{CustomListenData, Message as CustomMessage};
+
+    fn test_config(listen_cmd: &str) -> Config {
+        #[derive(serde::Serialize)]
+        struct CustomModuleStub {
+            name: &'static str,
+            listen_cmd: String,
+            #[serde(rename = "type")]
+            module_type: &'static str,
+        }
+        #[derive(serde::Serialize)]
+        struct ConfigStub {
+            #[serde(rename = "CustomModule")]
+            custom_module: Vec<CustomModuleStub>,
+        }
+
+        let stub = ConfigStub {
+            custom_module: vec![CustomModuleStub {
+                name: "probe",
+                listen_cmd: listen_cmd.to_owned(),
+                module_type: "Text",
+            }],
+        };
+        let toml = toml::to_string(&stub).expect("test config should serialize");
+        toml::from_str(&toml).expect("test config should deserialize")
+    }
+
+    fn test_app() -> App {
+        let (_log, logger) = flexi_logger::Logger::with(
+            flexi_logger::LogSpecBuilder::new()
+                .default(log::LevelFilter::Off)
+                .build(),
+        )
+        .log_to_stderr()
+        .build()
+        .expect("logger should build");
+        let (app, _task) = App::new((logger, Config::default(), PathBuf::from("/nonexistent")))();
+        app
+    }
+
+    /// A config save that leaves `name`/`listen_cmd` untouched must not wipe
+    /// the last `listen_cmd` payload: the subscription is keyed on that pair,
+    /// so iced keeps the already-running process alive and it will not reprint.
+    #[test]
+    fn reload_keeps_listen_cmd_data_when_subscription_is_unchanged() {
+        let config = test_config("swaync-client -swb");
+        let mut app = test_app();
+        app.update(Message::ConfigChanged(Box::new(config.clone())));
+
+        app.update(Message::Custom(
+            "probe".to_string(),
+            CustomMessage::Update(CustomListenData {
+                alt: "critical".to_string(),
+                text: Some("3 urgent".to_string()),
+            }),
+        ));
+
+        app.update(Message::ConfigChanged(Box::new(test_config(
+            "swaync-client -swb",
+        ))));
+
+        let data = app.custom.get("probe").expect("module kept").data();
+        assert_eq!(data.text.as_deref(), Some("3 urgent"));
+        assert_eq!(data.alt, "critical");
+    }
+
+    /// Changing `listen_cmd` restarts the subscription, so stale output from
+    /// the previous command must not leak into the new one.
+    #[test]
+    fn reload_drops_listen_cmd_data_when_listen_cmd_changes() {
+        let mut app = test_app();
+        app.update(Message::ConfigChanged(Box::new(test_config("cmd-a"))));
+
+        app.update(Message::Custom(
+            "probe".to_string(),
+            CustomMessage::Update(CustomListenData {
+                alt: "critical".to_string(),
+                text: Some("stale".to_string()),
+            }),
+        ));
+
+        app.update(Message::ConfigChanged(Box::new(test_config("cmd-b"))));
+
+        let data = app.custom.get("probe").expect("module kept").data();
+        assert!(data.text.is_none(), "stale text survived: {:?}", data.text);
+        assert!(data.alt.is_empty(), "stale alt survived: {:?}", data.alt);
     }
 }

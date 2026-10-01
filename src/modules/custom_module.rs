@@ -82,8 +82,27 @@ impl Custom {
         }
     }
 
+    /// Builds the module for a reloaded config. The `listen_cmd` subscription is
+    /// keyed on `(name, listen_cmd)`, so when both are unchanged the running
+    /// process is kept and will not reprint: carry its last payload over.
+    pub fn reconfigure(previous: Option<Self>, config: CustomModuleDef) -> Self {
+        let data = previous
+            .filter(|prev| {
+                prev.config.name == config.name && prev.config.listen_cmd == config.listen_cmd
+            })
+            .map(|prev| prev.data)
+            .unwrap_or_default();
+
+        Self { config, data }
+    }
+
     pub fn module_type(&self) -> crate::config::CustomModuleType {
         self.config.r#type
+    }
+
+    #[cfg(test)]
+    pub(crate) fn data(&self) -> &CustomListenData {
+        &self.data
     }
 
     pub fn update(&mut self, msg: Message) {
