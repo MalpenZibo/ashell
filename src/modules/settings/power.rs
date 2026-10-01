@@ -442,14 +442,18 @@ impl PowerSettings {
             });
 
             match battery.status {
-                BatteryStatus::Charging(remaining) if battery.capacity < 95 => row!(
-                    battery_info,
-                    text(t!(
-                        "settings-power-full-in",
-                        duration = format_duration(&remaining)
-                    ))
-                )
-                .spacing(space.md),
+                BatteryStatus::Charging(remaining)
+                    if battery.capacity < 95 && !remaining.is_zero() =>
+                {
+                    row!(
+                        battery_info,
+                        text(t!(
+                            "settings-power-full-in",
+                            duration = format_duration(&remaining)
+                        ))
+                    )
+                    .spacing(space.md)
+                }
                 BatteryStatus::Discharging(remaining)
                     if battery.capacity < 95 && !remaining.is_zero() =>
                 {
