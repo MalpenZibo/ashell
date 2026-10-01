@@ -18,38 +18,14 @@ use iced::{
 use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
 use log::{info, warn};
-use std::time::{Duration, Instant};
+use std::{
+    net::IpAddr,
+    time::{Duration, Instant},
+};
 use sysinfo::{Components, Disks, Networks, System};
 
-const MAX_IP_LEN: usize = 45;
-
-#[derive(Clone, Copy)]
-struct FixedIp([u8; MAX_IP_LEN], usize);
-
-impl FixedIp {
-    fn from_str(s: &str) -> Option<Self> {
-        if s.len() < MAX_IP_LEN {
-            let mut arr = [0u8; MAX_IP_LEN];
-            arr[..s.len()].copy_from_slice(s.as_bytes());
-            Some(Self(arr, s.len()))
-        } else {
-            None
-        }
-    }
-}
-
-impl std::fmt::Display for FixedIp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            std::str::from_utf8(&self.0[..self.1]).unwrap_or("")
-        )
-    }
-}
-
 struct NetworkData {
-    ip: FixedIp,
+    ip: IpAddr,
     download_speed: u32,
     upload_speed: u32,
     last_check: Instant,
@@ -377,14 +353,11 @@ fn get_system_info(
         memory_swap_usage,
         temperature,
         disks,
-        network: network.0.and_then(|ip| {
-            let ip_str = ip.to_string();
-            FixedIp::from_str(&ip_str).map(|ip| NetworkData {
-                ip,
-                download_speed: network_speed(network.1),
-                upload_speed: network_speed(network.2),
-                last_check: Instant::now(),
-            })
+        network: network.0.map(|ip| NetworkData {
+            ip,
+            download_speed: network_speed(network.1),
+            upload_speed: network_speed(network.2),
+            last_check: Instant::now(),
         }),
     }
 }
