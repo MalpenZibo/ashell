@@ -194,7 +194,6 @@ impl App {
             ))
             .map(Message::KeyboardLayout);
 
-        self.keyboard_submap = KeyboardSubmap::default();
         self.tempo
             .update(modules::tempo::Message::ConfigReloaded(config.tempo));
         self.settings
