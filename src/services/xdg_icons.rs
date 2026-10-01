@@ -70,8 +70,20 @@ pub async fn warm_cache_async() {
     let _ = tokio::task::spawn_blocking(warm_cache).await;
 }
 
+// Names come from untrusted sources (SNI `IconName`, window classes) and reach
+// `freedesktop_icons`, which joins them onto a base path — absolute names
+// discard that base, `..` resolves at `open()`. Single dots are legitimate
+// (reverse-DNS names), so only `..` is rejected.
+fn is_safe_icon_name(icon_name: &str) -> bool {
+    !icon_name.is_empty()
+        && !icon_name.contains('/')
+        && !icon_name.contains('\0')
+        && !icon_name.contains("..")
+}
+
 pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
-    if icon_name.is_empty() {
+    if !is_safe_icon_name(icon_name) {
+        debug!("icon '{icon_name}': rejected as unsafe name");
         return None;
     }
 
@@ -428,4 +440,52 @@ fn icon_directories() -> Vec<PathBuf> {
     dirs.sort();
     dirs.dedup();
     dirs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{get_icon_from_name, is_safe_icon_name};
+
+    #[test]
+    fn accepts_ordinary_icon_names() {
+        for name in [
+            "telegram",
+            "firefox",
+            "org.blueman",
+            "com.system76.CosmicAppletTiling.Off",
+            "ca.desrt.dconf-editor",
+            "audio-volume-high-symbolic",
+        ] {
+            assert!(is_safe_icon_name(name), "{name} should be accepted");
+        }
+    }
+
+    #[test]
+    fn rejects_path_traversal_components() {
+        for name in [
+            "../../etc/passwd",
+            "..",
+            "../..",
+            "foo/../../bar",
+            "org.blueman/../../../etc/shadow",
+            "a..b",
+        ] {
+            assert!(!is_safe_icon_name(name), "{name} should be rejected");
+        }
+    }
+
+    #[test]
+    fn rejects_separators_and_nul() {
+        assert!(!is_safe_icon_name(""));
+        assert!(!is_safe_icon_name("/home/u/Documents/x"));
+        assert!(!is_safe_icon_name("icon\0.png"));
+        assert!(!is_safe_icon_name("sub/dir/icon"));
+    }
+
+    #[test]
+    fn get_icon_from_name_rejects_unsafe_names() {
+        assert!(get_icon_from_name("../../etc/passwd").is_none());
+        assert!(get_icon_from_name("/etc/passwd").is_none());
+        assert!(get_icon_from_name("").is_none());
+    }
 }
