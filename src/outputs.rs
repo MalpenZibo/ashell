@@ -582,6 +582,7 @@ impl Outputs {
                 shell_info.id = id;
                 shell_info.menu = Menu::with_animations(animations_enabled);
                 shell_info.position = position;
+                shell_info.layer = layer;
                 shell_info.layout = layout;
                 shell_info.scale_factor = scale_factor;
 
