@@ -106,6 +106,8 @@ impl PrivacyService {
                             && let Some(media) = props.get("media.class").filter(|v| {
                                 v == &"Stream/Input/Video" || v == &"Stream/Input/Audio"
                             })
+                            // ashell's own visualizer captures the sink monitor, not a mic
+                            && props.get("node.name") != Some("cava")
                         {
                             debug!("New global: {global:?}");
                             tracked_ids.borrow_mut().insert(global.id);
