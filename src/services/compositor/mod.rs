@@ -167,6 +167,13 @@ impl Service for CompositorService {
     }
 }
 
+pub async fn focus_window_by_pid(pid: u32) -> Result<(), String> {
+    let backend =
+        detect_backend().ok_or_else(|| "No supported compositor backend found".to_string())?;
+
+    execute_command(backend, CompositorCommand::FocusWindowByPid(pid)).await
+}
+
 async fn execute_command(
     backend: CompositorChoice,
     command: CompositorCommand,

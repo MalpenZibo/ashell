@@ -1,5 +1,5 @@
-use super::{ReadOnlyService, Service, ServiceEvent};
-use dbus::MprisPlayerProxy;
+use super::{ReadOnlyService, Service, ServiceEvent, compositor};
+use dbus::{MprisPlayerProxy, MprisRootProxy};
 use iced::{
     Subscription,
     core::Bytes,
@@ -218,6 +218,38 @@ impl MprisPlayerService {
             })
             .collect();
         Ok(names)
+    }
+
+    async fn player_pid(conn: &zbus::Connection, service_name: &str) -> anyhow::Result<u32> {
+        let dbus = DBusProxy::new(conn).await?;
+        let pid = dbus
+            .get_connection_unix_process_id(service_name.try_into()?)
+            .await?;
+
+        Ok(pid)
+    }
+
+    async fn focus_player(conn: &zbus::Connection, service_name: &str) {
+        match Self::player_pid(conn, service_name).await {
+            Ok(pid) => match compositor::focus_window_by_pid(pid).await {
+                Ok(()) => {
+                    debug!("Focused {service_name} (pid {pid}) through the compositor");
+                    return;
+                }
+                Err(e) => debug!("Could not focus {service_name} via the compositor: {e}"),
+            },
+            Err(e) => debug!("Could not resolve the pid of {service_name}: {e}"),
+        }
+
+        match MprisRootProxy::new(conn, service_name.to_string()).await {
+            Ok(proxy) => {
+                let _ = proxy
+                    .raise()
+                    .await
+                    .inspect_err(|e| error!("Raise command error: {e}"));
+            }
+            Err(e) => error!("Failed to create the MPRIS root proxy for {service_name}: {e}"),
+        }
     }
 
     async fn create_proxies(
@@ -526,6 +558,7 @@ pub enum PlayerCommand {
     PlayPause,
     Next,
     Volume(f64),
+    Raise,
 }
 
 impl Service for MprisPlayerService {
@@ -538,6 +571,7 @@ impl Service for MprisPlayerService {
 
             if let Some(s) = s {
                 let mpris_player_proxy = s.proxy.clone();
+                let service_name = s.service.clone();
                 let conn = self.conn.clone();
                 iced::Task::perform(
                     async move {
@@ -565,6 +599,9 @@ impl Service for MprisPlayerService {
                                     .set_volume(v / 100.0)
                                     .await
                                     .inspect_err(|e| error!("Set volume command error: {e}"));
+                            }
+                            PlayerCommand::Raise => {
+                                Self::focus_player(&conn, &service_name).await;
                             }
                         }
                         Event::MetadataChanged(Self::get_mpris_player_data(&conn, &names).await)

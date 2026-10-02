@@ -2,6 +2,14 @@ use std::collections::HashMap;
 use zbus::{Result, proxy, zvariant::OwnedValue};
 
 #[proxy(
+    interface = "org.mpris.MediaPlayer2",
+    default_path = "/org/mpris/MediaPlayer2"
+)]
+pub trait MprisRoot {
+    fn raise(&self) -> Result<()>;
+}
+
+#[proxy(
     interface = "org.mpris.MediaPlayer2.Player",
     default_path = "/org/mpris/MediaPlayer2"
 )]
