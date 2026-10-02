@@ -242,7 +242,7 @@ fn get_system_info(
             components
                 .iter()
                 .find(|c| c.label() == label)
-                .and_then(|c| c.temperature().map(|t| t as i32))
+                .and_then(|c| c.temperature().map(|t| t.round() as i32))
         });
 
         if reading.is_none() {
@@ -255,7 +255,7 @@ fn get_system_info(
                 components
                     .iter()
                     .find(|c| c.label() == label)
-                    .and_then(|c| c.temperature().map(|t| t as i32))
+                    .and_then(|c| c.temperature().map(|t| t.round() as i32))
             });
         }
 
