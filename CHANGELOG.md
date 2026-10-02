@@ -1,5 +1,78 @@
 # Changelog
 
+## [0.11.0] - 2026-10-02
+
+### Changes
+
+### 🚀 Features
+
+- add mean daily humidity to weather forecast [@romanstingler](https://github.com/romanstingler) ([#954](https://github.com/MalpenZibo/ashell/issues/954))
+- add center toast positions [@romanstingler](https://github.com/romanstingler) ([#974](https://github.com/MalpenZibo/ashell/issues/974))
+- run optional command after switching audio sink/source [@romanstingler](https://github.com/romanstingler) ([#917](https://github.com/MalpenZibo/ashell/issues/917))
+- feat(memory): amount option, showing XX.X GiB [@Aadniz](https://github.com/Aadniz) ([#927](https://github.com/MalpenZibo/ashell/issues/927))
+- feat(appearance): add bar padding [@MalpenZibo](https://github.com/MalpenZibo) ([#971](https://github.com/MalpenZibo/ashell/issues/971))
+- [Feat] Custom margin settings [@r3dArch](https://github.com/r3dArch) ([#915](https://github.com/MalpenZibo/ashell/issues/915))
+- Webpage: automate changelog page generation and navigation integration [@romanstingler](https://github.com/romanstingler) ([#905](https://github.com/MalpenZibo/ashell/issues/905))
+- feat: Add keyboard back-light quick setting with slider [@3bnz](https://github.com/3bnz) ([#883](https://github.com/MalpenZibo/ashell/issues/883))
+- show WiFi frequency band in tooltip and quick settings [@romanstingler](https://github.com/romanstingler) ([#902](https://github.com/MalpenZibo/ashell/issues/902))
+- Add PercentageAndTime + icon variant for battery [@InnocentZero](https://github.com/InnocentZero) ([#869](https://github.com/MalpenZibo/ashell/issues/869))
+- Overridable cpu temp measurement unit [@TheBlueOompaLoompa](https://github.com/TheBlueOompaLoompa) ([#773](https://github.com/MalpenZibo/ashell/issues/773))
+
+### 🐞 Bug fixes
+
+- store IpAddr directly instead of FixedIp [@romanstingler](https://github.com/romanstingler) ([#1003](https://github.com/MalpenZibo/ashell/issues/1003))
+- preserve custom module listen data on config reload [@romanstingler](https://github.com/romanstingler) ([#1002](https://github.com/MalpenZibo/ashell/issues/1002))
+- add layer field to shell info [@romanstingler](https://github.com/romanstingler) ([#1001](https://github.com/MalpenZibo/ashell/issues/1001))
+- exclude cava sink monitor from global stream tracking [@romanstingler](https://github.com/romanstingler) ([#1000](https://github.com/MalpenZibo/ashell/issues/1000))
+- preserve keyboard submap on config reload [@romanstingler](https://github.com/romanstingler) ([#999](https://github.com/MalpenZibo/ashell/issues/999))
+- round instead of truncating C-to-F conversion [@romanstingler](https://github.com/romanstingler) ([#998](https://github.com/MalpenZibo/ashell/issues/998))
+- avoid displaying zero-duration charging estimate [@romanstingler](https://github.com/romanstingler) ([#996](https://github.com/MalpenZibo/ashell/issues/996))
+- prevent path traversal via icon names [@romanstingler](https://github.com/romanstingler) ([#995](https://github.com/MalpenZibo/ashell/issues/995))
+- network: let NetworkManager choose key-mgmt for new Wi-Fi connections [@greg2010](https://github.com/greg2010) ([#987](https://github.com/MalpenZibo/ashell/issues/987))
+- distinguish named workspaces from special workspaces [@romanstingler](https://github.com/romanstingler) ([#985](https://github.com/MalpenZibo/ashell/issues/985))
+- fix(outputs): restore serial-number target matching [@BenjaminDR](https://github.com/BenjaminDR) ([#982](https://github.com/MalpenZibo/ashell/issues/982))
+- fix: compositor dispatch edge cases, workspace scroll monitor match, tray hot-reload [@dacrab](https://github.com/dacrab) ([#965](https://github.com/MalpenZibo/ashell/issues/965))
+- fix(workspaces): skip special workspaces when anchoring scroll navigation [@romanstingler](https://github.com/romanstingler) ([#958](https://github.com/MalpenZibo/ashell/issues/958))
+- use node description with proplist fallback for device naming [@romanstingler](https://github.com/romanstingler) ([#976](https://github.com/MalpenZibo/ashell/issues/976))
+- prefer k10temp Tctl over per-CCD sensors [@romanstingler](https://github.com/romanstingler) ([#983](https://github.com/MalpenZibo/ashell/issues/983))
+- adjust icon clipping padding to prevent cropping [@romanstingler](https://github.com/romanstingler) ([#978](https://github.com/MalpenZibo/ashell/issues/978))
+- close the menu after a session action [@romanstingler](https://github.com/romanstingler) ([#979](https://github.com/MalpenZibo/ashell/issues/979))
+- fix(menu): release bar keyboard focus when a menu closes [@romanstingler](https://github.com/romanstingler) ([#961](https://github.com/MalpenZibo/ashell/issues/961))
+
+### 📚 Documentation
+
+- expand configuration and module documentation with clarifications and corrections [@romanstingler](https://github.com/romanstingler) ([#955](https://github.com/MalpenZibo/ashell/issues/955))
+
+### 🧰 Maintenance
+
+- chore(deps): bump pipewire from 0.9.2 to 0.10.1 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1008](https://github.com/MalpenZibo/ashell/issues/1008))
+- chore(deps): bump inotify from 0.11.4 to 0.11.5 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1009](https://github.com/MalpenZibo/ashell/issues/1009))
+- chore(deps): bump clap from 4.6.6 to 4.6.7 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1007](https://github.com/MalpenZibo/ashell/issues/1007))
+- chore(deps): bump actions/setup-node from 6 to 7 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1006](https://github.com/MalpenZibo/ashell/issues/1006))
+- chore(deps): bump log from 0.4.33 to 0.4.34 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1005](https://github.com/MalpenZibo/ashell/issues/1005))
+- chore(deps): bump serde\_with from 3.22.0 to 3.24.0 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1004](https://github.com/MalpenZibo/ashell/issues/1004))
+- Reordered and added missing French power status translations [@romanstingler](https://github.com/romanstingler) ([#997](https://github.com/MalpenZibo/ashell/issues/997))
+- bump rustls version [@romanstingler](https://github.com/romanstingler) ([#994](https://github.com/MalpenZibo/ashell/issues/994))
+- chore(website): refresh dependencies to address security advisories [@MalpenZibo](https://github.com/MalpenZibo) ([#991](https://github.com/MalpenZibo/ashell/issues/991))
+- consolidate bar geometry into BarGeometry struct [@romanstingler](https://github.com/romanstingler) ([#980](https://github.com/MalpenZibo/ashell/issues/980))
+- refactor weather icon function [@romanstingler](https://github.com/romanstingler) ([#945](https://github.com/MalpenZibo/ashell/issues/945))
+- simplify keyboard submap default initialization [@romanstingler](https://github.com/romanstingler) ([#946](https://github.com/MalpenZibo/ashell/issues/946))
+- simplify alert condition with is\_some\_and [@romanstingler](https://github.com/romanstingler) ([#947](https://github.com/MalpenZibo/ashell/issues/947))
+- replace convert::Into with Element::from constructor [@romanstingler](https://github.com/romanstingler) ([#948](https://github.com/MalpenZibo/ashell/issues/948))
+
+### 🔧 Dependency updates
+
+- chore(deps): bump pipewire from 0.9.2 to 0.10.1 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1008](https://github.com/MalpenZibo/ashell/issues/1008))
+- chore(deps): bump inotify from 0.11.4 to 0.11.5 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1009](https://github.com/MalpenZibo/ashell/issues/1009))
+- chore(deps): bump clap from 4.6.6 to 4.6.7 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1007](https://github.com/MalpenZibo/ashell/issues/1007))
+- chore(deps): bump actions/setup-node from 6 to 7 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1006](https://github.com/MalpenZibo/ashell/issues/1006))
+- chore(deps): bump log from 0.4.33 to 0.4.34 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1005](https://github.com/MalpenZibo/ashell/issues/1005))
+- chore(deps): bump serde\_with from 3.22.0 to 3.24.0 @[dependabot[bot]](https://github.com/apps/dependabot) ([#1004](https://github.com/MalpenZibo/ashell/issues/1004))
+
+### Contributors
+
+❤️ A big thanks to [@3bnz](https://github.com/3bnz), [@Aadniz](https://github.com/Aadniz), [@BenjaminDR](https://github.com/BenjaminDR), [@dacrab](https://github.com/dacrab), [@greg2010](https://github.com/greg2010), [@InnocentZero](https://github.com/InnocentZero), [@r3dArch](https://github.com/r3dArch), [@romanstingler](https://github.com/romanstingler), [@TheBlueOompaLoompa](https://github.com/TheBlueOompaLoompa) and [@claude](https://github.com/claude)
+
 ## [0.10.0] - 2026-09-01
 
 ### Changes
