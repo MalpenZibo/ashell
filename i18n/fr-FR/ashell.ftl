@@ -93,6 +93,9 @@ settings-power-status-full = Pleine
 ## Paramètres — inhibiteur de veille
 settings-idle-inhibitor = Inhibiteur de veille
 
+## Paramètres — ne pas déranger
+settings-dnd = Ne pas déranger
+
 ## Paramètres — infobulles
 settings-tooltip-empty = Rien à afficher
 settings-tooltip-empty-audio = Aucun périphérique audio actif

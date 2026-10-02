@@ -25,12 +25,32 @@ The `expire_timeout` hint sent by applications is respected: a value of `-1` fal
 
 If you prefer no popups and only the panel indicator, set `toast = false`.
 
+## Do Not Disturb
+
+Do not disturb suppresses toast popups without dropping notifications: they are
+still collected and shown in the menu, and notifications with `Critical`
+urgency still pop up as toasts.
+
+While it is active the bar indicator switches to a crossed-out bell icon.
+
+You can toggle it in three ways:
+
+- **Right-click the notification indicator** in the status bar
+- **The bell button** in the notifications menu header
+- **The "Do Not Disturb" quick setting** in the [Settings](settings.md) menu
+  (can be hidden with `remove_dnd_btn`; it is only shown when this module is
+  part of the bar layout)
+
+The state is not persisted across restarts, ashell always starts with do not
+disturb off.
+
 ## Notification Menu
 
 Click the notification indicator to open the notifications menu. The menu displays all active notifications with the following features:
 
 - **Individual notifications**: Shows the app icon, name, summary, and optional body text and timestamp
 - **Clear button**: Removes all notifications at once
+- **Do not disturb button**: Toggles do not disturb (see above)
 - **Grouped mode** (optional): Organizes notifications by application with expandable groups
 - **Clicking a notification**: Invokes its default action (if provided by the app) and closes it
 
