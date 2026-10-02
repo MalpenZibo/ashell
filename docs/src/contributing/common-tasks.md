@@ -107,7 +107,7 @@ Always run the full check before pushing:
 make check
 ```
 
-This runs `cargo fmt`, `cargo check`, and `cargo clippy -- -D warnings`.
+This runs `cargo fmt`, `cargo check --workspace`, and `cargo clippy --workspace -- -D warnings`.
 
 ## Debugging a Specific Module
 

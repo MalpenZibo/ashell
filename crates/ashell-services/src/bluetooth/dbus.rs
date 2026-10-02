@@ -1,5 +1,5 @@
+use log::debug;
 use std::collections::HashMap;
-
 use zbus::{
     proxy,
     zvariant::{OwnedObjectPath, OwnedValue},
@@ -81,53 +81,64 @@ impl BluetoothDbus<'_> {
         }
     }
 
-    pub async fn devices(&self) -> anyhow::Result<Vec<BluetoothDevice>> {
-        let devices_proxy = self
+    /// Device paths and whether each one exposes `Battery1`, read from a single
+    /// `GetManagedObjects` call without touching the devices themselves.
+    pub async fn managed_devices(&self) -> zbus::Result<Vec<(OwnedObjectPath, bool)>> {
+        Ok(self
             .bluez
             .get_managed_objects()
             .await?
             .into_iter()
-            .filter_map(|(key, item)| {
-                if item.contains_key("org.bluez.Device1") {
-                    Some((key.clone(), item.contains_key("org.bluez.Battery1")))
-                } else {
-                    None
-                }
+            .filter(|(_, interfaces)| interfaces.contains_key("org.bluez.Device1"))
+            .map(|(path, interfaces)| {
+                let has_battery = interfaces.contains_key("org.bluez.Battery1");
+                (path, has_battery)
             })
-            .collect::<Vec<_>>();
+            .collect())
+    }
 
+    pub async fn devices(&self) -> zbus::Result<Vec<BluetoothDevice>> {
         let mut devices = Vec::new();
-        for (device_path, has_battery) in devices_proxy {
-            let device = DeviceProxy::builder(self.bluez.inner().connection())
-                .path(device_path.clone())?
-                .build()
-                .await?;
-
-            let name = device.alias().await?;
-            let connected = device.connected().await?;
-            let paired = device.paired().await?;
-
-            let battery = if connected && has_battery {
-                let battery_proxy = BatteryProxy::builder(self.bluez.inner().connection())
-                    .path(&device_path)?
-                    .build()
-                    .await?;
-
-                Some(battery_proxy.percentage().await?)
-            } else {
-                None
-            };
-
-            devices.push(BluetoothDevice {
-                name,
-                battery,
-                path: device_path,
-                connected,
-                paired,
-            });
+        for (path, has_battery) in self.managed_devices().await? {
+            // A device can vanish between GetManagedObjects and its property reads
+            match self.device(&path, has_battery).await {
+                Ok(device) => devices.push(device),
+                Err(err) => debug!("Skipping bluetooth device {path}: {err}"),
+            }
         }
 
+        devices.sort_by(|a, b| a.name.cmp(&b.name));
+
         Ok(devices)
+    }
+
+    async fn device(
+        &self,
+        path: &OwnedObjectPath,
+        has_battery: bool,
+    ) -> zbus::Result<BluetoothDevice> {
+        let conn = self.bluez.inner().connection();
+        let device = DeviceProxy::builder(conn).path(path)?.build().await?;
+
+        let name = device.alias().await?;
+        let connected = device.connected().await?;
+        let paired = device.paired().await?;
+
+        let battery = if connected && has_battery {
+            let battery = BatteryProxy::builder(conn).path(path)?.build().await?;
+
+            Some(battery.percentage().await?)
+        } else {
+            None
+        };
+
+        Ok(BluetoothDevice {
+            name,
+            battery,
+            path: path.clone(),
+            connected,
+            paired,
+        })
     }
 
     pub async fn pair_device(&self, device_path: &OwnedObjectPath) -> zbus::Result<()> {

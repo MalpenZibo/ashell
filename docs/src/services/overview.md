@@ -9,7 +9,7 @@ Services are the backend layer of ashell. They manage communication with system 
 | Compositor | `services/compositor/` | Hyprland / Niri | IPC socket | Hyprland or Niri |
 | Audio | `services/audio.rs` | PulseAudio | libpulse C library | PulseAudio or PipeWire-Pulse |
 | Brightness | `services/brightness.rs` | sysfs + logind | File I/O + D-Bus | systemd-logind |
-| Bluetooth | `services/bluetooth/` | BlueZ | D-Bus | `bluez` |
+| Bluetooth | `crates/ashell-services/src/bluetooth/` (iced glue in `services/bluetooth.rs`) | BlueZ | D-Bus | `bluez` |
 | Network | `services/network/` | NetworkManager / IWD | D-Bus | `networkmanager` or `iwd` |
 | MPRIS | `services/mpris/` | Media players | D-Bus | MPRIS-compatible player |
 | Tray | `services/tray/` | StatusNotifierItem | D-Bus | — |
