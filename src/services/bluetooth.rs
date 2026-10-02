@@ -1,5 +1,5 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use ashell_services::bluetooth::Bluetooth;
+use ashell_services::bluetooth::{Bluetooth, BluetoothData};
 use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt},
@@ -8,9 +8,7 @@ use iced::{
 use log::{error, info, warn};
 use std::{any::TypeId, ops::Deref, pin::pin};
 
-pub use ashell_services::bluetooth::{
-    BluetoothCommand, BluetoothData, BluetoothDevice, BluetoothState,
-};
+pub use ashell_services::bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothState};
 
 #[derive(Debug, Clone)]
 pub struct BluetoothService {

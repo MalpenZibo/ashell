@@ -33,7 +33,6 @@ use log::{debug, info, warn};
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::process::Command;
 use zbus::fdo::ObjectManagerProxy;
 use zbus::zvariant::OwnedObjectPath;
 
@@ -300,11 +299,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     async fn set_airplane_mode(&self, airplane: bool) -> anyhow::Result<()> {
-        Command::new("/usr/sbin/rfkill")
-            .arg(if airplane { "block" } else { "unblock" })
-            .arg("bluetooth")
-            .output()
-            .await?;
+        rfkill::set_bluetooth_soft_block(airplane).await?;
         self.set_wifi_enabled(!airplane).await?;
         Ok(())
     }

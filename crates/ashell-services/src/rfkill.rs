@@ -26,6 +26,16 @@ pub async fn bluetooth_soft_blocked() -> anyhow::Result<bool> {
     Ok(output.contains("Soft blocked: yes"))
 }
 
+/// Soft blocks or unblocks bluetooth, e.g. for airplane mode.
+pub async fn set_bluetooth_soft_block(blocked: bool) -> anyhow::Result<()> {
+    Command::new("rfkill")
+        .args([if blocked { "block" } else { "unblock" }, "bluetooth"])
+        .output()
+        .await?;
+
+    Ok(())
+}
+
 pub async fn soft_block_changes() -> anyhow::Result<impl Stream<Item = ()> + Send + use<>> {
     let inotify = Inotify::init()?;
 
