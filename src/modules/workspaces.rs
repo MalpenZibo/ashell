@@ -39,7 +39,25 @@ pub struct UiWorkspace {
     pub displayed: Displayed,
     pub windows: u16,
     pub has_urgent: bool,
+    pub is_special: bool,
     pub icons: Option<Vec<XdgIcon>>,
+}
+
+impl UiWorkspace {
+    /// Hyprland reads a negative id as a relative move, so these are focused by name.
+    fn is_named(&self) -> bool {
+        !self.is_special && self.id < 0
+    }
+
+    fn press_message(&self) -> Message {
+        if self.is_special {
+            Message::ToggleSpecialWorkspace(self.id)
+        } else if self.is_named() {
+            Message::FocusNamedWorkspace(self.id)
+        } else {
+            Message::ChangeWorkspace(self.id)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +83,7 @@ fn resolve_workspace_icons(window_classes: &[String]) -> Vec<XdgIcon> {
 pub enum Message {
     ServiceEvent(Box<ServiceEvent<CompositorService>>),
     ChangeWorkspace(i32),
+    FocusNamedWorkspace(i32),
     ToggleSpecialWorkspace(i32),
     Scroll(i32, Option<String>),
     ConfigReloaded(WorkspacesModuleConfig),
@@ -100,7 +119,7 @@ fn calculate_ui_workspaces(
 
     let collect_icons = config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
     let mut result: Vec<UiWorkspace> = Vec::with_capacity(workspaces.len());
-    let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
+    let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.is_special);
 
     // map special workspaces
     if !config.disable_special_workspaces {
@@ -125,6 +144,7 @@ fn calculate_ui_workspaces(
                 },
                 windows: w.windows,
                 has_urgent: w.has_urgent,
+                is_special: true,
                 icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
@@ -133,8 +153,10 @@ fn calculate_ui_workspaces(
     if config.enable_virtual_desktops {
         let monitor_count = monitors.len().max(1);
         let mut virtual_desktops: HashMap<i32, VirtualDesktop> = HashMap::new();
+        // Only numbered workspaces fold into virtual desktops.
+        let (numbered, named): (Vec<_>, Vec<_>) = normal.into_iter().partition(|w| w.id > 0);
 
-        for w in normal {
+        for w in numbered {
             let vdesk_id = ((w.id - 1) / monitor_count as i32) + 1;
             let is_active = active_ids.contains(&w.id);
 
@@ -177,9 +199,32 @@ fn calculate_ui_workspaces(
                 },
                 windows: vdesk.windows,
                 has_urgent: vdesk.has_urgent,
+                is_special: false,
                 icons: collect_icons.then(|| resolve_workspace_icons(&vdesk.window_classes)),
             });
         });
+
+        for w in named {
+            let is_active = active_ids.contains(&w.id);
+            let is_visible = monitors.iter().any(|m| m.active_workspace_id == w.id);
+
+            result.push(UiWorkspace {
+                id: w.id,
+                index: w.index,
+                name: w.name,
+                monitor_id: w.monitor_id,
+                monitor: w.monitor,
+                displayed: match (is_active, is_visible) {
+                    (true, _) => Displayed::Active,
+                    (false, true) => Displayed::Visible,
+                    (false, false) => Displayed::Hidden,
+                },
+                windows: w.windows,
+                has_urgent: w.has_urgent,
+                is_special: false,
+                icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
+            });
+        }
     } else {
         for w in normal {
             let display_name = if w.id > 0 {
@@ -210,6 +255,7 @@ fn calculate_ui_workspaces(
                 },
                 windows: w.windows,
                 has_urgent: w.has_urgent,
+                is_special: false,
                 icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
@@ -254,6 +300,7 @@ fn calculate_ui_workspaces(
                 displayed: Displayed::Hidden,
                 windows: 0,
                 has_urgent: false,
+                is_special: false,
                 icons: None,
             });
         }
@@ -385,6 +432,22 @@ impl Workspaces {
                 }
                 iced::Task::none()
             }
+            Message::FocusNamedWorkspace(id) => {
+                let already_active = self
+                    .ui_workspaces
+                    .iter()
+                    .any(|w| w.displayed == Displayed::Active && w.id == id);
+
+                if let Some(service) = &mut self.service
+                    && !already_active
+                    && let Some(named) = service.workspaces.iter().find(|w| w.id == id)
+                {
+                    return service
+                        .command(CompositorCommand::FocusNamedWorkspace(named.name.clone()))
+                        .map(|event| Message::ServiceEvent(Box::new(event)));
+                }
+                iced::Task::none()
+            }
             Message::ToggleSpecialWorkspace(id) => {
                 if let Some(service) = &mut self.service
                     && let Some(special) = service.workspaces.iter().find(|w| w.id == id)
@@ -404,73 +467,13 @@ impl Workspaces {
             Message::Scroll(direction, monitor) => {
                 self.scroll_accumulator = 0.;
 
-                // Start from the scrolled bar's monitor (Active, else Visible), so
-                // each bar scrolls its own monitor; fall back to the global active.
-                let pos = monitor
-                    .as_deref()
-                    .and_then(|name| {
-                        self.ui_workspaces.iter().position(|w| {
-                            !w.monitor.is_empty()
-                                && name.contains(w.monitor.as_str())
-                                && matches!(w.displayed, Displayed::Active | Displayed::Visible)
-                        })
-                    })
-                    .or_else(|| {
-                        self.ui_workspaces
-                            .iter()
-                            .position(|w| w.displayed == Displayed::Active)
-                    });
-
-                let Some(pos) = pos else {
-                    return iced::Task::none();
-                };
-
-                let current_monitor = self.ui_workspaces[pos].monitor.clone();
-                let current_monitor_id = self.ui_workspaces[pos].monitor_id;
-
-                let restrict_to_monitor = matches!(
-                    self.config.visibility_mode,
-                    WorkspaceVisibilityMode::MonitorSpecific
-                        | WorkspaceVisibilityMode::MonitorSpecificExclusive
-                );
-
-                let in_current_group = |w: &&UiWorkspace| -> bool {
-                    if !restrict_to_monitor {
-                        return true;
+                match self.scroll_target(direction, monitor.as_deref()) {
+                    Some(next) => {
+                        let message = next.press_message();
+                        self.update(message)
                     }
-
-                    if let Some(w_monitor_id) = w.monitor_id
-                        && let Some(active_monitor_id) = current_monitor_id
-                    {
-                        return w_monitor_id == active_monitor_id;
-                    }
-
-                    if !w.monitor.is_empty() && !current_monitor.is_empty() {
-                        return w.monitor == current_monitor;
-                    }
-
-                    // monitor doesn't seem to contain any useful info, so assume it's part of the group
-                    true
-                };
-
-                // Navigate by position in the already-sorted ui_workspaces
-                // vector, which represents exact visual order regardless of
-                // group_by_monitor or visibility_mode configuration.
-                let next_workspace = if direction > 0 {
-                    self.ui_workspaces[..pos]
-                        .iter()
-                        .rev()
-                        .find(|w| in_current_group(w))
-                } else {
-                    self.ui_workspaces[pos + 1..]
-                        .iter()
-                        .find(|w| in_current_group(w))
-                };
-
-                if let Some(next) = next_workspace {
-                    return self.update(Message::ChangeWorkspace(next.id));
+                    None => iced::Task::none(),
                 }
-                iced::Task::none()
             }
             Message::ConfigReloaded(cfg) => {
                 let icons_enabled = cfg.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
@@ -500,6 +503,78 @@ impl Workspaces {
 
                 iced::Task::none()
             }
+        }
+    }
+
+    fn scroll_target(&self, direction: i32, monitor: Option<&str>) -> Option<&UiWorkspace> {
+        // Start from the scrolled bar's monitor (Active, else Visible), so
+        // each bar scrolls its own monitor; fall back to the global active.
+        //
+        // Special workspaces are skipped throughout: an open one is Active
+        // and sorts to the front of `ui_workspaces`, so it would win this
+        // search and anchor navigation on itself instead of the focused
+        // workspace.
+        let pos = monitor
+            .and_then(|name| {
+                self.ui_workspaces.iter().position(|w| {
+                    !w.is_special
+                        && !w.monitor.is_empty()
+                        && name == w.monitor.as_str()
+                        && matches!(w.displayed, Displayed::Active | Displayed::Visible)
+                })
+            })
+            .or_else(|| {
+                self.ui_workspaces
+                    .iter()
+                    .position(|w| !w.is_special && w.displayed == Displayed::Active)
+            })?;
+
+        let current_monitor = self.ui_workspaces[pos].monitor.clone();
+        let current_monitor_id = self.ui_workspaces[pos].monitor_id;
+
+        let restrict_to_monitor = matches!(
+            self.config.visibility_mode,
+            WorkspaceVisibilityMode::MonitorSpecific
+                | WorkspaceVisibilityMode::MonitorSpecificExclusive
+        );
+
+        let in_current_group = |w: &&UiWorkspace| -> bool {
+            // Special workspaces are toggled, not focused, so scrolling
+            // must never land on one and dispatch `ChangeWorkspace`.
+            if w.is_special {
+                return false;
+            }
+
+            if !restrict_to_monitor {
+                return true;
+            }
+
+            if let Some(w_monitor_id) = w.monitor_id
+                && let Some(active_monitor_id) = current_monitor_id
+            {
+                return w_monitor_id == active_monitor_id;
+            }
+
+            if !w.monitor.is_empty() && !current_monitor.is_empty() {
+                return w.monitor == current_monitor;
+            }
+
+            // monitor doesn't seem to contain any useful info, so assume it's part of the group
+            true
+        };
+
+        // Navigate by position in the already-sorted ui_workspaces
+        // vector, which represents exact visual order regardless of
+        // group_by_monitor or visibility_mode configuration.
+        if direction > 0 {
+            self.ui_workspaces[..pos]
+                .iter()
+                .rev()
+                .find(|w| in_current_group(w))
+        } else {
+            self.ui_workspaces[pos + 1..]
+                .iter()
+                .find(|w| in_current_group(w))
         }
     }
 
@@ -547,7 +622,7 @@ impl Workspaces {
                             };
 
                             let color = color_index.map(|i| {
-                                let colors = if w.id < 0 {
+                                let colors = if w.is_special {
                                     theme
                                         .special_workspace_colors
                                         .as_ref()
@@ -562,11 +637,7 @@ impl Workspaces {
                                 let name = w.name.clone();
                                 let icons = w.icons.clone().unwrap_or_default();
                                 let has_icons = !icons.is_empty();
-                                let on_press = if w.id > 0 {
-                                    Message::ChangeWorkspace(w.id)
-                                } else {
-                                    Message::ToggleSpecialWorkspace(w.id)
-                                };
+                                let on_press = w.press_message();
                                 let font_size = theme.font_size.xs;
                                 let height = theme.space.md;
 

@@ -31,7 +31,8 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
                 ));
             }
         },
-        CompositorCommand::FocusSpecialWorkspace(_)
+        CompositorCommand::FocusNamedWorkspace(_)
+        | CompositorCommand::FocusSpecialWorkspace(_)
         | CompositorCommand::ToggleSpecialWorkspace(_) => {
             return Err(anyhow!("Special workspaces not supported in Niri backend"));
         }
@@ -50,9 +51,7 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
         },
         CompositorCommand::CustomDispatch(action, args) => {
             if action == "spawn" {
-                Action::Spawn {
-                    command: vec![args],
-                }
+                Action::SpawnSh { command: args }
             } else {
                 return Err(anyhow!("Unknown custom dispatch: {}", action));
             }

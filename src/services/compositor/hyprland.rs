@@ -38,6 +38,11 @@ fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
                 id,
             )))?;
         }
+        CompositorCommand::FocusNamedWorkspace(name) => {
+            Dispatch::call(DispatchType::Workspace(
+                WorkspaceIdentifierWithSpecial::Name(name.as_str()),
+            ))?;
+        }
         CompositorCommand::FocusSpecialWorkspace(name) => {
             Dispatch::call(DispatchType::Workspace(
                 WorkspaceIdentifierWithSpecial::Special(Some(name.as_str())),
@@ -75,10 +80,16 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
         CompositorCommand::FocusWorkspace(id) => {
             format!("hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))")
         }
+        CompositorCommand::FocusNamedWorkspace(name) => {
+            let name = escape_lua_string(&name);
+            format!("hl.dispatch(hl.dsp.focus({{ workspace = \"name:{name}\" }}))")
+        }
         CompositorCommand::FocusSpecialWorkspace(name) => {
+            let name = escape_lua_string(&name);
             format!("hl.dispatch(hl.dsp.focus({{ workspace = \"special:{name}\" }}))")
         }
         CompositorCommand::ToggleSpecialWorkspace(name) => {
+            let name = escape_lua_string(&name);
             format!("hl.dispatch(hl.dsp.workspace.toggle_special(\"{name}\"))")
         }
         CompositorCommand::FocusMonitor(id) => {
@@ -96,6 +107,10 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
             return Ok(());
         }
         CompositorCommand::CustomDispatch(dispatcher, args) => {
+            // `dispatcher` is a Lua identifier and `args` is spliced in as a raw
+            // Lua expression (e.g. `{ workspace = "3" }`), not a string literal —
+            // escaping either would break valid input. The contract here is that
+            // the caller hands us Lua.
             format!("hl.dispatch(hl.dsp.{dispatcher}({args}))")
         }
     };
@@ -112,6 +127,21 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     } else {
         dispatch_hyprlang(cmd)
     }
+}
+
+// Names reach the Lua layer by string interpolation, so quotes, backslashes
+// and control characters must be escaped or a workspace name containing them
+// breaks the generated program.
+// TODO: switch to `hyprland::lua::{quote_string, escape_string}` once
+// hyprland-rs#399 lands, since it also covers the remaining control
+// characters as zero-padded \ddd sequences.
+fn escape_lua_string(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
 }
 
 #[derive(Debug, Clone, Default)]
@@ -206,6 +236,15 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
         .map_err(|e| anyhow::anyhow!(e))
 }
 
+const SPECIAL_WORKSPACE_ID_START: i32 = -99;
+const SPECIAL_WORKSPACE_ID_END: i32 = -2;
+
+/// Mirrors Hyprland's `CWorkspaceQueryCore::isSpecial`. Named workspaces are
+/// negative too (from -1337 down), so `id < 0` is not enough.
+fn is_special_workspace_id(id: i32) -> bool {
+    (SPECIAL_WORKSPACE_ID_START..=SPECIAL_WORKSPACE_ID_END).contains(&id)
+}
+
 fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorState> {
     let collect_classes = super::should_collect_window_classes();
 
@@ -235,7 +274,7 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
                 monitor: w.monitor,
                 monitor_id: w.monitor_id,
                 windows: w.windows,
-                is_special: w.id < 0,
+                is_special: is_special_workspace_id(w.id),
                 has_urgent: false,
                 window_classes,
             }
@@ -290,4 +329,45 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
             Some(internal_state.submap.clone())
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{escape_lua_string, is_special_workspace_id};
+
+    #[test]
+    fn quotes_and_backslashes_are_escaped() {
+        assert_eq!(escape_lua_string(r#"a\b"c"#), r#"a\\b\"c"#);
+    }
+
+    #[test]
+    fn control_characters_are_escaped() {
+        assert_eq!(escape_lua_string("a\nb\rc\td"), r"a\nb\rc\td");
+    }
+
+    #[test]
+    fn plain_names_are_untouched() {
+        assert_eq!(escape_lua_string("special:2"), "special:2");
+    }
+
+    #[test]
+    fn special_workspace_ids_are_special() {
+        for id in [-99, -50, -3, -2] {
+            assert!(is_special_workspace_id(id), "{id} should be special");
+        }
+    }
+
+    #[test]
+    fn named_workspace_ids_are_not_special() {
+        for id in [-1, -100, -1337, -1338, -2000] {
+            assert!(!is_special_workspace_id(id), "{id} should not be special");
+        }
+    }
+
+    #[test]
+    fn numbered_workspace_ids_are_not_special() {
+        for id in [0, 1, 10] {
+            assert!(!is_special_workspace_id(id), "{id} should not be special");
+        }
+    }
 }

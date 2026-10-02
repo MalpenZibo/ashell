@@ -14,6 +14,8 @@ It displays in the status bar indicators about:
 - Network status
 - Bluetooth connection status
 - Battery status
+- Peripheral battery status
+- Screen brightness
 - Power profile
 - Idle inhibitor status
 - VPN connection status
@@ -33,7 +35,7 @@ And lets you interact with these settings:
 - Lock the screen
 - Suspend, hibernate, logout, reboot, or shutdown the system
 
-You can configure some function of this module.
+You can configure this module.
 
 With the `lock_cmd` option you can set a command to lock  
 the system, if not set the related button will not appear.
@@ -58,6 +60,20 @@ With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`
 options you can set commands to open the audio settings  
 for sinks and sources, if not set the related buttons will not appear.  
 When configured, right-clicking the speaker or microphone indicators (or their quick settings buttons) launches the respective command immediately.
+
+With the `audio_sink_post_switch_cmd` and `audio_source_post_switch_cmd` options
+you can set commands that are automatically executed after switching the audio output or input device.
+This is useful for working around PipeWire or WirePlumber issues where audio doesn't
+properly route to the new device without a service restart.
+
+The command is executed asynchronously (fire-and-forget) via `bash -c` once the device
+selected in the menu has become the new default. If the audio server picks a different
+device instead (for example an output with nothing connected), the command is not run.
+
+```toml
+[settings]
+audio_sink_post_switch_cmd = "systemctl --user restart wireplumber"
+```
 
 With the `wifi_more_cmd`, `vpn_more_cmd` and `bluetooth_more_cmd` options  
 you can set commands to open the network, VPN and bluetooth settings.  
@@ -85,11 +101,30 @@ enable_tooltips = false
 
 With the format options you can customize how different indicators are displayed in the status bar.
 
-All format options support the same values:
+Every format option accepts the same set of values, but not every indicator has
+something meaningful to show for each of them. The values are:
 
-- `Icon` - Show only the icon
-- `Percentage` (or `Value`) - Show only the numeric value (percentage, count, or strength)
-- `IconAndPercentage` (or `IconAndValue`) - Show both the icon and the numeric value (default)
+| Value | Shows |
+| --- | --- |
+| `Icon` | Only the icon |
+| `Percentage` (alias `Value`) | Only the value (percentage, count, or strength) |
+| `IconAndPercentage` (alias `IconAndValue`) | The icon followed by the value |
+| `Time` | Only the remaining time (battery indicators) |
+| `IconAndTime` | The icon followed by the remaining time |
+| `Name` | Only the name |
+| `IconAndName` | The icon followed by the name |
+| `PercentageAndTime` | The value followed by the remaining time (battery indicators) |
+| `IconAndPercentageAndTime` | The icon, the value and the remaining time |
+
+:::info
+`Name` and `IconAndName` show a name for the **network** (SSID) and
+**peripheral** (device name) indicators; every other indicator keeps showing
+its value: `Name` behaves like `Percentage` and `IconAndName` like
+`IconAndPercentage`.
+
+The defaults are not uniform either: `battery_format` defaults to
+`IconAndPercentage`, every other format option defaults to `Icon`.
+:::
 
 ### Battery Format
 
@@ -100,10 +135,12 @@ The possible values are:
 - `Icon` - Show only the battery icon
 - `Percentage` - Show only the battery percentage
 - `IconAndPercentage` - Show both the battery icon and percentage (default)
-- `Time` - Show smart time display (time to full when charging, time to empty when discharging, "100%" when full)
+- `Time` - Show smart time display (time to full when charging, time to empty when discharging, the percentage when full)
 - `IconAndTime` - Show battery icon with smart time display
 - `PercentageAndTime` - Show the battery percentage along with smart time display
 - `IconAndPercentageAndTime` - Show battery icon with battery percentage and smart time display
+- `Name` - Accepted, but a battery has no name: renders like `Percentage`
+- `IconAndName` - Accepted, but renders like `IconAndPercentage`
 
 ```toml
 [settings]
@@ -127,8 +164,12 @@ The `Time` and `IconAndTime` formats provide intelligent time display:
 
 - **When charging**: Shows time until full (e.g., "45m", "2h 15m")
 - **When discharging**: Shows time until empty (e.g., "1h 30m", "3h 45m")
-- **When at 100%**: Shows "100%"
-- **When calculating**: Shows "Calculating..." for system battery, empty for peripherals
+- **When charging or discharging with no estimate yet**: Shows "Calculating..." (translated),
+  for both the system battery and peripherals
+- **Otherwise** (full or at 100%, not charging, unknown): Shows the plain percentage
+
+`PercentageAndTime` and `IconAndPercentageAndTime` append the same time to the
+percentage, and show only the percentage when there is no time to add.
 
 ```toml
 [settings]
@@ -146,9 +187,10 @@ peripheral_battery_format = "IconAndTime"
 
 ### Peripheral Battery Format
 
-In the same way it's possible to customize the peripheral battery indicator format.
-The possible values are the same as above, but you need to use
-the `peripheral_battery_format` option.
+In the same way it's possible to customize the peripheral battery indicator
+format with the `peripheral_battery_format` option. It accepts the same values;
+`Name` and `IconAndName` show the device name.
+
 The default value is `Icon`.
 
 With the `peripheral_indicators` you can decide which peripheral battery indicators
@@ -189,6 +231,7 @@ peripheral_expanded_by_default = true
 ### Audio Format
 
 With the `audio_indicator_format` option you can customize the audio volume indicator format.
+The value it shows is the current output volume as a percentage.
 
 The default value is `Icon`.
 
@@ -243,13 +286,17 @@ The default value is `Icon`.
 [settings]
 network_indicator_format = "IconAndPercentage"
 # or, to show the SSID next to the wifi icon:
-network_indicator_format = "IconAndName"
+# network_indicator_format = "IconAndName"
 ```
 
 ### Bluetooth Format
 
 With the `bluetooth_indicator_format` option you can customize the bluetooth indicator format.
-When devices are connected, this shows the number of connected devices.
+The value it shows is the number of connected devices.
+
+The indicator is only rendered while Bluetooth is on. When no device is
+connected there is no count to show, so the bar falls back to a plain Bluetooth
+icon whatever format you set.
 
 The default value is `Icon`.
 
@@ -289,33 +336,6 @@ backlight through firmware shortcuts.
 Clicking the icon on the left of the slider toggles the backlight off and back
 on, restoring the level it had before it was switched off. Scrolling over the
 slider changes the level in 5% steps.
-
-## Peripheral Indicators
-
-With the `peripheral_indicators` you can decide which peripheral battery indicators
-are shown in the status bar.
-
-The possible values are:
-
-- `All` - Show all peripheral battery indicators (default)
-- `Specific` - Show only the peripheral battery indicators in the specified categories.
-  The possible categories are:
-  - `Keyboard`
-  - `Mouse`
-  - `Headphones`
-  - `Gamepad`
-
-```toml
-[settings]
-battery_format = "IconAndPercentage"
-peripheral_battery_format = "Icon"
-peripheral_indicators = { Specific = ["Gamepad", "Keyboard"] }
-audio_indicator_format = "Icon"
-network_indicator_format = "Icon"
-bluetooth_indicator_format = "Icon"
-brightness_indicator_format = "Icon"
-```
-
 ## Status Bar Indicators
 
 With the `indicators` option you can customize which status indicators
@@ -339,7 +359,7 @@ Available indicators are:
 # Customize which indicators to show and their order
 indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone"]
 
-# Default indicators (shown in this order):
+# The default, for reference (shown in this order):
 indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery"]
 ```
 
@@ -428,6 +448,7 @@ We also disable the airplane mode button and the idle inhibitor button.
 lock_cmd = "hyprlock &"
 audio_sinks_more_cmd = "pavucontrol -t 3"
 audio_sources_more_cmd = "pavucontrol -t 4"
+# audio_sink_post_switch_cmd = "systemctl --user restart wireplumber"
 wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"

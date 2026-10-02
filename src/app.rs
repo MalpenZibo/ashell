@@ -31,7 +31,7 @@ use iced::futures::StreamExt;
 use iced::{
     Alignment, Element, Length, OutputEvent, Subscription, SurfaceId, Task, Theme,
     event::listen_with,
-    keyboard, set_exclusive_zone,
+    keyboard,
     widget::{Row, blur_container, container, mouse_area},
 };
 use log::{debug, info, warn};
@@ -70,7 +70,6 @@ pub struct App {
     pub media_player: MediaPlayer,
     pub notifications: Notifications,
     pub osd: Osd,
-    pub visible: bool,
 }
 
 mod message;
@@ -140,7 +139,6 @@ impl App {
                     notifications,
                     media_player: MediaPlayer::new(config.media_player),
                     osd: Osd::new(config.osd),
-                    visible: true,
                 },
                 warm_icons,
             )
@@ -160,13 +158,15 @@ impl App {
             layer: config.layer,
             enable_esc_key: config.enable_esc_key,
         };
-        let custom = config
+        let mut previous = std::mem::take(&mut self.custom);
+        self.custom = config
             .custom_modules
             .into_iter()
-            .map(|o| (o.name.clone(), Custom::new(o)))
+            .map(|o| {
+                let prev = previous.remove(&o.name);
+                (o.name.clone(), Custom::reconfigure(prev, o))
+            })
             .collect();
-
-        self.custom = custom;
         let existing_updates = self.updates.take();
         self.updates = config.updates.map(|updates_config| {
             let mut updates =
@@ -196,11 +196,12 @@ impl App {
             ))
             .map(Message::KeyboardLayout);
 
-        self.keyboard_submap = KeyboardSubmap::default();
         self.tempo
             .update(modules::tempo::Message::ConfigReloaded(config.tempo));
         self.settings
-            .update(modules::settings::Message::ConfigReloaded(config.settings));
+            .update(modules::settings::Message::ConfigReloaded(Box::new(
+                config.settings,
+            )));
         self.media_player
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,
@@ -214,6 +215,8 @@ impl App {
             .update(modules::notifications::Message::ConfigReloaded(
                 config.notifications,
             ));
+        self.tray
+            .update(modules::tray::Message::ConfigReloaded(config.tray));
         self.osd.update(osd::Message::ConfigReloaded(config.osd));
 
         workspaces_task
@@ -411,16 +414,14 @@ impl App {
             Message::OutputEvent(event) => match event {
                 OutputEvent::Added(info) => {
                     info!("Output created: {info:?}");
-                    // Pass both the canonical name and the full EDID
-                    // description down to Outputs::add. The workspace
-                    // visibility filter compares against just the
-                    // canonical `info.name` (matches `w.monitor` from
-                    // the compositor); name_in_config / has_name keep
-                    // matching against the concatenated description
-                    // too so #312's fuzzy-EDID-alias config behaviour
-                    // is preserved.
+                    // Keep canonical workspace identity separate from description-based
+                    // target matching, which may include monitor serial numbers.
                     let name = info.name.as_str();
-                    let description = format!("{} {} {}", info.name, info.make, info.model);
+                    // Preserve existing targets even when the compositor uses different separators.
+                    let description = match info.description {
+                        Some(d) => format!("{} {} {} {d}", info.name, info.make, info.model),
+                        None => format!("{} {} {}", info.name, info.make, info.model),
+                    };
 
                     let (bar_layout, bar_position, scale_factor) =
                         use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
@@ -562,25 +563,20 @@ impl App {
             },
             Message::None => Task::none(),
             Message::ToggleVisibility => {
-                self.visible = !self.visible;
-                let (bar_layout, bar_position, scale_factor) =
-                    use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
-                let zone = if self.visible {
-                    Outputs::exclusive_zone(bar_layout, bar_position, scale_factor)
-                } else {
-                    0
-                };
+                let task = self.outputs.toggle_visibility();
 
-                Task::batch(
-                    self.outputs
-                        .iter()
-                        .filter_map(|(_, shell_info, _)| {
-                            shell_info
-                                .as_ref()
-                                .map(|info| set_exclusive_zone(info.id, zone))
-                        })
-                        .collect::<Vec<_>>(),
-                )
+                if self.outputs.bar_is_shown() {
+                    task
+                } else {
+                    // A menu surface spans the whole output and keeps accepting
+                    // input there, so hiding the bar has to close it instead of
+                    // leaving it floating over the desktop.
+                    Task::batch(vec![
+                        task,
+                        self.outputs
+                            .close_all_menus(self.general_config.enable_esc_key),
+                    ])
+                }
             }
         }
     }
@@ -588,7 +584,7 @@ impl App {
     pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
-                if !self.visible {
+                if !self.outputs.bar_is_shown() {
                     return Row::new().into();
                 }
 
@@ -773,5 +769,97 @@ impl App {
                 other => Message::IpcOsdCommand(other),
             }),
         ])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modules::custom_module::{CustomListenData, Message as CustomMessage};
+
+    fn test_config(listen_cmd: &str) -> Config {
+        #[derive(serde::Serialize)]
+        struct CustomModuleStub {
+            name: &'static str,
+            listen_cmd: String,
+            #[serde(rename = "type")]
+            module_type: &'static str,
+        }
+        #[derive(serde::Serialize)]
+        struct ConfigStub {
+            #[serde(rename = "CustomModule")]
+            custom_module: Vec<CustomModuleStub>,
+        }
+
+        let stub = ConfigStub {
+            custom_module: vec![CustomModuleStub {
+                name: "probe",
+                listen_cmd: listen_cmd.to_owned(),
+                module_type: "Text",
+            }],
+        };
+        let toml = toml::to_string(&stub).expect("test config should serialize");
+        toml::from_str(&toml).expect("test config should deserialize")
+    }
+
+    fn test_app() -> App {
+        let (_log, logger) = flexi_logger::Logger::with(
+            flexi_logger::LogSpecBuilder::new()
+                .default(log::LevelFilter::Off)
+                .build(),
+        )
+        .log_to_stderr()
+        .build()
+        .expect("logger should build");
+        let (app, _task) = App::new((logger, Config::default(), PathBuf::from("/nonexistent")))();
+        app
+    }
+
+    /// A config save that leaves `name`/`listen_cmd` untouched must not wipe
+    /// the last `listen_cmd` payload: the subscription is keyed on that pair,
+    /// so iced keeps the already-running process alive and it will not reprint.
+    #[test]
+    fn reload_keeps_listen_cmd_data_when_subscription_is_unchanged() {
+        let config = test_config("swaync-client -swb");
+        let mut app = test_app();
+        app.update(Message::ConfigChanged(Box::new(config.clone())));
+
+        app.update(Message::Custom(
+            "probe".to_string(),
+            CustomMessage::Update(CustomListenData {
+                alt: "critical".to_string(),
+                text: Some("3 urgent".to_string()),
+            }),
+        ));
+
+        app.update(Message::ConfigChanged(Box::new(test_config(
+            "swaync-client -swb",
+        ))));
+
+        let data = app.custom.get("probe").expect("module kept").data();
+        assert_eq!(data.text.as_deref(), Some("3 urgent"));
+        assert_eq!(data.alt, "critical");
+    }
+
+    /// Changing `listen_cmd` restarts the subscription, so stale output from
+    /// the previous command must not leak into the new one.
+    #[test]
+    fn reload_drops_listen_cmd_data_when_listen_cmd_changes() {
+        let mut app = test_app();
+        app.update(Message::ConfigChanged(Box::new(test_config("cmd-a"))));
+
+        app.update(Message::Custom(
+            "probe".to_string(),
+            CustomMessage::Update(CustomListenData {
+                alt: "critical".to_string(),
+                text: Some("stale".to_string()),
+            }),
+        ));
+
+        app.update(Message::ConfigChanged(Box::new(test_config("cmd-b"))));
+
+        let data = app.custom.get("probe").expect("module kept").data();
+        assert!(data.text.is_none(), "stale text survived: {:?}", data.text);
+        assert!(data.alt.is_empty(), "stale alt survived: {:?}", data.alt);
     }
 }

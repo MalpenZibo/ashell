@@ -1,5 +1,5 @@
-use crate::config::{LogTarget, Position, get_config};
-use crate::outputs::Outputs;
+use crate::config::{LogTarget, get_config};
+use crate::outputs::{BarVisibility, Outputs};
 use crate::theme::BarLayout;
 use app::App;
 use clap::Parser;
@@ -7,7 +7,7 @@ use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
 use iced::{
-    Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings,
+    Font, KeyboardInteractivity, Layer, LayerShellSettings,
     font::{Stretch as FontStretch, Style as FontStyle, Weight as FontWeight},
 };
 use log::{debug, error, info, warn};
@@ -244,8 +244,12 @@ fn main() -> iced::Result {
         Font::DEFAULT
     };
 
-    let bar_layout = BarLayout::from_appearance(&config.appearance.bar);
-    let height = Outputs::get_height(bar_layout, config.appearance.scale_factor);
+    let geometry = Outputs::bar_geometry(
+        BarLayout::from_appearance(&config.appearance.bar),
+        config.position,
+        config.appearance.scale_factor,
+        BarVisibility::Shown,
+    );
 
     let iced_layer = match config.layer {
         config::Layer::Top => Layer::Top,
@@ -259,19 +263,11 @@ fn main() -> iced::Result {
         App::view,
     )
     .layer_shell(LayerShellSettings {
-        anchor: match config.position {
-            Position::Top => Anchor::TOP,
-            Position::Bottom => Anchor::BOTTOM,
-        } | Anchor::LEFT
-            | Anchor::RIGHT,
+        anchor: geometry.anchor,
         layer: iced_layer,
-        exclusive_zone: Outputs::exclusive_zone(
-            bar_layout,
-            config.position,
-            config.appearance.scale_factor,
-        ),
-        margin: bar_layout.margin.into(),
-        size: Some((0, height as u32)),
+        exclusive_zone: geometry.exclusive_zone,
+        margin: geometry.margin,
+        size: Some(geometry.size),
         keyboard_interactivity: KeyboardInteractivity::None,
         namespace: "ashell-main-layer".into(),
         ..Default::default()

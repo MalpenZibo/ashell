@@ -209,13 +209,22 @@ impl Tempo {
                             &data.daily.temperature_2m_max,
                             &data.daily.wind_direction_10m_dominant,
                             &data.daily.wind_speed_10m_max,
+                            &data.daily.relative_humidity_2m_mean,
                         )
                         .skip(1)
                         .enumerate()
                         .map(
                             |(
                                 index,
-                                (time, weather_code, temp_min, temp_max, wind_dir, wind_speed),
+                                (
+                                    time,
+                                    weather_code,
+                                    temp_min,
+                                    temp_max,
+                                    wind_dir,
+                                    wind_speed,
+                                    humidity,
+                                ),
                             )| {
                                 let last_index = data.daily.time.len() - 2;
                                 container(
@@ -236,20 +245,33 @@ impl Tempo {
                                         )
                                         .spacing(space.xxs)
                                         .align_y(Vertical::Center)
-                                        .width(Length::FillPortion(4)),
-                                        row!(
-                                            svg(Handle::from_memory(include_bytes!(
-                                                "../../../assets/weather_icon/wind.svg"
-                                            )))
-                                            .height(font_size.md)
-                                            .width(Length::Fixed(font_size.md))
-                                            .rotation(Rotation::Floating(
-                                                Degrees(*wind_dir as f32 + 90.).into()
-                                            )),
-                                            text(format!("{} {wind}", wind_speed.round()))
+                                        .width(Length::FillPortion(5)),
+                                        column!(
+                                            row!(
+                                                svg(Handle::from_memory(include_bytes!(
+                                                    "../../../assets/weather_icon/drop.svg"
+                                                )))
+                                                .height(font_size.sm)
+                                                .width(Length::Fixed(font_size.sm)),
+                                                text(format!("{humidity}%")).size(font_size.sm)
+                                            )
+                                            .spacing(space.xxs)
+                                            .align_y(Vertical::Center),
+                                            row!(
+                                                svg(Handle::from_memory(include_bytes!(
+                                                    "../../../assets/weather_icon/wind.svg"
+                                                )))
+                                                .height(font_size.sm)
+                                                .width(Length::Fixed(font_size.sm))
+                                                .rotation(Rotation::Floating(
+                                                    Degrees(*wind_dir as f32 + 90.).into()
+                                                )),
+                                                text(format!("{} {wind}", wind_speed.round()))
+                                                    .size(font_size.sm)
+                                            )
+                                            .spacing(space.xxs)
+                                            .align_y(Vertical::Center)
                                         )
-                                        .spacing(space.xxs)
-                                        .align_y(Vertical::Center)
                                         .width(Length::FillPortion(3))
                                     )
                                     .spacing(space.sm)
@@ -478,7 +500,7 @@ pub async fn fetch_weather_data(
 latitude={lat}&longitude={lon}\
 &current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
 &hourly=weather_code,temperature_2m,is_day\
-&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
+&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant,relative_humidity_2m_mean\
 &forecast_days=7\
 &temperature_unit={temp_param}\
 &wind_speed_unit={wind_param}\
@@ -529,6 +551,7 @@ pub struct DailyWeatherData {
     pub temperature_2m_min: Vec<f32>,
     pub wind_speed_10m_max: Vec<f32>,
     pub wind_direction_10m_dominant: Vec<u32>,
+    pub relative_humidity_2m_mean: Vec<u32>,
 }
 
 fn deserialize_datetime_vec<'de, D>(d: D) -> Result<Vec<NaiveDateTime>, D::Error>

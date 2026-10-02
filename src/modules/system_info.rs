@@ -18,38 +18,14 @@ use iced::{
 use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
 use log::{info, warn};
-use std::time::{Duration, Instant};
+use std::{
+    net::IpAddr,
+    time::{Duration, Instant},
+};
 use sysinfo::{Components, Disks, Networks, System};
 
-const MAX_IP_LEN: usize = 45;
-
-#[derive(Clone, Copy)]
-struct FixedIp([u8; MAX_IP_LEN], usize);
-
-impl FixedIp {
-    fn from_str(s: &str) -> Option<Self> {
-        if s.len() < MAX_IP_LEN {
-            let mut arr = [0u8; MAX_IP_LEN];
-            arr[..s.len()].copy_from_slice(s.as_bytes());
-            Some(Self(arr, s.len()))
-        } else {
-            None
-        }
-    }
-}
-
-impl std::fmt::Display for FixedIp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            std::str::from_utf8(&self.0[..self.1]).unwrap_or("")
-        )
-    }
-}
-
 struct NetworkData {
-    ip: FixedIp,
+    ip: IpAddr,
     download_speed: u32,
     upload_speed: u32,
     last_check: Instant,
@@ -57,6 +33,7 @@ struct NetworkData {
 
 struct MemoryUsage {
     percentage: u32,
+    amount: f32,
     fraction: String,
 }
 
@@ -136,6 +113,8 @@ static CPU_MATCHES: [SensorMatch<'static>; 2] = [
         "coretemp Package id 0",
         "coretemp Core 0",
         "coretemp Physical id 0",
+        "k10temp Tdie",
+        "k10temp Tctl",
     ]),
     SensorMatch::StartsWith(&["k10temp", "applesmc"]),
 ];
@@ -228,6 +207,7 @@ fn get_system_info(
         } else {
             0
         },
+        amount: utils::bytes_to_gib(used_mem),
         fraction: format!(
             "{:.2}/{:.2}",
             utils::bytes_to_gib(used_mem),
@@ -244,6 +224,7 @@ fn get_system_info(
         } else {
             0
         },
+        amount: utils::bytes_to_gib(used_swap),
         fraction: format!(
             "{:.2}/{:.2}",
             utils::bytes_to_gib(used_swap),
@@ -372,14 +353,11 @@ fn get_system_info(
         memory_swap_usage,
         temperature,
         disks,
-        network: network.0.and_then(|ip| {
-            let ip_str = ip.to_string();
-            FixedIp::from_str(&ip_str).map(|ip| NetworkData {
-                ip,
-                download_speed: network_speed(network.1),
-                upload_speed: network_speed(network.2),
-                last_check: Instant::now(),
-            })
+        network: network.0.map(|ip| NetworkData {
+            ip,
+            download_speed: network_speed(network.1),
+            upload_speed: network_speed(network.2),
+            last_check: Instant::now(),
         }),
     }
 }
@@ -554,6 +532,8 @@ impl SystemInfo {
                                 format!("{}%", self.data.memory_usage.percentage),
                             MemoryFormat::Fraction =>
                                 format!("{} GiB", self.data.memory_usage.fraction),
+                            MemoryFormat::Amount =>
+                                format!("{:.1} GiB", self.data.memory_usage.amount),
                         }
                     ))
                     .push(Self::info_element(
@@ -564,6 +544,8 @@ impl SystemInfo {
                                 format!("{}%", self.data.memory_swap_usage.percentage),
                             MemoryFormat::Fraction =>
                                 format!("{} GiB", self.data.memory_swap_usage.fraction),
+                            MemoryFormat::Amount =>
+                                format!("{:.1} GiB", self.data.memory_swap_usage.amount),
                         }
                     ))
                     .push(self.data.temperature.celsius.map(|cel| {
@@ -655,6 +637,9 @@ impl SystemInfo {
                         (self.data.memory_usage.percentage.to_string(), "%")
                     }
                     MemoryFormat::Fraction => (self.data.memory_usage.fraction.clone(), " GiB"),
+                    MemoryFormat::Amount => {
+                        (format!("{:.1}", self.data.memory_usage.amount), " GiB")
+                    }
                 },
                 Some((
                     self.data.memory_usage.percentage,
@@ -672,6 +657,9 @@ impl SystemInfo {
                     }
                     MemoryFormat::Fraction => {
                         (self.data.memory_swap_usage.fraction.clone(), " GiB")
+                    }
+                    MemoryFormat::Amount => {
+                        (format!("{:.1}", self.data.memory_swap_usage.amount), " GiB")
                     }
                 },
                 Some((

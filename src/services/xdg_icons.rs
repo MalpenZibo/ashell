@@ -70,8 +70,20 @@ pub async fn warm_cache_async() {
     let _ = tokio::task::spawn_blocking(warm_cache).await;
 }
 
+// Names come from untrusted sources (SNI `IconName`, window classes) and reach
+// `freedesktop_icons`, which joins them onto a base path — absolute names
+// discard that base, `..` resolves at `open()`. Single dots are legitimate
+// (reverse-DNS names), so only `..` is rejected.
+fn is_safe_icon_name(icon_name: &str) -> bool {
+    !icon_name.is_empty()
+        && !icon_name.contains('/')
+        && !icon_name.contains('\0')
+        && !icon_name.contains("..")
+}
+
 pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
-    if icon_name.is_empty() {
+    if !is_safe_icon_name(icon_name) {
+        debug!("icon '{icon_name}': rejected as unsafe name");
         return None;
     }
 

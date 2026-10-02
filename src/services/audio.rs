@@ -67,8 +67,12 @@ pub struct Route<'a> {
 impl<'a> fmt::Display for Route<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.port {
-            Some(port) => write!(f, "{}: {}", port.description, self.device.description),
-            None => write!(f, "{}", self.device.description),
+            // The node description already names the port when it is the only one,
+            // so the prefix is only needed to tell apart ports of the same node
+            Some(port) if self.device.ports.len() > 1 => {
+                write!(f, "{}: {}", port.description, self.device.description)
+            }
+            _ => write!(f, "{}", self.device.description),
         }
     }
 }
@@ -807,9 +811,11 @@ impl From<&SinkInfo<'_>> for Device {
                 .as_ref()
                 .map_or_else(String::default, |n| n.to_string()),
             description: value
-                .proplist
-                .get_str("device.description")
-                .map_or_else(String::default, |d| d.to_string()),
+                .description
+                .as_ref()
+                .map(|d| d.to_string())
+                .or_else(|| value.proplist.get_str("device.description"))
+                .unwrap_or_default(),
             volume: value.volume,
             is_mute: value.mute,
             is_filter: value.proplist.get_str("node.link-group").is_some(),
@@ -846,9 +852,11 @@ impl From<&SourceInfo<'_>> for Device {
                 .as_ref()
                 .map_or_else(String::default, |n| n.to_string()),
             description: value
-                .proplist
-                .get_str("device.description")
-                .map_or_else(String::default, |d| d.to_string()),
+                .description
+                .as_ref()
+                .map(|d| d.to_string())
+                .or_else(|| value.proplist.get_str("device.description"))
+                .unwrap_or_default(),
             volume: value.volume,
             is_mute: value.mute,
             is_filter: value.proplist.get_str("node.link-group").is_some(),

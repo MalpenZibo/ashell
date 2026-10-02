@@ -82,9 +82,9 @@ Whether to show transient toast popups when notifications arrive.
 
 ### toast_position
 
-The corner of the screen where toast notifications appear.
+The corner or edge of the screen where toast notifications appear.
 
-**Type:** `string` — one of `"TopLeft"`, `"TopRight"`, `"BottomLeft"`, `"BottomRight"`
+**Type:** `string` — one of `"TopLeft"`, `"TopRight"`, `"TopCenter"`, `"BottomLeft"`, `"BottomRight"`, `"BottomCenter"`
 **Default:** `"TopRight"`
 
 ### toast_timeout
@@ -97,6 +97,8 @@ How long (in milliseconds) a toast is shown before auto-dismissing when the appl
 ### toast_limit
 
 Maximum number of toasts that can be visible at the same time. When this limit is reached, the oldest toast is removed to make room for a new one.
+
+Setting it to `0` suppresses toasts entirely (any visible ones are cleared when the next notification arrives), the same effect as `toast = false`.
 
 **Type:** `integer`
 **Default:** `5`

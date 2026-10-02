@@ -49,5 +49,5 @@ pub fn bytes_to_gb(bytes: u64) -> f32 {
 }
 
 pub fn celsius_to_fahrenheit(cel: i32) -> i32 {
-    cel * 9 / 5 + 32
+    (cel as f64 * 9.0 / 5.0 + 32.0).round() as i32
 }
