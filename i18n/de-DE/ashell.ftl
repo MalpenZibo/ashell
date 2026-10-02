@@ -32,6 +32,17 @@ password-dialog-insert-password = Passwort eingeben für: { $ssid }
 password-dialog-cancel = Abbrechen
 password-dialog-confirm = Bestätigen
 
+## WLAN teilen
+share-wifi-title = WLAN teilen
+share-wifi-subtitle =
+    Diesen QR-Code mit einem anderen Gerät scannen, um
+    „{ $ssid }“ beizutreten
+share-wifi-password-label = WLAN-Passwort:
+share-wifi-password-open-network = Offenes Netzwerk — kein Passwort erforderlich.
+share-wifi-password-unavailable-message = Das Passwort dieses Netzwerks ist nicht lesbar und kann daher nicht geteilt werden.
+share-wifi-unsupported-message = Die Authentifizierungsmethode dieses Netzwerks kann nicht per QR-Code geteilt werden.
+share-wifi-close = Schließen
+
 ## OSD
 osd-airplane-toggle =
     { $state ->

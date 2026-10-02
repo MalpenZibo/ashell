@@ -12,7 +12,7 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
             AccessPointData, ActiveConnectionInfo, KnownConnection, NetworkCommand, NetworkEvent,
-            NetworkService, Vpn, dbus::ConnectivityState, frequency_band,
+            NetworkService, PskOutcome, Vpn, dbus::ConnectivityState, frequency_band,
         },
     },
     t,
@@ -100,6 +100,7 @@ pub enum Message {
     WifiMenuOpened,
     PasswordDialogConfirmed(String, String),
     OpenNetworkDialogConfirmed(String),
+    ShareActiveWifi,
     ConfigReloaded(NetworkSettingsConfig),
 }
 
@@ -111,6 +112,7 @@ pub enum Action {
     Command(Task<Message>),
     ToggleWifiMenu,
     ToggleVpnMenu,
+    OpenShareWifiDialog { ssid: String, outcome: PskOutcome },
     CloseSubMenu(Task<Message>),
     CloseMenu(SurfaceId),
 }
@@ -142,12 +144,14 @@ impl NetworkSettingsConfig {
 pub struct NetworkSettings {
     config: NetworkSettingsConfig,
     service: Option<NetworkService>,
+    share_in_flight: bool,
 }
 
 impl NetworkSettings {
     pub fn new(config: NetworkSettingsConfig) -> Self {
         Self {
             config,
+            share_in_flight: false,
             service: None,
         }
     }
@@ -161,18 +165,38 @@ impl NetworkSettings {
             Message::Event(event) => match event {
                 ServiceEvent::Init(service) => {
                     self.service = Some(service);
+                    self.share_in_flight = false;
                     Action::None
                 }
                 ServiceEvent::Update(NetworkEvent::RequestPasswordForSSID(ssid)) => {
                     Action::RequestPasswordForSSID(ssid)
                 }
-                ServiceEvent::Update(data) => {
-                    if let Some(service) = self.service.as_mut() {
-                        service.update(data);
+                ServiceEvent::Update(data) => match data {
+                    NetworkEvent::Psk { ssid, outcome } => {
+                        self.share_in_flight = false;
+                        match self.connected_wifi_label() {
+                            Some(active) if active == ssid => {
+                                Action::OpenShareWifiDialog { ssid, outcome }
+                            }
+                            _ => {
+                                warn!(
+                                    "Discarding PSK for '{ssid}': no longer the active Wi-Fi connection"
+                                );
+                                Action::None
+                            }
+                        }
                     }
+                    other => {
+                        if let Some(service) = self.service.as_mut() {
+                            service.update(other);
+                        }
+                        Action::None
+                    }
+                },
+                ServiceEvent::Error(_) => {
+                    self.share_in_flight = false;
                     Action::None
                 }
-                _ => Action::None,
             },
             Message::ToggleAirplaneMode => match self.service.as_mut() {
                 Some(service) => Action::CloseSubMenu(
@@ -303,6 +327,22 @@ impl NetworkSettings {
                 self.config = config;
                 Action::None
             }
+            Message::ShareActiveWifi => {
+                if self.share_in_flight {
+                    return Action::None;
+                }
+                match (self.connected_wifi_label(), self.service.as_mut()) {
+                    (Some(ssid), Some(service)) => {
+                        self.share_in_flight = true;
+                        Action::Command(
+                            service
+                                .command(NetworkCommand::ReadPsk(ssid))
+                                .map(Message::Event),
+                        )
+                    }
+                    _ => Action::None,
+                }
+            }
         }
     }
 
@@ -417,6 +457,8 @@ impl NetworkSettings {
                             active_connection
                                 .map(|(name, strength, _, _)| (name.as_str(), *strength)),
                             self.config.wifi_more_cmd.is_some(),
+                            self.share_in_flight,
+                            service.is_network_manager(),
                         ),
                     )),
                 ))
@@ -526,6 +568,8 @@ impl NetworkSettings {
         id: SurfaceId,
         active_connection: Option<(&str, u8)>,
         show_more_button: bool,
+        share_in_flight: bool,
+        can_share_wifi: bool,
     ) -> Element<'a, Message> {
         let (space, font_size, animated) =
             use_theme(|t| (t.space, t.font_size, t.animations_enabled));
@@ -572,39 +616,54 @@ impl NetworkSettings {
                                 )
                             });
 
+                            // Band label goes last so it stays right-aligned on every row.
+                            let mut trailing = row!().spacing(space.xxs).align_y(Alignment::Center);
+
+                            if is_active && can_share_wifi {
+                                trailing = trailing.push(icon_button(StaticIcon::QrCode).on_press_maybe(
+                                    if share_in_flight {
+                                        None
+                                    } else {
+                                        Some(Message::ShareActiveWifi)
+                                    },
+                                ));
+                            }
+
+                            trailing = trailing.extend(frequency_band(ac.frequency).map(|band| {
+                                text(band)
+                                    .size(font_size.xs)
+                                    .style(|theme: &Theme| text::Style {
+                                        color: Some(theme.palette().primary),
+                                    })
+                                    .into()
+                            }));
+
+                            let network_row = row!(
+                                icon(if ac.public {
+                                    ActiveConnectionInfo::get_wifi_icon(ac.strength)
+                                } else {
+                                    ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
+                                })
+                                .width(Length::Shrink),
+                                text(ac.ssid.as_str()).width(Length::Fill),
+                                trailing,
+                            )
+                            .align_y(Alignment::Center)
+                            .spacing(space.xs);
+
                             styled_button(
                                 Element::from(
-                                    container({
-                                        row!(
-                                            icon(if ac.public {
-                                                ActiveConnectionInfo::get_wifi_icon(ac.strength)
-                                            } else {
-                                                ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
-                                            })
-                                            .width(Length::Shrink),
-                                            text(ac.ssid.as_str()).width(Length::Fill),
-                                        )
-                                        .extend(frequency_band(ac.frequency).map(|band| {
-                                            text(band)
-                                                .size(font_size.xs)
-                                                .style(|theme: &Theme| text::Style {
-                                                    color: Some(theme.palette().primary),
-                                                })
-                                                .into()
-                                        }))
-                                        .align_y(Alignment::Center)
-                                        .spacing(space.xs)
-                                    })
-                                    .style(move |theme: &Theme| {
-                                        container::Style {
-                                            text_color: if is_active {
-                                                Some(theme.palette().success)
-                                            } else {
-                                                None
-                                            },
-                                            ..Default::default()
-                                        }
-                                    }),
+                                    container(network_row)
+                                        .style(move |theme: &Theme| {
+                                            container::Style {
+                                                text_color: if is_active {
+                                                    Some(theme.palette().success)
+                                                } else {
+                                                    None
+                                                },
+                                                ..Default::default()
+                                            }
+                                        }),
                                 ),
                             )
                             .on_press_maybe(if !is_active {

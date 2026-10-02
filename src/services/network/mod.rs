@@ -9,7 +9,7 @@ use iced::{
     stream::channel,
 };
 use iwd_dbus::IwdDbus;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::{any::TypeId, ops::Deref, time::Duration};
 use tokio::time::sleep;
 use zbus::zvariant::OwnedObjectPath;
@@ -73,6 +73,46 @@ pub enum NetworkEvent {
     ScanRequested(Vec<OwnedObjectPath>),
     ScanCompleted(OwnedObjectPath),
     ScanningNearbyWifi(bool),
+    Psk {
+        ssid: String,
+        outcome: PskOutcome,
+    },
+}
+
+/// The `T:` field of a `WIFI:` URI. SAE stays distinct because WPA3-only
+/// access points reject `T:WPA`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WifiSecurity {
+    Wpa,
+    Sae,
+}
+
+impl WifiSecurity {
+    pub fn qr_auth_type(self) -> &'static str {
+        match self {
+            WifiSecurity::Wpa => "WPA",
+            WifiSecurity::Sae => "SAE",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum PskOutcome {
+    Password {
+        psk: String,
+        security: WifiSecurity,
+        /// The QR code needs `H:true` or scanners won't find the network.
+        hidden: bool,
+    },
+    Open {
+        hidden: bool,
+    },
+    /// Secured, but the passphrase isn't readable (agent-owned, not-saved,
+    /// or polkit denied).
+    PasswordUnavailable,
+    /// Enterprise, WEP or OWE: not encodable in a `WIFI:` URI.
+    Unsupported,
+    Error(String),
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +122,7 @@ pub enum NetworkCommand {
     ToggleAirplaneMode,
     SelectAccessPoint((AccessPointData, Option<String>)),
     ToggleVpn(Vpn),
+    ReadPsk(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -191,6 +232,12 @@ impl Deref for NetworkService {
     }
 }
 
+impl NetworkService {
+    pub fn is_network_manager(&self) -> bool {
+        matches!(self.backend_choice, BackendChoice::NetworkManager)
+    }
+}
+
 enum State {
     Init,
     Active(zbus::Connection, BackendChoice, bool),
@@ -286,6 +333,7 @@ impl ReadOnlyService for NetworkService {
                 self.data.wireless_access_points = wireless_access_points;
             }
             NetworkEvent::RequestPasswordForSSID(_) => {}
+            NetworkEvent::Psk { .. } => {}
         }
     }
 
@@ -705,6 +753,39 @@ impl Service for NetworkService {
                     },
                 )
             }
+            NetworkCommand::ReadPsk(ssid) => match self.backend_choice {
+                BackendChoice::NetworkManager => {
+                    let conn = self.conn.clone();
+                    Task::perform(
+                        async move {
+                            let result =
+                                async { NetworkDbus::new(&conn).await?.read_psk(&ssid).await }
+                                    .await;
+
+                            let outcome = match result {
+                                Ok(outcome) => outcome,
+                                Err(err) => {
+                                    warn!("read_psk failed for {ssid}: {err}");
+                                    PskOutcome::Error(err.to_string())
+                                }
+                            };
+
+                            NetworkEvent::Psk { ssid, outcome }
+                        },
+                        ServiceEvent::Update,
+                    )
+                }
+                BackendChoice::Iwd => {
+                    warn!("ReadPsk command: Wi-Fi sharing requires the NetworkManager backend");
+
+                    Task::done(ServiceEvent::Update(NetworkEvent::Psk {
+                        ssid,
+                        outcome: PskOutcome::Error(
+                            "Wi-Fi sharing requires the NetworkManager backend".to_string(),
+                        ),
+                    }))
+                }
+            },
         }
     }
 }
