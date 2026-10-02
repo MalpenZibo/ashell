@@ -631,7 +631,7 @@ impl PowerSettings {
         UPowerService::subscribe().map(Message::Event)
     }
 
-    pub fn battery_tooltip_info(&self) -> Option<(u32, String, String)> {
+    pub fn battery_tooltip_info(&self) -> Option<(u32, String, String, Vec<String>)> {
         self.service.as_ref().and_then(|service| {
             service.system_battery.map(|battery| {
                 let capacity = battery.capacity as u32;
@@ -647,7 +647,25 @@ impl PowerSettings {
                 } else {
                     String::new()
                 };
-                (capacity, status_label, details)
+                let health_lines = battery
+                    .health
+                    .map(|health| {
+                        let percentage = health.percentage().round() as i64;
+                        let energy_full = health.energy_full.round() as i64;
+                        let energy_full_design = health.energy_full_design.round() as i64;
+                        let mut lines = vec![t!(
+                            "settings-power-health",
+                            percentage = percentage,
+                            energy_full = energy_full,
+                            energy_full_design = energy_full_design
+                        )];
+                        if let Some(cycles) = health.charge_cycles {
+                            lines.push(t!("settings-power-charge-cycles", count = cycles));
+                        }
+                        lines
+                    })
+                    .unwrap_or_default();
+                (capacity, status_label, details, health_lines)
             })
         })
     }

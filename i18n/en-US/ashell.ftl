@@ -90,6 +90,12 @@ settings-power-status-discharging = Discharging
 settings-power-status-not-charging = Not charging
 settings-power-status-unknown = Unknown
 settings-power-status-full = Full
+settings-power-health = Health { $percentage }% ({ $energy_full } / { $energy_full_design } Wh)
+settings-power-charge-cycles =
+    { $count ->
+        [one] { $count } charge cycle
+       *[other] { $count } charge cycles
+    }
 
 ## Settings — idle inhibitor
 settings-idle-inhibitor = Idle Inhibitor
