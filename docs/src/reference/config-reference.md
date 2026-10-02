@@ -35,6 +35,7 @@ Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"
 ```toml
 [appearance]
 font_name = "JetBrains Mono"   # Optional custom font
+font_weight = "normal"          # Optional face weight (thin ... black)
 scale_factor = 1.0              # DPI scale factor
 opacity = 1.0                   # 0.0-1.0, every surface ashell draws
 blur = "auto"                   # auto|always|never, compositor blur

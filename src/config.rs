@@ -1315,6 +1315,7 @@ impl<'de> Deserialize<'de> for Opacity {
 #[serde(default)]
 pub struct Appearance {
     pub font_name: Option<String>,
+    pub font_weight: FontWeight,
     #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
     pub opacity: Opacity,
@@ -1331,6 +1332,39 @@ pub struct Appearance {
     /// Blur the wallpaper behind ashell's translucent surfaces via
     /// `ext-background-effect-v1`. No-op where the protocol is unsupported.
     pub blur: BlurMode,
+}
+
+/// Weight of the face picked from `font_name`.
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum FontWeight {
+    Thin,
+    ExtraLight,
+    Light,
+    #[default]
+    Normal,
+    Medium,
+    SemiBold,
+    Bold,
+    ExtraBold,
+    Black,
+}
+
+impl FontWeight {
+    /// The CSS / OpenType numeric weight.
+    pub fn value(self) -> u16 {
+        match self {
+            Self::Thin => 100,
+            Self::ExtraLight => 200,
+            Self::Light => 300,
+            Self::Normal => 400,
+            Self::Medium => 500,
+            Self::SemiBold => 600,
+            Self::Bold => 700,
+            Self::ExtraBold => 800,
+            Self::Black => 900,
+        }
+    }
 }
 
 /// When to ask the compositor for background blur.
@@ -1395,6 +1429,7 @@ impl Default for Appearance {
     fn default() -> Self {
         Self {
             font_name: None,
+            font_weight: FontWeight::default(),
             scale_factor: 1.0,
             opacity: Opacity::default(),
             bar: BarAppearance::default(),
