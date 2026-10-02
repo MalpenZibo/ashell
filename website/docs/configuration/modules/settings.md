@@ -410,7 +410,7 @@ Commands are executed with your user privileges. Be careful with commands from u
 
 Each `status_command` has a **1 second timeout**. If the command doesn't complete within this time:
 
-- The button state will be shown as "unknown" (grayed out)
+- The button will be shown as inactive
 - The process will be killed automatically
 - An error will be logged for debugging
 
