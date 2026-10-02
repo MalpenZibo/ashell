@@ -976,7 +976,9 @@ impl Settings {
                 }
             }
             MenuType::BatteryTooltip => {
-                if let Some((capacity, status_label, details)) = self.power.battery_tooltip_info() {
+                if let Some((capacity, status_label, details, health_lines)) =
+                    self.power.battery_tooltip_info()
+                {
                     let mut r = Row::new()
                         .push(StaticIcon::Battery4.to_text())
                         .push(iced::widget::text(format!("{capacity}%")))
@@ -985,7 +987,15 @@ impl Settings {
                     if !details.is_empty() {
                         r = r.push(iced::widget::text(details));
                     }
-                    r.into()
+                    Column::new()
+                        .push(r)
+                        .extend(
+                            health_lines
+                                .into_iter()
+                                .map(|line| iced::widget::text(line).into()),
+                        )
+                        .spacing(space.xs)
+                        .into()
                 } else {
                     fallback(t!("settings-tooltip-empty-battery"))
                 }

@@ -71,6 +71,21 @@ pub struct BatteryData {
     pub capacity: i64,
     pub status: BatteryStatus,
     pub is_discharging: bool,
+    pub health: Option<BatteryHealth>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BatteryHealth {
+    pub energy_full: f64,
+    pub energy_full_design: f64,
+    pub charge_cycles: Option<i32>,
+}
+
+impl BatteryHealth {
+    /// Current full capacity as a share of the design capacity, capped at 100%.
+    pub fn percentage(&self) -> f64 {
+        (self.energy_full / self.energy_full_design * 100.0).min(100.0)
+    }
 }
 
 impl BatteryData {
@@ -505,11 +520,14 @@ impl UPowerService {
                     }
                 };
 
+                let health = battery.health().await;
+
                 Ok(Some((
                     BatteryData {
                         capacity: percentage,
                         status: state,
                         is_discharging,
+                        health,
                     },
                     battery,
                 )))
@@ -591,6 +609,7 @@ impl UPowerService {
                     capacity: percentage as i64,
                     status: state,
                     is_discharging: state_raw == 2,
+                    health: None,
                 },
                 device,
             });
@@ -1070,6 +1089,7 @@ mod tests {
             capacity: 50,
             status: BatteryStatus::Unknown,
             is_discharging: false,
+            health: None,
         };
 
         assert!(matches!(battery.get_icon(), StaticIcon::Battery0));
@@ -1081,6 +1101,7 @@ mod tests {
             capacity: 10,
             status: BatteryStatus::Full,
             is_discharging: false,
+            health: None,
         };
 
         assert!(matches!(battery.get_icon(), StaticIcon::Battery4));
@@ -1092,6 +1113,7 @@ mod tests {
             capacity: 10,
             status: BatteryStatus::NotCharging,
             is_discharging: false,
+            health: None,
         };
 
         assert!(matches!(battery.get_icon(), StaticIcon::Battery0));
