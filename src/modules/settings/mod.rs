@@ -490,7 +490,7 @@ impl Settings {
                                         }
                                     }
                                 } else {
-                                    (button.name, Some(false))
+                                    (button.name, None)
                                 }
                             });
                             join_all(futures).await
