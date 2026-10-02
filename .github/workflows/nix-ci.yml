@@ -27,6 +27,7 @@ jobs:
           filters: |
             code:
               - 'src/**'
+              - 'crates/**'
               - 'assets/**'
               - 'build.rs'
               - 'Cargo.toml'
