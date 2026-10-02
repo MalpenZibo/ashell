@@ -91,6 +91,12 @@ settings-power-status-discharging = Entlädt sich
 settings-power-status-not-charging = Lädt nicht
 settings-power-status-unknown = Unbekannt
 settings-power-status-full = Voll
+settings-power-health = Zustand { $percentage } % ({ $energy_full } / { $energy_full_design } Wh)
+settings-power-charge-cycles =
+    { $count ->
+        [one] { $count } Ladezyklus
+       *[other] { $count } Ladezyklen
+    }
 
 ## Einstellungen — Kein Ruhezustand
 settings-idle-inhibitor = Kein Ruhezustand
