@@ -176,7 +176,7 @@ fn subscribe() -> Subscription<ServiceEvent<Self>> {
 If your service produces events very rapidly, use the throttle adapter:
 
 ```rust
-use crate::services::throttle::ThrottleExt;
+use ashell_services::throttle::ThrottleExt;
 
 // In your subscription loop:
 let throttled_stream = event_stream.throttle(Duration::from_millis(100));

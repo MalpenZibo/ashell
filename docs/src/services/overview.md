@@ -13,11 +13,11 @@ Services are the backend layer of ashell. They manage communication with system 
 | Network | `services/network/` | NetworkManager / IWD | D-Bus | `networkmanager` or `iwd` |
 | MPRIS | `services/mpris/` | Media players | D-Bus | MPRIS-compatible player |
 | Tray | `services/tray/` | StatusNotifierItem | D-Bus | — |
-| UPower | `services/upower/` | UPower daemon | D-Bus | `upower` |
+| UPower | `crates/ashell-services/src/upower/` (iced glue in `services/upower.rs`) | UPower daemon | D-Bus | `upower` |
 | Privacy | `services/privacy.rs` | PipeWire | PipeWire portals | `pipewire` |
 | Idle Inhibitor | `services/idle_inhibitor.rs` | systemd-logind | D-Bus | systemd-logind |
 | Logind | `services/logind.rs` | systemd-logind | D-Bus | systemd-logind |
-| Throttle | `services/throttle.rs` | (utility) | Stream adapter | — |
+| Throttle | `crates/ashell-services/src/throttle.rs` | (utility) | Stream adapter | — |
 | XDG Icons | `services/xdg_icons.rs` | (utility) | XDG icon theme | — |
 
 ## Shared Icon Resolution

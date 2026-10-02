@@ -44,12 +44,11 @@ src/
 │   ├── compositor/      # Hyprland/Niri/generic Wayland abstraction
 │   ├── network/         # NetworkManager + IWD backends
 │   ├── mpris/           # media player control
-│   ├── tray/
-│   └── upower/          # battery/power
+│   └── tray/
 ├── widgets/             # custom iced widgets (centerbox, position_button, menu_wrapper)
 └── utils/
 crates/
-└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth
+└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth, upower
 ```
 
 The repo is a Cargo workspace: the root package is the `ashell` binary, `crates/ashell-services` is a library member.

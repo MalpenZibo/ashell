@@ -53,7 +53,7 @@ pub struct Route<'a> {
 
 ## Throttling
 
-PulseAudio can emit events very rapidly (e.g., during volume slider dragging). The `ThrottleExt` stream adapter in `services/throttle.rs` rate-limits these events to prevent UI thrashing:
+PulseAudio can emit events very rapidly (e.g., during volume slider dragging). The `ThrottleExt` stream adapter in `crates/ashell-services/src/throttle.rs` rate-limits these events to prevent UI thrashing:
 
 ```rust
 // Conceptual usage

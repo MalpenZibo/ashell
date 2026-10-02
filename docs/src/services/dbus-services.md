@@ -40,7 +40,7 @@ The `#[zbus::proxy]` macro generates a `Adapter1Proxy` struct with async methods
 | Bluetooth | System | `org.bluez` | `crates/ashell-services/src/bluetooth/dbus.rs` |
 | Network (NM) | System | `org.freedesktop.NetworkManager` | `services/network/dbus.rs` |
 | Network (IWD) | System | `net.connman.iwd` | `services/network/iwd_dbus/` |
-| UPower | System | `org.freedesktop.UPower` | `services/upower/dbus.rs` |
+| UPower | System | `org.freedesktop.UPower` | `crates/ashell-services/src/upower/dbus.rs` |
 | Logind | System | `org.freedesktop.login1` | `services/logind.rs` |
 | MPRIS | Session | `org.mpris.MediaPlayer2.*` | `services/mpris/dbus.rs` |
 | Tray | Session | `org.kde.StatusNotifierWatcher` | `services/tray/dbus.rs` |
