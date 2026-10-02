@@ -800,6 +800,49 @@ pub enum MediaPlayerVisualizer {
     After,
 }
 
+/// What a mouse button on the media player indicator does.
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum MediaPlayerButtonAction {
+    /// Open the media player menu.
+    Menu,
+    Prev,
+    PlayPause,
+    Next,
+    #[default]
+    None,
+}
+
+/// What the scroll wheel on the media player indicator does. Separate from
+/// [`MediaPlayerButtonAction`] because the click actions make no sense on a
+/// wheel, and a wrong value should be rejected at parse time.
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum MediaPlayerScrollAction {
+    /// Change the volume of the active player, in 5% steps.
+    Volume,
+    #[default]
+    None,
+}
+
+#[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
+#[serde(default)]
+pub struct MediaPlayerIndicatorControls {
+    pub left: MediaPlayerButtonAction,
+    pub middle: MediaPlayerButtonAction,
+    pub right: MediaPlayerButtonAction,
+    pub scroll: MediaPlayerScrollAction,
+}
+
+impl Default for MediaPlayerIndicatorControls {
+    fn default() -> Self {
+        Self {
+            left: MediaPlayerButtonAction::Menu,
+            middle: MediaPlayerButtonAction::None,
+            right: MediaPlayerButtonAction::None,
+            scroll: MediaPlayerScrollAction::None,
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct MediaPlayerModuleConfig {
@@ -809,6 +852,7 @@ pub struct MediaPlayerModuleConfig {
     pub indicator_visualizer: Option<MediaPlayerVisualizer>,
     pub menu_visualizer: bool,
     pub visualizer_framerate: u32,
+    pub indicator_controls: MediaPlayerIndicatorControls,
 }
 
 impl Default for MediaPlayerModuleConfig {
@@ -820,6 +864,7 @@ impl Default for MediaPlayerModuleConfig {
             indicator_visualizer: None,
             menu_visualizer: false,
             visualizer_framerate: Self::DEFAULT_VISUALIZER_FRAMERATE,
+            indicator_controls: MediaPlayerIndicatorControls::default(),
         }
     }
 }
