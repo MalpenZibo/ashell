@@ -20,7 +20,7 @@ The project includes a `Makefile` with convenience targets:
 | `make start` | Build + `./target/release/ashell` | Build and run |
 | `make install` | Build + `sudo cp -f target/release/ashell /usr/bin` | Install to system |
 | `make fmt` | `cargo fmt` | Format code |
-| `make check` | `cargo fmt` + `cargo check` + `cargo clippy -- -D warnings` | Full lint check |
+| `make check` | `cargo fmt` + `cargo check --workspace` + `cargo clippy --workspace -- -D warnings` | Full lint check |
 
 ## What build.rs Does
 

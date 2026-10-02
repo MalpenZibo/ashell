@@ -20,7 +20,7 @@ bluetooth.execute(BluetoothCommand::Toggle).await?;
 
 ashell wraps each of them in a small module under `src/services/` (e.g. `src/services/bluetooth.rs`) that implements `ReadOnlyService`/`Service`: `subscribe` connects, sends `Init` with the handle and the first snapshot, then forwards the rest of the stream as `Update`s; `command` runs `execute` and produces no message. Other UIs write their own glue on the same API.
 
-Each service sits behind a cargo feature of the same name (`full` enables all of them), so consumers only compile the services, and pull in the system dependencies, they need. The crate has no default features.
+Each service sits behind a cargo feature of the same name, so consumers only compile the services, and pull in the system dependencies, they need. The crate has no default features.
 
 Currently migrated: Bluetooth (`bluetooth` feature). Shared helpers that are not services live in plain modules, e.g. `rfkill` (soft-block state and change notifications, used by both bluetooth and network).
 
@@ -64,7 +64,7 @@ For services that accept commands (bidirectional):
 
 ```rust
 pub trait Service: ReadOnlyService {
-    type Command: Send + 'static;
+    type Command;
 
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>>;
 }

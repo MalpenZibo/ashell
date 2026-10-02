@@ -66,9 +66,7 @@ src/
 │   │   └── niri.rs           # Niri IPC integration
 │   ├── audio.rs             # PulseAudio/PipeWire audio service
 │   ├── brightness.rs        # Display brightness via sysfs
-│   ├── bluetooth/
-│   │   ├── mod.rs            # Bluetooth service logic
-│   │   └── dbus.rs           # BlueZ D-Bus proxy definitions
+│   ├── bluetooth.rs         # iced glue for the ashell-services Bluetooth service
 │   ├── network/
 │   │   ├── mod.rs            # Network service logic
 │   │   ├── dbus.rs           # NetworkManager D-Bus proxies
