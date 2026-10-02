@@ -237,6 +237,7 @@ impl BluetoothSettings {
                 .devices
                 .iter()
                 .filter(|d| !d.paired && !d.connected)
+                .sorted_by_key(|d| &d.name)
                 .peekable();
 
             let some_known = known_devices.peek().is_some();
