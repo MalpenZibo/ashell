@@ -48,10 +48,7 @@ depends = ["libwayland-client0", "libpipewire-0.3-0t64", "libpulse0"]
 depends = ["libwayland-client", "pipewire-libs", "pulseaudio-libs"]
 
 [dependencies]
-ashell-services = { path = "crates/ashell-services", features = [
-  "bluetooth",
-  "rfkill",
-] }
+ashell-services = { path = "crates/ashell-services", features = ["bluetooth"] }
 iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.6.1", features = [
   "tokio",
   "advanced",

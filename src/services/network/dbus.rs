@@ -8,7 +8,6 @@ use iced::futures::{Stream, StreamExt, stream::select_all};
 use itertools::Itertools;
 use log::{debug, warn};
 use std::{collections::HashMap, ops::Deref};
-use tokio::process::Command;
 use zbus::{
     Result, proxy,
     zvariant::{self, ObjectPath, OwnedObjectPath, OwnedValue, Value},
@@ -55,13 +54,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
     }
 
     async fn set_airplane_mode(&self, enable: bool) -> anyhow::Result<()> {
-        let rfkill_res = Command::new("/usr/sbin/rfkill")
-            .arg(if enable { "block" } else { "unblock" })
-            .arg("bluetooth")
-            .output()
-            .await;
-
-        if let Err(e) = rfkill_res {
+        if let Err(e) = rfkill::set_bluetooth_soft_block(enable).await {
             debug!("Failed to set bluetooth rfkill: {e}");
         } else {
             debug!("Bluetooth rfkill set successfully");
