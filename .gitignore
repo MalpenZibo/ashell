@@ -22,5 +22,8 @@ vendor
 # mdbook build output
 docs/book/
 
+# IDE
+.vscode/
+.opencode
 # generated from CHANGELOG.md by website/scripts/sync-changelog.mjs
 website/src/pages/changelog.md

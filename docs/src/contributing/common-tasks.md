@@ -72,7 +72,7 @@ pub fn my_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
 ashell uses [Fluent](https://projectfluent.org/) via the `i18n-embed` crate. 
 Catalogs live in `i18n/<lang-tag>/ashell.ftl` and are baked into the binary at compile time with `include_str!`.
 
-1. Copy the seed catalog to a new BCP-47 directory (e.g. `fr-FR`, `de-DE`, `it-IT`):
+1. Copy the seed catalog to a new BCP-47 directory (e.g. `fr-FR`, `de-DE`, `ru-RU`, `it-IT`):
    ```bash
    mkdir -p i18n/fr-FR
    cp i18n/en-US/ashell.ftl i18n/<lang-tag>/ashell.ftl

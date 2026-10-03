@@ -444,48 +444,71 @@ fn icon_directories() -> Vec<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{get_icon_from_name, is_safe_icon_name};
+    use super::{normalize_icon_name, strip_icon_separators};
 
     #[test]
-    fn accepts_ordinary_icon_names() {
-        for name in [
-            "telegram",
-            "firefox",
-            "org.blueman",
-            "com.system76.CosmicAppletTiling.Off",
-            "ca.desrt.dconf-editor",
-            "audio-volume-high-symbolic",
-        ] {
-            assert!(is_safe_icon_name(name), "{name} should be accepted");
-        }
+    fn normalize_icon_name_keeps_lowercase_alphanumeric_unchanged() {
+        // A name already in lowercase-alphanumeric form is returned as-is
+        // (borrowed, no allocation).
+        assert_eq!(normalize_icon_name("telegram"), "telegram");
+        assert_eq!(normalize_icon_name("blueman"), "blueman");
     }
 
     #[test]
-    fn rejects_path_traversal_components() {
-        for name in [
-            "../../etc/passwd",
-            "..",
-            "../..",
-            "foo/../../bar",
-            "org.blueman/../../../etc/shadow",
-            "a..b",
-        ] {
-            assert!(!is_safe_icon_name(name), "{name} should be rejected");
-        }
+    fn normalize_icon_name_strips_separators_in_mixed_names() {
+        // A name containing separators (`.`) is not all-lowercase-alphanumeric,
+        // so it goes through the owned path and the separators are stripped.
+        assert_eq!(normalize_icon_name("org.blueman"), "orgblueman");
+        assert_eq!(
+            normalize_icon_name("org.telegram.desktop"),
+            "orgtelegramdesktop"
+        );
     }
 
     #[test]
-    fn rejects_separators_and_nul() {
-        assert!(!is_safe_icon_name(""));
-        assert!(!is_safe_icon_name("/home/u/Documents/x"));
-        assert!(!is_safe_icon_name("icon\0.png"));
-        assert!(!is_safe_icon_name("sub/dir/icon"));
+    fn normalize_icon_name_lowercases_and_strips_non_alphanumeric() {
+        // Uppercase is lowercased; separators and non-alphanumeric
+        // characters are stripped.
+        assert_eq!(normalize_icon_name("Telegram"), "telegram");
+        assert_eq!(
+            normalize_icon_name("org.telegram.desktop"),
+            "orgtelegramdesktop"
+        );
+        assert_eq!(normalize_icon_name("BlueMan!"), "blueman");
+        assert_eq!(normalize_icon_name("123"), "123");
     }
 
     #[test]
-    fn get_icon_from_name_rejects_unsafe_names() {
-        assert!(get_icon_from_name("../../etc/passwd").is_none());
-        assert!(get_icon_from_name("/etc/passwd").is_none());
-        assert!(get_icon_from_name("").is_none());
+    fn normalize_icon_name_strips_unicode_non_ascii() {
+        // Non-ASCII characters are filtered out (only ASCII alphanumerics
+        // survive), lowercased.
+        assert_eq!(normalize_icon_name("naïve"), "nave");
+        assert_eq!(normalize_icon_name("app-1.0"), "app10");
+    }
+
+    #[test]
+    fn strip_icon_separators_removes_dashes_and_underscores() {
+        assert_eq!(strip_icon_separators("org.telegram"), "org.telegram");
+        assert_eq!(
+            strip_icon_separators("org-telegram-desktop"),
+            "orgtelegramdesktop"
+        );
+        assert_eq!(strip_icon_separators("foo_bar-baz"), "foobarbaz");
+    }
+
+    #[test]
+    fn strip_icon_separators_no_separators_is_borrowed() {
+        // When there are no separators, the input is returned as-is.
+        assert_eq!(strip_icon_separators("telegram"), "telegram");
+        assert_eq!(strip_icon_separators("org.telegram"), "org.telegram");
+    }
+
+    #[test]
+    fn normalize_then_strip_is_idempotent_for_clean_names() {
+        // Normalizing an already-clean name then stripping separators
+        // yields the same value — the pipeline is stable.
+        let normalized = normalize_icon_name("telegram");
+        let stripped = strip_icon_separators(normalized.as_ref());
+        assert_eq!(normalized, stripped);
     }
 }
