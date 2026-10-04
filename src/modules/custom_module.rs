@@ -52,6 +52,15 @@ pub enum Message {
     TooltipUnhover(SurfaceId),
 }
 
+pub enum Action {
+    None,
+    OpenTooltipMenu(SurfaceId, ButtonUIRef),
+    CloseTooltipMenu(SurfaceId),
+    /// The tooltip went away while possibly shown: its hover button is gone
+    /// from the view, so no unhover will ever close it.
+    CloseAllTooltipMenus,
+}
+
 // Define a struct for the canvas program
 #[derive(Debug, Clone, Copy, Default)]
 struct AlertIndicator;
@@ -110,38 +119,54 @@ impl Custom {
         &self.data
     }
 
-    pub fn update(&mut self, msg: Message) {
+    pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::LaunchCommand => {
                 if let Some(cmd) = &self.config.command {
                     execute_command(cmd);
                 }
+                Action::None
             }
             Message::LaunchRightClickCommand => {
                 if let Some(cmd) = &self.config.on_right_click {
                     execute_command(cmd);
                 }
+                Action::None
             }
             Message::LaunchMiddleClickCommand => {
                 if let Some(cmd) = &self.config.on_middle_click {
                     execute_command(cmd);
                 }
+                Action::None
             }
             Message::LaunchScrollUpCommand => {
                 if let Some(cmd) = &self.config.on_scroll_up {
                     execute_command(cmd);
                 }
+                Action::None
             }
             Message::LaunchScrollDownCommand => {
                 if let Some(cmd) = &self.config.on_scroll_down {
                     execute_command(cmd);
                 }
+                Action::None
             }
             Message::Update(data) => {
+                let had_tooltip = self.tooltip().is_some();
                 self.data = data;
+                if had_tooltip && self.tooltip().is_none() {
+                    Action::CloseAllTooltipMenus
+                } else {
+                    Action::None
+                }
             }
-            Message::TooltipHover(..) | Message::TooltipUnhover(..) => {}
+            Message::TooltipHover(ui_ref, id) => Action::OpenTooltipMenu(id, ui_ref),
+            Message::TooltipUnhover(id) => Action::CloseTooltipMenu(id),
         }
+    }
+
+    fn tooltip(&self) -> Option<&str> {
+        self.data.tooltip.as_deref().filter(|t| !t.is_empty())
     }
 
     pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
@@ -219,9 +244,7 @@ impl Custom {
             }
         };
 
-        if let Some(tooltip) = self.data.tooltip.as_deref()
-            && !tooltip.is_empty()
-        {
+        if self.tooltip().is_some() {
             let hover_style = use_theme(|theme| {
                 theme.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary)
             });
@@ -241,9 +264,7 @@ impl Custom {
     pub fn tooltip_view(&'_ self) -> Element<'_, Message> {
         let space = use_theme(|theme| theme.space);
         let lines: Vec<Element<'_, Message>> = self
-            .data
-            .tooltip
-            .as_deref()
+            .tooltip()
             .unwrap_or_default()
             .lines()
             .map(|line| text(line).into())
@@ -322,5 +343,41 @@ impl Custom {
         } else {
             Subscription::none()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn probe() -> Custom {
+        let config = toml::from_str("name = \"probe\"\ntype = \"Text\"")
+            .expect("test config should deserialize");
+        Custom::new(config)
+    }
+
+    fn listen_data(tooltip: Option<&str>) -> Message {
+        Message::Update(CustomListenData {
+            alt: String::new(),
+            text: None,
+            tooltip: tooltip.map(str::to_owned),
+        })
+    }
+
+    /// The hover button only exists while there is a tooltip, so dropping the
+    /// tooltip must close any open one: the unhover that normally does it will
+    /// never fire.
+    #[test]
+    fn update_closes_tooltip_when_it_goes_away() {
+        let mut custom = probe();
+        assert!(matches!(
+            custom.update(listen_data(Some("line"))),
+            Action::None
+        ));
+        assert!(matches!(
+            custom.update(listen_data(Some(""))),
+            Action::CloseAllTooltipMenus
+        ));
+        assert!(matches!(custom.update(listen_data(None)), Action::None));
     }
 }

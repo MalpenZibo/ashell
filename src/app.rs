@@ -313,22 +313,30 @@ impl App {
                     .close_menu(id, None, self.general_config.enable_esc_key)
             }
             Message::FinishCloseMenu(id) => self.outputs.finish_close_menu(id),
-            Message::Custom(name, msg) => match msg {
-                modules::custom_module::Message::TooltipHover(ui_ref, id) => self
-                    .outputs
-                    .toggle_menu(id, MenuType::CustomTooltip(name), ui_ref, false),
-                modules::custom_module::Message::TooltipUnhover(id) => self.outputs.close_menu(
-                    id,
-                    Some(MenuType::CustomTooltip(name)),
-                    self.general_config.enable_esc_key,
-                ),
-                other => {
-                    if let Some(custom) = self.custom.get_mut(&name) {
-                        custom.update(other);
+            Message::Custom(name, msg) => {
+                let Some(custom) = self.custom.get_mut(&name) else {
+                    return Task::none();
+                };
+                match custom.update(msg) {
+                    modules::custom_module::Action::None => Task::none(),
+                    modules::custom_module::Action::OpenTooltipMenu(id, ui_ref) => self
+                        .outputs
+                        .toggle_menu(id, MenuType::CustomTooltip(name), ui_ref, false),
+                    modules::custom_module::Action::CloseTooltipMenu(id) => {
+                        self.outputs.close_menu(
+                            id,
+                            Some(MenuType::CustomTooltip(name)),
+                            self.general_config.enable_esc_key,
+                        )
                     }
-                    Task::none()
+                    modules::custom_module::Action::CloseAllTooltipMenus => {
+                        self.outputs.close_all_menu_if(
+                            MenuType::CustomTooltip(name),
+                            self.general_config.enable_esc_key,
+                        )
+                    }
                 }
-            },
+            }
             Message::Updates(msg) => {
                 if let Some(updates) = self.updates.as_mut() {
                     match updates.update(msg) {
@@ -850,6 +858,7 @@ mod tests {
             CustomMessage::Update(CustomListenData {
                 alt: "critical".to_string(),
                 text: Some("3 urgent".to_string()),
+                tooltip: None,
             }),
         ));
 
@@ -874,6 +883,7 @@ mod tests {
             CustomMessage::Update(CustomListenData {
                 alt: "critical".to_string(),
                 text: Some("stale".to_string()),
+                tooltip: None,
             }),
         ));
 
