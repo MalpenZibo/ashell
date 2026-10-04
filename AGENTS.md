@@ -12,7 +12,7 @@ make install  # install binary to /usr/bin (requires sudo)
 
 ## Project overview
 
-ashell is a status bar for Wayland compositors, written in Rust with the iced GUI framework.
+ashell is a desktop shell for Wayland compositors, written in Rust with the iced GUI framework.
 It has dedicated backends for Hyprland and Niri and a generic Wayland fallback for other compositors.
 It follows the Elm architecture (model → update → view) with a modular design separating UI modules from backend services.
 
