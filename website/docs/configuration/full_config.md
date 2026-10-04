@@ -74,7 +74,7 @@ enable_workspace_filling = false  # (default)
 name = "appLauncher"
 icon = "󱗼"
 command = "walker"
-# listen_cmd = "some-command"    # yields JSON lines: {"text": "...", "alt": "..."}
+# listen_cmd = "some-command"    # yields JSON lines: {"text": "...", "alt": "...", "tooltip": "..."}
 # icons = { "regex" = "icon" }   # map regex on `alt` to icon
 # alert = "regex"                # show alert dot when `alt` matches regex
 # type = "Button"                # (default) "Button" or "Text"

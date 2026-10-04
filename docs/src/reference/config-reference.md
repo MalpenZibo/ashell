@@ -258,9 +258,10 @@ Custom module fields:
 | `icons` | Map | No | Regex → icon mapping for dynamic icons |
 | `alert` | String (regex) | No | Regex to show alert indicator |
 
-The `listen_cmd` output must be JSON lines with `text` and `alt` fields:
+The `listen_cmd` output must be JSON lines with `text` and `alt` fields, and
+an optional `tooltip` (plain text, `\n` for new lines) shown on hover:
 ```json
-{"text": "50%", "alt": "volume"}
+{"text": "50%", "alt": "volume", "tooltip": "Speakers: 50%"}
 ```
 
 Reference a custom module in the layout as `"Custom:name"`:
