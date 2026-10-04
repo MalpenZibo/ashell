@@ -215,6 +215,12 @@ max_text_length = 100
 indicator_visualizer = "Background"  # "Background", "Before", or "After"; omit to disable
 menu_visualizer = false              # bars behind the menu cards; cava runs only while the menu is open
 visualizer_framerate = 30            # cava frames per second, clamped to 1-144
+
+[media_player.indicator_controls]
+left = "Menu"                        # "Menu", "Prev", "PlayPause", "Next", or "None"
+middle = "None"
+right = "None"
+scroll = "None"                      # "Volume" or "None"
 ```
 
 **Dependencies:** Any MPRIS-compatible media player (e.g., Spotify, Firefox, VLC, Strawberry). No extra system package is needed. The visualizer additionally needs `cava` on `$PATH`.

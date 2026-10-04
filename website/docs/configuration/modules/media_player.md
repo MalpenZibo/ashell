@@ -86,6 +86,54 @@ than redrawn, so silence costs nothing.
 > **Requires** `cava` to be installed and available on your `$PATH`. If `cava`
 > is missing the visualizer stays hidden.
 
+### Indicator Controls
+
+Each mouse button on the bar indicator can be bound to a playback action, so
+you can control the player without opening the menu. By default only left
+click is bound, and it opens the menu:
+
+```toml
+[media_player.indicator_controls]
+left = "Menu"     # default
+middle = "None"   # default
+right = "None"    # default
+scroll = "None"   # default
+```
+
+`left`, `middle`, and `right` accept:
+
+| Value         | Action                        |
+| ------------- | ----------------------------- |
+| `"Menu"`      | Open the media player menu    |
+| `"Prev"`      | Previous track                |
+| `"PlayPause"` | Toggle play/pause             |
+| `"Next"`      | Next track                    |
+| `"None"`      | Nothing (default)             |
+
+`scroll` accepts `"Volume"` (5% steps) or `"None"`.
+
+A setup that keeps the menu reachable while putting play/pause on the most
+comfortable button:
+
+```toml
+[media_player.indicator_controls]
+left = "PlayPause"
+middle = "Menu"
+right = "Next"
+scroll = "Volume"
+```
+
+Controls target the currently playing player, falling back to the last player
+that was playing when nothing is playing.
+
+:::note
+
+`scroll = "Volume"` only works with players that expose a volume over MPRIS.
+Players that don't (many browsers, for example) ignore it and show no volume
+slider in the menu either.
+
+:::
+
 ## Menu
 
 The menu shows all active media players with playback controls:

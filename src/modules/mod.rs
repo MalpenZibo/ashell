@@ -3,7 +3,7 @@ use crate::{
     components::animated_size,
     components::menu::MenuType,
     components::{module_group, module_item},
-    config::{ModuleDef, ModuleName},
+    config::{MediaPlayerButtonAction, MediaPlayerScrollAction, ModuleDef, ModuleName},
     theme::use_theme,
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
@@ -22,6 +22,20 @@ pub mod updates;
 pub mod window_title;
 pub mod workspaces;
 
+/// What one mouse button on a bar module does. Menu toggles are separate from
+/// plain messages because opening a menu needs the button's on-screen position.
+#[derive(Debug, Clone)]
+pub enum ModuleButtonAction {
+    Message(Box<Message>),
+    ToggleMenu(MenuType),
+}
+
+impl ModuleButtonAction {
+    pub fn message(message: Message) -> Self {
+        Self::Message(Box::new(message))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum OnModulePress {
     Action(Box<Message>),
@@ -33,9 +47,9 @@ pub enum OnModulePress {
         on_scroll_down: Option<Box<Message>>,
     },
     CustomAction {
-        on_press: Box<Message>,
-        on_right_press: Option<Box<Message>>,
-        on_middle_press: Option<Box<Message>>,
+        on_press: Option<ModuleButtonAction>,
+        on_right_press: Option<ModuleButtonAction>,
+        on_middle_press: Option<ModuleButtonAction>,
         on_scroll_up: Option<Box<Message>>,
         on_scroll_down: Option<Box<Message>>,
     },
@@ -132,12 +146,38 @@ impl App {
                         on_scroll_up,
                         on_scroll_down,
                     } => {
-                        item = item.on_press(*on_press);
-                        if let Some(msg) = on_right_press {
-                            item = item.on_right_press(*msg);
+                        match on_press {
+                            Some(ModuleButtonAction::Message(msg)) => {
+                                item = item.on_press(*msg);
+                            }
+                            Some(ModuleButtonAction::ToggleMenu(menu_type)) => {
+                                item = item.on_press_with_position(move |button_ui_ref| {
+                                    Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
+                                });
+                            }
+                            None => {}
                         }
-                        if let Some(msg) = on_middle_press {
-                            item = item.on_middle_press(*msg);
+                        match on_right_press {
+                            Some(ModuleButtonAction::Message(msg)) => {
+                                item = item.on_right_press(*msg);
+                            }
+                            Some(ModuleButtonAction::ToggleMenu(menu_type)) => {
+                                item = item.on_right_press_with_position(move |button_ui_ref| {
+                                    Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
+                                });
+                            }
+                            None => {}
+                        }
+                        match on_middle_press {
+                            Some(ModuleButtonAction::Message(msg)) => {
+                                item = item.on_middle_press(*msg);
+                            }
+                            Some(ModuleButtonAction::ToggleMenu(menu_type)) => {
+                                item = item.on_middle_press_with_position(move |button_ui_ref| {
+                                    Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
+                                });
+                            }
+                            None => {}
                         }
                         if let Some(msg) = on_scroll_up {
                             item = item.on_scroll_up(*msg);
@@ -197,32 +237,22 @@ impl App {
                     crate::config::CustomModuleType::Button => {
                         let name = name.clone();
                         Some(OnModulePress::CustomAction {
-                            on_press: Box::new(Message::Custom(
+                            on_press: Some(ModuleButtonAction::message(Message::Custom(
                                 name.clone(),
                                 custom_module::Message::LaunchCommand,
-                            )),
-                            on_right_press: custom
-                                .config
-                                .on_right_click
-                                .as_ref()
-                                .map(|_| {
-                                    Message::Custom(
-                                        name.clone(),
-                                        custom_module::Message::LaunchRightClickCommand,
-                                    )
-                                })
-                                .map(Box::new),
-                            on_middle_press: custom
-                                .config
-                                .on_middle_click
-                                .as_ref()
-                                .map(|_| {
-                                    Message::Custom(
-                                        name.clone(),
-                                        custom_module::Message::LaunchMiddleClickCommand,
-                                    )
-                                })
-                                .map(Box::new),
+                            ))),
+                            on_right_press: custom.config.on_right_click.as_ref().map(|_| {
+                                ModuleButtonAction::message(Message::Custom(
+                                    name.clone(),
+                                    custom_module::Message::LaunchRightClickCommand,
+                                ))
+                            }),
+                            on_middle_press: custom.config.on_middle_click.as_ref().map(|_| {
+                                ModuleButtonAction::message(Message::Custom(
+                                    name.clone(),
+                                    custom_module::Message::LaunchMiddleClickCommand,
+                                ))
+                            }),
                             on_scroll_up: custom
                                 .config
                                 .on_scroll_up
@@ -308,12 +338,45 @@ impl App {
                 .privacy
                 .view()
                 .map(|view| (view.map(Message::Privacy), None)),
-            ModuleName::MediaPlayer => self.media_player.view().map(|view| {
-                (
-                    view.map(Message::MediaPlayer),
-                    Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-                )
-            }),
+            ModuleName::MediaPlayer => {
+                let controls = self.media_player.indicator_controls();
+                let button = |action: MediaPlayerButtonAction| match action {
+                    MediaPlayerButtonAction::None => None,
+                    MediaPlayerButtonAction::Menu => {
+                        Some(ModuleButtonAction::ToggleMenu(MenuType::MediaPlayer))
+                    }
+                    MediaPlayerButtonAction::Prev => Some(ModuleButtonAction::message(
+                        Message::MediaPlayer(media_player::Message::ActivePrev),
+                    )),
+                    MediaPlayerButtonAction::PlayPause => Some(ModuleButtonAction::message(
+                        Message::MediaPlayer(media_player::Message::ActivePlayPause),
+                    )),
+                    MediaPlayerButtonAction::Next => Some(ModuleButtonAction::message(
+                        Message::MediaPlayer(media_player::Message::ActiveNext),
+                    )),
+                };
+                let (on_scroll_up, on_scroll_down) = match controls.scroll {
+                    MediaPlayerScrollAction::None => (None, None),
+                    MediaPlayerScrollAction::Volume => (
+                        Some(Box::new(Message::MediaPlayer(
+                            media_player::Message::ActiveVolumeUp,
+                        ))),
+                        Some(Box::new(Message::MediaPlayer(
+                            media_player::Message::ActiveVolumeDown,
+                        ))),
+                    ),
+                };
+                let action = OnModulePress::CustomAction {
+                    on_press: button(controls.left),
+                    on_right_press: button(controls.right),
+                    on_middle_press: button(controls.middle),
+                    on_scroll_up,
+                    on_scroll_down,
+                };
+                self.media_player
+                    .view()
+                    .map(|view| (view.map(Message::MediaPlayer), Some(action)))
+            }
             ModuleName::Settings => Some((
                 self.settings.view(id).map(Message::Settings),
                 Some(OnModulePress::ToggleMenu(MenuType::Settings)),

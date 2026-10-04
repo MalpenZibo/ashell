@@ -3,16 +3,22 @@ use iced::{Alignment, Element, Length, widget::container};
 
 use super::ButtonUIRef;
 
+/// A handler for one mouse button: a plain message, or one built from the
+/// button's on-screen position (needed to place a menu popup under it).
+enum Handler<'a, Msg> {
+    Message(Msg),
+    WithPosition(Box<dyn Fn(ButtonUIRef) -> Msg + 'a>),
+}
+
 /// Builder for a bar module item: content wrapped in a position_button
 /// with optional press, right-press, middle-press, scroll-up, and scroll-down handlers.
 ///
-/// When no press handler is set, renders as a plain container.
+/// When no handler at all is set, renders as a plain container.
 pub struct ModuleItem<'a, Msg> {
     content: Element<'a, Msg>,
-    on_press: Option<Msg>,
-    on_press_with_position: Option<Box<dyn Fn(ButtonUIRef) -> Msg + 'a>>,
-    on_right_press: Option<Msg>,
-    on_middle_press: Option<Msg>,
+    on_press: Option<Handler<'a, Msg>>,
+    on_right_press: Option<Handler<'a, Msg>>,
+    on_middle_press: Option<Handler<'a, Msg>>,
     on_scroll_up: Option<Msg>,
     on_scroll_down: Option<Msg>,
 }
@@ -21,7 +27,6 @@ pub fn module_item<'a, Msg: 'static + Clone>(content: Element<'a, Msg>) -> Modul
     ModuleItem {
         content,
         on_press: None,
-        on_press_with_position: None,
         on_right_press: None,
         on_middle_press: None,
         on_scroll_up: None,
@@ -31,22 +36,38 @@ pub fn module_item<'a, Msg: 'static + Clone>(content: Element<'a, Msg>) -> Modul
 
 impl<'a, Msg: 'static + Clone> ModuleItem<'a, Msg> {
     pub fn on_press(mut self, msg: Msg) -> Self {
-        self.on_press = Some(msg);
+        self.on_press = Some(Handler::Message(msg));
         self
     }
 
     pub fn on_press_with_position(mut self, handler: impl Fn(ButtonUIRef) -> Msg + 'a) -> Self {
-        self.on_press_with_position = Some(Box::new(handler));
+        self.on_press = Some(Handler::WithPosition(Box::new(handler)));
         self
     }
 
     pub fn on_right_press(mut self, msg: Msg) -> Self {
-        self.on_right_press = Some(msg);
+        self.on_right_press = Some(Handler::Message(msg));
+        self
+    }
+
+    pub fn on_right_press_with_position(
+        mut self,
+        handler: impl Fn(ButtonUIRef) -> Msg + 'a,
+    ) -> Self {
+        self.on_right_press = Some(Handler::WithPosition(Box::new(handler)));
         self
     }
 
     pub fn on_middle_press(mut self, msg: Msg) -> Self {
-        self.on_middle_press = Some(msg);
+        self.on_middle_press = Some(Handler::Message(msg));
+        self
+    }
+
+    pub fn on_middle_press_with_position(
+        mut self,
+        handler: impl Fn(ButtonUIRef) -> Msg + 'a,
+    ) -> Self {
+        self.on_middle_press = Some(Handler::WithPosition(Box::new(handler)));
         self
     }
 
@@ -66,7 +87,13 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
         let (space, module_button_style) =
             use_theme(|theme| (theme.space, theme.module_button_style()));
 
-        let has_action = item.on_press.is_some() || item.on_press_with_position.is_some();
+        // A module can bind only, say, right-click or scroll, so the button has
+        // to be built whenever any handler is set, not just on left press.
+        let has_action = item.on_press.is_some()
+            || item.on_right_press.is_some()
+            || item.on_middle_press.is_some()
+            || item.on_scroll_up.is_some()
+            || item.on_scroll_down.is_some();
 
         if has_action {
             let mut button = position_button(
@@ -80,17 +107,26 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
             .height(Length::Fill)
             .style(module_button_style);
 
-            if let Some(handler) = item.on_press_with_position {
-                button = button.on_press_with_position(handler);
-            } else if let Some(msg) = item.on_press {
-                button = button.on_press(msg);
+            match item.on_press {
+                Some(Handler::Message(msg)) => button = button.on_press(msg),
+                Some(Handler::WithPosition(handler)) => {
+                    button = button.on_press_with_position(handler);
+                }
+                None => {}
             }
-
-            if let Some(msg) = item.on_right_press {
-                button = button.on_right_press(msg);
+            match item.on_right_press {
+                Some(Handler::Message(msg)) => button = button.on_right_press(msg),
+                Some(Handler::WithPosition(handler)) => {
+                    button = button.on_right_press_with_position(handler);
+                }
+                None => {}
             }
-            if let Some(msg) = item.on_middle_press {
-                button = button.on_middle_press(msg);
+            match item.on_middle_press {
+                Some(Handler::Message(msg)) => button = button.on_middle_press(msg),
+                Some(Handler::WithPosition(handler)) => {
+                    button = button.on_middle_press_with_position(handler);
+                }
+                None => {}
             }
             if let Some(msg) = item.on_scroll_up {
                 button = button.on_scroll_up(msg);
