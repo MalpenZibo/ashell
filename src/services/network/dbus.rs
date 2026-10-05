@@ -141,28 +141,17 @@ impl super::NetworkBackend for NetworkDbus<'_> {
                 );
             }
 
-            if connect_once {
-                debug!(
-                    "Activating '{}' as a volatile connection (not persisted to disk)",
-                    access_point.ssid
-                );
+            // "volatile" keeps the profile in memory only and NM deletes it on disconnect
+            let persist = if connect_once { "volatile" } else { "disk" };
+            debug!("Activating '{}' with persist={persist}", access_point.ssid);
 
-                // Never fall back to `add_and_activate_connection` on failure
-                self.add_and_activate_connection2(
-                    conn_settings,
-                    &access_point.device_path,
-                    &access_point.path,
-                    HashMap::from([("persist", Value::Str("volatile".into()))]),
-                )
-                .await?;
-            } else {
-                self.add_and_activate_connection(
-                    conn_settings,
-                    &access_point.device_path,
-                    &access_point.path,
-                )
-                .await?;
-            }
+            self.add_and_activate_connection2(
+                conn_settings,
+                &access_point.device_path,
+                &access_point.path,
+                HashMap::from([("persist", Value::Str(persist.into()))]),
+            )
+            .await?;
         }
 
         Ok(())
@@ -972,15 +961,8 @@ pub trait NetworkManager {
         specific_object: OwnedObjectPath,
     ) -> Result<OwnedObjectPath>;
 
-    fn add_and_activate_connection(
-        &self,
-        connection: HashMap<&str, HashMap<&str, Value<'_>>>,
-        device: &ObjectPath<'_>,
-        specific_object: &ObjectPath<'_>,
-    ) -> Result<(OwnedObjectPath, OwnedObjectPath)>;
-
-    /// `AddAndActivateConnection` with an extra options dictionary
-    /// (`persist`, `bind-activation`). Available since NetworkManager 1.16.
+    /// Supersedes `AddAndActivateConnection` with an options dictionary
+    /// (`persist`, `bind-activation`). Requires NetworkManager 1.16 or newer.
     #[zbus(name = "AddAndActivateConnection2")]
     fn add_and_activate_connection2(
         &self,

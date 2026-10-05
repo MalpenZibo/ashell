@@ -183,6 +183,15 @@ pub struct NetworkData {
     pub scanning_nearby_wifi: bool,
 }
 
+impl NetworkData {
+    /// Whether a saved Wi-Fi profile exists for `ssid`.
+    pub fn is_known_ssid(&self, ssid: &str) -> bool {
+        self.known_connections
+            .iter()
+            .any(|c| matches!(c, KnownConnection::AccessPoint(ap) if ap.ssid == ssid))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NetworkService {
     data: NetworkData,
@@ -433,10 +442,11 @@ impl NetworkBackend for BackendChoiceWithConnection {
 }
 
 impl NetworkService {
-    /// Whether the active backend can connect without saving a profile.
+    /// Whether joining `ssid` can skip saving it. Needs backend support and no
+    /// saved profile, since an existing profile is reused as is.
     /// See <https://github.com/MalpenZibo/ashell/issues/509> for IWD support.
-    pub fn supports_temporary_connections(&self) -> bool {
-        matches!(self.backend_choice, BackendChoice::NetworkManager)
+    pub fn can_connect_once(&self, ssid: &str) -> bool {
+        matches!(self.backend_choice, BackendChoice::NetworkManager) && !self.is_known_ssid(ssid)
     }
 
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {

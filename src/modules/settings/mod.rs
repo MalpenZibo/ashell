@@ -409,9 +409,11 @@ impl Settings {
                                 )
                             }
                             NetworkDialogKind::OpenNetworkWarning => {
+                                let connect_once = dialog.connect_once
+                                    && self.network.can_connect_once(&dialog.ssid);
                                 network::Message::OpenNetworkDialogConfirmed(
                                     dialog.ssid,
-                                    dialog.connect_once,
+                                    connect_once,
                                 )
                             }
                         };
@@ -601,7 +603,7 @@ impl Settings {
                 dialog.password.as_deref().unwrap_or(""),
                 self.network_dialog_show_password,
                 matches!(dialog.kind, NetworkDialogKind::OpenNetworkWarning),
-                self.network.supports_temporary_connections(),
+                self.network.can_connect_once(&dialog.ssid),
                 dialog.connect_once,
             )
             .map(Message::PasswordDialog)

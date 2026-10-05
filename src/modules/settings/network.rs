@@ -156,11 +156,11 @@ impl NetworkSettings {
         self.service.as_ref().map(|s| s.airplane_mode)
     }
 
-    /// Whether the active backend can join a network without saving it.
-    pub fn supports_temporary_connections(&self) -> bool {
+    /// Whether `ssid` can be joined without saving it.
+    pub fn can_connect_once(&self, ssid: &str) -> bool {
         self.service
             .as_ref()
-            .is_some_and(|s| s.supports_temporary_connections())
+            .is_some_and(|s| s.can_connect_once(ssid))
     }
 
     pub fn update(&mut self, message: Message) -> Action {

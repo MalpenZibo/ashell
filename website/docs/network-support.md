@@ -12,7 +12,8 @@ unavailable ashell falls back to **IWD**. No configuration is required.
 
 NetworkManager is the primary and most fully-featured backend. It provides
 complete networking support including wired connections, Wi-Fi, VPN, and more.
-This is the recommended backend for most users.
+This is the recommended backend for most users. ashell requires
+NetworkManager 1.16 or newer.
 
 ## IWD
 
@@ -26,7 +27,9 @@ unavailable.
 When joining an open (password-free) Wi-Fi network, ashell asks whether you want
 to connect only this time. Choosing that option activates the network without
 writing a profile to disk, so the connection disappears again once you
-disconnect. This is useful for one-off use of public hotspots.
+disconnect. This is useful for one-off use of public hotspots. The option is
+not offered for an open network you have already saved, since ashell reuses the
+saved profile.
 
 Temporary connections are only supported by NetworkManager, which activates the
 profile with `persist = "volatile"`. Under IWD the toggle is hidden - joining any
