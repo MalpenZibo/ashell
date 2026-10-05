@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use iced::{
-    Background, Border, Color, Theme, border,
+    Background, Border, Color, Shadow, Theme, Vector, border,
     theme::{Palette, palette},
     widget::{
         button::{self, Status},
@@ -234,6 +234,27 @@ const DIVIDER_ALPHA: f32 = 0.12;
 /// The foreground colour at `alpha`: a mark drawn on the surface.
 fn ink(theme: &Theme, alpha: f32) -> Color {
     theme.palette().text.scale_alpha(alpha)
+}
+
+/// A button that looks like its content in every state: for wrapping an
+/// element only to get hover events (e.g. to show a tooltip) inside a module
+/// whose own button already draws the hover highlight.
+pub fn transparent_button_style(theme: &Theme, _status: Status) -> button::Style {
+    button::Style {
+        background: None,
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.,
+            radius: 0.into(),
+        },
+        shadow: Shadow {
+            color: Color::TRANSPARENT,
+            offset: Vector::default(),
+            blur_radius: 0.,
+        },
+        text_color: theme.palette().text,
+        snap: true,
+    }
 }
 
 pub fn slider_style(theme: &Theme, status: slider::Status) -> slider::Style {

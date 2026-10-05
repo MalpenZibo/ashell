@@ -1,8 +1,8 @@
 use crate::{
     components::icons::{DynamicIcon, StaticIcon, icon},
-    components::{ButtonHierarchy, ButtonKind, ButtonUIRef, position_button},
+    components::{ButtonUIRef, position_button},
     config::CustomModuleDef,
-    theme::use_theme,
+    theme::{transparent_button_style, use_theme},
     utils::launcher::execute_command,
 };
 use iced::widget::canvas;
@@ -245,14 +245,11 @@ impl Custom {
         };
 
         if self.tooltip().is_some() {
-            let hover_style = use_theme(|theme| {
-                theme.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary)
-            });
             position_button(content)
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .padding(0)
-                .style(hover_style)
+                .style(transparent_button_style)
                 .on_hover_with_position(move |ui_ref| Message::TooltipHover(ui_ref, id))
                 .on_unhover(Message::TooltipUnhover(id))
                 .into()

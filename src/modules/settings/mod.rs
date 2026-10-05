@@ -23,10 +23,10 @@ use crate::{
     },
     services::idle_inhibitor::IdleInhibitorManager,
     t,
-    theme::use_theme,
+    theme::{transparent_button_style, use_theme},
 };
 use iced::{
-    Border, Color, Element, Length, Shadow, Subscription, SurfaceId, Task, Theme, Vector,
+    Element, Length, Subscription, SurfaceId, Task, Theme,
     widget::{Column, Row, Space, container, row, space},
 };
 
@@ -1007,27 +1007,6 @@ impl Settings {
             }
             _ => fallback(t!("settings-tooltip-empty")),
         }
-    }
-}
-
-fn transparent_button_style(
-    theme: &Theme,
-    _status: iced::widget::button::Status,
-) -> iced::widget::button::Style {
-    iced::widget::button::Style {
-        background: None,
-        border: Border {
-            color: Color::TRANSPARENT,
-            width: 0.,
-            radius: 0.into(),
-        },
-        shadow: Shadow {
-            color: Color::TRANSPARENT,
-            offset: Vector::default(),
-            blur_radius: 0.,
-        },
-        text_color: theme.palette().text,
-        snap: true,
     }
 }
 
