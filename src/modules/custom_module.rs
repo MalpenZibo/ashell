@@ -1,14 +1,15 @@
 use crate::{
     components::icons::{DynamicIcon, StaticIcon, icon},
+    components::{ButtonUIRef, position_button},
     config::CustomModuleDef,
-    theme::use_theme,
+    theme::{transparent_button_style, use_theme},
     utils::launcher::execute_command,
 };
 use iced::widget::canvas;
 use iced::{
-    Element, Length, Subscription, Theme,
+    Element, Length, Subscription, SurfaceId, Theme,
     stream::channel,
-    widget::{Space, Stack, row, text},
+    widget::{Space, Stack, column, row, text},
 };
 use iced::{
     mouse::Cursor,
@@ -35,6 +36,8 @@ pub struct Custom {
 pub struct CustomListenData {
     pub alt: String,
     pub text: Option<String>,
+    #[serde(default)]
+    pub tooltip: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +48,17 @@ pub enum Message {
     LaunchScrollUpCommand,
     LaunchScrollDownCommand,
     Update(CustomListenData),
+    TooltipHover(ButtonUIRef, SurfaceId),
+    TooltipUnhover(SurfaceId),
+}
+
+pub enum Action {
+    None,
+    OpenTooltipMenu(SurfaceId, ButtonUIRef),
+    CloseTooltipMenu(SurfaceId),
+    /// The tooltip went away while possibly shown: its hover button is gone
+    /// from the view, so no unhover will ever close it.
+    CloseAllTooltipMenus,
 }
 
 // Define a struct for the canvas program
@@ -105,42 +119,59 @@ impl Custom {
         &self.data
     }
 
-    pub fn update(&mut self, msg: Message) {
+    pub fn update(&mut self, msg: Message) -> Action {
         match msg {
             Message::LaunchCommand => {
                 if let Some(cmd) = &self.config.command {
                     execute_command(cmd);
                 }
+                Action::None
             }
             Message::LaunchRightClickCommand => {
                 if let Some(cmd) = &self.config.on_right_click {
                     execute_command(cmd);
                 }
+                Action::None
             }
             Message::LaunchMiddleClickCommand => {
                 if let Some(cmd) = &self.config.on_middle_click {
                     execute_command(cmd);
                 }
+                Action::None
             }
             Message::LaunchScrollUpCommand => {
                 if let Some(cmd) = &self.config.on_scroll_up {
                     execute_command(cmd);
                 }
+                Action::None
             }
             Message::LaunchScrollDownCommand => {
                 if let Some(cmd) = &self.config.on_scroll_down {
                     execute_command(cmd);
                 }
+                Action::None
             }
             Message::Update(data) => {
+                let had_tooltip = self.tooltip().is_some();
                 self.data = data;
+                if had_tooltip && self.tooltip().is_none() {
+                    Action::CloseAllTooltipMenus
+                } else {
+                    Action::None
+                }
             }
+            Message::TooltipHover(ui_ref, id) => Action::OpenTooltipMenu(id, ui_ref),
+            Message::TooltipUnhover(id) => Action::CloseTooltipMenu(id),
         }
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
+    fn tooltip(&self) -> Option<&str> {
+        self.data.tooltip.as_deref().filter(|t| !t.is_empty())
+    }
+
+    pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
         let space = use_theme(|theme| theme.space);
-        match self.config.r#type {
+        let content = match self.config.r#type {
             crate::config::CustomModuleType::Text => self
                 .data
                 .text
@@ -211,7 +242,31 @@ impl Custom {
                     icon_with_alert
                 }
             }
+        };
+
+        if self.tooltip().is_some() {
+            position_button(content)
+                .width(Length::Shrink)
+                .height(Length::Shrink)
+                .padding(0)
+                .style(transparent_button_style)
+                .on_hover_with_position(move |ui_ref| Message::TooltipHover(ui_ref, id))
+                .on_unhover(Message::TooltipUnhover(id))
+                .into()
+        } else {
+            content
         }
+    }
+
+    pub fn tooltip_view(&'_ self) -> Element<'_, Message> {
+        let space = use_theme(|theme| theme.space);
+        let lines: Vec<Element<'_, Message>> = self
+            .tooltip()
+            .unwrap_or_default()
+            .lines()
+            .map(|line| text(line).into())
+            .collect();
+        column(lines).spacing(space.xs).into()
     }
 
     pub fn subscription(&self) -> Subscription<(String, Message)> {
@@ -285,5 +340,41 @@ impl Custom {
         } else {
             Subscription::none()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn probe() -> Custom {
+        let config = toml::from_str("name = \"probe\"\ntype = \"Text\"")
+            .expect("test config should deserialize");
+        Custom::new(config)
+    }
+
+    fn listen_data(tooltip: Option<&str>) -> Message {
+        Message::Update(CustomListenData {
+            alt: String::new(),
+            text: None,
+            tooltip: tooltip.map(str::to_owned),
+        })
+    }
+
+    /// The hover button only exists while there is a tooltip, so dropping the
+    /// tooltip must close any open one: the unhover that normally does it will
+    /// never fire.
+    #[test]
+    fn update_closes_tooltip_when_it_goes_away() {
+        let mut custom = probe();
+        assert!(matches!(
+            custom.update(listen_data(Some("line"))),
+            Action::None
+        ));
+        assert!(matches!(
+            custom.update(listen_data(Some(""))),
+            Action::CloseAllTooltipMenus
+        ));
+        assert!(matches!(custom.update(listen_data(None)), Action::None));
     }
 }

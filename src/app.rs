@@ -158,6 +158,19 @@ impl App {
             layer: config.layer,
             enable_esc_key: config.enable_esc_key,
         };
+        // A reload can drop a module or reset its listen data, removing the
+        // hover target of an open tooltip: no unhover would ever close it.
+        let close_custom_tooltips = Task::batch(
+            self.custom
+                .keys()
+                .map(|name| {
+                    self.outputs.close_all_menu_if(
+                        MenuType::CustomTooltip(name.clone()),
+                        self.general_config.enable_esc_key,
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
         let mut previous = std::mem::take(&mut self.custom);
         self.custom = config
             .custom_modules
@@ -219,7 +232,7 @@ impl App {
             .update(modules::tray::Message::ConfigReloaded(config.tray));
         self.osd.update(osd::Message::ConfigReloaded(config.osd));
 
-        workspaces_task
+        Task::batch([close_custom_tooltips, workspaces_task])
     }
 
     pub fn theme(&self, id: SurfaceId) -> Theme {
@@ -314,11 +327,28 @@ impl App {
             }
             Message::FinishCloseMenu(id) => self.outputs.finish_close_menu(id),
             Message::Custom(name, msg) => {
-                if let Some(custom) = self.custom.get_mut(&name) {
-                    custom.update(msg);
+                let Some(custom) = self.custom.get_mut(&name) else {
+                    return Task::none();
+                };
+                match custom.update(msg) {
+                    modules::custom_module::Action::None => Task::none(),
+                    modules::custom_module::Action::OpenTooltipMenu(id, ui_ref) => self
+                        .outputs
+                        .toggle_menu(id, MenuType::CustomTooltip(name), ui_ref, false),
+                    modules::custom_module::Action::CloseTooltipMenu(id) => {
+                        self.outputs.close_menu(
+                            id,
+                            Some(MenuType::CustomTooltip(name)),
+                            self.general_config.enable_esc_key,
+                        )
+                    }
+                    modules::custom_module::Action::CloseAllTooltipMenus => {
+                        self.outputs.close_all_menu_if(
+                            MenuType::CustomTooltip(name),
+                            self.general_config.enable_esc_key,
+                        )
+                    }
                 }
-
-                Task::none()
             }
             Message::Updates(msg) => {
                 if let Some(updates) = self.updates.as_mut() {
@@ -707,6 +737,18 @@ impl App {
                             .map(Message::Settings),
                         ui_ref,
                     ),
+                    MenuType::CustomTooltip(name) => self.menu_wrapper(
+                        id,
+                        self.custom
+                            .get(name)
+                            .map(|custom| {
+                                custom
+                                    .tooltip_view()
+                                    .map(|msg| Message::Custom(name.clone(), msg))
+                            })
+                            .unwrap_or_else(|| Row::new().into()),
+                        ui_ref,
+                    ),
                 }
             }
             Some(HasOutput::Menu(None)) => Row::new().into(),
@@ -829,6 +871,7 @@ mod tests {
             CustomMessage::Update(CustomListenData {
                 alt: "critical".to_string(),
                 text: Some("3 urgent".to_string()),
+                tooltip: None,
             }),
         ));
 
@@ -853,6 +896,7 @@ mod tests {
             CustomMessage::Update(CustomListenData {
                 alt: "critical".to_string(),
                 text: Some("stale".to_string()),
+                tooltip: None,
             }),
         ));
 

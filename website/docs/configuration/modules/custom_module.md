@@ -13,6 +13,7 @@ A **custom module** allows you to:
 - Run a command when the module is clicked.
 - Change icons dynamically based on output.
 - Show an alert indicator based on specific conditions.
+- Show a tooltip on hover.
 
 :::warning
 
@@ -45,7 +46,8 @@ To define a custom module, use the following fields:
 A `Text` module has no interactions at all: `command`, `on_right_click`,
 `on_middle_click`, `on_scroll_up` and `on_scroll_down` are ignored, and so are
 `icon`, `icons` and `alert`. It renders only the `text` field coming from
-`listen_cmd`, and renders nothing when that field is absent or empty.
+`listen_cmd`, and renders nothing when that field is absent or empty. The
+[`tooltip`](#tooltip) field still works on a `Text` module.
 
 `icons` and `alert` match against `alt`, not against `text`.
 :::
@@ -74,13 +76,13 @@ rather than polling every second.
 
 The `listen_cmd` should output JSON in
 the [Waybar format](https://github.com/Alexays/Waybar/wiki/Module:-Custom#script-output),
-using `text` and `alt` fields.
+using the `text`, `alt` and `tooltip` fields.
 
 :::warning
 `alt` is **required**. A payload without it fails to parse, the error is logged
 and the update is dropped, so emit `"alt": ""` even when you have nothing to
-match on. `text` is optional; only `text` and `alt` are read, any other Waybar
-field (`tooltip`, `class`, `percentage`) is ignored.
+match on. `text` and `tooltip` are optional; only `text`, `alt` and `tooltip` are read,
+any other Waybar field (`class`, `percentage`, `tooltip-format`) is ignored.
 :::
 
 :::tip JSON Output
@@ -133,6 +135,23 @@ See the configuration examples below for multiline usage.
 ```json
 {"text": "3", "alt": "notification"}
 ```
+
+### Tooltip
+
+When the payload has a non-empty `tooltip`, hovering over the module shows it in
+a popup. Use `\n` to split it over several lines:
+
+```json
+{"text": "11:00 Standup", "alt": "", "tooltip": "11:00 Standup\n14:00 Review"}
+```
+
+To remove the tooltip, emit a payload without it or with an empty string; an
+open tooltip closes right away.
+
+The tooltip is plain text: Waybar's Pango markup (`<b>`, `<span>`, ...) is
+shown as is. It is not affected by `enable_tooltips` in the
+[settings module](./settings.md#tooltips), which only covers the settings
+indicators.
 
 ---
 

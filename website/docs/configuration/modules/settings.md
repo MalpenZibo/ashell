@@ -89,6 +89,8 @@ With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
 By default, hovering over the status bar indicators shows a tooltip describing
 each one. With the `enable_tooltips` option you can disable these hover tooltips.
+It only affects the settings indicators: [custom modules](./custom_module.md#tooltip)
+show a tooltip whenever their `listen_cmd` sends one.
 
 The default value is `true`.
 
