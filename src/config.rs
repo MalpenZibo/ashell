@@ -111,8 +111,13 @@ impl Config {
         if let Some(ref mut updates) = self.updates {
             updates.validate();
         }
-        self.appearance.bar.margin.validate();
-        self.appearance.bar.padding.validate();
+        self.appearance.bar.margin.validate("appearance.bar.margin");
+        self.appearance
+            .bar
+            .padding
+            .validate("appearance.bar.padding");
+        self.appearance.bar.border.validate("appearance.bar.border");
+        self.appearance.modules.validate(&self.custom_modules);
         self.system_info.validate();
         self.tempo.validate();
         self.settings.validate();
@@ -1005,7 +1010,8 @@ impl BackgroundAppearanceColor {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
 pub enum BackgroundLevel {
     Weakest,
     Weaker,
@@ -1062,12 +1068,16 @@ impl Default for MarginSize {
     }
 }
 
+/// Layer-shell accepts negative margins, which silently push the bar off
+/// screen; a negative or non-finite length here is always a mistake.
+fn is_valid_length(length: f32) -> bool {
+    length.is_finite() && length >= 0.0
+}
+
 impl MarginSize {
-    /// Layer-shell accepts negative margins, which silently push the bar off
-    /// screen; a negative or non-finite length here is always a mistake.
     fn validate(&mut self, field: &str, edge: &str) {
         if let MarginSize::Pixels(pixels) = *self
-            && (!pixels.is_finite() || pixels < 0.0)
+            && !is_valid_length(pixels)
         {
             warn!("{field} {edge} ({pixels}) is not a valid length, using 0");
             *self = MarginSize::Pixels(0.0);
@@ -1163,11 +1173,11 @@ impl<'de> Deserialize<'de> for BarMargin {
 }
 
 impl BarMargin {
-    fn validate(&mut self) {
-        self.top.validate("appearance.bar.margin", "top");
-        self.right.validate("appearance.bar.margin", "right");
-        self.bottom.validate("appearance.bar.margin", "bottom");
-        self.left.validate("appearance.bar.margin", "left");
+    fn validate(&mut self, field: &str) {
+        self.top.validate(field, "top");
+        self.right.validate(field, "right");
+        self.bottom.validate(field, "bottom");
+        self.left.validate(field, "left");
     }
 }
 
@@ -1209,11 +1219,256 @@ impl<'de> Deserialize<'de> for BarPadding {
 }
 
 impl BarPadding {
-    fn validate(&mut self) {
-        self.top.validate("appearance.bar.padding", "top");
-        self.right.validate("appearance.bar.padding", "right");
-        self.bottom.validate("appearance.bar.padding", "bottom");
-        self.left.validate("appearance.bar.padding", "left");
+    fn validate(&mut self, field: &str) {
+        self.top.validate(field, "top");
+        self.right.validate(field, "right");
+        self.bottom.validate(field, "bottom");
+        self.left.validate(field, "left");
+    }
+}
+
+/// A palette entry, resolved from the surface's theme when drawing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PaletteColor {
+    Background(Option<BackgroundLevel>),
+    Primary(Shade),
+    Success(Shade),
+    Warning(Shade),
+    Danger(Shade),
+    Text,
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Shade {
+    #[serde(skip)]
+    Base,
+    Weak,
+    Strong,
+}
+
+impl PaletteColor {
+    fn parse<E: de::Error>(value: &str) -> Result<Self, E> {
+        fn variant<'de, T: Deserialize<'de>, E: de::Error>(value: &'de str) -> Result<T, E> {
+            T::deserialize(de::value::StrDeserializer::new(value))
+        }
+        let shade = |shade: Option<&str>| shade.map_or(Ok(Shade::Base), variant);
+
+        let (name, variant_name) = match value.split_once('.') {
+            Some((name, variant_name)) => (name, Some(variant_name)),
+            None => (value, None),
+        };
+        Ok(match (name, variant_name) {
+            ("background", level) => PaletteColor::Background(level.map(variant).transpose()?),
+            ("primary", v) => PaletteColor::Primary(shade(v)?),
+            ("success", v) => PaletteColor::Success(shade(v)?),
+            ("warning", v) => PaletteColor::Warning(shade(v)?),
+            ("danger", v) => PaletteColor::Danger(shade(v)?),
+            ("text", None) => PaletteColor::Text,
+            _ => return Err(E::custom(format!("unknown palette color `{value}`"))),
+        })
+    }
+}
+
+/// A hex color (`#RRGGBB`) or a reference to the palette (`primary`, `background.strong`, ...).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColorRef {
+    Hex(HexColor),
+    Palette(PaletteColor),
+}
+
+impl<'de> Deserialize<'de> for ColorRef {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        if value.starts_with('#') {
+            HexColor::parse(&value)
+                .map(ColorRef::Hex)
+                .map_err(de::Error::custom)
+        } else {
+            PaletteColor::parse(&value).map(ColorRef::Palette)
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[serde(default)]
+pub struct Border {
+    pub width: f32,
+    pub color: ColorRef,
+}
+
+impl Default for Border {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            color: ColorRef::Palette(PaletteColor::Background(Some(BackgroundLevel::Strong))),
+        }
+    }
+}
+
+impl Border {
+    fn validate(&mut self, field: &str) {
+        if !is_valid_length(self.width) {
+            warn!(
+                "{field}.width ({}) is not a valid length, using 0",
+                self.width
+            );
+            self.width = 0.0;
+        }
+    }
+}
+
+/// How a module's elements are wrapped in islands.
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Grouping {
+    /// One island around all of the module's elements.
+    #[default]
+    Combined,
+    /// One island per element.
+    Individual,
+    /// No island.
+    None,
+}
+
+#[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum FontSizeScale {
+    Xxs,
+    Xs,
+    Sm,
+    Md,
+    Lg,
+    Xl,
+    Xxl,
+}
+
+/// `appearance.modules.default`: the style of every module island.
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq)]
+pub struct ModuleDefaultStyle {
+    pub radius: Option<BarRadius>,
+    pub padding: Option<BarPadding>,
+    pub border: Option<Border>,
+    pub background: Option<ColorRef>,
+    pub grouping: Option<Grouping>,
+}
+
+/// `appearance.modules.group`: the style of the islands of module groups.
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq)]
+pub struct GroupStyle {
+    pub radius: Option<BarRadius>,
+    pub padding: Option<BarPadding>,
+    pub border: Option<Border>,
+    pub background: Option<ColorRef>,
+    pub spacing: Option<MarginSize>,
+}
+
+/// `appearance.modules.<ModuleName>`: per-module overrides.
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq)]
+pub struct ModuleStyle {
+    pub radius: Option<BarRadius>,
+    pub padding: Option<BarPadding>,
+    pub border: Option<Border>,
+    pub background: Option<ColorRef>,
+    pub grouping: Option<Grouping>,
+    pub spacing: Option<MarginSize>,
+    pub text_color: Option<ColorRef>,
+    pub font_size: Option<FontSizeScale>,
+}
+
+/// The `[appearance.modules]` table: the reserved `default` and `group` keys,
+/// every other key is a module name as used in the layout.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ModulesAppearance {
+    pub default: ModuleDefaultStyle,
+    pub group: GroupStyle,
+    pub overrides: HashMap<ModuleName, ModuleStyle>,
+}
+
+impl<'de> Deserialize<'de> for ModulesAppearance {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ModulesAppearanceVisitor;
+
+        impl<'de> Visitor<'de> for ModulesAppearanceVisitor {
+            type Value = ModulesAppearance;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a table of module styles")
+            }
+
+            fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Self::Value, M::Error> {
+                let mut modules = ModulesAppearance::default();
+                while let Some(name) = map.next_key::<ModuleName>()? {
+                    match name {
+                        ModuleName::Custom(key) if key == "default" => {
+                            modules.default = map.next_value()?
+                        }
+                        ModuleName::Custom(key) if key == "group" => {
+                            modules.group = map.next_value()?
+                        }
+                        name => {
+                            modules.overrides.insert(name, map.next_value()?);
+                        }
+                    }
+                }
+                Ok(modules)
+            }
+        }
+
+        deserializer.deserialize_map(ModulesAppearanceVisitor)
+    }
+}
+
+impl ModulesAppearance {
+    fn validate(&mut self, custom_modules: &[CustomModuleDef]) {
+        let default = &mut self.default;
+        validate_island(
+            "appearance.modules.default",
+            &mut default.border,
+            &mut default.padding,
+            None,
+        );
+        let group = &mut self.group;
+        validate_island(
+            "appearance.modules.group",
+            &mut group.border,
+            &mut group.padding,
+            group.spacing.as_mut(),
+        );
+        for (name, style) in &mut self.overrides {
+            validate_island(
+                &format!("appearance.modules.{name}"),
+                &mut style.border,
+                &mut style.padding,
+                style.spacing.as_mut(),
+            );
+        }
+
+        for module in custom_modules {
+            if matches!(module.name.as_str(), "default" | "group") {
+                warn!(
+                    "Custom module name `{}` is reserved in [appearance.modules], its style cannot be overridden",
+                    module.name
+                );
+            }
+        }
+    }
+}
+
+fn validate_island(
+    field: &str,
+    border: &mut Option<Border>,
+    padding: &mut Option<BarPadding>,
+    spacing: Option<&mut MarginSize>,
+) {
+    if let Some(border) = border {
+        border.validate(&format!("{field}.border"));
+    }
+    if let Some(padding) = padding {
+        padding.validate(&format!("{field}.padding"));
+    }
+    if let Some(spacing) = spacing {
+        spacing.validate(field, "spacing");
     }
 }
 
@@ -1224,6 +1479,7 @@ pub struct BarAppearance {
     pub radius: BarRadius,
     pub margin: BarMargin,
     pub padding: BarPadding,
+    pub border: Border,
 }
 
 impl Default for BarAppearance {
@@ -1239,6 +1495,7 @@ impl Default for BarAppearance {
                 bottom: xxs,
                 left: xxs,
             },
+            border: Border::default(),
         }
     }
 }
@@ -1365,6 +1622,7 @@ pub struct Appearance {
     pub opacity: Opacity,
     pub bar: BarAppearance,
     pub menu: MenuAppearance,
+    pub modules: ModulesAppearance,
     pub background_color: BackgroundAppearanceColor,
     pub primary_color: AppearanceColor,
     pub success_color: AppearanceColor,
@@ -1444,6 +1702,7 @@ impl Default for Appearance {
             opacity: Opacity::default(),
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
+            modules: ModulesAppearance::default(),
             background_color: BackgroundAppearanceColor::Complete {
                 base: HexColor::rgb(26, 27, 38),
                 weakest: None,
@@ -1485,7 +1744,7 @@ pub enum Layer {
     Overlay,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ModuleName {
     Updates,
     Workspaces,
@@ -1500,6 +1759,37 @@ pub enum ModuleName {
     MediaPlayer,
     Custom(String),
     Notifications,
+}
+
+const BUILTIN_MODULES: [(&str, ModuleName); 12] = [
+    ("Updates", ModuleName::Updates),
+    ("Workspaces", ModuleName::Workspaces),
+    ("WindowTitle", ModuleName::WindowTitle),
+    ("SystemInfo", ModuleName::SystemInfo),
+    ("KeyboardLayout", ModuleName::KeyboardLayout),
+    ("KeyboardSubmap", ModuleName::KeyboardSubmap),
+    ("Tray", ModuleName::Tray),
+    ("Notifications", ModuleName::Notifications),
+    ("Tempo", ModuleName::Tempo),
+    ("Privacy", ModuleName::Privacy),
+    ("Settings", ModuleName::Settings),
+    ("MediaPlayer", ModuleName::MediaPlayer),
+];
+
+impl std::fmt::Display for ModuleName {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let name = match self {
+            ModuleName::Custom(name) => name,
+            builtin => {
+                BUILTIN_MODULES
+                    .iter()
+                    .find(|(_, module)| module == builtin)
+                    .expect("every builtin module has a name")
+                    .0
+            }
+        };
+        f.write_str(name)
+    }
 }
 
 impl<'de> Deserialize<'de> for ModuleName {
@@ -1517,21 +1807,13 @@ impl<'de> Deserialize<'de> for ModuleName {
             where
                 E: serde::de::Error,
             {
-                Ok(match value {
-                    "Updates" => ModuleName::Updates,
-                    "Workspaces" => ModuleName::Workspaces,
-                    "WindowTitle" => ModuleName::WindowTitle,
-                    "SystemInfo" => ModuleName::SystemInfo,
-                    "KeyboardLayout" => ModuleName::KeyboardLayout,
-                    "KeyboardSubmap" => ModuleName::KeyboardSubmap,
-                    "Tray" => ModuleName::Tray,
-                    "Notifications" => ModuleName::Notifications,
-                    "Tempo" => ModuleName::Tempo,
-                    "Privacy" => ModuleName::Privacy,
-                    "Settings" => ModuleName::Settings,
-                    "MediaPlayer" => ModuleName::MediaPlayer,
-                    other => ModuleName::Custom(other.to_string()),
-                })
+                Ok(BUILTIN_MODULES
+                    .iter()
+                    .find(|(name, _)| *name == value)
+                    .map_or_else(
+                        || ModuleName::Custom(value.to_string()),
+                        |(_, module)| module.clone(),
+                    ))
             }
         }
         deserializer.deserialize_str(ModuleNameVisitor)
@@ -1938,4 +2220,206 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
             }
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(toml: &str) -> Result<Config, toml::de::Error> {
+        toml::from_str(toml).map(|mut config: Config| {
+            config.validate();
+            config
+        })
+    }
+
+    fn ignored_fields(toml: &str) -> Vec<String> {
+        let mut ignored = Vec::new();
+        let _: Config =
+            serde_ignored::deserialize(toml::Deserializer::parse(toml).unwrap(), |path| {
+                ignored.push(path.to_string())
+            })
+            .unwrap();
+        ignored
+    }
+
+    const BACKGROUND_STRONG: ColorRef =
+        ColorRef::Palette(PaletteColor::Background(Some(BackgroundLevel::Strong)));
+
+    #[test]
+    fn style_defaults_keep_current_look() {
+        let appearance = parse("").unwrap().appearance;
+        assert_eq!(appearance.bar.border.width, 0.0);
+        assert_eq!(appearance.bar.border.color, BACKGROUND_STRONG);
+        assert_eq!(appearance.modules, ModulesAppearance::default());
+    }
+
+    #[test]
+    fn parses_issue_example() {
+        let modules = parse(
+            r##"
+            [appearance.bar]
+            border = { width = 1, color = "background.strong" }
+
+            [appearance.modules.default]
+            radius = "lg"
+            padding = "none"
+            border = { width = 1, color = "background.strong" }
+            background = "background"
+            grouping = "combined"
+
+            [appearance.modules.group]
+            radius = "md"
+            padding = "xxs"
+            border = { width = 1, color = "primary" }
+            background = "background.weak"
+            spacing = "xs"
+
+            [appearance.modules.SystemInfo]
+            grouping = "individual"
+            spacing = "xs"
+            radius = "md"
+            border = { width = 1, color = "#414868" }
+            text_color = "primary"
+
+            [appearance.modules.Workspaces]
+            font_size = "sm"
+
+            [appearance.modules.my_custom_module]
+            font_size = "lg"
+            "##,
+        )
+        .unwrap()
+        .appearance
+        .modules;
+
+        assert_eq!(modules.default.grouping, Some(Grouping::Combined));
+        assert_eq!(
+            modules.default.background,
+            Some(ColorRef::Palette(PaletteColor::Background(None)))
+        );
+        assert_eq!(
+            modules.group.border.unwrap().color,
+            ColorRef::Palette(PaletteColor::Primary(Shade::Base))
+        );
+        assert_eq!(
+            modules.group.spacing,
+            Some(MarginSize::SpaceSize(SpaceSize::Xs))
+        );
+
+        let system_info = modules.overrides[&ModuleName::SystemInfo];
+        assert_eq!(system_info.grouping, Some(Grouping::Individual));
+        assert_eq!(
+            system_info.border.unwrap().color,
+            ColorRef::Hex(HexColor::rgb(0x41, 0x48, 0x68))
+        );
+        assert_eq!(
+            system_info.text_color,
+            Some(ColorRef::Palette(PaletteColor::Primary(Shade::Base)))
+        );
+        assert_eq!(system_info.font_size, None);
+
+        assert_eq!(
+            modules.overrides[&ModuleName::Workspaces].font_size,
+            Some(FontSizeScale::Sm)
+        );
+        assert_eq!(
+            modules.overrides[&ModuleName::Custom("my_custom_module".into())].font_size,
+            Some(FontSizeScale::Lg)
+        );
+    }
+
+    #[test]
+    fn border_fields_default_individually() {
+        let bar = parse("[appearance.bar]\nborder = { width = 2 }")
+            .unwrap()
+            .appearance
+            .bar;
+        assert_eq!(bar.border.width, 2.0);
+        assert_eq!(bar.border.color, BACKGROUND_STRONG);
+    }
+
+    #[test]
+    fn negative_border_width_falls_back_to_zero() {
+        let modules = parse("[appearance.modules.default]\nborder = { width = -1 }")
+            .unwrap()
+            .appearance
+            .modules;
+        assert_eq!(modules.default.border.unwrap().width, 0.0);
+    }
+
+    #[test]
+    fn parses_palette_references() {
+        use PaletteColor::*;
+        let cases = [
+            ("background", Background(None)),
+            (
+                "background.weakest",
+                Background(Some(BackgroundLevel::Weakest)),
+            ),
+            (
+                "background.neutral",
+                Background(Some(BackgroundLevel::Neutral)),
+            ),
+            (
+                "background.strongest",
+                Background(Some(BackgroundLevel::Strongest)),
+            ),
+            ("primary.weak", Primary(Shade::Weak)),
+            ("success", Success(Shade::Base)),
+            ("warning.strong", Warning(Shade::Strong)),
+            ("danger.weak", Danger(Shade::Weak)),
+            ("text", Text),
+        ];
+        for (name, expected) in cases {
+            assert_eq!(
+                PaletteColor::parse::<de::value::Error>(name),
+                Ok(expected),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_colors() {
+        for color in [
+            "accent",
+            "primary.base",
+            "primary.strongest",
+            "background.base",
+            "text.weak",
+            "#zzzzzz",
+        ] {
+            let toml = format!("[appearance.modules.default]\nbackground = \"{color}\"");
+            assert!(parse(&toml).is_err(), "{color} should be rejected");
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_grouping_and_font_size() {
+        assert!(parse("[appearance.modules.default]\ngrouping = \"all\"").is_err());
+        assert!(parse("[appearance.modules.Tray]\nfont_size = \"huge\"").is_err());
+    }
+
+    #[test]
+    fn reports_options_outside_their_table() {
+        let ignored = ignored_fields(
+            r#"
+            [appearance.modules.default]
+            font_size = "sm"
+            spacing = "xs"
+
+            [appearance.modules.group]
+            grouping = "none"
+            "#,
+        );
+        assert_eq!(
+            ignored,
+            [
+                "appearance.modules.default.font_size",
+                "appearance.modules.default.spacing",
+                "appearance.modules.group.grouping",
+            ]
+        );
+    }
 }
