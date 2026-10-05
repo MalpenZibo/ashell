@@ -12,10 +12,10 @@ ashell includes custom widgets in `src/components/` that provide functionality n
 
 ## ButtonUIRef
 
-Defined in `components/mod.rs`, this type carries a button's screen position and viewport info:
+Defined in `components/position_button.rs`, this type carries a button's screen position and viewport info:
 
 ```rust
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct ButtonUIRef {
     pub position: Point,
     pub viewport: (f32, f32),

@@ -6,7 +6,7 @@ Services are the backend layer of ashell. They manage communication with system 
 
 | Service | Location | Backend | Protocol | Required Package |
 |---------|----------|---------|----------|-----------------|
-| Compositor | `services/compositor/` | Hyprland / Niri | IPC socket | Hyprland or Niri |
+| Compositor | `services/compositor/` | Hyprland / Niri / MangoWC / generic Wayland | IPC socket / `mmsg` / Wayland protocols | Hyprland, Niri, MangoWC, or any Wayland compositor (generic fallback) |
 | Audio | `services/audio.rs` | PulseAudio | libpulse C library | PulseAudio or PipeWire-Pulse |
 | Brightness | `services/brightness.rs` | sysfs + logind | File I/O + D-Bus | systemd-logind |
 | Bluetooth | `services/bluetooth/` | BlueZ | D-Bus | `bluez` |
@@ -14,8 +14,9 @@ Services are the backend layer of ashell. They manage communication with system 
 | MPRIS | `services/mpris/` | Media players | D-Bus | MPRIS-compatible player |
 | Tray | `services/tray/` | StatusNotifierItem | D-Bus | — |
 | UPower | `services/upower/` | UPower daemon | D-Bus | `upower` |
-| Privacy | `services/privacy.rs` | PipeWire | PipeWire portals | `pipewire` |
-| Idle Inhibitor | `services/idle_inhibitor.rs` | systemd-logind | D-Bus | systemd-logind |
+| Notifications | `services/notifications/` | Notification server | D-Bus | — |
+| Privacy | `services/privacy.rs` | PipeWire + `/dev/video0` | PipeWire registry + inotify | `pipewire` |
+| Idle Inhibitor | `services/idle_inhibitor.rs` | Wayland `idle-inhibit-unstable-v1` | Wayland protocol | — |
 | Logind | `services/logind.rs` | systemd-logind | D-Bus | systemd-logind |
 | Throttle | `services/throttle.rs` | (utility) | Stream adapter | — |
 | XDG Icons | `services/xdg_icons.rs` | (utility) | XDG icon theme | — |

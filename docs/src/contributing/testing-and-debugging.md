@@ -56,7 +56,7 @@ to stdout when `target = "file"`.
 Check logs for initialization errors:
 
 ```bash
-grep -i "error\|failed\|panic" $XDG_RUNTIME_DIR/ashell/*.log
+grep -i "error\|failed\|panic" $XDG_RUNTIME_DIR/ashell_*.log
 ```
 
 ### D-Bus Issues

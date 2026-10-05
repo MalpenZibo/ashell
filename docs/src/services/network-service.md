@@ -24,14 +24,15 @@ The network service supports two backends:
 - **NetworkManager**: The traditional Linux network management daemon. Used on most distributions.
 - **IWD (iNet Wireless Daemon)**: Intel's lightweight wireless daemon. Used on some minimal setups and can be used as a backend for NetworkManager.
 
-The backend is detected based on which D-Bus service is available.
+Both backends implement the `NetworkBackend` trait in `mod.rs`. At startup the service tries NetworkManager first and falls back to IWD if NetworkManager fails to initialize; the chosen backend is stored as a `BackendChoice`.
 
 ## Capabilities
 
 - List available WiFi networks
-- Connect/disconnect from WiFi networks
+- Connect to WiFi networks (with an optional password)
+- Enable/disable WiFi and airplane mode
 - WiFi network scanning
-- VPN connection management
+- VPN connection toggling
 - Connection state monitoring
 - Signal strength display
 

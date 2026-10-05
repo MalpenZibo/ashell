@@ -17,6 +17,8 @@ ashell --config-path /path/to/config.toml
 ```rust
 pub struct Config {
     pub logging: LoggingConfig,                     // Level, target and directory
+    pub language: Option<String>,                   // UI language override
+    pub region: Option<String>,                     // Region (formatting) override
     pub position: Position,                         // Top or Bottom
     pub layer: Layer,                               // Top, Bottom, or Overlay
     pub outputs: Outputs,                           // All, Active, or Targets
@@ -26,7 +28,8 @@ pub struct Config {
     pub workspaces: WorkspacesModuleConfig,
     pub window_title: WindowTitleConfig,
     pub system_info: SystemInfoModuleConfig,
-    pub clock: ClockModuleConfig,
+    pub notifications: NotificationsModuleConfig,
+    pub tray: TrayModuleConfig,
     pub tempo: TempoModuleConfig,
     pub settings: SettingsModuleConfig,
     pub appearance: Appearance,
@@ -34,10 +37,11 @@ pub struct Config {
     pub keyboard_layout: KeyboardLayoutModuleConfig,
     pub animations: AnimationsConfig,               // Master toggle for UI animations
     pub enable_esc_key: bool,                       // Default: false
+    pub osd: OsdConfig,                             // On-screen display overlay
 }
 ```
 
-Every field has a serde `#[serde(default)]` attribute, so **an empty config file is valid** — the bar works with zero configuration.
+The struct is marked `#[serde(default)]`, so every field falls back to its default and **an empty config file is valid** — the bar works with zero configuration.
 
 ## Logging Bootstrap
 
@@ -90,7 +94,7 @@ Config changes are detected via [inotify](https://docs.rs/inotify) file watching
 3. `DELETE` events include a 500ms delay before re-reading, to handle atomic save patterns where the file is briefly absent.
 4. On change, the new config is parsed and sent as `Message::ConfigChanged(Box<Config>)`.
 
-The subscription uses `TypeId::of::<Config>()` as its ID to ensure only one watcher runs.
+The subscription is created with `Subscription::run_with(path, ...)`, keyed on the config path, so only one watcher runs per path.
 
 ## Module-Specific Configs
 
@@ -104,8 +108,7 @@ enable_workspace_filling = true
 
 # Tempo clock format
 [tempo]
-format = "%H:%M"
-date_format = "%A, %B %d"
+clock_format = "%a %d %b %R"
 
 # System info thresholds
 [system_info.cpu]
@@ -136,7 +139,7 @@ padding = "xxs"            # (default) same values, inset inside the bar
 default = 0.9
 bar = 1.0
 
-[appearance.background]
+[appearance.background_color]
 base = "#1e1e2e"
 
 [appearance.menu]

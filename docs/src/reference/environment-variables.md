@@ -5,17 +5,24 @@
 | Variable | Checked By | Purpose |
 |----------|-----------|---------|
 | `HYPRLAND_INSTANCE_SIGNATURE` | `services/compositor/hyprland.rs` | Detects Hyprland compositor |
-| `NIRI_SOCKET` | `services/compositor/niri.rs` | Detects Niri compositor |
+| `NIRI_SOCKET` (or `NIRI_SOCKET_PATH`) | `services/compositor/niri.rs` | Detects Niri compositor |
+| `WAYLAND_DISPLAY` | `services/compositor/generic.rs` | Fallback generic Wayland backend |
 
-ashell checks these in order. The first one found determines the compositor backend.
+ashell checks these in order (Hyprland, Niri, MangoWC, then the generic Wayland backend). The first one found determines the compositor backend. MangoWC is detected through its `mmsg` IPC rather than an environment variable.
 
 ## Config Path
 
 | Variable | Purpose |
 |----------|---------|
-| `XDG_CONFIG_HOME` | Base directory for config. Default config path is `$XDG_CONFIG_HOME/ashell/config.toml` (or `~/.config/ashell/config.toml` if unset) |
+| `HOME` | The default config path is `~/.config/ashell/config.toml` (`XDG_CONFIG_HOME` is not consulted) |
 
-The config path can also be overridden with the `--config-path` CLI flag, which takes precedence over environment variables.
+The config path can be overridden with the `--config-path` CLI flag. The path is expanded with `~` and `$VAR` support.
+
+## Runtime Directory
+
+| Variable | Purpose |
+|----------|---------|
+| `XDG_RUNTIME_DIR` | Location of the IPC socket (`ashell.sock`) and the default log directory (logs fall back to `/tmp/ashell` if unset) |
 
 ## Graphics
 

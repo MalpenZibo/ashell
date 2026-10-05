@@ -7,7 +7,6 @@ This guide walks through adding a new module to ashell, step by step.
 Create `src/modules/my_module.rs`:
 
 ```rust
-use crate::theme::AshellTheme;
 use iced::{Element, Subscription, widget::text};
 
 #[derive(Debug, Clone)]
@@ -36,7 +35,8 @@ impl MyModule {
         }
     }
 
-    pub fn view(&self, _theme: &AshellTheme) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
+        // Read theme values with `crate::theme::use_theme(|t| ...)` if needed
         text(&self.value).into()
     }
 
@@ -57,7 +57,7 @@ pub enum ModuleName {
 }
 ```
 
-Make sure the serde deserialization handles the string representation (the enum variant name is used as the TOML string).
+`ModuleName` has a hand-written `Deserialize` impl in the same file: add a match arm mapping the TOML string to your variant (e.g. `"MyModule" => ModuleName::MyModule`), otherwise the string is parsed as `ModuleName::Custom`.
 
 ## Step 3: Add to Module Declarations
 
@@ -91,7 +91,7 @@ In `App::new()`:
 
 ## Step 6: Add Message Variant
 
-In `src/app.rs`, add to the `Message` enum:
+In `src/app/message.rs`, add to the `Message` enum:
 
 ```rust
 pub enum Message {
@@ -119,7 +119,7 @@ In `src/modules/mod.rs`:
 
 ```rust
 ModuleName::MyModule => Some((
-    self.my_module.view(&self.theme).map(Message::MyModule),
+    self.my_module.view().map(Message::MyModule),
     None,  // Or Some(OnModulePress::ToggleMenu(MenuType::MyModule)) if you have a menu
 )),
 ```
@@ -171,7 +171,7 @@ pub fn new(config: MyModuleConfig) -> Self { /* ... */ }
 
 If your module needs a popup menu:
 
-1. Add a variant to `MenuType` in `src/menu.rs`:
+1. Add a variant to `MenuType` in `src/components/menu.rs`:
 
 ```rust
 pub enum MenuType {
@@ -197,7 +197,7 @@ pub enum Message {
 }
 ```
 
-And call it from `App::refesh_config()`.
+And call it from `App::refresh_config()`.
 
 ## Testing Your Module
 

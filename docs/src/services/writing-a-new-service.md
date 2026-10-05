@@ -30,6 +30,9 @@ trait MyService1 {
 
     #[zbus(property)]
     fn value(&self) -> zbus::Result<u32>;
+
+    #[zbus(property)]
+    fn set_value(&self, value: u32) -> zbus::Result<()>;
 }
 ```
 
@@ -69,8 +72,7 @@ impl ReadOnlyService for MyService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        Subscription::run_with_id(
-            TypeId::of::<Self>(),
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(10, async move |mut output| {
                 // Connect to D-Bus
                 let connection = zbus::Connection::system().await.unwrap();
@@ -93,8 +95,8 @@ impl ReadOnlyService for MyService {
                         }
                     }
                 }
-            }),
-        )
+            })
+        })
     }
 }
 ```
@@ -157,8 +159,7 @@ For services that don't use D-Bus (e.g., file watching, IPC sockets):
 
 ```rust
 fn subscribe() -> Subscription<ServiceEvent<Self>> {
-    Subscription::run_with_id(
-        TypeId::of::<Self>(),
+    Subscription::run_with(TypeId::of::<Self>(), |_| {
         channel(10, async move |mut output| {
             // Your custom event source here
             // Could be: file watching, socket reading, periodic polling, etc.
@@ -166,8 +167,8 @@ fn subscribe() -> Subscription<ServiceEvent<Self>> {
                 let data = read_from_source().await;
                 let _ = output.send(ServiceEvent::Update(data)).await;
             }
-        }),
-    )
+        })
+    })
 }
 ```
 

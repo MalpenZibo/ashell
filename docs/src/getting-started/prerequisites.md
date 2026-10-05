@@ -3,7 +3,7 @@
 ## System Requirements
 
 - **Linux** with a Wayland session
-- **Compositor**: [Hyprland](https://hyprland.org/) or [Niri](https://github.com/YaLTeR/niri)
+- **Compositor**: [Hyprland](https://hyprland.org/), [Niri](https://github.com/YaLTeR/niri) or MangoWC (dedicated backends); other Wayland compositors use the generic backend
 
 ## Rust Toolchain
 
@@ -71,7 +71,7 @@ At runtime, ashell needs:
 - `libxkbcommon`
 - PipeWire libraries (`libpipewire-0.3`)
 - PulseAudio libraries (`libpulse`)
-- A running Hyprland or Niri compositor
+- A running Wayland compositor
 
 ## Optional Runtime Dependencies
 
@@ -79,7 +79,7 @@ Several modules require additional system services. If a service is missing, the
 
 | Package | Required by | Purpose |
 |---------|-------------|---------|
-| `upower` | Settings (Power), System Info | Battery status, power profiles |
+| `upower` | Settings (Power) | Battery status, power profiles |
 | `networkmanager` | Settings (Network) | WiFi, wired, VPN management |
 | `iwd` | Settings (Network) | Alternative WiFi backend (fallback) |
 | `bluez` | Settings (Bluetooth) | Bluetooth device management |

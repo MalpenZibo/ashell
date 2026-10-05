@@ -1,13 +1,12 @@
 # The App Struct
 
-The `App` struct in `src/app.rs` is the central state container for the entire application. It owns all module instances, the configuration, the theme, and the output/surface management.
+The `App` struct in `src/app.rs` is the central state container for the entire application. It owns all module instances, the general configuration, and the output/surface management.
 
 ## Fields
 
 ```rust
 pub struct App {
     config_path: PathBuf,               // Path to the TOML config file
-    pub theme: AshellTheme,             // Current theme (colors, spacing, fonts)
     logger: LoggerHandle,               // flexi_logger handle for runtime log level changes
     pub general_config: GeneralConfig,  // Extracted config subset (outputs, modules, layer)
     pub outputs: Outputs,               // Multi-monitor surface management
@@ -21,15 +20,16 @@ pub struct App {
     pub keyboard_layout: KeyboardLayout,     // Keyboard layout indicator
     pub keyboard_submap: KeyboardSubmap,     // Hyprland submap display
     pub tray: TrayModule,                    // System tray
-    pub clock: Clock,                        // Time display (deprecated)
-    pub tempo: Tempo,                        // Advanced clock/calendar/weather
+    pub tempo: Tempo,                        // Clock/calendar/weather
     pub privacy: Privacy,                    // Mic/camera/screenshare indicators
     pub settings: Settings,                  // Settings panel
     pub media_player: MediaPlayer,           // MPRIS media control
-
-    pub visible: bool,                       // Bar visibility (toggled via SIGUSR1)
+    pub notifications: Notifications,        // Notification center and toasts
+    pub osd: Osd,                            // On-screen display overlay
 }
 ```
+
+The theme is not stored on `App`: it lives in a thread-local in `src/theme.rs`, set with `init_theme()` and read with `use_theme()`. Bar visibility (toggled via `SIGUSR1` or IPC) is tracked by `Outputs`, not by `App`.
 
 ## GeneralConfig
 
@@ -53,41 +53,47 @@ pub fn new(
     (logger, config, config_path): (LoggerHandle, Config, PathBuf),
 ) -> impl FnOnce() -> (Self, Task<Message>) {
     move || {
-        let (outputs, task) = Outputs::new(/* style, position, layer, scale_factor */);
+        let mut outputs = Outputs::new(/* bar layout, position, layer, scale_factor */);
 
         // Initialize all modules from config
-        let custom = config.custom_modules.into_iter()
+        let custom = config.custom_modules.clone().into_iter()
             .map(|o| (o.name.clone(), Custom::new(o)))
             .collect();
 
-        (App { /* all fields */ }, task)
+        init_theme(AshellTheme::new(config.position, &config.appearance, &config.animations));
+        init_localizer(resolve_localizer(&config));
+
+        // ...
+        (App { /* all fields */ }, warm_icons)
     }
 }
 ```
 
-The startup task creates the initial layer surfaces.
+The startup task warms the XDG icon cache when the tray or icon-based workspace indicators are in use.
 
 ## Config Hot-Reload
 
-When the config file changes, `App::refesh_config()` propagates changes to all modules:
+When the config file changes, the `Message::ConfigChanged` handler in `App::update()` re-syncs outputs if needed, updates the logger level, and calls `App::refresh_config()` to propagate changes to all modules:
 
 ```rust
-fn refesh_config(&mut self, config: Box<Config>) {
+// In App::update(), Message::ConfigChanged(config):
+if /* outputs, position, bar layout, scale factor or layer changed */ {
+    tasks.push(self.outputs.sync(/* ... */)); // may create/destroy surfaces
+}
+self.logger.set_new_spec(get_log_spec(&config.logging.level));
+tasks.push(self.refresh_config(config));
+
+fn refresh_config(&mut self, config: Box<Config>) -> Task<Message> {
+    // Update theme and localizer
+    init_theme(AshellTheme::new(config.position, &config.appearance, &config.animations));
+    init_localizer(resolve_localizer(&config));
+
     // Update general config
     self.general_config = GeneralConfig { /* ... */ };
 
-    // Update theme
-    self.theme = AshellTheme::new(config.position, &config.appearance);
-
-    // Update logger level
-    self.logger.set_new_spec(get_log_spec(&config.logging.level));
-
-    // Sync outputs (may create/destroy surfaces)
-    let task = self.outputs.sync(/* ... */);
-
     // Propagate to each module via ConfigReloaded messages
-    self.workspaces.update(workspaces::Message::ConfigReloaded(config.workspaces));
-    self.settings.update(settings::Message::ConfigReloaded(config.settings));
+    self.workspaces.update(modules::workspaces::Message::ConfigReloaded(config.workspaces));
+    self.settings.update(modules::settings::Message::ConfigReloaded(Box::new(config.settings)));
     // ... and so on for each module
 }
 ```

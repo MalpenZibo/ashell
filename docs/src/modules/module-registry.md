@@ -7,16 +7,18 @@ The module registry in `src/modules/mod.rs` connects module names to their imple
 This method maps a `ModuleName` to its rendered view and interaction type:
 
 ```rust
-fn get_module_view(&self, id: Id, module_name: &ModuleName)
-    -> Option<(Element<Message>, Option<OnModulePress>)>
-{
+fn get_module_view<'a>(
+    &'a self,
+    id: SurfaceId,
+    module_name: &'a ModuleName,
+) -> Option<(Element<'a, Message>, Option<OnModulePress>)> {
     match module_name {
-        ModuleName::Privacy => Some((
-            self.privacy.view(&self.theme).map(Message::Privacy),
-            None,  // No interaction
-        )),
+        ModuleName::Privacy => self
+            .privacy
+            .view()
+            .map(|view| (view.map(Message::Privacy), None)), // No interaction
         ModuleName::Settings => Some((
-            self.settings.view(&self.theme).map(Message::Settings),
+            self.settings.view(id).map(Message::Settings),
             Some(OnModulePress::ToggleMenu(MenuType::Settings)),
         )),
         // ... one arm per module
@@ -49,14 +51,23 @@ pub enum OnModulePress {
         on_scroll_down: Option<Box<Message>>,
     },
 
-    // Execute arbitrary commands (for custom modules without menus)
+    // Independent handlers for each mouse button and scroll direction
     CustomAction {
-        on_press: Box<Message>,
-        on_right_press: Option<Box<Message>>,
-        on_middle_press: Option<Box<Message>>,
+        on_press: Option<ModuleButtonAction>,
+        on_right_press: Option<ModuleButtonAction>,
+        on_middle_press: Option<ModuleButtonAction>,
         on_scroll_up: Option<Box<Message>>,
         on_scroll_down: Option<Box<Message>>,
     },
+}
+```
+
+`CustomAction` button handlers use `ModuleButtonAction`, which is either a plain message or a menu toggle (opening a menu needs the button's on-screen position, so it is a separate variant):
+
+```rust
+pub enum ModuleButtonAction {
+    Message(Box<Message>),
+    ToggleMenu(MenuType),
 }
 ```
 
@@ -65,7 +76,7 @@ pub enum OnModulePress {
 - **`Action`**: Simple left-click handler, no menu.
 - **`ToggleMenu`**: Left-click opens/closes a popup menu.
 - **`ToggleMenuWithExtra`**: For modules with a menu that also need right-click or scroll handlers (e.g., Tempo: left-click opens calendar, right-click cycles time format, scroll cycles timezones). Middle-click is not supported in this variant.
-- **`CustomAction`**: For custom modules (or any module) that need multiple mouse buttons and scroll events without a menu. Supports left-click, right-click, middle-click, scroll up, and scroll down.
+- **`CustomAction`**: For modules that need independent handlers for multiple mouse buttons and scroll events. Supports left-click, right-click, middle-click, scroll up, and scroll down; each button can emit a message or toggle a menu (`ModuleButtonAction`). Used by custom modules of type `Button` and by MediaPlayer, whose button actions are configurable.
 
 ## get_module_subscription
 
@@ -86,13 +97,18 @@ fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscripti
 Builds the three bar sections (left, center, right):
 
 ```rust
-pub fn modules_section(&self, id: Id, theme: &AshellTheme) -> [Element<Message>; 3] {
-    [left, center, right].map(|modules_def| {
-        let mut row = Row::new();
+pub fn modules_section<'a>(&'a self, id: SurfaceId) -> [Element<'a, Message>; 3] {
+    [
+        &self.general_config.modules.left,
+        &self.general_config.modules.center,
+        &self.general_config.modules.right,
+    ]
+    .map(|modules_def| {
+        let mut row = Row::with_capacity(modules_def.len()) // ...
         for module_def in modules_def {
-            row = row.push_maybe(match module_def {
-                ModuleDef::Single(module) => self.single_module_wrapper(id, theme, module),
-                ModuleDef::Group(group) => self.group_module_wrapper(id, theme, group),
+            row = row.push(match module_def {
+                ModuleDef::Single(module) => self.single_module_wrapper(id, module),
+                ModuleDef::Group(group) => self.group_module_wrapper(id, group),
             });
         }
         row.into()
@@ -102,16 +118,21 @@ pub fn modules_section(&self, id: Id, theme: &AshellTheme) -> [Element<Message>;
 
 ## Module Wrapping
 
+### build_module_item
+
+Wraps one module's view using the `module_item` builder (`src/components/module_item.rs`):
+- If the module has an `OnModulePress` action, its handlers are attached and the content is wrapped in a `PositionButton`
+- Otherwise, it's wrapped in a plain `container`
+- When animations are enabled, the content is first wrapped in `animated_size`
+
 ### single_module_wrapper
 
-Wraps a single module:
-- If the module has an `OnModulePress` action, it's wrapped in a `PositionButton`
-- Otherwise, it's wrapped in a plain `container`
-- With the `transparent` (islands) surface, non-interactive modules get a rounded background
+Wraps a single module: its `build_module_item` result is passed to `module_group` (`src/components/module_group.rs`). With the `transparent` (islands) surface, `module_group` gives it a rounded background; with the `solid` surface it is passed through as-is.
 
 ### group_module_wrapper
 
 Wraps a group of modules:
-- All modules in the group are placed in a `Row`
-- With the `transparent` (islands) surface, the entire group shares one rounded background container
+- All modules in the group are built with `build_module_item` and placed in a `Row`
+- With the `transparent` (islands) surface, the entire group shares one rounded background container (`module_group`)
 - Each module within the group still has its own click handler if applicable
+- If no module in the group has anything to display, the group is omitted

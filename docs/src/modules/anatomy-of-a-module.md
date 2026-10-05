@@ -47,8 +47,8 @@ pub fn update(&mut self, message: Message) -> /* Action or Task or () */ {
 ### 5. View Method
 
 ```rust
-pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
-    // Return iced elements
+pub fn view(&self) -> Element<'_, Message> {
+    // Return iced elements (theme values are read with `use_theme`)
 }
 ```
 
@@ -65,29 +65,31 @@ pub fn subscription(&self) -> Subscription<Message> {
 Modules with popup menus also implement:
 
 ```rust
-pub fn menu_view(&self, theme: &AshellTheme) -> Element<Message> {
+pub fn menu_view(&self) -> Element<'_, Message> {
     // Return the menu popup content
 }
 ```
 
 ## The Action Pattern
 
-Some modules return an `Action` enum from `update()` instead of a plain `Task`. This allows modules to request operations they can't perform themselves:
+Some modules return an `Action` enum from `update()` instead of a plain `Task`. This allows modules to request operations they can't perform themselves. Each module defines its own `Action`; for example, the Settings module's:
 
 ```rust
 pub enum Action {
     None,
     Command(Task<Message>),
-    CloseMenu,
-    RequestKeyboard,
-    ReleaseKeyboard,
-    ReleaseKeyboardWithCommand(Task<Message>),
+    CloseMenu(SurfaceId),
+    RequestKeyboardWithCommand(SurfaceId, Task<Message>),
+    ReleaseKeyboard(SurfaceId),
+    ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
+    OpenTooltipMenu(SurfaceId, MenuType, ButtonUIRef),
+    CloseTooltipMenu(SurfaceId, MenuType),
 }
 ```
 
 The `App::update()` method interprets these actions. For example, `CloseMenu` tells the App to close the menu surface, which the module can't do directly.
 
-Modules that use the Action pattern: **Settings**, **Tray**, **Updates**, **MediaPlayer**, **Tempo**.
+Modules that use the Action pattern: **Settings**, **Tray**, **Updates**, **MediaPlayer**, **Tempo**, **Notifications**.
 
 ## Service Consumption
 
@@ -95,8 +97,7 @@ Modules consume services through their subscription:
 
 ```rust
 pub fn subscription(&self) -> Subscription<Message> {
-    CompositorService::subscribe()
-        .map(|event| Message::CompositorEvent(event))
+    CompositorService::subscribe().map(|event| Message::ServiceEvent(Box::new(event)))
 }
 ```
 
@@ -104,7 +105,7 @@ The module's `Message` enum includes variants for service events:
 
 ```rust
 pub enum Message {
-    CompositorEvent(ServiceEvent<CompositorService>),
+    ServiceEvent(Box<ServiceEvent<CompositorService>>),
     // ...
 }
 ```
@@ -112,13 +113,16 @@ pub enum Message {
 And the `update()` method handles them:
 
 ```rust
-Message::CompositorEvent(ServiceEvent::Init(service)) => {
-    self.compositor = Some(service);
-}
-Message::CompositorEvent(ServiceEvent::Update(event)) => {
-    if let Some(compositor) = &mut self.compositor {
-        compositor.update(event);
+Message::ServiceEvent(event) => match *event {
+    ServiceEvent::Init(service) => {
+        self.service = Some(service);
     }
+    ServiceEvent::Update(event) => {
+        if let Some(service) = &mut self.service {
+            service.update(event);
+        }
+    }
+    // ...
 }
 ```
 
@@ -127,7 +131,7 @@ Message::CompositorEvent(ServiceEvent::Update(event)) => {
 Each module is integrated into the App through several touchpoints:
 
 1. **Field in `App` struct** (`src/app.rs`)
-2. **Variant in `Message` enum** (`src/app.rs`)
+2. **Variant in `Message` enum** (`src/app/message.rs`)
 3. **Match arm in `App::update()`** (`src/app.rs`)
 4. **Entry in `get_module_view()`** (`src/modules/mod.rs`)
 5. **Entry in `get_module_subscription()`** (`src/modules/mod.rs`)

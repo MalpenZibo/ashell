@@ -12,26 +12,30 @@ ashell uses zbus's `#[proxy]` attribute macro to generate type-safe D-Bus client
 
 ```rust
 // Example from services/bluetooth/dbus.rs
-#[zbus::proxy(
-    interface = "org.bluez.Adapter1",
+#[proxy(
     default_service = "org.bluez",
+    default_path = "/org/bluez/hci0",
+    interface = "org.bluez.Adapter1"
 )]
-trait Adapter1 {
+pub trait Adapter {
     #[zbus(property)]
     fn powered(&self) -> zbus::Result<bool>;
 
     #[zbus(property)]
     fn set_powered(&self, value: bool) -> zbus::Result<()>;
 
+    fn start_discovery(&self) -> zbus::Result<()>;
+
+    fn stop_discovery(&self) -> zbus::Result<()>;
+
     #[zbus(property)]
     fn discovering(&self) -> zbus::Result<bool>;
 
-    fn start_discovery(&self) -> zbus::Result<()>;
-    fn stop_discovery(&self) -> zbus::Result<()>;
+    fn remove_device(&self, device: zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
 }
 ```
 
-The `#[zbus::proxy]` macro generates a `Adapter1Proxy` struct with async methods for each D-Bus method and property.
+The `#[proxy]` macro generates an `AdapterProxy` struct with async methods for each D-Bus method and property.
 
 ## Services Using D-Bus
 
@@ -44,7 +48,7 @@ The `#[zbus::proxy]` macro generates a `Adapter1Proxy` struct with async methods
 | Logind | System | `org.freedesktop.login1` | `services/logind.rs` |
 | MPRIS | Session | `org.mpris.MediaPlayer2.*` | `services/mpris/dbus.rs` |
 | Tray | Session | `org.kde.StatusNotifierWatcher` | `services/tray/dbus.rs` |
-| Privacy | Session | `org.freedesktop.portal.Desktop` | `services/privacy.rs` |
+| Notifications | Session | `org.freedesktop.Notifications` | `services/notifications/dbus.rs` |
 | Brightness | System | `org.freedesktop.login1.Session` | `services/brightness.rs` |
 
 ## Common D-Bus Service Structure
@@ -61,8 +65,7 @@ In `mod.rs`, the subscription connects to D-Bus and watches for signals/property
 
 ```rust
 fn subscribe() -> Subscription<ServiceEvent<Self>> {
-    Subscription::run_with_id(
-        TypeId::of::<Self>(),
+    Subscription::run_with(TypeId::of::<Self>(), |_| {
         channel(10, async move |mut output| {
             // 1. Connect to D-Bus
             let connection = zbus::Connection::system().await.unwrap();
@@ -79,8 +82,8 @@ fn subscribe() -> Subscription<ServiceEvent<Self>> {
             while let Some(change) = stream.next().await {
                 output.send(ServiceEvent::Update(change.into())).await;
             }
-        }),
-    )
+        })
+    })
 }
 ```
 

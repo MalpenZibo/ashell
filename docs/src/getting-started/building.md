@@ -18,7 +18,7 @@ The project includes a `Makefile` with convenience targets:
 |--------|---------|-------------|
 | `make build` | `cargo build --release` | Build release binary |
 | `make start` | Build + `./target/release/ashell` | Build and run |
-| `make install` | Build + `sudo cp -f target/release/ashell /usr/bin` | Install to system |
+| `make install` | Build + `install -Dm755 target/release/ashell $(DESTDIR)$(BINDIR)/ashell` | Install to system (`PREFIX` defaults to `/usr`, `BINDIR` to `$(PREFIX)/bin`) |
 | `make fmt` | `cargo fmt` | Format code |
 | `make check` | `cargo fmt` + `cargo check` + `cargo clippy -- -D warnings` | Full lint check |
 
@@ -28,7 +28,7 @@ The `build.rs` script runs at compile time and performs two tasks:
 
 ### 1. Font Subsetting
 
-ashell bundles [Nerd Font](https://www.nerdfonts.com/) for icons. The full font files are ~4.8 MB. To reduce binary size, `build.rs` uses the [allsorts](https://github.com/AltSign/allsorts) crate to:
+ashell bundles [Nerd Font](https://www.nerdfonts.com/) for icons. The full font files are ~4.8 MB. To reduce binary size, `build.rs` uses the [allsorts](https://github.com/yeslogic/allsorts) crate to:
 
 1. Parse `src/components/icons.rs` to find all Unicode codepoints in use (e.g., `\u{f0e7}`)
 2. Subset the Nerd Font TTF files to only include those glyphs
@@ -41,7 +41,7 @@ This means adding a new icon to `icons.rs` automatically includes it in the subs
 `build.rs` runs `git rev-parse --short HEAD` and embeds the result as the `GIT_HASH` environment variable. This is used in the `--version` output:
 
 ```
-ashell 0.7.0 (abc1234)
+ashell 0.11.0 (abc1234)
 ```
 
 ## Release Profile
@@ -59,5 +59,5 @@ panic = "abort"    # Abort on panic (smaller binary, no unwinding)
 ## Common Build Issues
 
 - **Missing system libraries**: If you get `pkg-config` errors, ensure all [prerequisites](prerequisites.md) are installed.
-- **Font subsetting failure**: The `target/generated/` directory is created automatically by `build.rs`. If the build fails on font subsetting, ensure `assets/SymbolsNerdFont-Regular.ttf` exists.
+- **Font subsetting failure**: The `target/generated/` directory is created automatically by `build.rs`. If the build fails on font subsetting, ensure `assets/SymbolsNerdFont-Regular.ttf` and `assets/SymbolsNerdFontMono-Regular.ttf` exist.
 - **Slow first build**: The first build compiles all dependencies including iced (which is large). Subsequent builds are incremental and much faster.
