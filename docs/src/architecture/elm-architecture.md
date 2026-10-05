@@ -44,8 +44,9 @@ pub fn new(
     (logger, config, config_path): (LoggerHandle, Config, PathBuf),
 ) -> impl FnOnce() -> (Self, Task<Message>) {
     move || {
-        let (outputs, task) = Outputs::new(/* ... */);
-        (App { /* all fields */ }, task)
+        let outputs = Outputs::new(/* ... */);
+        // ... build modules, init theme and localizer
+        (App { /* all fields */ }, warm_icons)
     }
 }
 ```
@@ -64,13 +65,13 @@ fn update(&mut self, message: Message) -> Task<Message> {
 }
 ```
 
-**`App::view`** — Renders the UI for a given window. This is a pure function of the current state:
+**`App::view`** — Renders the UI for a given surface. This is a pure function of the current state:
 
 ```rust
-fn view(&self, id: Id) -> Element<Message> {
-    // Determine which output this window belongs to
+pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
+    // Determine which surface this id belongs to (Outputs::has)
     // Render the bar with left/center/right module sections
-    // Or render the menu popup if this is a menu surface
+    // Or render the menu popup, toast or OSD for those surfaces
 }
 ```
 
@@ -79,36 +80,41 @@ fn view(&self, id: Id) -> Element<Message> {
 Subscriptions are long-lived event sources. They run in the background and produce `Message` values:
 
 ```rust
-fn subscription(&self) -> Subscription<Message> {
+pub fn subscription(&self) -> Subscription<Message> {
     Subscription::batch(vec![
-        config::subscription(/* ... */),                    // Config file changes
-        self.modules_subscriptions(/* ... */),              // All module subscriptions
-        CompositorService::subscribe().map(/* ... */),      // Compositor events
-        // ... more subscriptions
+        Subscription::batch(self.modules_subscriptions(/* ... */)), // Module subscriptions
+        config::subscription(&self.config_path),                     // Config file changes
+        iced::output_events().map(Message::OutputEvent),             // Output events
+        // ... more subscriptions (logind, ESC key, SIGUSR1, IPC)
     ])
 }
 ```
 
-Each subscription is identified by a `TypeId` or a unique key, ensuring only one instance runs per subscription type.
+iced identifies each subscription by its producer (plus the data passed to `Subscription::run_with`), ensuring only one instance runs per subscription.
 
-## Daemon Mode
+## Multi-Surface Application
 
-ashell uses iced's **daemon mode**, which supports multiple windows (surfaces). Unlike a standard iced application with a single window, the daemon can:
+ashell runs as an iced_layershell **application** that manages multiple layer surfaces. It can:
 
-- Create and destroy windows dynamically (for multi-monitor support)
-- Have different views per window (main bar vs. menu popup)
-- Apply different themes and scale factors per window
+- Create and destroy surfaces dynamically (for multi-monitor support, menus, toasts and the OSD)
+- Have different views per surface (main bar vs. menu popup)
+- Apply different themes per surface
 
-The daemon is configured in `main.rs`:
+The application is configured in `main.rs`:
 
 ```rust
-iced::daemon(App::title, App::update, App::view)
-    .subscription(App::subscription)
-    .theme(App::theme)
-    .style(App::style)
-    .scale_factor(App::scale_factor)
-    .font(/* embedded fonts */)
-    .run_with(App::new(/* ... */))
+iced::application(
+    App::new((logger, config.clone(), config_path)),
+    App::update,
+    App::view,
+)
+.layer_shell(LayerShellSettings { /* initial bar surface */ })
+.subscription(App::subscription)
+.theme(App::theme)
+.scale_factor(App::scale_factor)
+.font(/* embedded fonts */)
+.default_font(font)
+.run()
 ```
 
 ## Why This Matters

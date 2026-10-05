@@ -51,9 +51,9 @@ pub trait Service: ReadOnlyService {
 - **`command()`**: Executes a command and returns a `Task` that may produce a `ServiceEvent`.
 
 Examples of commands:
-- `AudioCommand::SetVolume(device, volume)`
+- `AudioCommand::SinkVolume(volume)`
 - `CompositorCommand::FocusWorkspace(id)`
-- `BluetoothCommand::Connect(device_path)`
+- `BluetoothCommand::ConnectDevice(device_path)`
 
 ## Subscription Pattern
 
@@ -61,8 +61,7 @@ Services implement `subscribe()` using iced's `channel` primitive:
 
 ```rust
 fn subscribe() -> Subscription<ServiceEvent<Self>> {
-    Subscription::run_with_id(
-        TypeId::of::<Self>(),    // Ensures single instance
+    Subscription::run_with(TypeId::of::<Self>(), |_| {  // Ensures single instance
         channel(CAPACITY, async move |mut output| {
             // 1. Initialize the service
             let service = MyService::init().await;
@@ -73,8 +72,8 @@ fn subscribe() -> Subscription<ServiceEvent<Self>> {
                 let event = wait_for_change().await;
                 output.send(ServiceEvent::Update(event)).await;
             }
-        }),
-    )
+        })
+    })
 }
 ```
 

@@ -2,7 +2,7 @@
 
 ## The Message Enum
 
-All events in ashell flow through a single `Message` enum defined in `src/app.rs`:
+All events in ashell flow through a single `Message` enum defined in `src/app/message.rs`:
 
 ```rust
 pub enum Message {
@@ -10,8 +10,9 @@ pub enum Message {
     ConfigChanged(Box<Config>),
 
     // Menu management
-    ToggleMenu(MenuType, Id, ButtonUIRef),
-    CloseMenu(Id),
+    ToggleMenu(MenuType, SurfaceId, ButtonUIRef),
+    CloseMenu(SurfaceId),
+    FinishCloseMenu(SurfaceId),
     CloseAllMenus,
 
     // Module messages (one variant per module)
@@ -23,21 +24,25 @@ pub enum Message {
     KeyboardLayout(modules::keyboard_layout::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
     Tray(modules::tray::Message),
-    Clock(modules::clock::Message),
     Tempo(modules::tempo::Message),
     Privacy(modules::privacy::Message),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
+    Notifications(modules::notifications::Message),
+
+    // OSD and IPC
+    Osd(osd::Message),
+    IpcOsdCommand(IpcCommand),
 
     // System events
-    OutputEvent((OutputEvent, WlOutput)),
+    OutputEvent(OutputEvent),
     ResumeFromSleep,
     ToggleVisibility,
     None,
 }
 ```
 
-Each module defines its own `Message` type (e.g., `modules::clock::Message`), which is wrapped in the top-level `Message` enum. This pattern keeps module logic self-contained while enabling centralized routing.
+Each module defines its own `Message` type (e.g., `modules::tempo::Message`), which is wrapped in the top-level `Message` enum. This pattern keeps module logic self-contained while enabling centralized routing.
 
 ## Message Lifecycle
 
@@ -50,7 +55,7 @@ A typical message flows through the system like this:
    ServiceEvent::Update(data)
        │
 3.     ▼ Module subscription maps to top-level Message
-   Message::Settings(settings::Message::Audio(audio::Message::ServiceUpdate(event)))
+   Message::Settings(settings::Message::Audio(audio::Message::Event(event)))
        │
 4.     ▼ App::update() matches on Message variant
    Delegates to self.settings.update(msg)
@@ -74,16 +79,16 @@ A typical message flows through the system like this:
 ```rust
 // Example: batching multiple tasks
 Task::batch(vec![
-    menu.close(),
-    set_layer(id, Layer::Background),
+    task.map(Message::Settings),
+    self.outputs.request_keyboard(id),
 ])
 ```
 
 **Subscriptions** are returned from `subscription()`:
 
 ```rust
-// Example: timer-based subscription
-every(Duration::from_secs(1)).map(|_| Message::Update)
+// Example: timer-based subscription (system_info module)
+every(Duration::from_secs(self.config.interval)).map(|_| Message::Update)
 ```
 
 ## The ServiceEvent Pattern
@@ -101,8 +106,8 @@ pub enum ServiceEvent<S: ReadOnlyService> {
 A module's subscription typically looks like:
 
 ```rust
-CompositorService::subscribe()
-    .map(|event| Message::Workspaces(workspaces::Message::CompositorEvent(event)))
+// In the workspaces module; App maps the result into Message::Workspaces
+CompositorService::subscribe().map(|event| Message::ServiceEvent(Box::new(event)))
 ```
 
 ## The Action Pattern
@@ -114,10 +119,12 @@ Some modules return an `Action` enum from their `update()` method instead of (or
 pub enum Action {
     None,
     Command(Task<Message>),
-    CloseMenu,
-    RequestKeyboard,
-    ReleaseKeyboard,
-    ReleaseKeyboardWithCommand(Task<Message>),
+    CloseMenu(SurfaceId),
+    RequestKeyboardWithCommand(SurfaceId, Task<Message>),
+    ReleaseKeyboard(SurfaceId),
+    ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
+    OpenTooltipMenu(SurfaceId, MenuType, ButtonUIRef),
+    CloseTooltipMenu(SurfaceId, MenuType),
 }
 ```
 
@@ -130,11 +137,12 @@ ashell subscribes to many event sources:
 | Source | Mechanism | Produces |
 |--------|-----------|----------|
 | Compositor (Hyprland/Niri) | IPC socket | Workspace changes, window focus, keyboard layout |
+| Compositor (MangoWC) | `mmsg` IPC CLI | Workspace (tag) changes, window focus, keyboard layout |
 | Compositor (generic fallback) | Wayland protocols (`ext-workspace-v1`, `wlr-foreign-toplevel-management`) on a dedicated thread | Workspace changes, active window |
 | PulseAudio | libpulse mainloop on dedicated thread | Volume changes, device hotplug |
 | D-Bus (BlueZ, NM, UPower, etc.) | zbus signal watchers | Device state changes |
 | Config file | inotify | `ConfigChanged` |
 | System signals | signal-hook | `SIGUSR1` → `ToggleVisibility` |
-| Timers | iced `time::every` | Periodic updates (clock, system info) |
-| Wayland | Layer shell events | Output add/remove |
+| Timers | iced `time::every`, `tokio::time::interval` | Periodic updates (Tempo, system info) |
+| Wayland | `iced::output_events()` | Output add/remove (`OutputEvent`) |
 | systemd-logind | D-Bus | Sleep/wake (`ResumeFromSleep`) |

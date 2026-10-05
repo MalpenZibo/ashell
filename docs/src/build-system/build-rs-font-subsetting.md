@@ -4,7 +4,7 @@ The build script (`build.rs`) runs at compile time and performs two tasks: Nerd 
 
 ## Font Subsetting
 
-ashell uses [Nerd Font](https://www.nerdfonts.com/) symbols for icons (battery, WiFi, Bluetooth, volume, etc.). The full font files are ~4.8 MB. Since ashell only uses ~80 icons, the build script subsets the fonts to include only the needed glyphs.
+ashell uses [Nerd Font](https://www.nerdfonts.com/) symbols for icons (battery, WiFi, Bluetooth, volume, etc.). The full font files are ~4.8 MB. Since ashell only uses ~110 icons, the build script subsets the fonts to include only the needed glyphs.
 
 ### How It Works
 
@@ -30,9 +30,9 @@ ashell uses [Nerd Font](https://www.nerdfonts.com/) symbols for icons (battery, 
 To add a new icon to ashell:
 
 1. Find the Unicode codepoint from the [Nerd Fonts cheat sheet](https://www.nerdfonts.com/cheat-sheet).
-2. Add a constant to `src/components/icons.rs`:
+2. Add a variant to the `StaticIcon` enum in `src/components/icons.rs` and map it to its codepoint in `StaticIcon::get_str()`:
    ```rust
-   pub const MY_ICON: char = '\u{f0001}';
+   StaticIcon::MyIcon => "\u{f0001}",
    ```
 3. Build — `build.rs` automatically detects the new codepoint and includes it in the subset.
 
@@ -61,10 +61,12 @@ match output {
 This is used in the `--version` output via clap:
 
 ```rust
-#[command(version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"))]
+const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")");
+
+#[command(version = VERSION, about = env!("CARGO_PKG_DESCRIPTION"))]
 ```
 
-Producing output like: `ashell 0.7.0 (abc1234)`
+Producing output like: `ashell 0.11.0 (abc1234)`
 
 ## Font Loading at Runtime
 
@@ -73,15 +75,16 @@ The subsetted fonts are embedded in the binary at compile time:
 ```rust
 // In main.rs
 const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
-const NERD_FONT_MONO: &[u8] = include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
+const NERD_FONT_MONO: &[u8] =
+    include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
 const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 ```
 
 These are loaded into iced's font system at startup:
 
 ```rust
-iced::daemon(/* ... */)
-    .font(Cow::from(NERD_FONT))
-    .font(Cow::from(NERD_FONT_MONO))
-    .font(Cow::from(CUSTOM_FONT))
+iced::application(/* ... */)
+    .font(NERD_FONT)
+    .font(NERD_FONT_MONO)
+    .font(CUSTOM_FONT)
 ```

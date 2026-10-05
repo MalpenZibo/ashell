@@ -15,10 +15,12 @@ pub struct AshellTheme {
     pub bar_surface: BarSurface,                              // transparent or solid
     pub bar_radius: BarRadius,                                // per-corner radius (CSS shorthand)
     pub bar_margin: BarMargin,                                // per-edge margin (CSS shorthand)
+    pub bar_padding: BarPadding,                              // per-edge padding (CSS shorthand)
     pub menu: MenuAppearance,                                 // Menu-specific styling
     pub workspace_colors: Vec<AppearanceColor>,               // Per-workspace color cycling
     pub special_workspace_colors: Option<Vec<AppearanceColor>>, // Special workspace colors
     pub scale_factor: f64,                                    // DPI scale factor
+    pub animations_enabled: bool,                             // From [animations].enabled
 }
 ```
 
@@ -49,8 +51,8 @@ Paint::opaque(color)          // drawn on the surface: keeps its contrast
 ```
 
 The fill helpers (`card_style`, `surface_border`, the `button_style` family)
-take a `Paint`, so a raw palette colour will not compile where a fill is
-expected. That matters because the mistake is otherwise invisible: an
+build their fills through `Paint`, and `Paint` (not `Color`) is what converts
+into an iced `Background`. That matters because the mistake is otherwise invisible: an
 un-opacified fill looks correct at the default `opacity = 1.0` and only goes
 wrong once a surface is made translucent.
 
@@ -65,13 +67,13 @@ the same at any opacity.
 
 ```rust
 pub struct Space {
-    pub xxs: u16,  // 4px
-    pub xs: u16,   // 8px
-    pub sm: u16,   // 12px
-    pub md: u16,   // 16px
-    pub lg: u16,   // 24px
-    pub xl: u16,   // 32px
-    pub xxl: u16,  // 48px
+    pub xxs: f32,  // 4px
+    pub xs: f32,   // 8px
+    pub sm: f32,   // 12px
+    pub md: f32,   // 16px
+    pub lg: f32,   // 24px
+    pub xl: f32,   // 32px
+    pub xxl: f32,  // 48px
 }
 ```
 
@@ -79,10 +81,10 @@ pub struct Space {
 
 ```rust
 pub struct Radius {
-    pub sm: u16,   // 4px
-    pub md: u16,   // 8px
-    pub lg: u16,   // 16px
-    pub xl: u16,   // 32px
+    pub sm: f32,   // 4px
+    pub md: f32,   // 8px
+    pub lg: f32,   // 16px
+    pub xl: f32,   // 32px
 }
 ```
 
@@ -90,13 +92,13 @@ pub struct Radius {
 
 ```rust
 pub struct FontSize {
-    pub xxs: u16,  // 8px
-    pub xs: u16,   // 10px
-    pub sm: u16,   // 12px
-    pub md: u16,   // 16px
-    pub lg: u16,   // 20px
-    pub xl: u16,   // 22px
-    pub xxl: u16,  // 32px
+    pub xxs: f32,  // 8px
+    pub xs: f32,   // 10px
+    pub sm: f32,   // 12px
+    pub md: f32,   // 16px
+    pub lg: f32,   // 20px
+    pub xl: f32,   // 22px
+    pub xxl: f32,  // 32px
 }
 ```
 
@@ -115,10 +117,10 @@ Colors are defined through the `AppearanceColor` enum:
 
 ```toml
 # Simple: just a hex color
-background = "#1e1e2e"
+background_color = "#1e1e2e"
 
 # Complete: base + strong + weak + text variants
-[appearance.primary]
+[appearance.primary_color]
 base = "#cba6f7"
 strong = "#dbbcff"
 weak = "#a385d8"
@@ -133,18 +135,18 @@ Colors map to iced's `Extended` palette system with `base`, `strong`, `weak`, an
 
 | Method | Used By |
 |--------|---------|
-| `module_button_style(grouped)` | Module buttons in the bar |
-| `ghost_button_style()` | Transparent buttons in menus |
-| `quick_settings_button_style()` | Quick settings toggles |
-| `workspace_button_style(index, active)` | Workspace indicator buttons |
-| `menu_button_style()` | Items inside dropdown menus |
+| `module_button_style()` | Module buttons in the bar |
+| `button_style(kind, hierarchy)` | General buttons (`ButtonKind`: Solid/Transparent/Outline; `ButtonHierarchy`: Primary/Secondary/Danger) |
+| `quick_settings_button_style(active)` | Quick settings toggles |
+| `quick_settings_submenu_button_style(active)` | Quick settings submenu toggles |
+| `workspace_button_style(is_empty, is_urgent, is_active, colors)` | Workspace indicator buttons |
 
 Each method returns a closure compatible with iced's button styling API:
 
 ```rust
-pub fn module_button_style(&self, grouped: bool) -> impl Fn(&Theme, Status) -> button::Style {
-    // Returns different styles for hovered, pressed, and default states
-    // Handles transparent (islands) vs solid backgrounds differently
+pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style + use<> {
+    // Transparent base with a hover highlight; the module-group
+    // background is handled by `module_group`, not the button
 }
 ```
 
@@ -154,20 +156,27 @@ The theme is built from the config's `Appearance` section:
 
 ```rust
 impl AshellTheme {
-    pub fn new(position: Position, appearance: &Appearance) -> Self {
-        AshellTheme {
-            surfaces: Surface::ALL.map(/* one theme per surface */),
-            space: Space::default(),
-            radius: Radius::default(),
-            font_size: FontSize::default(),
-            bar_position: position,
-            bar_surface: appearance.bar.surface,
-            bar_radius: appearance.bar.radius,
-            bar_margin: appearance.bar.margin,
-            // ...
-        }
+    pub fn new(position: Position, appearance: &Appearance, animations: &AnimationsConfig) -> Self {
+        base_theme_from_appearance(appearance, position, animations.enabled)
+    }
+}
+
+fn base_theme_from_appearance(appearance: &Appearance, bar_position: Position, animations_enabled: bool) -> AshellTheme {
+    AshellTheme {
+        surfaces: Surface::ALL.map(/* one theme per surface */),
+        space: Space::default(),
+        radius: Radius::default(),
+        font_size: FontSize::default(),
+        bar_position,
+        bar_surface: appearance.bar.surface,
+        bar_radius: appearance.bar.radius,
+        bar_margin: appearance.bar.margin,
+        bar_padding: appearance.bar.padding,
+        // ...
     }
 }
 ```
+
+The resulting `AshellTheme` is stored in a thread-local with `init_theme()` (at startup and on config reload) and read anywhere with `use_theme(|t| ...)`.
 
 Each iced theme is created with `Theme::custom_with_fn()`, which builds a palette from the configured colors. The derived `palette::Extended` does not depend on the opacity, so it is generated once and shared by all four surface themes.

@@ -50,7 +50,7 @@ make start
 cargo run --release
 ```
 
-ashell must be launched within a Wayland session running Hyprland or Niri. It cannot run under X11 or without a compositor.
+ashell must be launched within a Wayland session. Hyprland, Niri and MangoWC have dedicated backends; other compositors use the generic Wayland backend. It cannot run under X11 or without a compositor.
 
 ### Custom Config Path
 
@@ -64,7 +64,7 @@ The default config path is `~/.config/ashell/config.toml`.
 
 ashell uses [flexi_logger](https://docs.rs/flexi_logger) and writes logs into `$XDG_RUNTIME_DIR` (falling back to `/tmp/ashell/`).
 
-- Log files rotate daily and are kept for 7 days.
+- Log files rotate daily (or when they reach 10 MB) and the 7 most recent are kept.
 - In debug builds, logs are also printed to stdout when `logging.target = "file"`.
 - The log level is controlled by the `logging.level` field in the config file (default: `"warn"`).
 - `logging.target` selects the destination: `"file"` (default), `"stdout"` or `"stderr"`; `logging.directory` overrides the log directory when the target is `"file"`.
@@ -99,7 +99,7 @@ Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD
 
 ## Signal Handling
 
-- **SIGUSR1**: Toggles bar visibility (legacy, still supported):
+- **SIGUSR1**: Toggles bar visibility (same as `ashell msg toggle-visibility`):
   ```bash
   kill -USR1 $(pidof ashell)
   ```

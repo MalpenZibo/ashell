@@ -12,7 +12,6 @@ Unlike D-Bus services, the audio service uses **libpulse** (the PulseAudio C lib
 │                      │     │                       │
 │  libpulse Mainloop   │────►│  UnboundedReceiver    │
 │  (OS thread, !Send)  │ tx  │                       │
-│                      │     │  ThrottleExt adapter  │
 │                      │◄────│                       │
 │                      │ cmd │  iced Subscription    │
 └──────────────────────┘     └──────────────────────┘
@@ -42,7 +41,6 @@ pub struct Port {
     pub name: String,
     pub description: String,
     pub device_type: DevicePortType,
-    pub active: bool,
 }
 
 pub struct Route<'a> {
@@ -51,28 +49,16 @@ pub struct Route<'a> {
 }
 ```
 
-## Throttling
-
-PulseAudio can emit events very rapidly (e.g., during volume slider dragging). The `ThrottleExt` stream adapter in `services/throttle.rs` rate-limits these events to prevent UI thrashing:
-
-```rust
-// Conceptual usage
-let stream = pa_events.throttle(Duration::from_millis(50));
-```
-
-This ensures the UI updates at most once every 50ms regardless of how fast PulseAudio emits events.
-
 ## Commands
 
 The audio service implements the `Service` trait with these commands:
 
-- Set default sink/source
-- Set volume for a sink/source
-- Toggle mute for a sink/source
-- Move audio to a different device/port
+- Set default sink/source, optionally selecting a port (`DefaultSink`, `DefaultSource`)
+- Set volume for the active sink/source (`SinkVolume`, `SourceVolume`)
+- Toggle mute for the active sink/source (`ToggleSinkMute`, `ToggleSourceMute`)
 
 ## PipeWire Compatibility
 
 Most modern Linux distributions use PipeWire, which provides a PulseAudio-compatible API. ashell's audio service works transparently with both PulseAudio and PipeWire — no code changes needed.
 
-The `privacy.rs` service separately uses PipeWire's portal API for detecting active microphone/camera/screenshare sessions.
+The `privacy.rs` service separately watches the PipeWire registry (and `/dev/video0`) for detecting active microphone/camera/screenshare sessions.

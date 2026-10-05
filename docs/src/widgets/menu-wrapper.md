@@ -1,6 +1,6 @@
 # MenuWrapper
 
-`src/widgets/menu_wrapper.rs`
+`src/components/menu_wrapper.rs`
 
 ## Purpose
 
@@ -25,33 +25,51 @@ A container widget that positions menu popup content relative to a triggering bu
 
 The MenuWrapper:
 
-1. Renders a fullscreen backdrop (semi-transparent or transparent)
-2. Positions the menu content horizontally aligned with the triggering button
-3. Positions the menu vertically above or below the bar (depending on bar position)
-4. Handles click events on the backdrop to close the menu
+1. Renders a fullscreen backdrop (optional color set with `backdrop()`)
+2. Positions the menu content horizontally centered on the triggering button's x coordinate, clamped to stay 8px inside the screen edges
+3. Positions the menu vertically at the top or bottom (`align_y()`, depending on bar position)
+4. Emits the `on_click_outside()` message when the backdrop is clicked, to close the menu
+5. Animates opening and closing (`open()`, `animated()`)
 
 ## Integration
 
-The `App::menu_wrapper()` method creates the MenuWrapper for the currently open menu:
+The `App::menu_wrapper()` method (in `src/components/menu.rs`) wraps the content of the currently open menu; `App::view()` picks the content by `MenuType`:
 
 ```rust
-fn menu_wrapper(&self, output: &ShellInfo, menu_type: &MenuType, button_ui_ref: &ButtonUIRef)
-    -> Element<Message>
-{
-    let content = match menu_type {
-        MenuType::Settings => self.settings.menu_view(&self.theme),
-        MenuType::Updates => self.updates.menu_view(&self.theme),
-        // ...
-    };
+// In App::view()
+MenuType::Settings => self.menu_wrapper(
+    id,
+    self.settings
+        .menu_view(id, use_theme(|t| t.bar_position))
+        .map(Message::Settings),
+    ui_ref,
+),
 
-    MenuWrapper::new(content, button_ui_ref, bar_position, menu_size)
-        .on_backdrop_press(Message::CloseMenu(output.id))
+// In components/menu.rs
+pub fn menu_wrapper<'a>(
+    &'a self,
+    id: SurfaceId,
+    content: Element<'a, app::Message>,
+    button_ui_ref: ButtonUIRef,
+) -> Element<'a, app::Message> {
+    // ...
+    components::MenuWrapper::new(button_ui_ref.position.x, menu_body)
+        .padding(/* ... */)
+        .align_y(match bar_position {
+            Position::Top => Vertical::Top,
+            Position::Bottom => Vertical::Bottom,
+        })
+        .backdrop(backdrop_color(menu_backdrop))
+        .on_click_outside(app::Message::CloseMenu(id))
+        .open(!self.outputs.menu_is_closing(id))
+        .animated(use_theme(|t| t.animations_enabled))
+        .into()
 }
 ```
 
 ## Menu Sizes
 
-The wrapper uses predefined size categories for menu width:
+Menu widths come from the `MenuSize` enum in `src/components/menu.rs`; each module sets its menu content width with it (e.g. `.width(MenuSize::Medium)`):
 
 | Size | Width |
 |------|-------|

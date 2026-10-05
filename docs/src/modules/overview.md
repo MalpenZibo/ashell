@@ -65,7 +65,7 @@ Modules consume services through subscriptions. For example, the `Workspaces` mo
 The `modules_section()` method in `src/modules/mod.rs` builds the three bar sections:
 
 ```rust
-pub fn modules_section(&self, id: Id, theme: &AshellTheme) -> [Element<Message>; 3] {
+pub fn modules_section<'a>(&'a self, id: SurfaceId) -> [Element<'a, Message>; 3] {
     // Returns [left_elements, center_elements, right_elements]
     // Each module is wrapped in a button (if interactive) or plain container
 }

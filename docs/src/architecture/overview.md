@@ -7,13 +7,13 @@ ashell is structured in three layers:
 ```
 ┌──────────────────────────────────────────────────┐
 │                   main.rs                        │
-│          (logging, CLI args, iced daemon)         │
+│       (logging, CLI args, iced application)      │
 └──────────────────────┬───────────────────────────┘
                        │
 ┌──────────────────────▼───────────────────────────┐
 │                  Core Layer                       │
 │  app.rs · config.rs · outputs.rs · theme.rs      │
-│  menu.rs · password_dialog.rs                    │
+│  osd.rs · ipc.rs · i18n.rs · components/         │
 │                                                  │
 │  Central state, message routing, config,         │
 │  multi-monitor management, theming               │
@@ -52,10 +52,8 @@ ashell uses upstream iced 0.14 with [iced_layershell](https://github.com/MalpenZ
 In `Cargo.toml` the dependency is aliased as `iced` for convenience:
 
 ```toml
-iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.1.3", features = [...] }
+iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.6.0", features = [...] }
 ```
-
-> **History**: ashell previously depended on a Pop!_OS/cosmic-iced fork chain. The migration to iced_layershell (v0.8.0+) eliminated that fork dependency.
 
 ## Design Principles
 

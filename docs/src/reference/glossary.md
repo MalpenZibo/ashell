@@ -5,7 +5,7 @@
 | Term | Definition |
 |------|-----------|
 | **Wayland** | The display server protocol used by modern Linux desktops, replacing X11 |
-| **Compositor** | The program that manages windows and display output (e.g., Hyprland, Niri) |
+| **Compositor** | The program that manages windows and display output (e.g., Hyprland, Niri, MangoWC) |
 | **Layer shell** | A Wayland protocol (`wlr-layer-shell`) that allows surfaces to be placed in specific layers (Background, Bottom, Top, Overlay) |
 | **Layer surface** | A Wayland surface managed by the layer shell protocol |
 | **Anchor** | Edges of the screen that a layer surface attaches to (top, bottom, left, right) |
@@ -22,23 +22,22 @@
 | **Element** | An iced widget tree node — the return type of `view()` |
 | **Task** | A one-shot async effect that produces a message when complete |
 | **Subscription** | A long-lived event stream that continuously produces messages |
-| **daemon** | iced's multi-window mode, where the application manages multiple surfaces |
 | **Theme** | iced's styling system with palette-based colors |
-| **Palette** | A set of named colors (background, text, primary, secondary, success, danger) |
+| **Palette** | A set of named colors (background, text, primary, success, warning, danger) |
 | **Widget** | A UI component (button, text, row, column, container, etc.) |
 
 ## ashell Terminology
 
 | Term | Definition |
 |------|-----------|
-| **Module** | A self-contained UI component displayed in the bar (e.g., Clock, Workspaces, Settings) |
+| **Module** | A self-contained UI component displayed in the bar (e.g., Tempo, Workspaces, Settings) |
 | **Service** | A backend integration that communicates with system APIs (e.g., audio, bluetooth, compositor) |
 | **Bar surface** | Where the bar background is painted: `transparent` (each module group gets its own rounded container, the "islands" look) or `solid` (a continuous flat background across the bar) |
 | **Menu** | A popup panel that appears when clicking certain modules |
 | **Centerbox** | Custom widget providing a three-column layout with true centering |
 | **ButtonUIRef** | Position and size information of a button, used for menu placement |
 | **Hot-reload** | Automatic application of config changes without restarting |
-| **Tempo** | The advanced clock module (replacement for the deprecated Clock module) |
+| **Tempo** | The clock module (time, calendar, timezones and weather) |
 | **Custom module** | A user-defined module that executes shell commands |
 
 ## Architecture Terminology

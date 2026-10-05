@@ -3,9 +3,9 @@
 ## Adding a New Icon
 
 1. Find the Unicode codepoint from the [Nerd Fonts cheat sheet](https://www.nerdfonts.com/cheat-sheet).
-2. Add it to `src/components/icons.rs`:
+2. Add a variant to the `StaticIcon` enum in `src/components/icons.rs` and map it to its codepoint in `StaticIcon::get_str()`:
    ```rust
-   pub const MY_NEW_ICON: char = '\u{f0001}';
+   StaticIcon::MyNewIcon => "\u{f0001}",
    ```
 3. Build — `build.rs` automatically subsets the font to include the new glyph.
 
@@ -74,7 +74,7 @@ Catalogs live in `i18n/<lang-tag>/ashell.ftl` and are baked into the binary at c
 
 1. Copy the seed catalog to a new BCP-47 directory (e.g. `fr-FR`, `de-DE`, `it-IT`):
    ```bash
-   mkdir -p i18n/fr-FR
+   mkdir -p i18n/<lang-tag>
    cp i18n/en-US/ashell.ftl i18n/<lang-tag>/ashell.ftl
    ```
 
@@ -85,7 +85,7 @@ Catalogs live in `i18n/<lang-tag>/ashell.ftl` and are baked into the binary at c
      The bracketed identifiers are Fluent literals — only the messages on the right-hand side get translated. 
      Use the [CLDR plural categories](https://www.unicode.org/cldr/charts/latest/supplemental/language_plural_rules.html) that apply to your language; `*[other]` is the required default.
 
-3. Register the catalog in the `CATALOGS` slice in `src/i18n.rs` (keep it alphabetically sorted):
+3. Register the catalog in the `CATALOGS` slice in `src/i18n.rs`:
    ```rust
    const CATALOGS: &[(&str, &str)] = &[
        ("en-US", include_str!("../i18n/en-US/ashell.ftl")),

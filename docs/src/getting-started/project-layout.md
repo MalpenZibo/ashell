@@ -9,6 +9,8 @@ ashell/
 ├── .github/workflows/       # CI/CD pipelines
 ├── website/                 # User-facing Docusaurus website
 ├── docs/                    # This developer guide (mdbook)
+├── i18n/                    # Fluent translation catalogs (en-US, de-DE, fr-FR)
+├── i18n.toml                # i18n-embed configuration
 ├── build.rs                 # Build script (font subsetting, git hash)
 ├── Cargo.toml               # Dependencies and project metadata
 ├── Cargo.lock               # Locked dependency versions
@@ -24,21 +26,35 @@ ashell/
 
 ```
 src/
-├── main.rs                  # Entry point: logging, CLI args, iced daemon launch
-├── app.rs                   # App struct, Message enum, update/view/subscription
+├── main.rs                  # Entry point: logging, CLI args, iced application launch
+├── app.rs                   # App struct, update/view/subscription
+├── app/
+│   ├── message.rs           # Top-level Message enum
+│   └── osd_info.rs          # OSD display info for IPC commands
 ├── config.rs                # TOML config parsing, defaults, hot-reload via inotify
 ├── outputs.rs               # Multi-monitor management, layer surface creation
 ├── theme.rs                 # Theme system: colors, spacing, fonts, bar styles
-├── menu.rs                  # Menu lifecycle: open/toggle/close, layer switching
-├── password_dialog.rs       # Password prompt dialog for network auth
+├── osd.rs                   # On-screen display overlay (volume, brightness, ...)
+├── ipc.rs                   # IPC socket server and `ashell msg` client
+├── i18n.rs                  # Localization (Fluent catalogs)
+├── xdg.rs                   # XDG runtime directory lookup
 │
-├── components/
-│   └── icons.rs             # Nerd Font icon constants (~80+ icons)
+├── components/              # Shared UI building blocks and custom iced widgets
+│   ├── mod.rs               # Component exports
+│   ├── icons.rs             # Nerd Font icon definitions (`StaticIcon`)
+│   ├── menu.rs              # Menu lifecycle: open/toggle/close, menu surfaces
+│   ├── menu_wrapper.rs      # Menu container with backdrop overlay
+│   ├── password_dialog.rs   # Password prompt dialog for network auth
+│   ├── centerbox.rs         # Three-column layout (left/center/right)
+│   ├── position_button.rs   # Button that reports its screen position (`ButtonUIRef`)
+│   └── ...                  # Buttons, sliders, animations, module groups, etc.
 │
 ├── modules/                 # UI modules (what the user sees in the bar)
 │   ├── mod.rs               # Module registry, routing, section builder
-│   ├── clock.rs             # Time display (deprecated, use Tempo)
-│   ├── tempo.rs             # Advanced clock: timezones, calendar, weather
+│   ├── tempo/               # Clock: timezones, calendar, weather
+│   │   ├── mod.rs
+│   │   ├── calendar.rs
+│   │   └── weather.rs
 │   ├── workspaces.rs        # Workspace indicators and switching
 │   ├── window_title.rs      # Active window title display
 │   ├── system_info.rs       # CPU, RAM, disk, network, temperature
@@ -46,6 +62,7 @@ src/
 │   ├── keyboard_submap.rs   # Hyprland submap display
 │   ├── tray.rs              # System tray icon integration
 │   ├── media_player.rs      # MPRIS media player control
+│   ├── notifications.rs     # Notification center and toasts
 │   ├── privacy.rs           # Microphone/camera/screenshare indicators
 │   ├── updates.rs           # Package update checker
 │   ├── custom_module.rs     # User-defined custom modules
@@ -63,7 +80,9 @@ src/
 │   │   ├── mod.rs            # Compositor service, backend detection, broadcast
 │   │   ├── types.rs          # CompositorState, CompositorEvent, CompositorCommand
 │   │   ├── hyprland.rs       # Hyprland IPC integration
-│   │   └── niri.rs           # Niri IPC integration
+│   │   ├── niri.rs           # Niri IPC integration
+│   │   ├── mangowc.rs        # MangoWC integration (`mmsg` IPC)
+│   │   └── generic.rs        # Generic Wayland fallback (ext-workspace, foreign-toplevel)
 │   ├── audio.rs             # PulseAudio/PipeWire audio service
 │   ├── brightness.rs        # Display brightness via sysfs
 │   ├── bluetooth/
@@ -76,27 +95,25 @@ src/
 │   ├── mpris/
 │   │   ├── mod.rs            # Media player service
 │   │   └── dbus.rs           # MPRIS D-Bus proxies
+│   ├── notifications/
+│   │   ├── mod.rs            # Notification daemon service
+│   │   └── dbus.rs           # org.freedesktop.Notifications D-Bus interface
 │   ├── tray/
 │   │   ├── mod.rs            # System tray service
 │   │   └── dbus.rs           # StatusNotifierItem D-Bus proxies
 │   ├── upower/
 │   │   ├── mod.rs            # Battery/power service
 │   │   └── dbus.rs           # UPower D-Bus proxies
-│   ├── privacy.rs           # Privacy monitoring (PipeWire portals)
+│   ├── privacy.rs           # Privacy monitoring (PipeWire)
 │   ├── idle_inhibitor.rs    # Idle/sleep prevention
 │   ├── logind.rs            # systemd-logind (sleep/wake detection)
-│   └── throttle.rs          # Stream rate-limiting utility
+│   ├── throttle.rs          # Stream rate-limiting utility
+│   └── xdg_icons.rs         # XDG icon theme lookup and caching
 │
-├── utils/
-│   ├── mod.rs               # Utility module exports
-│   ├── launcher.rs          # Shell command execution
-│   └── remote_value.rs      # Remote state tracking with local cache
-│
-└── widgets/                 # Custom iced widgets
-    ├── mod.rs               # Widget exports, ButtonUIRef type
-    ├── centerbox.rs         # Three-column layout (left/center/right)
-    ├── position_button.rs   # Button that reports its screen position
-    └── menu_wrapper.rs      # Menu container with backdrop overlay
+└── utils/
+    ├── mod.rs               # Utility module exports and helpers
+    ├── launcher.rs          # Shell command execution
+    └── remote_value.rs      # Remote state tracking with local cache
 ```
 
 ## Assets
@@ -105,8 +122,8 @@ src/
 assets/
 ├── SymbolsNerdFont-Regular.ttf       # Nerd Font (source, ~2.4 MB)
 ├── SymbolsNerdFontMono-Regular.ttf   # Nerd Font Mono (source, ~2.4 MB)
-├── AshellCustomIcon-Regular.otf      # Custom ashell icons (~8 KB)
-├── battery/                           # Battery state SVG icons
+├── AshellCustomIcon-Regular.otf      # Custom ashell icons (~6 KB)
+├── *_bat_*.svg, key_backlight_*.svg   # Peripheral battery / keyboard backlight SVG icons
 ├── weather_icon/                      # Weather condition icons
 └── ashell_custom_icon_project.gs2     # Glyphs Studio project file
 ```
