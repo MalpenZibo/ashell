@@ -19,6 +19,8 @@ use serde::Deserialize;
 use std::{process::Stdio, time::Duration};
 use tokio::{process, time::sleep};
 
+const MAX_VERSION_CHARS: usize = 18;
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct Update {
     pub package: String,
@@ -231,18 +233,16 @@ impl Updates {
                                                     .width(Length::Fill),
                                                 text(format!(
                                                     "{} -> {}",
-                                                    {
-                                                        let mut res = update.from.clone();
-                                                        res.truncate(18);
-
-                                                        res
-                                                    },
-                                                    {
-                                                        let mut res = update.to.clone();
-                                                        res.truncate(18);
-
-                                                        res
-                                                    },
+                                                    update
+                                                        .from
+                                                        .chars()
+                                                        .take(MAX_VERSION_CHARS)
+                                                        .collect::<String>(),
+                                                    update
+                                                        .to
+                                                        .chars()
+                                                        .take(MAX_VERSION_CHARS)
+                                                        .collect::<String>(),
                                                 ))
                                                 .width(Length::Fill)
                                                 .align_x(Horizontal::Right)
