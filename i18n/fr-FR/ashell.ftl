@@ -89,6 +89,12 @@ settings-power-status-discharging = En décharge
 settings-power-status-not-charging = Pas en charge
 settings-power-status-unknown = Inconnu
 settings-power-status-full = Pleine
+settings-power-health = Santé { $percentage } % ({ $energy_full } / { $energy_full_design } Wh)
+settings-power-charge-cycles =
+    { $count ->
+        [one] { $count } cycle de charge
+       *[other] { $count } cycles de charge
+    }
 
 ## Paramètres — inhibiteur de veille
 settings-idle-inhibitor = Inhibiteur de veille

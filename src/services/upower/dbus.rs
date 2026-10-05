@@ -1,4 +1,4 @@
-use super::ChargeLimit;
+use super::{BatteryHealth, ChargeLimit};
 use log::debug;
 use std::ops::Deref;
 use zbus::{
@@ -179,6 +179,38 @@ impl SystemBattery {
         }
 
         pack_seconds(energy, energy_full, energy_rate, remaining)
+    }
+
+    pub async fn health(&self) -> Option<BatteryHealth> {
+        let mut energy_full = 0.0;
+        let mut energy_full_design = 0.0;
+
+        for device in &self.0 {
+            energy_full += device.energy_full().await.ok()?;
+            energy_full_design += device.energy_full_design().await.ok()?;
+        }
+
+        // Some hardware reports no energy values (see percentage())
+        if energy_full <= 0.0 || energy_full_design <= 0.0 {
+            return None;
+        }
+
+        // Cycle counts of several packs don't add up to anything meaningful.
+        // UPower reports -1 when unknown, and some drivers report 0.
+        let charge_cycles = match self.0.as_slice() {
+            [device] => device
+                .charge_cycles()
+                .await
+                .ok()
+                .filter(|cycles| *cycles > 0),
+            _ => None,
+        };
+
+        Some(BatteryHealth {
+            energy_full,
+            energy_full_design,
+            charge_cycles,
+        })
     }
 
     pub fn get_devices_path(self) -> Vec<ObjectPath<'static>> {
@@ -495,6 +527,12 @@ pub trait Device {
 
     #[zbus(property)]
     fn energy_rate(&self) -> zbus::Result<f64>;
+
+    #[zbus(property)]
+    fn energy_full_design(&self) -> zbus::Result<f64>;
+
+    #[zbus(property)]
+    fn charge_cycles(&self) -> zbus::Result<i32>;
 
     #[zbus(property)]
     fn state(&self) -> zbus::Result<u32>;
