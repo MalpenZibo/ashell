@@ -195,6 +195,7 @@ battery_format = "IconAndPercentage"  # (default), "Icon", "Percentage", "IconAn
 # peripheral_indicators = "All"   # (default) or { Specific = ["Keyboard", "Mouse", "Headphones", "Gamepad"] }
 peripheral_battery_format = "Icon"  # (default), "Percentage", "IconAndPercentage", "Time", "IconAndTime", "Name", "IconAndName", "PercentageAndTime", "IconAndPercentageAndTime"
 # peripheral_expanded_by_default = false  # (default)
+# battery_health = true                   # (default) battery health and charge cycles
 audio_indicator_format = "Icon"        # (default), "IconAndPercentage", "Percentage", etc.
 microphone_indicator_format = "Icon"   # (default)
 network_indicator_format = "Icon"      # (default), "IconAndPercentage", "Percentage", "Name", "IconAndName" (Name/IconAndName show the SSID/interface/VPN name)
