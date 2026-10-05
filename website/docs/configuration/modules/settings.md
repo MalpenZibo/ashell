@@ -35,6 +35,16 @@ And lets you interact with these settings:
 - Lock the screen
 - Suspend, hibernate, logout, reboot, or shutdown the system
 
+## Battery Details
+
+Clicking the battery in the settings menu opens a submenu with the battery's
+health (its current full capacity compared to the design capacity) and charge
+cycles, followed by the batteries of connected peripherals. The battery tooltip
+in the bar shows the same health and cycle count.
+
+Health and cycles are shown only when UPower reports them: cycles need a single
+system battery and a driver that counts them.
+
 You can configure this module.
 
 With the `lock_cmd` option you can set a command to lock  
@@ -221,7 +231,7 @@ bluetooth_indicator_format = "Icon"
 
 ### Peripheral Expanded By Default
 
-When set to `true`, the peripheral battery submenu will be open by default when opening the settings menu.
+When set to `true`, the battery submenu (battery details and peripheral batteries) will be open by default when opening the settings menu.
 
 The default value is `false`.
 

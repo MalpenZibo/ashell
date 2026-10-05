@@ -9,7 +9,9 @@ use crate::{
     config::{PeripheralIndicators, SettingsFormat},
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        upower::{BatteryData, BatteryStatus, PowerProfile, UPowerCommand, UPowerService},
+        upower::{
+            BatteryData, BatteryHealth, BatteryStatus, PowerProfile, UPowerCommand, UPowerService,
+        },
     },
     t,
     theme::use_theme,
@@ -21,6 +23,43 @@ use iced::{
     mouse::ScrollDelta,
     widget::{Column, Row, column, container, row, text},
 };
+
+fn health_text(health: &BatteryHealth) -> String {
+    let percentage = health.percentage().round() as i64;
+    let energy_full = health.energy_full.round() as i64;
+    let energy_full_design = health.energy_full_design.round() as i64;
+    t!(
+        "settings-power-health",
+        percentage = percentage,
+        energy_full = energy_full,
+        energy_full_design = energy_full_design
+    )
+}
+
+fn charge_cycles_text(cycles: i32) -> String {
+    t!("settings-power-charge-cycles", count = cycles)
+}
+
+/// The battery's health and, when known, its charge cycles, each with its
+/// icon. Shared by the battery tooltip and the battery menu.
+fn health_details(health: &BatteryHealth) -> Vec<(StaticIcon, String)> {
+    std::iter::once((StaticIcon::BatteryHealth, health_text(health)))
+        .chain(
+            health
+                .charge_cycles
+                .map(|cycles| (StaticIcon::BatteryCycles, charge_cycles_text(cycles))),
+        )
+        .collect()
+}
+
+/// What the system battery's tooltip shows.
+pub struct BatteryTooltipInfo {
+    pub capacity: u32,
+    pub status_label: String,
+    pub details: String,
+    /// Health and charge cycles, each with its icon.
+    pub health_lines: Vec<(StaticIcon, String)>,
+}
 
 fn battery_time(battery: &BatteryData) -> Option<String> {
     match battery.status {
@@ -52,7 +91,7 @@ fn format_percentage_and_time(battery: &BatteryData) -> String {
 #[derive(Debug, Clone)]
 pub enum Message {
     Event(ServiceEvent<UPowerService>),
-    TogglePeripheralMenu,
+    ToggleBatteryMenu,
     TogglePowerProfile,
     ToggleChargeLimit,
     ToggleKbdBacklight,
@@ -67,7 +106,7 @@ pub enum Message {
 
 pub enum Action {
     None,
-    TogglePeripheralMenu,
+    ToggleBatteryMenu,
     Command(Task<Message>),
     CloseMenu(SurfaceId),
 }
@@ -146,7 +185,7 @@ impl PowerSettings {
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
-            Message::TogglePeripheralMenu => Action::TogglePeripheralMenu,
+            Message::ToggleBatteryMenu => Action::ToggleBatteryMenu,
             Message::ToggleKbdBacklight => {
                 if let Some(service) = self.service.as_mut()
                     && let Some(backlight) = service.kbd_backlight.as_mut()
@@ -260,31 +299,54 @@ impl PowerSettings {
         .into()
     }
 
-    pub fn peripheral_menu<'a>(&'a self) -> Option<Element<'a, Message>> {
+    /// The system battery's health and charge cycles, then the peripheral
+    /// batteries. `None` when there is nothing to show.
+    pub fn battery_menu<'a>(&'a self) -> Option<Element<'a, Message>> {
         let space = use_theme(|t| t.space);
-        self.service
-            .as_ref()
-            .filter(|s| !s.peripherals.is_empty())
-            .map(|service| {
+        let service = self.service.as_ref()?;
+
+        let detail_row = |icon_kind: StaticIcon, label: String| -> Element<'a, Message> {
+            row![icon(icon_kind), text(label).width(Length::Fill)]
+                .align_y(Vertical::Center)
+                .spacing(space.sm)
+                .into()
+        };
+        let health = service
+            .system_battery
+            .and_then(|battery| battery.health)
+            .map(|health| {
                 Column::with_children(
-                    service
-                        .peripherals
-                        .iter()
-                        .map(|p| {
-                            row![
-                                icon(p.kind.get_icon()),
-                                text(p.name.to_string()).width(Length::Fill),
-                                self.menu_indicator(p.data, None, None),
-                            ]
-                            .align_y(Vertical::Center)
-                            .spacing(space.sm)
-                            .into()
-                        })
-                        .collect::<Vec<Element<Message>>>(),
+                    health_details(&health)
+                        .into_iter()
+                        .map(|(icon_kind, label)| detail_row(icon_kind, label)),
                 )
                 .spacing(space.xs)
+            });
+
+        let peripherals = (!service.peripherals.is_empty()).then(|| {
+            Column::with_children(service.peripherals.iter().map(|p| {
+                row![
+                    icon(p.kind.get_icon()),
+                    text(p.name.to_string()).width(Length::Fill),
+                    self.menu_indicator(p.data, None, None),
+                ]
+                .align_y(Vertical::Center)
+                .spacing(space.sm)
                 .into()
-            })
+            }))
+            .spacing(space.xs)
+        });
+
+        match (health, peripherals) {
+            (None, None) => None,
+            (Some(health), None) => Some(health.into()),
+            (None, Some(peripherals)) => Some(peripherals.into()),
+            (Some(health), Some(peripherals)) => Some(
+                column![health, divider(), peripherals]
+                    .spacing(space.sm)
+                    .into(),
+            ),
+        }
     }
 
     pub fn peripheral_indicators<'a>(&self) -> Vec<Element<'a, Message>> {
@@ -481,14 +543,16 @@ impl PowerSettings {
                     let charge_limit_enabled = service.charge_limit.as_ref().map(|c| c.enabled);
                     let indicator = self.menu_indicator(battery, None, charge_limit_enabled);
 
-                    let indicator: Element<_> = if !service.peripherals.is_empty() {
-                        styled_button(indicator)
-                            .kind(ButtonKind::Solid)
-                            .on_press(Message::TogglePeripheralMenu)
-                            .into()
-                    } else {
-                        indicator
-                    };
+                    // Clickable whenever the battery menu has something to show.
+                    let indicator: Element<_> =
+                        if battery.health.is_some() || !service.peripherals.is_empty() {
+                            styled_button(indicator)
+                                .kind(ButtonKind::Solid)
+                                .on_press(Message::ToggleBatteryMenu)
+                                .into()
+                        } else {
+                            indicator
+                        };
 
                     indicator
                 })
@@ -503,7 +567,7 @@ impl PowerSettings {
                         Some(if service.peripherals.len() > 1 {
                             styled_button(indicator)
                                 .kind(ButtonKind::Solid)
-                                .on_press(Message::TogglePeripheralMenu)
+                                .on_press(Message::ToggleBatteryMenu)
                                 .into()
                         } else {
                             indicator
@@ -631,7 +695,7 @@ impl PowerSettings {
         UPowerService::subscribe().map(Message::Event)
     }
 
-    pub fn battery_tooltip_info(&self) -> Option<(u32, String, String, Vec<String>)> {
+    pub fn battery_tooltip_info(&self) -> Option<BatteryTooltipInfo> {
         self.service.as_ref().and_then(|service| {
             service.system_battery.map(|battery| {
                 let capacity = battery.capacity as u32;
@@ -649,23 +713,14 @@ impl PowerSettings {
                 };
                 let health_lines = battery
                     .health
-                    .map(|health| {
-                        let percentage = health.percentage().round() as i64;
-                        let energy_full = health.energy_full.round() as i64;
-                        let energy_full_design = health.energy_full_design.round() as i64;
-                        let mut lines = vec![t!(
-                            "settings-power-health",
-                            percentage = percentage,
-                            energy_full = energy_full,
-                            energy_full_design = energy_full_design
-                        )];
-                        if let Some(cycles) = health.charge_cycles {
-                            lines.push(t!("settings-power-charge-cycles", count = cycles));
-                        }
-                        lines
-                    })
+                    .map(|health| health_details(&health))
                     .unwrap_or_default();
-                (capacity, status_label, details, health_lines)
+                BatteryTooltipInfo {
+                    capacity,
+                    status_label,
+                    details,
+                    health_lines,
+                }
             })
         })
     }
