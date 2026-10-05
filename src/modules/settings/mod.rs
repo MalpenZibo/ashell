@@ -47,9 +47,7 @@ pub struct Settings {
     network: NetworkSettings,
     bluetooth: BluetoothSettings,
     idle_inhibitor: Option<IdleInhibitorManager>,
-    dnd: bool,
     remove_dnd_btn: bool,
-    notifications_module_enabled: bool,
     sub_menu: Option<SubMenu>,
     network_dialog: Option<NetworkDialogState>,
     network_dialog_show_password: bool,
@@ -128,7 +126,7 @@ pub enum Action {
     ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
     OpenTooltipMenu(SurfaceId, MenuType, ButtonUIRef),
     CloseTooltipMenu(SurfaceId, MenuType),
-    SetDnd(bool),
+    ToggleDnd,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -205,15 +203,7 @@ impl Settings {
         Action::None
     }
 
-    pub fn set_dnd(&mut self, dnd: bool) {
-        self.dnd = dnd;
-    }
-
-    pub fn set_notifications_module_enabled(&mut self, enabled: bool) {
-        self.notifications_module_enabled = enabled;
-    }
-
-    pub fn new(config: SettingsModuleConfig, notifications_module_enabled: bool) -> Self {
+    pub fn new(config: SettingsModuleConfig) -> Self {
         Settings {
             lock_cmd: config.lock_cmd,
             power: PowerSettings::new(PowerSettingsConfig::new(
@@ -255,9 +245,7 @@ impl Settings {
             } else {
                 IdleInhibitorManager::new()
             },
-            dnd: false,
             remove_dnd_btn: config.remove_dnd_btn,
-            notifications_module_enabled,
             sub_menu: None,
             network_dialog: None,
             indicators: config.indicators,
@@ -386,10 +374,7 @@ impl Settings {
                 }
                 Action::None
             }
-            Message::ToggleDnd => {
-                self.dnd = !self.dnd;
-                Action::SetDnd(self.dnd)
-            }
+            Message::ToggleDnd => Action::ToggleDnd,
             Message::Lock(id) => {
                 if let Some(lock_cmd) = &self.lock_cmd {
                     crate::utils::launcher::execute_command(lock_cmd);
@@ -600,7 +585,12 @@ impl Settings {
         }
     }
 
-    pub fn menu_view<'a>(&'a self, id: SurfaceId, position: Position) -> Element<'a, Message> {
+    pub fn menu_view<'a>(
+        &'a self,
+        id: SurfaceId,
+        position: Position,
+        dnd: Option<bool>,
+    ) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
         container(if let Some(dialog) = &self.network_dialog {
             password_dialog::view(
@@ -689,17 +679,17 @@ impl Settings {
                             None,
                         )
                     }),
-                    (!self.remove_dnd_btn && self.notifications_module_enabled).then(|| {
+                    dnd.filter(|_| !self.remove_dnd_btn).map(|active| {
                         (
                             quick_setting_button(
-                                if self.dnd {
+                                if active {
                                     StaticIcon::BellOff
                                 } else {
                                     StaticIcon::Bell
                                 },
                                 t!("settings-dnd"),
                                 None,
-                                self.dnd,
+                                active,
                                 Message::ToggleDnd,
                                 None,
                                 None,

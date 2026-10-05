@@ -129,7 +129,6 @@ pub enum Action {
     Show(Task<Message>),
     Hide(Task<Message>),
     UpdateToastInputRegion(Size),
-    SetDnd(bool),
 }
 
 // Must match the widget durations so task delays align with animation end.
@@ -176,8 +175,12 @@ impl Notifications {
         self.animations_enabled = enabled;
     }
 
-    pub fn set_do_not_disturb(&mut self, dnd: bool) {
-        self.dnd = dnd;
+    pub fn dnd(&self) -> bool {
+        self.dnd
+    }
+
+    pub fn toggle_dnd(&mut self) {
+        self.dnd = !self.dnd;
     }
 
     fn is_blocklisted(&self, app_name: &str) -> bool {
@@ -375,8 +378,8 @@ impl Notifications {
             }
             Message::NotificationClosed => Action::None,
             Message::ToggleDnd => {
-                self.dnd = !self.dnd;
-                Action::SetDnd(self.dnd)
+                self.toggle_dnd();
+                Action::None
             }
             Message::ClearNotifications => {
                 let connection = self.connection.clone();
