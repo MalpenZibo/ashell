@@ -1422,21 +1422,21 @@ impl<'de> Deserialize<'de> for ModulesAppearance {
 impl ModulesAppearance {
     fn validate(&mut self, custom_modules: &[CustomModuleDef]) {
         let default = &mut self.default;
-        validate_island(
+        validate_style(
             "appearance.modules.default",
             &mut default.border,
             &mut default.padding,
             None,
         );
         let group = &mut self.group;
-        validate_island(
+        validate_style(
             "appearance.modules.group",
             &mut group.border,
             &mut group.padding,
             group.spacing.as_mut(),
         );
         for (name, style) in &mut self.overrides {
-            validate_island(
+            validate_style(
                 &format!("appearance.modules.{name}"),
                 &mut style.border,
                 &mut style.padding,
@@ -1455,7 +1455,7 @@ impl ModulesAppearance {
     }
 }
 
-fn validate_island(
+fn validate_style(
     field: &str,
     border: &mut Option<Border>,
     padding: &mut Option<BarPadding>,
