@@ -28,7 +28,7 @@ center = ["Tempo"]
 right = [["SystemInfo", "Settings"], "Tray"]
 ```
 
-Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"`, `"KeyboardSubmap"`, `"Tray"`, `"Clock"`, `"Tempo"`, `"Privacy"`, `"Settings"`, `"MediaPlayer"`, `"Updates"`, `"Custom:name"`.
+Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"`, `"KeyboardSubmap"`, `"Tray"`, `"Notifications"`, `"Tempo"`, `"Privacy"`, `"Settings"`, `"MediaPlayer"`, `"Updates"`. Any other string is the `name` of a custom module.
 
 ## Appearance
 
@@ -263,9 +263,13 @@ The `listen_cmd` output must be JSON lines with `text` and `alt` fields:
 {"text": "50%", "alt": "volume"}
 ```
 
-Reference a custom module in the layout as `"Custom:name"`:
+Reference a custom module in the layout by its `name`:
 
 ```toml
 [modules]
-right = ["Custom:volume", "Settings"]
+right = ["volume", "Settings"]
 ```
+
+A name that matches no built-in module and no `[[CustomModule]]` is skipped
+without any error, so a typo (or a `"Custom:"` prefix) makes the module silently
+disappear.

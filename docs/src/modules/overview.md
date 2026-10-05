@@ -18,7 +18,7 @@ Modules are the UI building blocks of ashell. Each module is a self-contained co
 | Settings | `"Settings"` | Settings panel (audio, network, bluetooth, etc.) | Yes |
 | MediaPlayer | `"MediaPlayer"` | MPRIS media player control | Yes |
 | Updates | `"Updates"` | Package update indicator | Yes |
-| Custom | `"Custom:name"` | User-defined modules | No |
+| Custom | the module's `name` | User-defined modules | No |
 
 ## Configuration
 
