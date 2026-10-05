@@ -43,7 +43,8 @@ cycles, followed by the batteries of connected peripherals. The battery tooltip
 in the bar shows the same health and cycle count.
 
 Health and cycles are shown only when UPower reports them: cycles need a single
-system battery and a driver that counts them.
+system battery and a driver that counts them. To hide them, see
+[Battery Health](#battery-health).
 
 You can configure this module.
 
@@ -238,6 +239,20 @@ The default value is `false`.
 ```toml
 [settings]
 peripheral_expanded_by_default = true
+```
+
+### Battery Health
+
+With the `battery_health` option you can hide the battery's health and charge
+cycles, from both the battery tooltip and the battery submenu. The battery in
+the settings menu then opens the submenu only when peripheral batteries are
+connected.
+
+The default value is `true`.
+
+```toml
+[settings]
+battery_health = false
 ```
 
 ### Audio Format

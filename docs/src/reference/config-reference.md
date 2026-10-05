@@ -233,6 +233,7 @@ battery_hide_when_full = false
 peripheral_indicators = "All"          # or { Specific = [...] }
 peripheral_battery_format = "Icon"
 peripheral_expanded_by_default = false
+battery_health = true                  # battery health and charge cycles
 audio_indicator_format = "Icon"
 microphone_indicator_format = "Icon"
 network_indicator_format = "Icon"

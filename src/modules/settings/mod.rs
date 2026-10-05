@@ -214,6 +214,7 @@ impl Settings {
                 config.peripheral_indicators,
                 config.peripheral_battery_format,
                 config.peripheral_expanded_by_default,
+                config.battery_health,
                 config.keyboard_backlight_slider,
             )),
             audio: AudioSettings::new(AudioSettingsConfig::new(
@@ -518,6 +519,7 @@ impl Settings {
                         config.peripheral_indicators,
                         config.peripheral_battery_format,
                         config.peripheral_expanded_by_default,
+                        config.battery_health,
                         config.keyboard_backlight_slider,
                     )));
                 self.audio

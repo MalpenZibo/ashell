@@ -123,6 +123,7 @@ pub struct PowerSettingsConfig {
     pub peripheral_indicators: PeripheralIndicators,
     pub peripheral_battery_format: SettingsFormat,
     pub peripheral_expanded_by_default: bool,
+    pub battery_health: bool,
     pub keyboard_backlight_slider: bool,
 }
 
@@ -139,6 +140,7 @@ impl PowerSettingsConfig {
         peripheral_indicators: PeripheralIndicators,
         peripheral_battery_format: SettingsFormat,
         peripheral_expanded_by_default: bool,
+        battery_health: bool,
         keyboard_backlight_slider: bool,
     ) -> Self {
         Self {
@@ -152,6 +154,7 @@ impl PowerSettingsConfig {
             peripheral_indicators,
             peripheral_battery_format,
             peripheral_expanded_by_default,
+            battery_health,
             keyboard_backlight_slider,
         }
     }
@@ -299,6 +302,11 @@ impl PowerSettings {
         .into()
     }
 
+    /// The battery's health and charge cycles, unless `battery_health` hides them.
+    fn shown_health(&self, battery: &BatteryData) -> Option<BatteryHealth> {
+        battery.health.filter(|_| self.config.battery_health)
+    }
+
     /// The system battery's health and charge cycles, then the peripheral
     /// batteries. `None` when there is nothing to show.
     pub fn battery_menu<'a>(&'a self) -> Option<Element<'a, Message>> {
@@ -313,7 +321,7 @@ impl PowerSettings {
         };
         let health = service
             .system_battery
-            .and_then(|battery| battery.health)
+            .and_then(|battery| self.shown_health(&battery))
             .map(|health| {
                 Column::with_children(
                     health_details(&health)
@@ -544,15 +552,16 @@ impl PowerSettings {
                     let indicator = self.menu_indicator(battery, None, charge_limit_enabled);
 
                     // Clickable whenever the battery menu has something to show.
-                    let indicator: Element<_> =
-                        if battery.health.is_some() || !service.peripherals.is_empty() {
-                            styled_button(indicator)
-                                .kind(ButtonKind::Solid)
-                                .on_press(Message::ToggleBatteryMenu)
-                                .into()
-                        } else {
-                            indicator
-                        };
+                    let indicator: Element<_> = if self.shown_health(&battery).is_some()
+                        || !service.peripherals.is_empty()
+                    {
+                        styled_button(indicator)
+                            .kind(ButtonKind::Solid)
+                            .on_press(Message::ToggleBatteryMenu)
+                            .into()
+                    } else {
+                        indicator
+                    };
 
                     indicator
                 })
@@ -711,8 +720,8 @@ impl PowerSettings {
                 } else {
                     String::new()
                 };
-                let health_lines = battery
-                    .health
+                let health_lines = self
+                    .shown_health(&battery)
                     .map(|health| health_details(&health))
                     .unwrap_or_default();
                 BatteryTooltipInfo {
