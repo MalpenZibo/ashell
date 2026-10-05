@@ -3,11 +3,11 @@
 //! The daemon listens on `$XDG_RUNTIME_DIR/ashell.sock`.
 //! The same binary acts as a client via `ashell msg <command>`.
 
-use std::fmt;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::{env, fmt};
 
 use crate::xdg;
 use anyhow::{Context, Result, anyhow};
@@ -144,9 +144,15 @@ impl FromStr for IpcCommand {
             "toggle-airplane-mode" => Ok(IpcCommand::ToggleAirplaneMode { no_osd }),
             "toggle-idle-inhibitor" => Ok(IpcCommand::ToggleIdleInhibitor { no_osd }),
             "load-config" => match rest {
-                Some(file) => Ok(IpcCommand::LoadConfig {
-                    file: PathBuf::from(file),
-                }),
+                Some(file) => {
+                    let file = shellexpand::full(file)?;
+                    let file = env::current_dir()?
+                        .join(file.as_ref())
+                        .canonicalize()
+                        .map_err(|e| anyhow!("invalid config file: {e}"))?;
+
+                    Ok(IpcCommand::LoadConfig { file })
+                }
                 None => Err(anyhow!("config requires a file path")),
             },
             _ => Err(anyhow!("unknown IPC command: {s:?}")),
