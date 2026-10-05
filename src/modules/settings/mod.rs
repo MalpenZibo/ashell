@@ -128,7 +128,7 @@ pub enum Action {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum SubMenu {
-    PeripheralMenu,
+    BatteryMenu,
     Power,
     Sinks,
     Sources,
@@ -270,8 +270,8 @@ impl Settings {
         match message {
             Message::Power(msg) => match self.power.update(msg) {
                 power::Action::None => Action::None,
-                power::Action::TogglePeripheralMenu => {
-                    self.toggle_submenu_to(SubMenu::PeripheralMenu);
+                power::Action::ToggleBatteryMenu => {
+                    self.toggle_submenu_to(SubMenu::BatteryMenu);
                     Action::None
                 }
                 power::Action::Command(task) => Action::Command(task.map(Message::Power)),
@@ -443,7 +443,7 @@ impl Settings {
                 self.network_dialog_show_password = false;
 
                 self.sub_menu = if self.power.config.peripheral_expanded_by_default {
-                    Some(SubMenu::PeripheralMenu)
+                    Some(SubMenu::BatteryMenu)
                 } else {
                     None
                 };
@@ -709,10 +709,10 @@ impl Settings {
             let header_group = {
                 let mut col = Column::<'a, Message>::with_capacity(3).spacing(0);
                 col = col.push(header);
-                if let Some(e) = self.power.peripheral_menu() {
+                if let Some(e) = self.power.battery_menu() {
                     col = col.push(
                         collapsible(
-                            self.sub_menu == Some(SubMenu::PeripheralMenu),
+                            self.sub_menu == Some(SubMenu::BatteryMenu),
                             sub_menu_wrapper(e.map(Message::Power)),
                         )
                         .animated(animated)
@@ -976,8 +976,12 @@ impl Settings {
                 }
             }
             MenuType::BatteryTooltip => {
-                if let Some((capacity, status_label, details, health_lines)) =
-                    self.power.battery_tooltip_info()
+                if let Some(power::BatteryTooltipInfo {
+                    capacity,
+                    status_label,
+                    details,
+                    health_lines,
+                }) = self.power.battery_tooltip_info()
                 {
                     let mut r = Row::new()
                         .push(StaticIcon::Battery4.to_text())
@@ -989,11 +993,11 @@ impl Settings {
                     }
                     Column::new()
                         .push(r)
-                        .extend(
-                            health_lines
-                                .into_iter()
-                                .map(|line| iced::widget::text(line).into()),
-                        )
+                        .extend(health_lines.into_iter().map(|(icon_kind, line)| {
+                            row![icon_kind.to_text(), iced::widget::text(line)]
+                                .spacing(space.xs)
+                                .into()
+                        }))
                         .spacing(space.xs)
                         .into()
                 } else {

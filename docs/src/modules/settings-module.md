@@ -20,7 +20,7 @@ The Settings panel uses a `SubMenu` enum for navigation:
 
 ```rust
 pub enum SubMenu {
-    PeripheralMenu,
+    BatteryMenu,
     Power,
     Sinks,
     Sources,
