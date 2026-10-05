@@ -158,6 +158,19 @@ impl App {
             layer: config.layer,
             enable_esc_key: config.enable_esc_key,
         };
+        // A reload can drop a module or reset its listen data, removing the
+        // hover target of an open tooltip: no unhover would ever close it.
+        let close_custom_tooltips = Task::batch(
+            self.custom
+                .keys()
+                .map(|name| {
+                    self.outputs.close_all_menu_if(
+                        MenuType::CustomTooltip(name.clone()),
+                        self.general_config.enable_esc_key,
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
         let mut previous = std::mem::take(&mut self.custom);
         self.custom = config
             .custom_modules
@@ -219,7 +232,7 @@ impl App {
             .update(modules::tray::Message::ConfigReloaded(config.tray));
         self.osd.update(osd::Message::ConfigReloaded(config.osd));
 
-        workspaces_task
+        Task::batch([close_custom_tooltips, workspaces_task])
     }
 
     pub fn theme(&self, id: SurfaceId) -> Theme {
