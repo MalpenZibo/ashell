@@ -127,6 +127,10 @@ impl SystemBattery {
     }
 
     pub async fn time_to_empty(&self) -> i64 {
+        if let Some(time) = self.pack_time(|energy, _| energy).await {
+            return time;
+        }
+
         let mut time = 0;
 
         for device in &self.0 {
@@ -139,6 +143,13 @@ impl SystemBattery {
     }
 
     pub async fn time_to_full(&self) -> i64 {
+        if let Some(time) = self
+            .pack_time(|energy, energy_full| energy_full - energy)
+            .await
+        {
+            return time;
+        }
+
         let mut time = 0;
 
         for device in &self.0 {
@@ -150,12 +161,52 @@ impl SystemBattery {
         time
     }
 
+    /// Multi-battery estimate, computed like UPower's DisplayDevice.
+    async fn pack_time(&self, remaining: impl Fn(f64, f64) -> f64) -> Option<i64> {
+        if self.0.len() < 2 {
+            return None;
+        }
+
+        let mut energy = 0.0;
+        let mut energy_full = 0.0;
+        let mut energy_rate = 0.0;
+
+        // A failed read would skew the totals, so fall back to the per-device sum
+        for device in &self.0 {
+            energy += device.energy().await.ok()?;
+            energy_full += device.energy_full().await.ok()?;
+            energy_rate += device.energy_rate().await.ok()?;
+        }
+
+        pack_seconds(energy, energy_full, energy_rate, remaining)
+    }
+
     pub fn get_devices_path(self) -> Vec<ObjectPath<'static>> {
         self.0
             .into_iter()
             .map(|device| device.inner().path().to_owned())
             .collect()
     }
+}
+
+fn pack_seconds(
+    energy: f64,
+    energy_full: f64,
+    energy_rate: f64,
+    remaining: impl Fn(f64, f64) -> f64,
+) -> Option<i64> {
+    if !(energy.is_finite() && energy_full.is_finite() && energy_rate.is_finite()) {
+        return None;
+    }
+
+    // Same cut-off UPower uses for per-device times; below it times are absurd.
+    // Some hardware reports energy as 0 (see percentage())
+    if energy_rate <= 0.01 || energy <= 0.0 {
+        return None;
+    }
+
+    let hours = remaining(energy, energy_full).max(0.0) / energy_rate;
+    Some((hours * 3600.0) as i64)
 }
 
 fn has_enable_charge_threshold_method(introspection: &str) -> bool {
@@ -443,6 +494,9 @@ pub trait Device {
     fn energy_full(&self) -> zbus::Result<f64>;
 
     #[zbus(property)]
+    fn energy_rate(&self) -> zbus::Result<f64>;
+
+    #[zbus(property)]
     fn state(&self) -> zbus::Result<u32>;
 
     #[zbus(property, name = "Model")]
@@ -484,4 +538,67 @@ pub trait KbdBacklight {
 
     #[zbus(signal)]
     fn brightness_changed(&self, value: i32) -> zbus::Result<()>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pack_seconds;
+
+    fn to_empty(energy: f64, _: f64) -> f64 {
+        energy
+    }
+
+    fn to_full(energy: f64, energy_full: f64) -> f64 {
+        energy_full - energy
+    }
+
+    #[test]
+    fn phantom_battery_matches_upower() {
+        // `upower -d` from #359: BAT0 charging, BAT1 all zeros; UPower says 15.9 min
+        let secs = pack_seconds(18.43 + 0.0, 20.95 + 0.0, 9.486 + 0.0, to_full);
+        assert_eq!(secs, Some(956));
+    }
+
+    #[test]
+    fn sequential_drain_counts_idle_pack() {
+        // 50 Wh pack at 10 W plus an idle 20 Wh pack
+        assert_eq!(
+            pack_seconds(50.0 + 20.0, 60.0 + 24.0, 10.0, to_empty),
+            Some(7 * 3600)
+        );
+    }
+
+    #[test]
+    fn parallel_drain_is_not_doubled() {
+        // two 50 Wh packs at 5 W each
+        assert_eq!(
+            pack_seconds(50.0 + 50.0, 60.0 + 60.0, 5.0 + 5.0, to_empty),
+            Some(10 * 3600)
+        );
+    }
+
+    #[test]
+    fn energy_above_full_gives_zero() {
+        assert_eq!(pack_seconds(61.0, 60.0, 10.0, to_full), Some(0));
+    }
+
+    #[test]
+    fn unusable_values_fall_back() {
+        for (energy, energy_full, energy_rate) in [
+            (50.0, 60.0, 0.0),
+            (50.0, 60.0, 0.005),
+            (50.0, 60.0, -5.0),
+            (0.0, 60.0, 10.0),
+            (50.0, 60.0, f64::NAN),
+            (50.0, 60.0, f64::INFINITY),
+            (f64::NAN, 60.0, 10.0),
+            (50.0, f64::INFINITY, 10.0),
+        ] {
+            assert_eq!(
+                pack_seconds(energy, energy_full, energy_rate, to_full),
+                None,
+                "{energy} {energy_full} {energy_rate}"
+            );
+        }
+    }
 }
