@@ -1754,9 +1754,9 @@ fn resolve_config_path(path: Option<&Path>) -> Result<PathBuf, Box<dyn Error + S
     })
 }
 
-pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
+pub fn get_config(path: Option<&PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
     let explicit = path.is_some();
-    let expanded = resolve_config_path(path.as_deref())?;
+    let expanded = resolve_config_path(path.map(|p| p.as_path()))?;
 
     if explicit {
         info!("Config path provided {expanded:?}");

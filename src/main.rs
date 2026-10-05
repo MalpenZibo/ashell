@@ -230,7 +230,7 @@ fn main() -> iced::Result {
 
     info!("ashell {VERSION}");
 
-    let (config, config_path) = get_config(args.config_path).unwrap_or_else(|err| {
+    let (config, config_path) = get_config(args.config_path.as_ref()).unwrap_or_else(|err| {
         error!("Failed to read config: {err}");
 
         std::process::exit(1);
