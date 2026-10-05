@@ -167,11 +167,33 @@ impl Service for CompositorService {
     }
 }
 
-pub async fn focus_window_by_pid(pid: u32) -> Result<(), String> {
+pub async fn focus_app_window(
+    pid: Option<u32>,
+    apps: Vec<String>,
+    title: Option<String>,
+) -> Result<(), String> {
     let backend =
         detect_backend().ok_or_else(|| "No supported compositor backend found".to_string())?;
 
-    execute_command(backend, CompositorCommand::FocusWindowByPid(pid)).await
+    execute_command(
+        backend,
+        CompositorCommand::FocusAppWindow { pid, apps, title },
+    )
+    .await
+}
+
+/// Whether a window `title` shows `wanted`, e.g. a browser window whose active
+/// tab plays the media titled `wanted`.
+fn title_matches(title: Option<&str>, wanted: Option<&str>) -> bool {
+    match (title, wanted) {
+        (Some(title), Some(wanted)) if !wanted.is_empty() => title.contains(wanted),
+        _ => false,
+    }
+}
+
+/// Whether a window's app id or class is one of `apps`.
+fn app_matches(app: Option<&str>, apps: &[String]) -> bool {
+    app.is_some_and(|app| apps.iter().any(|a| a.eq_ignore_ascii_case(app)))
 }
 
 async fn execute_command(

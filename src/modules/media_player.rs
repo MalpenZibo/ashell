@@ -2,7 +2,7 @@ use crate::{
     components::divider,
     components::icons::{StaticIcon, icon, icon_button},
     components::scrollable,
-    components::{ButtonSize, MenuSize},
+    components::{ButtonKind, ButtonSize, MenuSize},
     config::{
         MediaPlayerFormat, MediaPlayerIndicatorControls, MediaPlayerModuleConfig,
         MediaPlayerTextField, MediaPlayerVisualizer,
@@ -22,14 +22,13 @@ use crate::{
     },
 };
 use iced::{
-    Background, Border, Color, Element, Length, Subscription, Task, Theme,
+    Color, Element, Length, Subscription, Task,
     alignment::Vertical,
     futures::SinkExt,
     gradient::ColorStop,
-    mouse::Interaction,
     stream::channel,
     widget::{
-        MouseArea, Stack,
+        Stack,
         canvas::{self, Canvas, Fill, Frame, Geometry, Path},
         column, container, image, row, slider, space, text,
     },
@@ -158,6 +157,7 @@ pub enum Message {
     PlayPause(String),
     Next(String),
     Volume(String, remote_value::Message<f64>),
+    /// Focus the player's window and close the menu.
     Raise(String),
     ActivePrev,
     ActivePlayPause,
@@ -375,6 +375,13 @@ impl MediaPlayer {
                             .wrapping(text::Wrapping::WordOrGlyph)
                             .size(font_size.sm)
                             .width(Length::Fill);
+                        // Brings the player's window to the front; see `Message::Raise`.
+                        let raise_button = icon_button(StaticIcon::OpenWindow)
+                            .kind(ButtonKind::Transparent)
+                            .on_press(Message::Raise(d.service.clone()));
+                        let title = row![title, raise_button]
+                            .spacing(space.xs)
+                            .align_y(Vertical::Center);
                         let description = column![title, artists, album]
                             .spacing(space.xxs)
                             .width(LEFT_COLUMN_WIDTH);
@@ -489,19 +496,9 @@ impl MediaPlayer {
                         } else {
                             content
                         };
-                        let card = container(body)
-                            .style(move |app_theme: &Theme| container::Style {
-                                background: Background::Color(
-                                    app_theme.extended_palette().background.weak.color,
-                                )
-                                .into(),
-                                border: Border::default().rounded(radius.lg),
-                                ..container::Style::default()
-                            })
-                            .width(Length::Fill);
-                        MouseArea::new(card)
-                            .on_press(Message::Raise(d.service.clone()))
-                            .interaction(Interaction::Pointer)
+                        container(body)
+                            .style(crate::theme::card_style(radius.lg))
+                            .width(Length::Fill)
                             .into()
                     }))
                     .spacing(space.md)

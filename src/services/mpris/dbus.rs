@@ -7,6 +7,12 @@ use zbus::{Result, proxy, zvariant::OwnedValue};
 )]
 pub trait MprisRoot {
     fn raise(&self) -> Result<()>;
+
+    #[zbus(property)]
+    fn desktop_entry(&self) -> Result<String>;
+
+    #[zbus(property)]
+    fn identity(&self) -> Result<String>;
 }
 
 #[proxy(

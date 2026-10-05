@@ -141,16 +141,18 @@ The menu shows all active media players with playback controls:
 - Previous, Play/Pause, and Next buttons
 - Volume slider (if supported by the player)
 
-Clicking a player card (anywhere outside the controls) focuses that player's
-window and closes the menu. When a player owns several windows the most
-recently focused one is picked, so clicking a browser card brings back the
-window you last watched the video in, not the tab, though: MPRIS carries no
-tab information, so a background tab stays in the background.
+The button next to each player's title focuses that player's window and
+closes the menu. ashell first asks the player to raise itself over MPRIS,
+which makes browsers switch to the tab playing the media, then asks the
+compositor to focus the window. When a player owns several windows, the one
+whose title shows the media wins, then the most recently focused one.
 
-Focusing goes through the compositor, which means it works on Hyprland and
-Niri. On other compositors ashell falls back to the MPRIS `Raise()` method,
-which most Wayland compositors ignore because a client cannot activate itself
-without an activation token.
+Windows are matched by the player's process, or by its app id when the window
+reports another process (XWayland apps such as Spotify, sandboxed apps).
+Focusing through the compositor works on Hyprland and Niri. On other
+compositors only the MPRIS `Raise()` request is sent, which most Wayland
+compositors ignore because a client cannot activate itself without an
+activation token.
 
 ## Example
 
