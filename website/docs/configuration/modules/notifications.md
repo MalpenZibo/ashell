@@ -25,6 +25,10 @@ The `expire_timeout` hint sent by applications is respected: a value of `-1` fal
 
 If you prefer no popups and only the panel indicator, set `toast = false`.
 
+### Focusing the app
+
+On Wayland an app cannot bring its own window to the front when you click one of its notifications. So when a click invokes the notification's default action, ashell asks the compositor to focus the app's window: the most recently focused window of the process that sent the notification or, when it has none (Flatpak or XWayland apps), of the app named by the notification's `desktop-entry` hint or app name. The action buttons don't focus it. This works on Hyprland and Niri.
+
 ## Do Not Disturb
 
 Do not disturb suppresses toast popups without dropping notifications: they are
@@ -52,7 +56,7 @@ Click the notification indicator to open the notifications menu. The menu displa
 - **Clear button**: Removes all notifications at once
 - **Do not disturb button**: Toggles do not disturb (see above)
 - **Grouped mode** (optional): Organizes notifications by application with expandable groups
-- **Clicking a notification**: Invokes its default action (if provided by the app) and closes it
+- **Clicking a notification**: Invokes its default action (if provided by the app), closes it and the menu
 - **Action buttons**: Any other actions the app provides (for example `notify-send -A "Reply"`) appear as buttons below the notification, on toasts and in the menu. Clicking one invokes that action and closes the notification. This applies to grouped notifications too
 
 ## Configuration

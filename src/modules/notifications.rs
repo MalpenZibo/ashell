@@ -6,7 +6,7 @@ use crate::{
     components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, styled_button},
     config::{NotificationsModuleConfig, Surface, ToastPosition},
     services::{
-        ReadOnlyService, ServiceEvent,
+        ReadOnlyService, ServiceEvent, compositor,
         notifications::{
             Notification, NotificationIcon, NotificationsService, Urgency,
             dbus::{CloseGuard, DEFAULT_ACTION_KEY, NotificationDaemon, NotificationEvent},
@@ -21,7 +21,7 @@ use iced::{
     widget::{Container, Space, blur, button, column, container, image, row, sensor, svg, text},
 };
 use itertools::Itertools;
-use log::error;
+use log::{debug, error};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     time::{Duration, Instant},
@@ -44,19 +44,47 @@ fn notification_icon<'a, M: 'a>(icon_kind: Option<&NotificationIcon>) -> Element
     }
 }
 
+/// The window to bring up once a notification's action is invoked.
+///
+/// On Wayland the sender can't raise its own window without an
+/// `xdg-activation` token, so the compositor focuses it for the sender.
+#[derive(Debug, Clone)]
+struct FocusTarget {
+    pid: Option<u32>,
+    apps: Vec<String>,
+}
+
+impl FocusTarget {
+    fn for_notification(notification: &Notification) -> Self {
+        Self {
+            pid: notification.sender_pid,
+            apps: notification.app_ids(),
+        }
+    }
+}
+
 fn invoke_and_close_task(
     connection: Option<Connection>,
     id: u32,
     action_key: Option<String>,
     guard: CloseGuard,
+    focus: Option<FocusTarget>,
 ) -> Task<Message> {
     Task::perform(
         async move {
-            if let Some(connection) = connection
-                && let Err(e) =
-                    NotificationDaemon::invoke_and_close(&connection, id, action_key, guard).await
-            {
-                error!("Failed to close notification id {}: {}", id, e);
+            let Some(connection) = connection else {
+                return;
+            };
+            match NotificationDaemon::invoke_and_close(&connection, id, action_key, guard).await {
+                Ok(true) => {
+                    if let Some(FocusTarget { pid, apps }) = focus
+                        && let Err(e) = compositor::focus_app_window(pid, apps, None).await
+                    {
+                        debug!("Can't focus the window of notification {id}: {e}");
+                    }
+                }
+                Ok(false) => {}
+                Err(e) => error!("Failed to close notification id {}: {}", id, e),
             }
         },
         |_| Message::NotificationClosed,
@@ -127,6 +155,9 @@ pub enum NotificationStyle {
 pub enum Action {
     None,
     Task(Task<Message>),
+    /// Run the task and close the menu, e.g. to make way for the window of a
+    /// clicked notification.
+    TaskAndCloseMenu(Task<Message>),
     Show(Task<Message>),
     Hide(Task<Message>),
     UpdateToastInputRegion(Size),
@@ -206,10 +237,23 @@ impl Notifications {
             .then(|| DEFAULT_ACTION_KEY.to_string())
     }
 
-    fn invoke_and_dismiss(&mut self, id: u32, action_key: Option<String>) -> Action {
+    /// The window to focus when clicking `id` invokes its default action. The
+    /// action buttons don't focus it.
+    fn focus_target(&self, id: u32) -> Option<FocusTarget> {
+        self.find_notification(id)
+            .filter(|n| n.action_pairs().any(|(key, _)| key == DEFAULT_ACTION_KEY))
+            .map(FocusTarget::for_notification)
+    }
+
+    fn invoke_and_dismiss(
+        &mut self,
+        id: u32,
+        action_key: Option<String>,
+        focus: Option<FocusTarget>,
+    ) -> Action {
         let connection = self.connection.clone();
         let guard = self.close_guard(id);
-        let invoke_task = invoke_and_close_task(connection, id, action_key, guard);
+        let invoke_task = invoke_and_close_task(connection, id, action_key, guard, focus);
         if !self.toasts.contains(&id) || self.dismiss_phases.contains_key(&id) {
             return Action::Task(invoke_task);
         }
@@ -393,9 +437,17 @@ impl Notifications {
                 let connection = self.connection.clone();
                 let action_key = self.default_action_key(id);
                 let guard = self.close_guard(id);
-                Action::Task(invoke_and_close_task(connection, id, action_key, guard))
+                let focus = self.focus_target(id);
+                let task = invoke_and_close_task(connection, id, action_key, guard, focus.clone());
+                if focus.is_some() {
+                    Action::TaskAndCloseMenu(task)
+                } else {
+                    Action::Task(task)
+                }
             }
-            Message::InvokeAction(id, action_key) => self.invoke_and_dismiss(id, Some(action_key)),
+            Message::InvokeAction(id, action_key) => {
+                self.invoke_and_dismiss(id, Some(action_key), None)
+            }
             Message::NotificationClosed => Action::None,
             Message::ToggleDnd => {
                 self.toggle_dnd();
@@ -475,13 +527,14 @@ impl Notifications {
                 let had_toasts = self.remove_toast(id);
                 self.dismiss_phases.remove(&id);
 
-                let task = invoke_and_close_task(connection, id, None, guard);
+                let task = invoke_and_close_task(connection, id, None, guard, None);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
             Message::DismissToast(id) => {
                 if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
                     let action_key = self.default_action_key(id);
-                    self.invoke_and_dismiss(id, action_key)
+                    let focus = self.focus_target(id);
+                    self.invoke_and_dismiss(id, action_key, focus)
                 } else {
                     Action::None
                 }
