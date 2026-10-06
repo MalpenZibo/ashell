@@ -65,7 +65,7 @@ pub enum IpcCommand {
         no_osd: bool,
     },
     LoadConfig {
-        #[arg(short, long)]
+        #[arg(value_parser = resolve_config_arg)]
         file: PathBuf,
     },
 }
