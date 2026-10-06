@@ -1,9 +1,12 @@
 use crate::{
-    components::collapsible::{self, collapsible},
-    components::icons::{StaticIcon, icon, icon_button},
-    components::scrollable,
-    components::slide::{self, SlideDirection, slide},
-    components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, styled_button},
+    components::{
+        ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, ModuleView,
+        collapsible::{self, collapsible},
+        icons::{StaticIcon, icon, icon_button},
+        scrollable,
+        slide::{self, SlideDirection, slide},
+        styled_button,
+    },
     config::{NotificationsModuleConfig, Surface, ToastPosition},
     services::{
         ReadOnlyService, ServiceEvent, compositor, connection_pid,
@@ -758,7 +761,7 @@ impl Notifications {
         .into()
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> ModuleView<'_, Message> {
         let bell_icon = if self.dnd {
             StaticIcon::BellOff
         } else if !self.notifications.is_empty() {
