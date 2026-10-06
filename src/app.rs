@@ -572,6 +572,12 @@ impl App {
                         );
                         modules::settings::Action::None
                     }
+                    IpcCommand::LoadConfig { .. } => {
+                        warn!(
+                            "IpcCommand::LoadConfig reached IpcOsdCommand handler; use Message::LoadConfig instead"
+                        );
+                        modules::settings::Action::None
+                    }
                 };
                 if let settings::Action::Command(task) = action {
                     tasks.push(task.map(Message::Settings));
@@ -617,6 +623,16 @@ impl App {
                     ])
                 }
             }
+            Message::LoadConfig(config_file) => match config::read_config(&config_file) {
+                Ok(config) => {
+                    self.config_path = config_file;
+                    self.update(Message::ConfigChanged(Box::new(config)))
+                }
+                Err(e) => {
+                    warn!("Invalid config {}: {e}", config_file.display());
+                    Task::none()
+                }
+            },
         }
     }
 
@@ -824,6 +840,7 @@ impl App {
             self.settings.subscription().map(Message::Settings),
             crate::ipc::subscription().map(|cmd| match cmd {
                 IpcCommand::ToggleVisibility => Message::ToggleVisibility,
+                IpcCommand::LoadConfig { file } => Message::LoadConfig(file),
                 other => Message::IpcOsdCommand(other),
             }),
         ])

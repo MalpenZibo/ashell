@@ -231,6 +231,18 @@ Alternatively, you can still use a `SIGUSR1` signal:
 kill -SIGUSR1 $(pidof ashell)
 ```
 
+## Config Load
+
+You can load another config file, this can be useful for managing different themes
+
+```bash
+ashell msg load-config ~/.config/ashell/mac_bar.toml
+```
+
+### Notes
+- Switching configurations, won't save them as default. Ashell will start with the default config (`config.toml`) or the one passed with `--config-path` at startup.
+- Hot reloading will not change the font configuration. A full restart of ashell will be needed for font changes.
+
 ## OSD (On-Screen Display)
 
 Ashell can show a transient overlay when volume, microphone, brightness, airplane mode
