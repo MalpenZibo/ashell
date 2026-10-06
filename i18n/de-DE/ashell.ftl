@@ -101,6 +101,9 @@ settings-power-charge-cycles =
 ## Einstellungen — Kein Ruhezustand
 settings-idle-inhibitor = Kein Ruhezustand
 
+## Einstellungen — Nicht stören
+settings-dnd = Nicht stören
+
 ## Einstellungen — tooltips
 settings-tooltip-empty = Ziemlich leer hier
 settings-tooltip-empty-audio = Kein aktives Audio-Gerät

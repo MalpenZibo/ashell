@@ -47,6 +47,7 @@ pub struct Settings {
     network: NetworkSettings,
     bluetooth: BluetoothSettings,
     idle_inhibitor: Option<IdleInhibitorManager>,
+    remove_dnd_btn: bool,
     sub_menu: Option<SubMenu>,
     network_dialog: Option<NetworkDialogState>,
     network_dialog_show_password: bool,
@@ -98,6 +99,7 @@ pub enum Message {
     Audio(audio::Message),
     Brightness(brightness::Message),
     ToggleInhibitIdle,
+    ToggleDnd,
     Lock(SurfaceId),
     Power(power::Message),
     ToggleSubMenu(SubMenu),
@@ -124,6 +126,7 @@ pub enum Action {
     ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
     OpenTooltipMenu(SurfaceId, MenuType, ButtonUIRef),
     CloseTooltipMenu(SurfaceId, MenuType),
+    ToggleDnd,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -243,6 +246,7 @@ impl Settings {
             } else {
                 IdleInhibitorManager::new()
             },
+            remove_dnd_btn: config.remove_dnd_btn,
             sub_menu: None,
             network_dialog: None,
             indicators: config.indicators,
@@ -371,6 +375,7 @@ impl Settings {
                 }
                 Action::None
             }
+            Message::ToggleDnd => Action::ToggleDnd,
             Message::Lock(id) => {
                 if let Some(lock_cmd) = &self.lock_cmd {
                     crate::utils::launcher::execute_command(lock_cmd);
@@ -555,6 +560,7 @@ impl Settings {
                 } else if self.idle_inhibitor.is_none() {
                     self.idle_inhibitor = IdleInhibitorManager::new();
                 }
+                self.remove_dnd_btn = config.remove_dnd_btn;
                 self.indicators = config.indicators;
                 self.custom_buttons = config.custom_buttons;
                 Action::None
@@ -581,7 +587,12 @@ impl Settings {
         }
     }
 
-    pub fn menu_view<'a>(&'a self, id: SurfaceId, position: Position) -> Element<'a, Message> {
+    pub fn menu_view<'a>(
+        &'a self,
+        id: SurfaceId,
+        position: Position,
+        dnd: Option<bool>,
+    ) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
         container(if let Some(dialog) = &self.network_dialog {
             password_dialog::view(
@@ -663,6 +674,25 @@ impl Settings {
                                 None,
                                 idle_inhibitor.is_inhibited(),
                                 Message::ToggleInhibitIdle,
+                                None,
+                                None,
+                                None,
+                            ),
+                            None,
+                        )
+                    }),
+                    dnd.filter(|_| !self.remove_dnd_btn).map(|active| {
+                        (
+                            quick_setting_button(
+                                if active {
+                                    StaticIcon::BellOff
+                                } else {
+                                    StaticIcon::Bell
+                                },
+                                t!("settings-dnd"),
+                                None,
+                                active,
+                                Message::ToggleDnd,
                                 None,
                                 None,
                                 None,

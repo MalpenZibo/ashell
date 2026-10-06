@@ -440,6 +440,10 @@ impl App {
                 modules::settings::Action::CloseTooltipMenu(id, menu_type) => self
                     .outputs
                     .close_menu(id, Some(menu_type), self.general_config.enable_esc_key),
+                modules::settings::Action::ToggleDnd => {
+                    self.notifications.toggle_dnd();
+                    Task::none()
+                }
             },
             Message::OutputEvent(event) => match event {
                 OutputEvent::Added(info) => {
@@ -703,13 +707,20 @@ impl App {
                         self.notifications.menu_view().map(Message::Notifications),
                         ui_ref,
                     ),
-                    MenuType::Settings => self.menu_wrapper(
-                        id,
-                        self.settings
-                            .menu_view(id, use_theme(|t| t.bar_position))
-                            .map(Message::Settings),
-                        ui_ref,
-                    ),
+                    MenuType::Settings => {
+                        let dnd = self
+                            .general_config
+                            .modules
+                            .contains(&ModuleName::Notifications)
+                            .then(|| self.notifications.dnd());
+                        self.menu_wrapper(
+                            id,
+                            self.settings
+                                .menu_view(id, use_theme(|t| t.bar_position), dnd)
+                                .map(Message::Settings),
+                            ui_ref,
+                        )
+                    }
                     MenuType::MediaPlayer => self.menu_wrapper(
                         id,
                         self.media_player
