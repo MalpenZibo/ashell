@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::icon,
+    components::{ModuleView, icons::icon},
     config::{
         AppearanceColor, InvertScrollDirection, WorkspaceIndicatorFormat, WorkspaceVisibilityMode,
         WorkspacesModuleConfig,
@@ -584,7 +584,7 @@ impl Workspaces {
         }
     }
 
-    pub fn view<'a>(&'a self, id: SurfaceId, outputs: &Outputs) -> Element<'a, Message> {
+    pub fn view<'a>(&'a self, id: SurfaceId, outputs: &Outputs) -> ModuleView<'a, Message> {
         let monitor_name = outputs.get_monitor_name(id);
 
         let row = use_theme(|theme| {

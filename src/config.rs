@@ -1761,19 +1761,27 @@ pub enum ModuleName {
     Notifications,
 }
 
-const BUILTIN_MODULES: [(&str, ModuleName); 12] = [
-    ("Updates", ModuleName::Updates),
-    ("Workspaces", ModuleName::Workspaces),
-    ("WindowTitle", ModuleName::WindowTitle),
-    ("SystemInfo", ModuleName::SystemInfo),
-    ("KeyboardLayout", ModuleName::KeyboardLayout),
-    ("KeyboardSubmap", ModuleName::KeyboardSubmap),
-    ("Tray", ModuleName::Tray),
-    ("Notifications", ModuleName::Notifications),
-    ("Tempo", ModuleName::Tempo),
-    ("Privacy", ModuleName::Privacy),
-    ("Settings", ModuleName::Settings),
-    ("MediaPlayer", ModuleName::MediaPlayer),
+const BUILTIN_MODULES: [(&str, &str, ModuleName); 12] = [
+    ("Updates", "updates", ModuleName::Updates),
+    ("Workspaces", "workspaces", ModuleName::Workspaces),
+    ("WindowTitle", "window_title", ModuleName::WindowTitle),
+    ("SystemInfo", "system_info", ModuleName::SystemInfo),
+    (
+        "KeyboardLayout",
+        "keyboard_layout",
+        ModuleName::KeyboardLayout,
+    ),
+    (
+        "KeyboardSubmap",
+        "keyboard_submap",
+        ModuleName::KeyboardSubmap,
+    ),
+    ("Tray", "tray", ModuleName::Tray),
+    ("Notifications", "notifications", ModuleName::Notifications),
+    ("Tempo", "tempo", ModuleName::Tempo),
+    ("Privacy", "privacy", ModuleName::Privacy),
+    ("Settings", "settings", ModuleName::Settings),
+    ("MediaPlayer", "media_player", ModuleName::MediaPlayer),
 ];
 
 impl std::fmt::Display for ModuleName {
@@ -1783,7 +1791,7 @@ impl std::fmt::Display for ModuleName {
             builtin => {
                 BUILTIN_MODULES
                     .iter()
-                    .find(|(_, module)| module == builtin)
+                    .find(|(_, _, module)| module == builtin)
                     .expect("every builtin module has a name")
                     .0
             }
@@ -1809,10 +1817,10 @@ impl<'de> Deserialize<'de> for ModuleName {
             {
                 Ok(BUILTIN_MODULES
                     .iter()
-                    .find(|(name, _)| *name == value)
+                    .find(|(pascal, snake, _)| *pascal == value || *snake == value)
                     .map_or_else(
                         || ModuleName::Custom(value.to_string()),
-                        |(_, module)| module.clone(),
+                        |(_, _, module)| module.clone(),
                     ))
             }
         }
@@ -2420,6 +2428,22 @@ mod tests {
                 "appearance.modules.default.spacing",
                 "appearance.modules.group.grouping",
             ]
+        );
+    }
+
+    #[test]
+    fn module_name_accept_case() {
+        let modules = parse(
+            r#"[appearance.modules.system_info]
+            "#,
+        )
+        .unwrap()
+        .appearance
+        .modules;
+
+        assert!(
+            modules.overrides.contains_key(&ModuleName::SystemInfo),
+            "snake_case variant `system_info` should map to ModuleName::SystemInfo"
         );
     }
 }

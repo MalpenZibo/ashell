@@ -1,8 +1,9 @@
 use crate::{
-    components::divider,
-    components::icons::{StaticIcon, icon, icon_button},
-    components::scrollable,
-    components::{ButtonSize, MenuSize},
+    components::{
+        ButtonSize, MenuSize, ModuleRow, ModuleView, divider,
+        icons::{StaticIcon, icon, icon_button},
+        scrollable,
+    },
     config::{
         MediaPlayerFormat, MediaPlayerIndicatorControls, MediaPlayerModuleConfig,
         MediaPlayerTextField, MediaPlayerVisualizer,
@@ -575,7 +576,7 @@ impl MediaPlayer {
         }
     }
 
-    pub fn view(&'_ self) -> Option<Element<'_, Message>> {
+    pub fn view(&'_ self) -> Option<ModuleView<'_, Message>> {
         let (space, font_size, palette) =
             use_theme(|theme| (theme.space, theme.font_size, theme.palette));
         self.active_player().map(|player| {
@@ -602,7 +603,7 @@ impl MediaPlayer {
 
             let beside_visualizer = || {
                 container(
-                    Canvas::new(VisualizerCanvas {
+                    Canvas::<VisualizerCanvas, Message>::new(VisualizerCanvas {
                         bars: self.bars.clone(),
                         low: palette.primary,
                         mid: palette.warning,
@@ -651,16 +652,22 @@ impl MediaPlayer {
                         )
                         .into()
                 }
-                Some(MediaPlayerVisualizer::Before) if active => row![beside_visualizer(), content]
-                    .align_y(Vertical::Center)
-                    .spacing(space.xs)
-                    .height(Length::Fill)
-                    .into(),
-                Some(MediaPlayerVisualizer::After) if active => row![content, beside_visualizer()]
-                    .align_y(Vertical::Center)
-                    .spacing(space.xs)
-                    .height(Length::Fill)
-                    .into(),
+                Some(MediaPlayerVisualizer::Before) if active => ModuleRow::with_children([
+                    Element::from(beside_visualizer()),
+                    Element::from(content),
+                ])
+                .align_y(Vertical::Center)
+                .spacing(space.xs)
+                .height(Length::Fill)
+                .into(),
+                Some(MediaPlayerVisualizer::After) if active => ModuleRow::with_children([
+                    Element::from(content),
+                    Element::from(beside_visualizer()),
+                ])
+                .align_y(Vertical::Center)
+                .spacing(space.xs)
+                .height(Length::Fill)
+                .into(),
                 _ => content.into(),
             }
         })

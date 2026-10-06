@@ -1,10 +1,11 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, sync::Arc};
 
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
         Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarPadding,
-        BarRadius, BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize, Surface,
+        BarRadius, BarSurface, MenuAppearance, ModulesAppearance, Position, RadiusSize, SpaceSize,
+        Surface,
     },
 };
 use iced::{
@@ -197,6 +198,8 @@ pub struct AshellTheme {
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
     pub scale_factor: f64,
     pub animations_enabled: bool,
+
+    pub module_appearances: Arc<ModulesAppearance>,
 }
 
 impl Default for AshellTheme {
@@ -551,6 +554,8 @@ fn base_theme_from_appearance(
                 blur: appearance.blur.enabled(opacity),
             }
         }),
+
+        module_appearances: Arc::new(appearance.modules.clone()),
     }
 }
 

@@ -1,9 +1,11 @@
 use crate::{
-    components::collapsible::{self, collapsible},
-    components::icons::{StaticIcon, icon, icon_button},
-    components::scrollable,
-    components::slide::{self, SlideDirection, slide},
-    components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize},
+    components::{
+        ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, ModuleView,
+        collapsible::{self, collapsible},
+        icons::{StaticIcon, icon, icon_button},
+        scrollable,
+        slide::{self, SlideDirection, slide},
+    },
     config::{NotificationsModuleConfig, Surface, ToastPosition},
     services::{
         ReadOnlyService, ServiceEvent,
@@ -650,7 +652,7 @@ impl Notifications {
         .into()
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> ModuleView<'_, Message> {
         if !self.notifications.is_empty() {
             icon(StaticIcon::BellBadge).into()
         } else {

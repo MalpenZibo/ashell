@@ -1,11 +1,12 @@
 use crate::{
+    components::ModuleView,
     config::{WindowTitleConfig, WindowTitleMode},
     services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
     theme::use_theme,
     utils::truncate_text,
 };
 use iced::{
-    Element, Subscription,
+    Subscription,
     widget::{container, text},
 };
 
@@ -90,7 +91,7 @@ impl WindowTitle {
         self.value.clone()
     }
 
-    pub fn view(&'_ self, title: String) -> Element<'_, Message> {
+    pub fn view(&'_ self, title: String) -> ModuleView<'_, Message> {
         use_theme(|theme| {
             container(
                 text(title)

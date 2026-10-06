@@ -1,11 +1,12 @@
 use crate::{
+    components::ModuleView,
     config::KeyboardLayoutModuleConfig,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         compositor::{CompositorCommand, CompositorService},
     },
 };
-use iced::{Element, Subscription, Task, widget::text};
+use iced::{Subscription, Task, widget::text};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -56,7 +57,7 @@ impl KeyboardLayout {
         }
     }
 
-    pub fn view(&self) -> Option<Element<'_, Message>> {
+    pub fn view(&self) -> Option<ModuleView<'_, Message>> {
         let service = self.service.as_ref()?;
         let active_layout = &service.keyboard_layout;
 

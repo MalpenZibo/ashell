@@ -1,6 +1,9 @@
 use crate::{
-    components::icons::{DynamicIcon, StaticIcon, icon},
-    components::{ButtonUIRef, position_button},
+    components::{
+        ButtonUIRef, ModuleRow, ModuleView,
+        icons::{DynamicIcon, StaticIcon, icon},
+        position_button,
+    },
     config::CustomModuleDef,
     theme::{transparent_button_style, use_theme},
     utils::launcher::execute_command,
@@ -9,7 +12,7 @@ use iced::widget::canvas;
 use iced::{
     Element, Length, Subscription, SurfaceId, Theme,
     stream::channel,
-    widget::{Space, Stack, column, row, text},
+    widget::{Space, Stack, column, text},
 };
 use iced::{
     mouse::Cursor,
@@ -169,9 +172,9 @@ impl Custom {
         self.data.tooltip.as_deref().filter(|t| !t.is_empty())
     }
 
-    pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
+    pub fn view<'a>(&'a self, id: SurfaceId) -> ModuleView<'a, Message> {
         let space = use_theme(|theme| theme.space);
-        let content = match self.config.r#type {
+        let content: ModuleView<'_, Message> = match self.config.r#type {
             crate::config::CustomModuleType::Text => self
                 .data
                 .text
@@ -208,7 +211,7 @@ impl Custom {
                     .as_ref()
                     .is_some_and(|re| re.is_match(&self.data.alt));
 
-                let icon_with_alert = if show_alert {
+                let icon_with_alert: Element<'a, Message> = if show_alert {
                     let alert_canvas = canvas(AlertIndicator)
                         .width(Length::Fixed(space.xs)) // Size of the dot
                         .height(Length::Fixed(space.xs));
@@ -237,15 +240,15 @@ impl Custom {
                 });
 
                 if let Some(text_element) = maybe_text_element {
-                    row![icon_with_alert, text_element].spacing(space.xs).into()
+                    ModuleRow::with_children([icon_with_alert, text_element.into()]).into()
                 } else {
-                    icon_with_alert
+                    icon_with_alert.into()
                 }
             }
         };
 
         if self.tooltip().is_some() {
-            position_button(content)
+            position_button(content.into_element())
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .padding(0)

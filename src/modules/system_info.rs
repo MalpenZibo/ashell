@@ -1,7 +1,8 @@
 use crate::{
-    components::MenuSize,
-    components::divider,
-    components::icons::{StaticIcon, icon},
+    components::{
+        MenuSize, ModuleRow, ModuleView, divider,
+        icons::{StaticIcon, icon},
+    },
     config::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
@@ -13,7 +14,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
     time::every,
-    widget::{Column, Row, column, container, row, text},
+    widget::{Column, column, container, row, text},
 };
 use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
@@ -613,7 +614,7 @@ impl SystemInfo {
         .into()
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> ModuleView<'_, Message> {
         let space = use_theme(|t| t.space);
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
@@ -753,9 +754,10 @@ impl SystemInfo {
             }),
         });
 
-        Row::with_children(indicators)
-            .align_y(Alignment::Center)
+        // NOTE: make sure to configure spacing later
+        ModuleRow::with_children(indicators)
             .spacing(space.xxs)
+            .align_y(Alignment::Center)
             .into()
     }
 
