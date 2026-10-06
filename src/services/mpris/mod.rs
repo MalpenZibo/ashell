@@ -1,5 +1,5 @@
-use super::{ReadOnlyService, Service, ServiceEvent};
-use dbus::MprisPlayerProxy;
+use super::{ReadOnlyService, Service, ServiceEvent, compositor};
+use dbus::{MprisPlayerProxy, MprisRootProxy};
 use iced::{
     Subscription,
     core::Bytes,
@@ -18,6 +18,7 @@ use std::{
     any::TypeId,
     collections::{HashMap, HashSet},
     fmt::Display,
+    time::Duration,
 };
 use url::Url;
 use zbus::{fdo::DBusProxy, zvariant::OwnedValue};
@@ -186,6 +187,9 @@ const MPRIS_PLAYER_SERVICE_PREFIX: &str = "org.mpris.MediaPlayer2.";
 // playerctld is a proxy that mirrors the currently active player, so it shows
 // up as a duplicate of a real player. Skip it.
 const PLAYERCTLD_SERVICE: &str = "org.mpris.MediaPlayer2.playerctld";
+// How long a player gets to act on `Raise()` (e.g. a browser switching to the
+// tab that plays the media) before the compositor is asked for its windows.
+const RAISE_SETTLE_DELAY: Duration = Duration::from_millis(150);
 
 type CoverDownloadFuture = BoxFuture<'static, Result<(String, anyhow::Result<Bytes>), Aborted>>;
 
@@ -218,6 +222,52 @@ impl MprisPlayerService {
             })
             .collect();
         Ok(names)
+    }
+
+    async fn player_pid(conn: &zbus::Connection, service_name: &str) -> anyhow::Result<u32> {
+        let dbus = DBusProxy::new(conn).await?;
+        let pid = dbus
+            .get_connection_unix_process_id(service_name.try_into()?)
+            .await?;
+
+        Ok(pid)
+    }
+
+    /// `Raise()` alone can't activate the window on Wayland, but browsers handle
+    /// it by switching to the tab that plays the media. So raise first, then let
+    /// the compositor focus the window, picking the one whose title now shows
+    /// the media.
+    async fn focus_player(conn: &zbus::Connection, service_name: &str, title: Option<String>) {
+        // The app id or class of the player's window, for when the window
+        // doesn't report the player's pid (XWayland, sandboxes).
+        let mut apps = Vec::new();
+        match MprisRootProxy::new(conn, service_name.to_string()).await {
+            Ok(proxy) => {
+                let _ = proxy
+                    .raise()
+                    .await
+                    .inspect_err(|e| error!("Raise command error: {e}"));
+                apps.extend(proxy.desktop_entry().await.ok());
+                apps.extend(proxy.identity().await.ok());
+            }
+            Err(e) => error!("Failed to create the MPRIS root proxy for {service_name}: {e}"),
+        }
+
+        let pid = Self::player_pid(conn, service_name)
+            .await
+            .inspect_err(|e| debug!("Could not resolve the pid of {service_name}: {e}"))
+            .ok();
+
+        // Give the player time to switch tab, so the window title is updated
+        // before the compositor is asked for it.
+        if title.is_some() {
+            tokio::time::sleep(RAISE_SETTLE_DELAY).await;
+        }
+
+        match compositor::focus_app_window(pid, apps, title).await {
+            Ok(()) => debug!("Focused {service_name} through the compositor"),
+            Err(e) => debug!("Could not focus {service_name} via the compositor: {e}"),
+        }
     }
 
     async fn create_proxies(
@@ -526,6 +576,7 @@ pub enum PlayerCommand {
     PlayPause,
     Next,
     Volume(f64),
+    Raise,
 }
 
 impl Service for MprisPlayerService {
@@ -538,6 +589,8 @@ impl Service for MprisPlayerService {
 
             if let Some(s) = s {
                 let mpris_player_proxy = s.proxy.clone();
+                let service_name = s.service.clone();
+                let title = s.metadata.as_ref().and_then(|m| m.title.clone());
                 let conn = self.conn.clone();
                 iced::Task::perform(
                     async move {
@@ -565,6 +618,9 @@ impl Service for MprisPlayerService {
                                     .set_volume(v / 100.0)
                                     .await
                                     .inspect_err(|e| error!("Set volume command error: {e}"));
+                            }
+                            PlayerCommand::Raise => {
+                                Self::focus_player(&conn, &service_name, title).await;
                             }
                         }
                         Event::MetadataChanged(Self::get_mpris_player_data(&conn, &names).await)

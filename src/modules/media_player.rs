@@ -2,7 +2,7 @@ use crate::{
     components::divider,
     components::icons::{StaticIcon, icon, icon_button},
     components::scrollable,
-    components::{ButtonSize, MenuSize},
+    components::{ButtonKind, ButtonSize, MenuSize},
     config::{
         MediaPlayerFormat, MediaPlayerIndicatorControls, MediaPlayerModuleConfig,
         MediaPlayerTextField, MediaPlayerVisualizer,
@@ -157,6 +157,8 @@ pub enum Message {
     PlayPause(String),
     Next(String),
     Volume(String, remote_value::Message<f64>),
+    /// Focus the player's window and close the menu.
+    Raise(String),
     ActivePrev,
     ActivePlayPause,
     ActiveNext,
@@ -171,6 +173,7 @@ pub enum Message {
 pub enum Action {
     None,
     Command(Task<Message>),
+    CommandAndCloseMenu(Task<Message>),
 }
 
 pub struct MediaPlayer {
@@ -290,6 +293,9 @@ impl MediaPlayer {
                 };
                 Action::Command(Task::batch([command, remote]))
             }
+            Message::Raise(s) => {
+                Action::CommandAndCloseMenu(self.handle_command(s, PlayerCommand::Raise))
+            }
             Message::ActivePrev => self.active_command(PlayerCommand::Prev),
             Message::ActivePlayPause => self.active_command(PlayerCommand::PlayPause),
             Message::ActiveNext => self.active_command(PlayerCommand::Next),
@@ -369,6 +375,13 @@ impl MediaPlayer {
                             .wrapping(text::Wrapping::WordOrGlyph)
                             .size(font_size.sm)
                             .width(Length::Fill);
+                        // Brings the player's window to the front; see `Message::Raise`.
+                        let raise_button = icon_button(StaticIcon::OpenWindow)
+                            .kind(ButtonKind::Transparent)
+                            .on_press(Message::Raise(d.service.clone()));
+                        let title = row![title, raise_button]
+                            .spacing(space.xs)
+                            .align_y(Vertical::Center);
                         let description = column![title, artists, album]
                             .spacing(space.xxs)
                             .width(LEFT_COLUMN_WIDTH);

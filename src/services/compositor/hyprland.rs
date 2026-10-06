@@ -3,7 +3,7 @@ use super::types::{
     CompositorState, CompositorWorkspace,
 };
 use crate::services::{ServiceEvent, compositor::CompositorService};
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use hyprland::{
     data::{Client, Clients, Devices, Monitors, Workspace, Workspaces},
     dispatch::{Dispatch, DispatchType, MonitorIdentifier, WorkspaceIdentifierWithSpecial},
@@ -31,7 +31,7 @@ async fn is_lua_config() -> bool {
 
 /// Dispatch a command using the old hyprlang socket protocol.
 /// Works on all Hyprland versions but is broken on 0.55+ with Lua config.
-fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
+async fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
     match cmd {
         CompositorCommand::FocusWorkspace(id) => {
             Dispatch::call(DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(
@@ -68,6 +68,10 @@ fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
         }
         CompositorCommand::CustomDispatch(dispatcher, args) => {
             Dispatch::call(DispatchType::Custom(&dispatcher, &args))?;
+        }
+        CompositorCommand::FocusAppWindow { pid, apps, title } => {
+            let selector = app_window_selector(pid, &apps, title.as_deref()).await?;
+            Dispatch::call(DispatchType::Custom("focuswindow", &selector))?;
         }
     }
     Ok(())
@@ -113,6 +117,12 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
             // the caller hands us Lua.
             format!("hl.dispatch(hl.dsp.{dispatcher}({args}))")
         }
+        CompositorCommand::FocusAppWindow { pid, apps, title } => {
+            format!(
+                "hl.dispatch(hl.dsp.focus({{ window = \"{}\" }}))",
+                app_window_selector(pid, &apps, title.as_deref()).await?
+            )
+        }
     };
     tokio::process::Command::new("hyprctl")
         .args(["eval", &lua])
@@ -121,11 +131,51 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
     Ok(())
 }
 
+async fn app_window_selector(
+    pid: Option<u32>,
+    apps: &[String],
+    title: Option<&str>,
+) -> Result<String> {
+    let clients = Clients::get_async().await?;
+
+    // Sandboxed apps can report another pid, so fall back to the window class
+    // when no window has the player's pid.
+    let by_pid: Vec<_> = clients
+        .iter()
+        .filter(|c| pid.is_some_and(|pid| u32::try_from(c.pid).is_ok_and(|p| p == pid)))
+        .collect();
+    let candidates = if by_pid.is_empty() {
+        clients
+            .iter()
+            .filter(|c| {
+                super::app_matches(Some(&c.class), apps)
+                    || super::app_matches(Some(&c.initial_class), apps)
+            })
+            .collect()
+    } else {
+        by_pid
+    };
+
+    // Prefer the window whose title shows the media, then the most recently
+    // focused (0 is the current one); a negative id, if any, means never
+    // focused and sorts last.
+    candidates
+        .into_iter()
+        .max_by_key(|c| {
+            (
+                super::title_matches(Some(&c.title), title),
+                (c.focus_history_id >= 0).then(|| -i16::from(c.focus_history_id)),
+            )
+        })
+        .map(|c| format!("address:{}", c.address))
+        .ok_or_else(|| anyhow!("No window found for pid {pid:?} or apps {apps:?}"))
+}
+
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     if is_lua_config().await {
         dispatch_lua(cmd).await
     } else {
-        dispatch_hyprlang(cmd)
+        dispatch_hyprlang(cmd).await
     }
 }
 
