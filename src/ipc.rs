@@ -143,18 +143,15 @@ impl FromStr for IpcCommand {
             "brightness-down" => Ok(IpcCommand::BrightnessDown { no_osd }),
             "toggle-airplane-mode" => Ok(IpcCommand::ToggleAirplaneMode { no_osd }),
             "toggle-idle-inhibitor" => Ok(IpcCommand::ToggleIdleInhibitor { no_osd }),
-            "load-config" => match rest {
-                Some(file) => {
-                    let file = shellexpand::full(file)?;
-                    let file = env::current_dir()?
-                        .join(file.as_ref())
-                        .canonicalize()
-                        .map_err(|e| anyhow!("invalid config file: {e}"))?;
-
-                    Ok(IpcCommand::LoadConfig { file })
-                }
-                None => Err(anyhow!("config requires a file path")),
-            },
+        "load-config" => {
+            let file = PathBuf::from(rest.ok_or_else(|| anyhow!("load-config requires a file path"))?);
+            if !file.is_absolute() {
+                return Err(anyhow!("load-config expects an absolute path, got {}", file.display()));
+            }
+            crate::config::read_config(&file)
+                .map_err(|e| anyhow!("invalid config {}: {e}", file.display()))?;
+            Ok(IpcCommand::LoadConfig { file })
+        }
             _ => Err(anyhow!("unknown IPC command: {s:?}")),
         }
     }
