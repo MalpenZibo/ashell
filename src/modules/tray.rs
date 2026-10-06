@@ -1,11 +1,10 @@
 use crate::{
-    components::divider,
-    components::icons::{StaticIcon, icon},
     components::{
-        ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
-        styled_button,
+        ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, ModuleRow, ModuleView,
+        divider,
+        icons::{StaticIcon, icon},
+        position_button, scrollable, styled_button, toggler,
     },
-    components::{scrollable, toggler},
     config::{TrayClickAction, TrayModuleConfig},
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -264,7 +263,7 @@ impl TrayModule {
         }
     }
 
-    pub fn view<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
+    pub fn view<'a>(&'a self, id: SurfaceId) -> Option<ModuleView<'a, Message>> {
         let (space, font_size, button_style) = use_theme(|theme| {
             (
                 theme.space,
@@ -278,48 +277,45 @@ impl TrayModule {
             .as_ref()
             .filter(|s| s.data.iter().any(|item| !self.is_blocklisted(&item.name)))
             .map(|service| {
-                Into::<Element<_>>::into(
-                    Row::with_children(
-                        service
-                            .data
-                            .iter()
-                            .filter(|item| !self.is_blocklisted(&item.name))
-                            .map(|item| {
-                                let name = item.name.to_owned();
-                                let button_style = button_style.clone();
-                                let icon_content: Element<'_, Message> = match &item.icon {
-                                    Some(TrayIcon::Image(handle)) => Image::new(handle.clone())
-                                        .height(Length::Fixed(font_size.md - 2.0))
-                                        .into(),
-                                    Some(TrayIcon::Svg(handle)) => Svg::new(handle.clone())
-                                        .height(Length::Fixed(font_size.md + 2.))
-                                        .width(Length::Fixed(font_size.md + 2.))
-                                        .content_fit(iced::ContentFit::Cover)
-                                        .into(),
-                                    _ => icon(StaticIcon::Point).into(),
-                                };
-                                let open_app = Message::Activate(name.clone());
-                                let toggle_menu = move |r| Message::ToggleMenu(name.clone(), id, r);
+                ModuleRow::with_children(
+                    service
+                        .data
+                        .iter()
+                        .filter(|item| !self.is_blocklisted(&item.name))
+                        .map(|item| {
+                            let name = item.name.to_owned();
+                            let button_style = button_style.clone();
+                            let icon_content: Element<'_, Message> = match &item.icon {
+                                Some(TrayIcon::Image(handle)) => Image::new(handle.clone())
+                                    .height(Length::Fixed(font_size.md - 2.0))
+                                    .into(),
+                                Some(TrayIcon::Svg(handle)) => Svg::new(handle.clone())
+                                    .height(Length::Fixed(font_size.md + 2.))
+                                    .width(Length::Fixed(font_size.md + 2.))
+                                    .content_fit(iced::ContentFit::Cover)
+                                    .into(),
+                                _ => icon(StaticIcon::Point).into(),
+                            };
+                            let open_app = Message::Activate(name.clone());
+                            let toggle_menu = move |r| Message::ToggleMenu(name.clone(), id, r);
 
-                                let mut btn = position_button(icon_content);
-                                btn = match &self.right_click {
-                                    None => btn.on_press_with_position(toggle_menu.clone()),
-                                    Some(TrayClickAction::Open) => btn
-                                        .on_press_with_position(toggle_menu.clone())
-                                        .on_right_press(open_app.clone()),
-                                    Some(TrayClickAction::Menu) => btn
-                                        .on_press(open_app.clone())
-                                        .on_right_press_with_position(toggle_menu.clone()),
-                                };
-                                btn.padding(space.xxs)
-                                    .style(move |t, s| button_style(t, s))
-                                    .into()
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                    .padding([2.0, 0.])
-                    .align_y(Alignment::Center),
+                            let mut btn = position_button(icon_content);
+                            btn = match &self.right_click {
+                                None => btn.on_press_with_position(toggle_menu.clone()),
+                                Some(TrayClickAction::Open) => btn
+                                    .on_press_with_position(toggle_menu.clone())
+                                    .on_right_press(open_app.clone()),
+                                Some(TrayClickAction::Menu) => btn
+                                    .on_press(open_app.clone())
+                                    .on_right_press_with_position(toggle_menu.clone()),
+                            };
+
+                            btn.padding(space.xxs).style(move |t, s| button_style(t, s))
+                        }),
                 )
+                .padding([2.0, 0.])
+                .align_y(Alignment::Center)
+                .into()
             })
     }
 

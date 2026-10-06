@@ -8,7 +8,7 @@ use tokio::time::timeout;
 
 use crate::{
     components::{
-        ButtonUIRef, MenuSize, collapsible,
+        ButtonUIRef, MenuSize, ModuleRow, ModuleView, collapsible,
         icons::{DynamicIcon, Icon, StaticIcon, icon, icon_button},
         menu::MenuType,
         password_dialog, position_button, quick_setting_button, sub_menu_wrapper,
@@ -774,9 +774,9 @@ impl Settings {
         .into()
     }
 
-    pub fn view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
+    pub fn view<'a>(&'a self, id: SurfaceId) -> ModuleView<'a, Message> {
         let space = use_theme(|t| t.space);
-        let mut row = Row::with_capacity(self.indicators.len());
+        let mut row = ModuleRow::with_capacity(self.indicators.len());
 
         for indicator in &self.indicators {
             let element: Option<Element<'a, Message>> = match indicator {
@@ -889,6 +889,7 @@ impl Settings {
             }
         }
 
+        // NOTE: configure spacing here
         row.spacing(space.xs).into()
     }
 
