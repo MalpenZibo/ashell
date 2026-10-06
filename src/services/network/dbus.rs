@@ -89,6 +89,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
         &self,
         access_point: &AccessPointData,
         password: Option<String>,
+        connect_once: bool,
     ) -> anyhow::Result<()> {
         let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
         let connection = settings.find_connection(&access_point.ssid).await?;
@@ -140,10 +141,15 @@ impl super::NetworkBackend for NetworkDbus<'_> {
                 );
             }
 
-            self.add_and_activate_connection(
+            // "volatile" keeps the profile in memory only and NM deletes it on disconnect
+            let persist = if connect_once { "volatile" } else { "disk" };
+            debug!("Activating '{}' with persist={persist}", access_point.ssid);
+
+            self.add_and_activate_connection2(
                 conn_settings,
                 &access_point.device_path,
                 &access_point.path,
+                HashMap::from([("persist", Value::Str(persist.into()))]),
             )
             .await?;
         }
@@ -955,12 +961,20 @@ pub trait NetworkManager {
         specific_object: OwnedObjectPath,
     ) -> Result<OwnedObjectPath>;
 
-    fn add_and_activate_connection(
+    /// Supersedes `AddAndActivateConnection` with an options dictionary
+    /// (`persist`, `bind-activation`). Requires NetworkManager 1.16 or newer.
+    #[zbus(name = "AddAndActivateConnection2")]
+    fn add_and_activate_connection2(
         &self,
         connection: HashMap<&str, HashMap<&str, Value<'_>>>,
         device: &ObjectPath<'_>,
         specific_object: &ObjectPath<'_>,
-    ) -> Result<(OwnedObjectPath, OwnedObjectPath)>;
+        options: HashMap<&str, Value<'_>>,
+    ) -> Result<(
+        OwnedObjectPath,
+        OwnedObjectPath,
+        HashMap<String, OwnedValue>,
+    )>;
 
     fn deactivate_connection(&self, connection: OwnedObjectPath) -> Result<()>;
 

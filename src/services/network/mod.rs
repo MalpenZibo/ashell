@@ -39,10 +39,14 @@ pub trait NetworkBackend: Send + Sync {
 
     /// Connects to a specific access point, potentially with a password.
     /// Returns the updated list of known connections.
+    ///
+    /// `connect_once` avoids persisting the profile to disk. Backends without
+    /// support ignore it.
     async fn select_access_point(
         &self,
         ap: &AccessPointData,
         password: Option<String>,
+        connect_once: bool,
     ) -> anyhow::Result<()>;
 
     async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>>;
@@ -80,7 +84,11 @@ pub enum NetworkCommand {
     ScanNearByWiFi,
     ToggleWiFi,
     ToggleAirplaneMode,
-    SelectAccessPoint((AccessPointData, Option<String>)),
+    SelectAccessPoint {
+        access_point: AccessPointData,
+        password: Option<String>,
+        connect_once: bool,
+    },
     ToggleVpn(Vpn),
 }
 
@@ -173,6 +181,15 @@ pub struct NetworkData {
     pub airplane_mode: bool,
     pub connectivity: ConnectivityState,
     pub scanning_nearby_wifi: bool,
+}
+
+impl NetworkData {
+    /// Whether a saved Wi-Fi profile exists for `ssid`.
+    pub fn is_known_ssid(&self, ssid: &str) -> bool {
+        self.known_connections
+            .iter()
+            .any(|c| matches!(c, KnownConnection::AccessPoint(ap) if ap.ssid == ssid))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -376,18 +393,19 @@ impl NetworkBackend for BackendChoiceWithConnection {
         &self,
         ap: &AccessPointData,
         password: Option<String>,
+        connect_once: bool,
     ) -> anyhow::Result<()> {
         match self.choice {
             BackendChoice::NetworkManager => {
                 NetworkDbus::new(&self.conn)
                     .await?
-                    .select_access_point(ap, password)
+                    .select_access_point(ap, password, connect_once)
                     .await
             }
             BackendChoice::Iwd => {
                 IwdDbus::new(&self.conn)
                     .await?
-                    .select_access_point(ap, password)
+                    .select_access_point(ap, password, connect_once)
                     .await
             }
         }
@@ -424,6 +442,13 @@ impl NetworkBackend for BackendChoiceWithConnection {
 }
 
 impl NetworkService {
+    /// Whether joining `ssid` can skip saving it. Needs backend support and no
+    /// saved profile, since an existing profile is reused as is.
+    /// See <https://github.com/MalpenZibo/ashell/issues/509> for IWD support.
+    pub fn can_connect_once(&self, ssid: &str) -> bool {
+        matches!(self.backend_choice, BackendChoice::NetworkManager) && !self.is_known_ssid(ssid)
+    }
+
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
             State::Init => match zbus::Connection::system().await {
@@ -669,11 +694,21 @@ impl Service for NetworkService {
                     |wifi_enabled| ServiceEvent::Update(NetworkEvent::WiFiEnabled(wifi_enabled)),
                 )
             }
-            NetworkCommand::SelectAccessPoint((access_point, password)) => Task::perform(
+            NetworkCommand::SelectAccessPoint {
+                access_point,
+                password,
+                connect_once,
+            } => Task::perform(
                 async move {
-                    bc.select_access_point(&access_point, password)
+                    if let Err(err) = bc
+                        .select_access_point(&access_point, password, connect_once)
                         .await
-                        .unwrap_or_default();
+                    {
+                        error!(
+                            "SelectAccessPoint command: failed to activate '{}': {err}",
+                            access_point.ssid
+                        );
+                    }
                     bc.known_connections().await.unwrap_or_default()
                 },
                 |known_connections| {

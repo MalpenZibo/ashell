@@ -29,6 +29,7 @@ password-dialog-open-network-warning =
     "{ $ssid }" ist ein offenes Netzwerk. Daten, die über diese Verbindung gesendet werden, könnten für andere sichtbar sein.
     Trotzdem verbinden?
 password-dialog-insert-password = Passwort eingeben für: { $ssid }
+password-dialog-connect-once = Nur dieses Mal verbinden
 password-dialog-cancel = Abbrechen
 password-dialog-confirm = Bestätigen
 

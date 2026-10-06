@@ -12,7 +12,8 @@ unavailable ashell falls back to **IWD**. No configuration is required.
 
 NetworkManager is the primary and most fully-featured backend. It provides
 complete networking support including wired connections, Wi-Fi, VPN, and more.
-This is the recommended backend for most users.
+This is the recommended backend for most users. ashell requires
+NetworkManager 1.16 or newer.
 
 ## IWD
 
@@ -20,6 +21,20 @@ IWD (iNet Wireless Daemon) is a lightweight Wi-Fi-focused backend. It is used
 as a fallback when NetworkManager is not available. Since IWD only manages
 wireless connections, several features that depend on NetworkManager are
 unavailable.
+
+## Temporary connections
+
+When joining an open (password-free) Wi-Fi network, ashell asks whether you want
+to connect only this time. Choosing that option activates the network without
+writing a profile to disk, so the connection disappears again once you
+disconnect. This is useful for one-off use of public hotspots. The option is
+not offered for an open network you have already saved, since ashell reuses the
+saved profile.
+
+Temporary connections are only supported by NetworkManager, which activates the
+profile with `persist = "volatile"`. Under IWD the toggle is hidden - joining any
+network writes an entry to `/var/lib/iwd`, and removing it again requires
+`KnownNetwork` lifecycle handling that is not yet implemented.
 
 ## Feature matrix
 
@@ -30,6 +45,7 @@ unavailable.
 | Signal strength | ✅ | ✅ |
 | Ethernet detection | ✅ | ❌ |
 | VPN management | ✅ | ❌ |
+| Temporary connections | ✅ | ❌ |
 | Airplane mode | ✅ | ✅ |
 | Connectivity state | ✅ | ✅ |
 
@@ -42,4 +58,7 @@ element is hidden or unavailable when running under that backend.
   wired connections.
 - **VPN management** - VPN support (including WireGuard) requires NetworkManager.
   The VPN toggle and sub-menu are hidden when running under IWD.
+- **Temporary connections** - When joining an open network, the "connect only
+  this time" option is shown only under NetworkManager. Under IWD the option is
+  hidden and any connection is saved to disk.
 
