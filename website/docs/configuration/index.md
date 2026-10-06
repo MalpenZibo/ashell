@@ -86,7 +86,7 @@ Available commands:
 | `brightness-down`        | Decrease screen brightness by 5% of the device maximum       |
 | `toggle-airplane-mode`   | Toggle airplane mode                                         |
 | `toggle-idle-inhibitor`  | Toggle idle inhibitor                                        |
-| `load-config`            | Loads a config passed through                                  |
+| `load-config <file>`            | Load another config without restarting ashell         |
 
 Only `volume-up` / `volume-down` honour
 [`settings.volume_step`](./modules/settings.md#volume-step); the microphone and

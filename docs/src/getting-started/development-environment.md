@@ -93,7 +93,7 @@ ashell msg brightness-up
 ashell msg brightness-down
 ashell msg toggle-airplane-mode
 ashell msg toggle-idle-inhibitor
-ashell msg load-config -f `file_path`
+ashell msg load-config <file>
 ```
 
 Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD overlay. Add `--no-osd` to suppress it.

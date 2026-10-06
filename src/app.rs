@@ -1,10 +1,7 @@
 use crate::{
     HEIGHT,
     components::{Centerbox, menu::MenuType},
-    config::{
-        self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat,
-        get_config,
-    },
+    config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
     get_log_spec,
     i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
@@ -620,12 +617,13 @@ impl App {
             Message::LoadConfig(config_file) => match config::read_config(&config_file) {
                 Ok(config) => {
                     self.config_path = config_file;
-			        self.update(Message::ConfigChanged(Box::new(config)))
+                    self.update(Message::ConfigChanged(Box::new(config)))
                 }
                 Err(e) => {
                     warn!("Invalid config {}: {e}", config_file.display());
-			        Task::none()
+                    Task::none()
                 }
+            },
         }
     }
 

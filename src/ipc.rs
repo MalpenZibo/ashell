@@ -3,12 +3,13 @@
 //! The daemon listens on `$XDG_RUNTIME_DIR/ashell.sock`.
 //! The same binary acts as a client via `ashell msg <command>`.
 
+use std::fmt;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{env, fmt};
 
+use crate::config;
 use crate::xdg;
 use anyhow::{Context, Result, anyhow};
 use clap::Subcommand;
@@ -65,7 +66,7 @@ pub enum IpcCommand {
         no_osd: bool,
     },
     LoadConfig {
-        #[arg(value_parser = resolve_config_arg)]
+        #[arg(value_parser = config::resolve_config_arg)]
         file: PathBuf,
     },
 }
@@ -143,15 +144,19 @@ impl FromStr for IpcCommand {
             "brightness-down" => Ok(IpcCommand::BrightnessDown { no_osd }),
             "toggle-airplane-mode" => Ok(IpcCommand::ToggleAirplaneMode { no_osd }),
             "toggle-idle-inhibitor" => Ok(IpcCommand::ToggleIdleInhibitor { no_osd }),
-        "load-config" => {
-            let file = PathBuf::from(rest.ok_or_else(|| anyhow!("load-config requires a file path"))?);
-            if !file.is_absolute() {
-                return Err(anyhow!("load-config expects an absolute path, got {}", file.display()));
+            "load-config" => {
+                let file =
+                    PathBuf::from(rest.ok_or_else(|| anyhow!("load-config requires a file path"))?);
+                if !file.is_absolute() {
+                    return Err(anyhow!(
+                        "load-config expects an absolute path, got {}",
+                        file.display()
+                    ));
+                }
+                config::read_config(&file)
+                    .map_err(|e| anyhow!("invalid config {}: {e}", file.display()))?;
+                Ok(IpcCommand::LoadConfig { file })
             }
-            crate::config::read_config(&file)
-                .map_err(|e| anyhow!("invalid config {}: {e}", file.display()))?;
-            Ok(IpcCommand::LoadConfig { file })
-        }
             _ => Err(anyhow!("unknown IPC command: {s:?}")),
         }
     }

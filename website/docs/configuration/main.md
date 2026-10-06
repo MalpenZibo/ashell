@@ -236,7 +236,7 @@ kill -SIGUSR1 $(pidof ashell)
 You can load another config file, this can be useful for managing different themes
 
 ```bash
-ashell msg load-config -f ~/.config/ashell/mac_bar.toml
+ashell msg load-config ~/.config/ashell/mac_bar.toml
 ```
 
 ### Notes

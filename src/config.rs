@@ -1754,6 +1754,17 @@ fn resolve_config_path(path: Option<&Path>) -> Result<PathBuf, Box<dyn Error + S
     })
 }
 
+/// Resolve the path in the caller's environment, so the daemon receives an
+/// absolute path whatever its own working directory is.
+pub fn resolve_config_arg(s: &str) -> Result<PathBuf, String> {
+    let expanded = shellexpand::full(s).map_err(|e| e.to_string())?;
+    std::env::current_dir()
+        .map_err(|e| e.to_string())?
+        .join(expanded.as_ref())
+        .canonicalize()
+        .map_err(|e| format!("invalid config file {s}: {e}"))
+}
+
 pub fn get_config(path: Option<&PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
     let explicit = path.is_some();
     let expanded = resolve_config_path(path.map(|p| p.as_path()))?;
@@ -1790,7 +1801,7 @@ fn expand_path(path: PathBuf) -> Result<PathBuf, Box<dyn Error + Send>> {
     Ok(PathBuf::from(expanded.to_string()))
 }
 
-fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
+pub fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
     let content =
         std::fs::read_to_string(path).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
 
