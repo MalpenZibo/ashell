@@ -617,16 +617,15 @@ impl App {
                     ])
                 }
             }
-            Message::LoadConfig(config_file) => match get_config(Some(&config_file)) {
-                Ok((config, _)) => {
+            Message::LoadConfig(config_file) => match config::read_config(&config_file) {
+                Ok(config) => {
                     self.config_path = config_file;
-                    self.update(Message::ConfigChanged(Box::new(config)))
+			        self.update(Message::ConfigChanged(Box::new(config)))
                 }
                 Err(e) => {
-                    warn!("Invalid config {e:?}");
-                    Task::none()
+                    warn!("Invalid config {}: {e}", config_file.display());
+			        Task::none()
                 }
-            },
         }
     }
 
