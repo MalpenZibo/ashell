@@ -1,4 +1,5 @@
 use std::env;
+use std::fs::Metadata;
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -10,10 +11,11 @@ use std::path::PathBuf;
 pub fn get_runtime_dir() -> Option<PathBuf> {
     let runtime_dir = PathBuf::from(env::var_os("XDG_RUNTIME_DIR")?);
     let metadata = runtime_dir.metadata().ok()?;
+    (runtime_dir.is_absolute() && is_private_dir(&metadata)).then_some(runtime_dir)
+}
+
+/// A directory owned by the effective user with mode 0700.
+pub fn is_private_dir(metadata: &Metadata) -> bool {
     let uid = unsafe { libc::geteuid() };
-    (runtime_dir.is_absolute()
-        && metadata.is_dir()
-        && metadata.st_uid() == uid
-        && metadata.permissions().mode() & 0o777 == 0o700)
-        .then_some(runtime_dir)
+    metadata.is_dir() && metadata.st_uid() == uid && metadata.permissions().mode() & 0o777 == 0o700
 }

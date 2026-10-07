@@ -103,7 +103,9 @@ ashell msg volume-up --no-osd
 
 The socket is created at `$XDG_RUNTIME_DIR/ashell.sock`. When
 `$XDG_RUNTIME_DIR` is unset or unusable, ashell falls back to
-`$TMPDIR/ashell-<uid>.sock` (typically `/tmp/ashell-1000.sock`).
+`$TMPDIR/ashell-<uid>/ashell.sock` (typically `/tmp/ashell-1000/ashell.sock`).
+That directory must be owned by you with mode `0700`; otherwise ashell runs
+without IPC and `ashell msg` refuses to connect.
 
 If another ashell instance already owns the socket, the new instance still
 starts but runs without IPC and logs a warning.
