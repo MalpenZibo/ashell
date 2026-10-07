@@ -18,7 +18,7 @@ use crate::{
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
-    widget::{Space, blur, button, column, container, image, row, sensor, svg, text},
+    widget::{Container, Space, blur, button, column, container, image, row, sensor, svg, text},
 };
 use itertools::Itertools;
 use log::error;
@@ -637,23 +637,8 @@ impl Notifications {
         }
 
         // Outside the clipped card so a tall body never hides the buttons.
-        let action_buttons = notification
-            .action_pairs()
-            .filter(|(key, _)| *key != DEFAULT_ACTION_KEY)
-            .map(|(key, label)| {
-                styled_button(label)
-                    .kind(ButtonKind::Outline)
-                    .size(ButtonSize::Small)
-                    .width(Length::Fill)
-                    .on_press(Message::InvokeAction(notification_id, key.to_string()))
-                    .into()
-            })
-            .collect::<Vec<Element<'a, Message>>>();
-        let actions_row = (!action_buttons.is_empty()).then(|| {
-            Row::with_children(action_buttons)
-                .spacing(space.xs)
-                .padding(Padding::new(space.xs).top(0.))
-        });
+        let actions_row = Self::action_buttons(notification)
+            .map(|row| row.padding(Padding::new(space.xs).top(0.)));
 
         button(column!(card, actions_row))
             .on_press(on_press)
@@ -670,6 +655,27 @@ impl Notifications {
             .into()
     }
 
+    /// One button per non-default action; `None` when there are none.
+    /// Sized to their labels and right-aligned, so a single short action
+    /// doesn't stretch across the whole notification.
+    fn action_buttons<'a>(notification: &'a Notification) -> Option<Container<'a, Message>> {
+        let space = use_theme(|t| t.space);
+        let buttons = notification
+            .action_pairs()
+            .filter(|(key, _)| *key != DEFAULT_ACTION_KEY)
+            .map(|(key, label)| {
+                styled_button(label)
+                    .kind(ButtonKind::Outline)
+                    .size(ButtonSize::Small)
+                    .on_press(Message::InvokeAction(notification.id, key.to_string()))
+                    .into()
+            })
+            .collect::<Vec<Element<'a, Message>>>();
+        (!buttons.is_empty()).then(|| {
+            container(Row::with_children(buttons).spacing(space.xs)).align_right(Length::Fill)
+        })
+    }
+
     fn group_item<'a>(
         &'a self,
         notification: &'a Notification,
@@ -684,7 +690,8 @@ impl Notifications {
                         .width(Length::Fill),
                     text(self.format_timestamp(notification.timestamp)).size(font_size.sm)
                 ),
-                text(&notification.body).wrapping(text::Wrapping::WordOrGlyph)
+                text(&notification.body).wrapping(text::Wrapping::WordOrGlyph),
+                Self::action_buttons(notification)
             )
             .padding(space.xs)
             .spacing(space.xs),
