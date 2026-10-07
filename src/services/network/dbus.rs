@@ -201,16 +201,14 @@ impl NetworkDbus<'_> {
         Ok(Self(nm))
     }
 
-    /// Reads the stored passphrase for `ssid`. NetworkManager-only, so not part of
+    /// Reads the stored passphrase for `ssid` from the profile of the connection
+    /// currently carrying it. NetworkManager-only, so not part of
     /// [`super::NetworkBackend`].
     pub async fn read_psk(&self, ssid: &str) -> anyhow::Result<PskOutcome> {
-        let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
-        let Some((connection_path, all_settings)) =
-            settings.find_wifi_connection_by_ssid(ssid).await?
-        else {
+        let Some((connection_path, all_settings)) = self.active_wifi_profile(ssid).await? else {
             // Only offered for the active connection: no profile means we can't
             // tell whether the network is open.
-            debug!("read_psk: no stored connection for SSID '{ssid}'");
+            debug!("read_psk: no active connection profile for SSID '{ssid}'");
             return Ok(PskOutcome::PasswordUnavailable);
         };
 
@@ -269,6 +267,47 @@ impl NetworkDbus<'_> {
             // Secured, but the secret is agent-owned or flagged not-saved.
             _ => PskOutcome::PasswordUnavailable,
         })
+    }
+
+    /// Settings profile behind the active connection carrying `ssid`.
+    ///
+    /// Starts from the active connection's own settings profile (its
+    /// `Connection` property) instead of scanning saved profiles, so a stale
+    /// profile that shares the SSID can't provide the password.
+    async fn active_wifi_profile(
+        &self,
+        ssid: &str,
+    ) -> anyhow::Result<Option<(OwnedObjectPath, ConnectionSettingsMap)>> {
+        for active_path in self.active_connections().await? {
+            let active = ActiveConnectionProxy::builder(self.0.inner().connection())
+                .path(active_path)?
+                .build()
+                .await?;
+
+            if active.connection_type().await.ok().as_deref() != Some("802-11-wireless") {
+                continue;
+            }
+
+            let Ok(profile_path) = active.connection().await else {
+                continue;
+            };
+
+            let profile = ConnectionSettingsProxy::builder(self.0.inner().connection())
+                .path(profile_path.clone())?
+                .build()
+                .await?;
+
+            let Ok(settings) = profile.get_settings().await else {
+                warn!("active_wifi_profile: failed to get settings for {profile_path}");
+                continue;
+            };
+
+            if connection_ssid(&settings).as_deref() == Some(ssid) {
+                return Ok(Some((profile_path, settings)));
+            }
+        }
+
+        Ok(None)
     }
 
     pub async fn scan_nearby_wifi_with_devices(&self) -> anyhow::Result<Vec<OwnedObjectPath>> {
@@ -881,35 +920,6 @@ impl NetworkSettingsDbus<'_> {
         Ok(self.list_connections().await?)
     }
 
-    /// Matches `802-11-wireless.ssid`, not the profile name, which NM suffixes and users rename.
-    pub async fn find_wifi_connection_by_ssid(
-        &self,
-        ssid: &str,
-    ) -> anyhow::Result<Option<(OwnedObjectPath, ConnectionSettingsMap)>> {
-        let connections = self.list_connections().await?;
-
-        for connection in connections {
-            let connection = ConnectionSettingsProxy::builder(self.inner().connection())
-                .path(connection)?
-                .build()
-                .await?;
-
-            let Ok(s) = connection.get_settings().await else {
-                warn!(
-                    "find_wifi_connection_by_ssid: failed to get settings for {}",
-                    connection.inner().path()
-                );
-                continue;
-            };
-
-            if connection_ssid(&s).as_deref() == Some(ssid) {
-                return Ok(Some((connection.inner().path().to_owned().into(), s)));
-            }
-        }
-
-        Ok(None)
-    }
-
     pub async fn find_connection(&self, name: &str) -> anyhow::Result<Option<OwnedObjectPath>> {
         let connections = self.list_connections().await?;
 
@@ -1121,6 +1131,9 @@ trait ActiveConnection {
 
     #[zbus(property)]
     fn uuid(&self) -> Result<String>;
+
+    #[zbus(property)]
+    fn connection(&self) -> Result<OwnedObjectPath>;
 
     #[zbus(property, name = "Type")]
     fn connection_type(&self) -> Result<String>;

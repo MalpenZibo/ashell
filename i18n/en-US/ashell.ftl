@@ -41,6 +41,7 @@ share-wifi-password-label = Wi-Fi password:
 share-wifi-password-open-network = Open network — no password required.
 share-wifi-password-unavailable-message = The password for this network is not readable, so it cannot be shared.
 share-wifi-unsupported-message = This network's authentication method cannot be shared via a QR code.
+share-wifi-error-message = Couldn't read the Wi-Fi password.
 share-wifi-close = Close
 
 ## OSD

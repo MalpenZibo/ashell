@@ -44,7 +44,7 @@ pub fn materialize(
             Some(t!("share-wifi-unsupported-message").to_string()),
             None,
         ),
-        PskOutcome::Error(e) => (None, Some(e), None),
+        PskOutcome::Error => (None, Some(t!("share-wifi-error-message").to_string()), None),
     }
 }
 

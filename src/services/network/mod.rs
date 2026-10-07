@@ -116,7 +116,8 @@ pub enum PskOutcome {
     PasswordUnavailable,
     /// Enterprise, WEP or OWE: not encodable in a `WIFI:` URI.
     Unsupported,
-    Error(String),
+    /// Reading failed; the service logs the cause.
+    Error,
 }
 
 #[derive(Debug, Clone)]
@@ -801,7 +802,7 @@ impl Service for NetworkService {
                                 Ok(outcome) => outcome,
                                 Err(err) => {
                                     warn!("read_psk failed for {ssid}: {err}");
-                                    PskOutcome::Error(err.to_string())
+                                    PskOutcome::Error
                                 }
                             };
 
@@ -815,9 +816,7 @@ impl Service for NetworkService {
 
                     Task::done(ServiceEvent::Update(NetworkEvent::Psk {
                         ssid,
-                        outcome: PskOutcome::Error(
-                            "Wi-Fi sharing requires the NetworkManager backend".to_string(),
-                        ),
+                        outcome: PskOutcome::Error,
                     }))
                 }
             },
