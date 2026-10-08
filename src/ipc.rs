@@ -1,10 +1,13 @@
 //! IPC via Unix domain socket.
 //!
-//! The daemon listens on `$XDG_RUNTIME_DIR/ashell.sock`.
+//! The daemon listens on `$XDG_RUNTIME_DIR/ashell.sock`, or on
+//! `$TMPDIR/ashell-<uid>/ashell.sock` when the runtime dir is unusable.
 //! The same binary acts as a client via `ashell msg <command>`.
 
 use std::fmt;
+use std::fs::DirBuilder;
 use std::io::{BufRead, BufReader, Read, Write};
+use std::os::unix::fs::DirBuilderExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -162,17 +165,38 @@ impl FromStr for IpcCommand {
     }
 }
 
-pub fn socket_path() -> PathBuf {
-    let uid = unsafe { libc::getuid() };
-    match xdg::get_runtime_dir() {
-        Some(dir) => [dir, PathBuf::from("ashell.sock")],
-        None => [
-            std::env::temp_dir(),
-            PathBuf::from(format!("ashell-{uid}.sock")),
-        ],
+/// `$XDG_RUNTIME_DIR/ashell.sock`, else a private (0700, ours, not a symlink)
+/// per-user dir in the temp dir so other users can't squat or spoof it.
+fn socket_path(create_dir: bool) -> Result<PathBuf> {
+    if let Some(dir) = xdg::get_runtime_dir() {
+        return Ok(dir.join("ashell.sock"));
     }
-    .iter()
-    .collect()
+
+    let uid = unsafe { libc::geteuid() };
+    let dir = std::env::temp_dir().join(format!("ashell-{uid}"));
+    if create_dir {
+        log::warn!(
+            "XDG_RUNTIME_DIR is unset or invalid, falling back to {} for the IPC socket",
+            dir.display()
+        );
+        match DirBuilder::new().mode(0o700).create(&dir) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => {
+                return Err(anyhow::Error::new(e).context(format!("create {}", dir.display())));
+            }
+        }
+    }
+
+    let metadata =
+        std::fs::symlink_metadata(&dir).with_context(|| format!("stat {}", dir.display()))?;
+    if !xdg::is_private_dir(&metadata) {
+        return Err(anyhow!(
+            "{} is not a directory owned by you with mode 0700",
+            dir.display()
+        ));
+    }
+    Ok(dir.join("ashell.sock"))
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +205,7 @@ pub fn socket_path() -> PathBuf {
 
 /// Run the IPC client: connect to the daemon, send a command, print the response.
 pub fn run_client(cmd: &IpcCommand) -> Result<()> {
-    let path = socket_path();
+    let path = socket_path(false).context("locate IPC socket (is ashell running?)")?;
     let mut stream = UnixStream::connect(&path)
         .with_context(|| format!("connect to {} — is ashell running?", path.display()))?;
 
@@ -223,7 +247,7 @@ enum ListenerError {
 /// remove the file or bind a new listener — otherwise we'd orphan the
 /// primary's fd and break `ashell msg` until it's restarted.
 fn create_listener() -> std::result::Result<UnixListener, ListenerError> {
-    let path = socket_path();
+    let path = socket_path(true).map_err(ListenerError::Other)?;
 
     match UnixStream::connect(&path) {
         Ok(_) => return Err(ListenerError::AlreadyRunning),
@@ -287,6 +311,12 @@ fn handle_connection(mut stream: UnixStream) -> Option<IpcCommand> {
     }
 }
 
+/// Defence in depth: the socket dir is already private.
+fn is_same_user(stream: &tokio::net::UnixStream) -> bool {
+    let uid = unsafe { libc::geteuid() };
+    stream.peer_cred().is_ok_and(|cred| cred.uid() == uid)
+}
+
 fn init_listener() -> Option<tokio::net::UnixListener> {
     let std_listener = match create_listener() {
         Ok(l) => l,
@@ -320,7 +350,13 @@ pub fn subscription() -> Subscription<IpcCommand> {
             };
             let (request, listener) = match listener.accept().await {
                 Ok((stream, _)) => {
+                    let same_user = is_same_user(&stream);
                     let request = match stream.into_std() {
+                        Ok(mut std_stream) if !same_user => {
+                            log::warn!("IPC: rejected connection from another user");
+                            write_response(&mut std_stream, "error permission denied");
+                            None
+                        }
                         Ok(std_stream) => handle_connection(std_stream),
                         Err(e) => {
                             log::error!("IPC stream conversion error: {e}");
