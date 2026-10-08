@@ -1363,7 +1363,7 @@ pub struct GroupStyle {
     pub spacing: Option<MarginSize>,
 }
 
-/// `appearance.modules.<ModuleName>`: per-module overrides.
+/// `appearance.modules.<module>`: per-module overrides.
 #[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq)]
 pub struct ModuleStyle {
     pub radius: Option<BarRadius>,
@@ -1377,7 +1377,8 @@ pub struct ModuleStyle {
 }
 
 /// The `[appearance.modules]` table: the reserved `default` and `group` keys,
-/// every other key is a module name as used in the layout.
+/// builtin modules by their section name (`system_info`), and custom modules
+/// under `custom` by their `name`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ModulesAppearance {
     pub default: ModuleDefaultStyle,
@@ -1398,15 +1399,21 @@ impl<'de> Deserialize<'de> for ModulesAppearance {
 
             fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Self::Value, M::Error> {
                 let mut modules = ModulesAppearance::default();
-                while let Some(name) = map.next_key::<ModuleName>()? {
-                    match name {
-                        ModuleName::Custom(key) if key == "default" => {
-                            modules.default = map.next_value()?
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "default" => modules.default = map.next_value()?,
+                        "group" => modules.group = map.next_value()?,
+                        "custom" => {
+                            let custom: HashMap<String, ModuleStyle> = map.next_value()?;
+                            modules.overrides.extend(
+                                custom
+                                    .into_iter()
+                                    .map(|(name, style)| (ModuleName::Custom(name), style)),
+                            );
                         }
-                        ModuleName::Custom(key) if key == "group" => {
-                            modules.group = map.next_value()?
-                        }
-                        name => {
+                        key => {
+                            let name = ModuleName::from_section(key)
+                                .ok_or_else(|| de::Error::custom(unknown_module(key)))?;
                             modules.overrides.insert(name, map.next_value()?);
                         }
                     }
@@ -1437,21 +1444,33 @@ impl ModulesAppearance {
         );
         for (name, style) in &mut self.overrides {
             validate_style(
-                &format!("appearance.modules.{name}"),
+                &format!("appearance.modules.{}", name.style_key()),
                 &mut style.border,
                 &mut style.padding,
                 style.spacing.as_mut(),
             );
         }
 
-        for module in custom_modules {
-            if matches!(module.name.as_str(), "default" | "group") {
+        for name in self.overrides.keys() {
+            if let ModuleName::Custom(name) = name
+                && !custom_modules.iter().any(|module| module.name == *name)
+            {
                 warn!(
-                    "Custom module name `{}` is reserved in [appearance.modules], its style cannot be overridden",
-                    module.name
+                    "[appearance.modules.custom.{name}] doesn't match any [[CustomModule]], its style is unused"
                 );
             }
         }
+    }
+}
+
+fn unknown_module(key: &str) -> String {
+    match BUILTIN_MODULES.iter().find(|(layout, _, _)| *layout == key) {
+        Some((_, section, _)) => {
+            format!("unknown module `{key}` in [appearance.modules], use `{section}`")
+        }
+        None => format!(
+            "unknown module `{key}` in [appearance.modules], expected a builtin module like `system_info`, or `custom.{key}` for a custom module"
+        ),
     }
 }
 
@@ -1761,29 +1780,63 @@ pub enum ModuleName {
     Notifications,
 }
 
-const BUILTIN_MODULES: [(&str, ModuleName); 12] = [
-    ("Updates", ModuleName::Updates),
-    ("Workspaces", ModuleName::Workspaces),
-    ("WindowTitle", ModuleName::WindowTitle),
-    ("SystemInfo", ModuleName::SystemInfo),
-    ("KeyboardLayout", ModuleName::KeyboardLayout),
-    ("KeyboardSubmap", ModuleName::KeyboardSubmap),
-    ("Tray", ModuleName::Tray),
-    ("Notifications", ModuleName::Notifications),
-    ("Tempo", ModuleName::Tempo),
-    ("Privacy", ModuleName::Privacy),
-    ("Settings", ModuleName::Settings),
-    ("MediaPlayer", ModuleName::MediaPlayer),
+/// Each builtin module's layout name and its snake_case name, used for its
+/// settings section and its `[appearance.modules]` key.
+const BUILTIN_MODULES: [(&str, &str, ModuleName); 12] = [
+    ("Updates", "updates", ModuleName::Updates),
+    ("Workspaces", "workspaces", ModuleName::Workspaces),
+    ("WindowTitle", "window_title", ModuleName::WindowTitle),
+    ("SystemInfo", "system_info", ModuleName::SystemInfo),
+    (
+        "KeyboardLayout",
+        "keyboard_layout",
+        ModuleName::KeyboardLayout,
+    ),
+    (
+        "KeyboardSubmap",
+        "keyboard_submap",
+        ModuleName::KeyboardSubmap,
+    ),
+    ("Tray", "tray", ModuleName::Tray),
+    ("Notifications", "notifications", ModuleName::Notifications),
+    ("Tempo", "tempo", ModuleName::Tempo),
+    ("Privacy", "privacy", ModuleName::Privacy),
+    ("Settings", "settings", ModuleName::Settings),
+    ("MediaPlayer", "media_player", ModuleName::MediaPlayer),
 ];
+
+impl ModuleName {
+    fn builtin(&self) -> Option<&'static (&'static str, &'static str, ModuleName)> {
+        BUILTIN_MODULES.iter().find(|(_, _, module)| module == self)
+    }
+
+    fn from_section(section: &str) -> Option<Self> {
+        BUILTIN_MODULES
+            .iter()
+            .find(|(_, name, _)| *name == section)
+            .map(|(_, _, module)| module.clone())
+    }
+
+    /// The key of the module's table in `[appearance.modules]`.
+    fn style_key(&self) -> String {
+        match self {
+            ModuleName::Custom(name) => format!("custom.{name}"),
+            builtin => builtin
+                .builtin()
+                .expect("every builtin module has a name")
+                .1
+                .to_owned(),
+        }
+    }
+}
 
 impl std::fmt::Display for ModuleName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let name = match self {
             ModuleName::Custom(name) => name,
             builtin => {
-                BUILTIN_MODULES
-                    .iter()
-                    .find(|(_, module)| module == builtin)
+                builtin
+                    .builtin()
                     .expect("every builtin module has a name")
                     .0
             }
@@ -1809,10 +1862,10 @@ impl<'de> Deserialize<'de> for ModuleName {
             {
                 Ok(BUILTIN_MODULES
                     .iter()
-                    .find(|(name, _)| *name == value)
+                    .find(|(name, _, _)| *name == value)
                     .map_or_else(
                         || ModuleName::Custom(value.to_string()),
-                        |(_, module)| module.clone(),
+                        |(_, _, module)| module.clone(),
                     ))
             }
         }
@@ -2275,17 +2328,17 @@ mod tests {
             background = "background.weak"
             spacing = "xs"
 
-            [appearance.modules.SystemInfo]
+            [appearance.modules.system_info]
             grouping = "individual"
             spacing = "xs"
             radius = "md"
             border = { width = 1, color = "#414868" }
             text_color = "primary"
 
-            [appearance.modules.Workspaces]
+            [appearance.modules.workspaces]
             font_size = "sm"
 
-            [appearance.modules.my_custom_module]
+            [appearance.modules.custom.my_custom_module]
             font_size = "lg"
             "##,
         )
@@ -2398,7 +2451,51 @@ mod tests {
     #[test]
     fn rejects_unknown_grouping_and_font_size() {
         assert!(parse("[appearance.modules.default]\ngrouping = \"all\"").is_err());
-        assert!(parse("[appearance.modules.Tray]\nfont_size = \"huge\"").is_err());
+        assert!(parse("[appearance.modules.tray]\nfont_size = \"huge\"").is_err());
+    }
+
+    #[test]
+    fn module_overrides_use_section_names() {
+        let error = |toml: &str| parse(toml).unwrap_err().message().to_owned();
+
+        assert_eq!(
+            error("[appearance.modules.SystemInfo]"),
+            "unknown module `SystemInfo` in [appearance.modules], use `system_info`"
+        );
+        assert!(error("[appearance.modules.my_module]").contains("`custom.my_module`"));
+    }
+
+    #[test]
+    fn custom_overrides_stay_apart_from_builtins() {
+        let modules = parse(
+            r#"
+            [appearance.modules.tray]
+            font_size = "sm"
+
+            [appearance.modules.custom.tray]
+            font_size = "lg"
+
+            [appearance.modules.custom.default]
+            font_size = "xs"
+            "#,
+        )
+        .unwrap()
+        .appearance
+        .modules;
+
+        assert_eq!(
+            modules.overrides[&ModuleName::Tray].font_size,
+            Some(FontSizeScale::Sm)
+        );
+        assert_eq!(
+            modules.overrides[&ModuleName::Custom("tray".into())].font_size,
+            Some(FontSizeScale::Lg)
+        );
+        assert_eq!(
+            modules.overrides[&ModuleName::Custom("default".into())].font_size,
+            Some(FontSizeScale::Xs)
+        );
+        assert_eq!(modules.default, ModuleDefaultStyle::default());
     }
 
     #[test]
