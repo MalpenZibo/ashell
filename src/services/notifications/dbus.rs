@@ -73,6 +73,19 @@ pub struct Notification {
     pub icon: Option<NotificationIcon>,
 }
 
+pub const DEFAULT_ACTION_KEY: &str = "default";
+
+impl Notification {
+    /// `(key, label)` pairs from the flat `[key, label, ...]` action list.
+    pub fn action_pairs(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.actions
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|[key, label]| (key.as_str(), label.as_str()))
+    }
+}
+
 pub struct NotificationDaemon {
     next_id: u32,
     next_revision: u64,

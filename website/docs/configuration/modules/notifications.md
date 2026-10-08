@@ -53,6 +53,7 @@ Click the notification indicator to open the notifications menu. The menu displa
 - **Do not disturb button**: Toggles do not disturb (see above)
 - **Grouped mode** (optional): Organizes notifications by application with expandable groups
 - **Clicking a notification**: Invokes its default action (if provided by the app) and closes it
+- **Action buttons**: Any other actions the app provides (for example `notify-send -A "Reply"`) appear as buttons below the notification, on toasts and in the menu. Clicking one invokes that action and closes the notification. This applies to grouped notifications too
 
 ## Configuration
 

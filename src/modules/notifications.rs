@@ -3,13 +3,13 @@ use crate::{
     components::icons::{StaticIcon, icon, icon_button},
     components::scrollable,
     components::slide::{self, SlideDirection, slide},
-    components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize},
+    components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, styled_button},
     config::{NotificationsModuleConfig, Surface, ToastPosition},
     services::{
         ReadOnlyService, ServiceEvent,
         notifications::{
             Notification, NotificationIcon, NotificationsService, Urgency,
-            dbus::{CloseGuard, NotificationDaemon, NotificationEvent},
+            dbus::{CloseGuard, DEFAULT_ACTION_KEY, NotificationDaemon, NotificationEvent},
         },
     },
     t,
@@ -18,7 +18,7 @@ use crate::{
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
-    widget::{Space, blur, button, column, container, image, row, sensor, svg, text},
+    widget::{Container, Space, blur, button, column, container, image, row, sensor, svg, text},
 };
 use itertools::Itertools;
 use log::error;
@@ -98,6 +98,7 @@ fn toast_timeout(required_timeout: i32, timeout_ms: u64) -> Option<Duration> {
 pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
+    InvokeAction(u32, String),
     NotificationClosed,
     CloseNotificationById(u32),
     ClearNotifications,
@@ -198,11 +199,29 @@ impl Notifications {
             .map_or(CloseGuard::Any, |n| CloseGuard::Revision(n.revision))
     }
 
-    fn find_first_action_key(&self, id: u32) -> Option<String> {
-        self.find_notification(id)
-            .filter(|n| !n.actions.is_empty())
-            .and_then(|n| n.actions.first())
-            .cloned()
+    fn default_action_key(&self, id: u32) -> Option<String> {
+        self.find_notification(id)?
+            .action_pairs()
+            .any(|(key, _)| key == DEFAULT_ACTION_KEY)
+            .then(|| DEFAULT_ACTION_KEY.to_string())
+    }
+
+    fn invoke_and_dismiss(&mut self, id: u32, action_key: Option<String>) -> Action {
+        let connection = self.connection.clone();
+        let guard = self.close_guard(id);
+        let invoke_task = invoke_and_close_task(connection, id, action_key, guard);
+        if !self.toasts.contains(&id) || self.dismiss_phases.contains_key(&id) {
+            return Action::Task(invoke_task);
+        }
+        if !self.animations_enabled {
+            let had_toasts = self.remove_toast(id);
+            return self.hide_toasts_if_empty_with_task(had_toasts, invoke_task);
+        }
+        self.dismiss_phases.insert(id, DismissPhase::Sliding);
+        Action::Task(Task::batch(vec![
+            invoke_task,
+            delayed_toast_message(SLIDE_ANIMATION, id, Message::StartCollapse),
+        ]))
     }
 
     fn clear_toasts(&mut self) -> bool {
@@ -372,10 +391,11 @@ impl Notifications {
             },
             Message::NotificationClicked(id) => {
                 let connection = self.connection.clone();
-                let action_key = self.find_first_action_key(id);
+                let action_key = self.default_action_key(id);
                 let guard = self.close_guard(id);
                 Action::Task(invoke_and_close_task(connection, id, action_key, guard))
             }
+            Message::InvokeAction(id, action_key) => self.invoke_and_dismiss(id, Some(action_key)),
             Message::NotificationClosed => Action::None,
             Message::ToggleDnd => {
                 self.toggle_dnd();
@@ -460,21 +480,8 @@ impl Notifications {
             }
             Message::DismissToast(id) => {
                 if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
-                    let connection = self.connection.clone();
-                    let action_key = self.find_first_action_key(id);
-                    let guard = self.close_guard(id);
-                    let invoke_task = invoke_and_close_task(connection, id, action_key, guard);
-                    if !self.animations_enabled {
-                        let had_toasts = self.remove_toast(id);
-                        let hide_action =
-                            self.hide_toasts_if_empty_with_task(had_toasts, invoke_task);
-                        return hide_action;
-                    }
-                    self.dismiss_phases.insert(id, DismissPhase::Sliding);
-                    Action::Task(Task::batch(vec![
-                        invoke_task,
-                        delayed_toast_message(SLIDE_ANIMATION, id, Message::StartCollapse),
-                    ]))
+                    let action_key = self.default_action_key(id);
+                    self.invoke_and_dismiss(id, action_key)
                 } else {
                     Action::None
                 }
@@ -629,7 +636,11 @@ impl Notifications {
             card = card.max_height(self.config.toast_max_height).clip(true);
         }
 
-        button(card)
+        // Outside the clipped card so a tall body never hides the buttons.
+        let actions_row = Self::action_buttons(notification)
+            .map(|row| row.padding(Padding::new(space.xs).top(0.)));
+
+        button(column!(card, actions_row))
             .on_press(on_press)
             .width(Length::Fill)
             .padding(space.xxs)
@@ -642,6 +653,27 @@ impl Notifications {
                 notification.urgency,
             ))
             .into()
+    }
+
+    /// One button per non-default action; `None` when there are none.
+    /// Sized to their labels and right-aligned, so a single short action
+    /// doesn't stretch across the whole notification.
+    fn action_buttons<'a>(notification: &'a Notification) -> Option<Container<'a, Message>> {
+        let space = use_theme(|t| t.space);
+        let buttons = notification
+            .action_pairs()
+            .filter(|(key, _)| *key != DEFAULT_ACTION_KEY)
+            .map(|(key, label)| {
+                styled_button(label)
+                    .kind(ButtonKind::Outline)
+                    .size(ButtonSize::Small)
+                    .on_press(Message::InvokeAction(notification.id, key.to_string()))
+                    .into()
+            })
+            .collect::<Vec<Element<'a, Message>>>();
+        (!buttons.is_empty()).then(|| {
+            container(Row::with_children(buttons).spacing(space.xs)).align_right(Length::Fill)
+        })
     }
 
     fn group_item<'a>(
@@ -658,7 +690,8 @@ impl Notifications {
                         .width(Length::Fill),
                     text(self.format_timestamp(notification.timestamp)).size(font_size.sm)
                 ),
-                text(&notification.body).wrapping(text::Wrapping::WordOrGlyph)
+                text(&notification.body).wrapping(text::Wrapping::WordOrGlyph),
+                Self::action_buttons(notification)
             )
             .padding(space.xs)
             .spacing(space.xs),
