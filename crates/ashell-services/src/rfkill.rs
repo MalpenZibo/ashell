@@ -1,5 +1,5 @@
 use futures::{
-    Stream, StreamExt,
+    StreamExt,
     stream::{BoxStream, pending},
 };
 use inotify::{Inotify, WatchMask};
@@ -36,21 +36,19 @@ pub async fn set_bluetooth_soft_block(blocked: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn soft_block_changes() -> anyhow::Result<impl Stream<Item = ()> + Send + use<>> {
-    let inotify = Inotify::init()?;
+/// Fires on every rfkill change. Never fails: without a watch, soft block
+/// changes just aren't noticed until the next read.
+pub fn soft_block_changes() -> BoxStream<'static, ()> {
+    let watch = Inotify::init().and_then(|inotify| {
+        inotify.watches().add("/dev/rfkill", WatchMask::MODIFY)?;
+        inotify.into_event_stream([0; 512])
+    });
 
-    let changes: BoxStream<'static, ()> =
-        match inotify.watches().add("/dev/rfkill", WatchMask::MODIFY) {
-            Ok(_) => {
-                let buffer = [0; 512];
-                inotify.into_event_stream(buffer)?.map(|_| {}).boxed()
-            }
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                warn!("/dev/rfkill not found, disabling rfkill change notifications");
-                pending().boxed()
-            }
-            Err(err) => return Err(err.into()),
-        };
-
-    Ok(changes)
+    match watch {
+        Ok(events) => events.map(|_| {}).boxed(),
+        Err(err) => {
+            warn!("Can't watch /dev/rfkill, disabling rfkill change notifications: {err}");
+            pending().boxed()
+        }
+    }
 }
