@@ -5,9 +5,7 @@
 //! The same binary acts as a client via `ashell msg <command>`.
 
 use std::fmt;
-use std::fs::DirBuilder;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::os::unix::fs::DirBuilderExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -168,35 +166,7 @@ impl FromStr for IpcCommand {
 /// `$XDG_RUNTIME_DIR/ashell.sock`, else a private (0700, ours, not a symlink)
 /// per-user dir in the temp dir so other users can't squat or spoof it.
 fn socket_path(create_dir: bool) -> Result<PathBuf> {
-    if let Some(dir) = xdg::get_runtime_dir() {
-        return Ok(dir.join("ashell.sock"));
-    }
-
-    let uid = unsafe { libc::geteuid() };
-    let dir = std::env::temp_dir().join(format!("ashell-{uid}"));
-    if create_dir {
-        log::warn!(
-            "XDG_RUNTIME_DIR is unset or invalid, falling back to {} for the IPC socket",
-            dir.display()
-        );
-        match DirBuilder::new().mode(0o700).create(&dir) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(e) => {
-                return Err(anyhow::Error::new(e).context(format!("create {}", dir.display())));
-            }
-        }
-    }
-
-    let metadata =
-        std::fs::symlink_metadata(&dir).with_context(|| format!("stat {}", dir.display()))?;
-    if !xdg::is_private_dir(&metadata) {
-        return Err(anyhow!(
-            "{} is not a directory owned by you with mode 0700",
-            dir.display()
-        ));
-    }
-    Ok(dir.join("ashell.sock"))
+    Ok(xdg::private_dir(create_dir)?.join("ashell.sock"))
 }
 
 // ---------------------------------------------------------------------------
