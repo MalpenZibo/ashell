@@ -78,8 +78,8 @@ jobs:
           # Install cargo-edit for `cargo set-version`
           cargo install cargo-edit -f --no-default-features --features "set-version"
 
-          # Update the root package version
-          cargo set-version "${VERSION}"
+          # Update every workspace member, so the crates stay in step with ashell
+          cargo set-version --workspace "${VERSION}"
 
       - name: Git add updated cargo toml
         run: |
