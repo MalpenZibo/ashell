@@ -55,6 +55,10 @@ jobs:
         if: steps.filter.outputs.code == 'true'
         run: cargo clippy --workspace --all-features -- -D warnings
 
+      - name: Test ashell-services
+        if: steps.filter.outputs.code == 'true'
+        run: cargo test -p ashell-services --all-features
+
       - name: Build
         if: steps.filter.outputs.code == 'true'
         run: cargo build
