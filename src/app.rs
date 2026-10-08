@@ -529,6 +529,11 @@ impl App {
             Message::Notifications(message) => match self.notifications.update(message) {
                 modules::notifications::Action::None => Task::none(),
                 modules::notifications::Action::Task(task) => task.map(Message::Notifications),
+                modules::notifications::Action::TaskAndCloseMenu(task) => Task::batch(vec![
+                    self.outputs
+                        .close_all_menus(self.general_config.enable_esc_key),
+                    task.map(Message::Notifications),
+                ]),
                 modules::notifications::Action::Show(task) => {
                     let position = self.notifications.toast_position();
                     // Double width gives the card a runway to fully exit on slide-out.

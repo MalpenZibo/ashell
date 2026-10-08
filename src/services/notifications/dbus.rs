@@ -7,6 +7,7 @@ use zbus::{
     Connection,
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
     interface,
+    message::Header,
     names::WellKnownName,
     zvariant::OwnedValue,
 };
@@ -69,6 +70,11 @@ pub struct Notification {
     pub expire_timeout: i32,
     pub timestamp: SystemTime,
     pub urgency: Urgency,
+    /// Unique name of the D-Bus connection that sent the notification, whose
+    /// pid finds the sender's window on click. For sandboxed apps (Flatpak's
+    /// D-Bus proxy) or portal notifications that is not the app's own pid.
+    #[serde(default)]
+    pub sender: Option<String>,
     #[serde(skip)]
     pub icon: Option<NotificationIcon>,
 }
@@ -83,6 +89,24 @@ impl Notification {
             .0
             .iter()
             .map(|[key, label]| (key.as_str(), label.as_str()))
+    }
+
+    /// App ids or window classes the sender's windows likely carry: the
+    /// `desktop-entry` hint (without `.desktop`), then the app name.
+    pub fn app_ids(&self) -> Vec<String> {
+        let desktop_entry = self
+            .hints
+            .get("desktop-entry")
+            .and_then(|v| String::try_from(v.clone()).ok());
+        desktop_entry
+            .into_iter()
+            .chain(std::iter::once(self.app_name.clone()))
+            .map(|id| {
+                let id = id.trim();
+                id.strip_suffix(".desktop").unwrap_or(id).to_string()
+            })
+            .filter(|id| !id.is_empty())
+            .collect()
     }
 }
 
@@ -128,6 +152,7 @@ impl NotificationDaemon {
         actions: Vec<String>,
         hints: HashMap<String, OwnedValue>,
         expire_timeout: i32,
+        #[zbus(header)] header: Header<'_>,
     ) -> u32 {
         let id = if replaces_id == 0 {
             self.next_id = self.next_id.checked_add(1).unwrap_or(1);
@@ -155,6 +180,7 @@ impl NotificationDaemon {
             expire_timeout,
             timestamp: SystemTime::now(),
             urgency,
+            sender: header.sender().map(|sender| sender.to_string()),
             icon,
         };
 
@@ -229,12 +255,14 @@ impl NotificationDaemon {
     /// this call and the notification the user acted on is gone. Closing anyway
     /// would take the replacement down with it. Holding the interface lock over
     /// the check and both steps is what keeps that ordering decidable.
+    ///
+    /// Returns whether `id` was closed, false when it was replaced since.
     pub async fn invoke_and_close(
         connection: &Connection,
         id: u32,
         action_key: Option<String>,
         guard: CloseGuard,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         let iface_ref = connection
             .object_server()
             .interface::<_, NotificationDaemon>(OBJECT_PATH)
@@ -245,7 +273,7 @@ impl NotificationDaemon {
             && daemon.revisions.get(&id) != Some(&revision)
         {
             debug!("Skipping close of notification {}: replaced since", id);
-            return Ok(());
+            return Ok(false);
         }
 
         if let Some(action_key) = action_key {
@@ -261,6 +289,49 @@ impl NotificationDaemon {
         }
 
         daemon.close_notification(id).await;
-        Ok(())
+        Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zbus::zvariant::Value;
+
+    fn notification(app_name: &str, desktop_entry: Option<&str>) -> Notification {
+        let hints = desktop_entry
+            .map(|entry| {
+                let value = OwnedValue::try_from(Value::from(entry)).unwrap();
+                ("desktop-entry".to_string(), value)
+            })
+            .into_iter()
+            .collect();
+        Notification {
+            id: 1,
+            revision: 1,
+            app_name: app_name.to_string(),
+            app_icon: String::new(),
+            summary: String::new(),
+            body: String::new(),
+            actions: vec![],
+            hints,
+            expire_timeout: -1,
+            timestamp: SystemTime::now(),
+            urgency: Urgency::Normal,
+            sender: None,
+            icon: None,
+        }
+    }
+
+    #[test]
+    fn app_ids_prefer_the_desktop_entry() {
+        let n = notification("Telegram Desktop", Some("org.telegram.desktop.desktop"));
+        assert_eq!(n.app_ids(), ["org.telegram.desktop", "Telegram Desktop"]);
+    }
+
+    #[test]
+    fn app_ids_fall_back_to_the_app_name() {
+        assert_eq!(notification("firefox", None).app_ids(), ["firefox"]);
+        assert!(notification(" ", None).app_ids().is_empty());
     }
 }
