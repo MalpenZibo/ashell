@@ -21,7 +21,7 @@ ashell uses [cargo-dist](https://github.com/axodotdev/cargo-dist) (v0.30.0) for 
    - Runs `dist plan` to determine build matrix
    - Builds platform-specific artifacts (Linux binary + archives)
    - Builds global artifacts (shell installer)
-   - Generates .deb and .rpm packages via `generate-installers.yml`
+   - Generates .deb and .rpm packages via `generate-installers.yml`, then installs each one in clean `ubuntu:24.04`, `debian:trixie` and `fedora:latest` containers and runs `ashell --version`. A package that fails to install blocks the release.
    - Uploads all artifacts to the GitHub Release
    - Un-drafts the release
 

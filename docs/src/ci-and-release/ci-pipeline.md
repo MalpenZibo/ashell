@@ -51,7 +51,7 @@ Dependabot is configured to:
 | `nix-ci.yml` | Push/PR to main | Nix flake validation |
 | `release.yml` | Manual dispatch (or triggered by `pre-release.yml`) | Build release artifacts |
 | `pre-release.yml` | Release published | Update CHANGELOG, Cargo version and website docs version, then trigger `release.yml` |
-| `generate-installers.yml` | Called by release | Build .deb/.rpm packages |
+| `generate-installers.yml` | Called by release | Build .deb/.rpm packages and test that they install |
 | `gh-pages-deploy.yml` | Push to main | Deploy website |
 | `gh-pages-test.yml` | PR | Test website build |
 | `update-arch-package.yml` | Called by release (post-announce) | Placeholder for AUR package updates (currently only echoes a message) |

@@ -86,6 +86,34 @@ jobs:
 
           done
 
+      # Building a package never checks that its dependencies exist, so install
+      # each one in a clean container and run the binary. A wrong package name
+      # or an undeclared library then fails the release instead of reaching users.
+      - name: Test that the packages install
+        run: |
+          for deb in artifacts/*.deb; do
+            for image in ubuntu:24.04 debian:trixie; do
+              echo "::group::$(basename "$deb") on $image"
+              docker run --rm -v "$PWD/artifacts:/pkgs:ro" "$image" sh -euc '
+                apt-get update -qq
+                apt-get install -y --no-install-recommends "/pkgs/$1"
+                if ldd /usr/bin/ashell | grep "not found"; then exit 1; fi
+                ashell --version
+              ' sh "$(basename "$deb")"
+              echo "::endgroup::"
+            done
+          done
+
+          for rpm in artifacts/*.rpm; do
+            echo "::group::$(basename "$rpm") on fedora:latest"
+            docker run --rm -v "$PWD/artifacts:/pkgs:ro" fedora:latest sh -euc '
+              dnf install -y "/pkgs/$1"
+              if ldd /usr/bin/ashell | grep "not found"; then exit 1; fi
+              ashell --version
+            ' sh "$(basename "$rpm")"
+            echo "::endgroup::"
+          done
+
       - name: Upload generated installers
         uses: actions/upload-artifact@v7
         with:
