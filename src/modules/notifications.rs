@@ -6,7 +6,7 @@ use crate::{
     components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, styled_button},
     config::{NotificationsModuleConfig, Surface, ToastPosition},
     services::{
-        ReadOnlyService, ServiceEvent, compositor,
+        ReadOnlyService, ServiceEvent, compositor, connection_pid,
         notifications::{
             Notification, NotificationIcon, NotificationsService, Urgency,
             dbus::{CloseGuard, DEFAULT_ACTION_KEY, NotificationDaemon, NotificationEvent},
@@ -44,23 +44,13 @@ fn notification_icon<'a, M: 'a>(icon_kind: Option<&NotificationIcon>) -> Element
     }
 }
 
-/// The window to bring up once a notification's action is invoked.
-///
-/// On Wayland the sender can't raise its own window without an
-/// `xdg-activation` token, so the compositor focuses it for the sender.
-#[derive(Debug, Clone)]
+/// The window to bring up once a click invokes a notification's default
+/// action: on Wayland the sender can't raise its own window without an
+/// `xdg-activation` token, so the compositor focuses it.
+#[derive(Debug)]
 struct FocusTarget {
-    pid: Option<u32>,
+    sender: Option<String>,
     apps: Vec<String>,
-}
-
-impl FocusTarget {
-    fn for_notification(notification: &Notification) -> Self {
-        Self {
-            pid: notification.sender_pid,
-            apps: notification.app_ids(),
-        }
-    }
 }
 
 fn invoke_and_close_task(
@@ -77,10 +67,17 @@ fn invoke_and_close_task(
             };
             match NotificationDaemon::invoke_and_close(&connection, id, action_key, guard).await {
                 Ok(true) => {
-                    if let Some(FocusTarget { pid, apps }) = focus
-                        && let Err(e) = compositor::focus_app_window(pid, apps, None).await
-                    {
-                        debug!("Can't focus the window of notification {id}: {e}");
+                    if let Some(FocusTarget { sender, apps }) = focus {
+                        let pid = match sender {
+                            Some(sender) => connection_pid(&connection, &sender)
+                                .await
+                                .inspect_err(|e| debug!("No pid for sender {sender}: {e}"))
+                                .ok(),
+                            None => None,
+                        };
+                        if let Err(e) = compositor::focus_app_window(pid, apps, None).await {
+                            debug!("Can't focus the window of notification {id}: {e}");
+                        }
                     }
                 }
                 Ok(false) => {}
@@ -230,19 +227,20 @@ impl Notifications {
             .map_or(CloseGuard::Any, |n| CloseGuard::Revision(n.revision))
     }
 
-    fn default_action_key(&self, id: u32) -> Option<String> {
-        self.find_notification(id)?
+    /// `id`'s default action and the window it brings up; the action buttons
+    /// don't focus it.
+    fn default_action(&self, id: u32) -> Option<(String, FocusTarget)> {
+        let notification = self.find_notification(id)?;
+        notification
             .action_pairs()
             .any(|(key, _)| key == DEFAULT_ACTION_KEY)
-            .then(|| DEFAULT_ACTION_KEY.to_string())
-    }
-
-    /// The window to focus when clicking `id` invokes its default action. The
-    /// action buttons don't focus it.
-    fn focus_target(&self, id: u32) -> Option<FocusTarget> {
-        self.find_notification(id)
-            .filter(|n| n.action_pairs().any(|(key, _)| key == DEFAULT_ACTION_KEY))
-            .map(FocusTarget::for_notification)
+            .then(|| {
+                let target = FocusTarget {
+                    sender: notification.sender.clone(),
+                    apps: notification.app_ids(),
+                };
+                (DEFAULT_ACTION_KEY.to_string(), target)
+            })
     }
 
     fn invoke_and_dismiss(
@@ -435,11 +433,11 @@ impl Notifications {
             },
             Message::NotificationClicked(id) => {
                 let connection = self.connection.clone();
-                let action_key = self.default_action_key(id);
+                let (action_key, focus) = self.default_action(id).unzip();
                 let guard = self.close_guard(id);
-                let focus = self.focus_target(id);
-                let task = invoke_and_close_task(connection, id, action_key, guard, focus.clone());
-                if focus.is_some() {
+                let close_menu = focus.is_some();
+                let task = invoke_and_close_task(connection, id, action_key, guard, focus);
+                if close_menu {
                     Action::TaskAndCloseMenu(task)
                 } else {
                     Action::Task(task)
@@ -532,8 +530,7 @@ impl Notifications {
             }
             Message::DismissToast(id) => {
                 if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
-                    let action_key = self.default_action_key(id);
-                    let focus = self.focus_target(id);
+                    let (action_key, focus) = self.default_action(id).unzip();
                     self.invoke_and_dismiss(id, action_key, focus)
                 } else {
                     Action::None

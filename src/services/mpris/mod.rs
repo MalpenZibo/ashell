@@ -224,15 +224,6 @@ impl MprisPlayerService {
         Ok(names)
     }
 
-    async fn player_pid(conn: &zbus::Connection, service_name: &str) -> anyhow::Result<u32> {
-        let dbus = DBusProxy::new(conn).await?;
-        let pid = dbus
-            .get_connection_unix_process_id(service_name.try_into()?)
-            .await?;
-
-        Ok(pid)
-    }
-
     /// `Raise()` alone can't activate the window on Wayland, but browsers handle
     /// it by switching to the tab that plays the media. So raise first, then let
     /// the compositor focus the window, picking the one whose title now shows
@@ -253,7 +244,7 @@ impl MprisPlayerService {
             Err(e) => error!("Failed to create the MPRIS root proxy for {service_name}: {e}"),
         }
 
-        let pid = Self::player_pid(conn, service_name)
+        let pid = super::connection_pid(conn, service_name)
             .await
             .inspect_err(|e| debug!("Could not resolve the pid of {service_name}: {e}"))
             .ok();

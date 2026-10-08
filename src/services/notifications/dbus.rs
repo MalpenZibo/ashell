@@ -8,7 +8,7 @@ use zbus::{
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
     interface,
     message::Header,
-    names::{BusName, UniqueName, WellKnownName},
+    names::WellKnownName,
     zvariant::OwnedValue,
 };
 
@@ -70,12 +70,11 @@ pub struct Notification {
     pub expire_timeout: i32,
     pub timestamp: SystemTime,
     pub urgency: Urgency,
-    /// Pid of the D-Bus connection that sent the notification, used to find
-    /// the sender's window when the notification is clicked. For sandboxed
-    /// apps (Flatpak's D-Bus proxy) or portal notifications this is not the
-    /// app's own pid.
+    /// Unique name of the D-Bus connection that sent the notification, whose
+    /// pid finds the sender's window on click. For sandboxed apps (Flatpak's
+    /// D-Bus proxy) or portal notifications that is not the app's own pid.
     #[serde(default)]
-    pub sender_pid: Option<u32>,
+    pub sender: Option<String>,
     #[serde(skip)]
     pub icon: Option<NotificationIcon>,
 }
@@ -129,15 +128,6 @@ impl NotificationDaemon {
             connection,
         }
     }
-
-    async fn sender_pid(&self, sender: &UniqueName<'_>) -> Option<u32> {
-        let proxy = DBusProxy::new(&self.connection).await.ok()?;
-        proxy
-            .get_connection_unix_process_id(BusName::Unique(sender.as_ref()))
-            .await
-            .inspect_err(|e| debug!("No pid for notification sender {sender}: {e}"))
-            .ok()
-    }
 }
 
 #[interface(name = "org.freedesktop.Notifications")]
@@ -176,10 +166,6 @@ impl NotificationDaemon {
         let revision = self.next_revision;
         self.revisions.insert(id, revision);
 
-        let sender_pid = match header.sender() {
-            Some(sender) => self.sender_pid(sender).await,
-            None => None,
-        };
         let icon = NotificationIcon::resolve(&app_name, &app_icon, &hints);
         let urgency = Urgency::from_hints(&hints);
         let notification = Notification {
@@ -194,7 +180,7 @@ impl NotificationDaemon {
             expire_timeout,
             timestamp: SystemTime::now(),
             urgency,
-            sender_pid,
+            sender: header.sender().map(|sender| sender.to_string()),
             icon,
         };
 
@@ -270,7 +256,7 @@ impl NotificationDaemon {
     /// would take the replacement down with it. Holding the interface lock over
     /// the check and both steps is what keeps that ordering decidable.
     ///
-    /// Returns whether `ActionInvoked` was emitted.
+    /// Returns whether `id` was closed, false when it was replaced since.
     pub async fn invoke_and_close(
         connection: &Connection,
         id: u32,
@@ -290,7 +276,6 @@ impl NotificationDaemon {
             return Ok(false);
         }
 
-        let invoked = action_key.is_some();
         if let Some(action_key) = action_key {
             connection
                 .emit_signal(
@@ -304,7 +289,7 @@ impl NotificationDaemon {
         }
 
         daemon.close_notification(id).await;
-        Ok(invoked)
+        Ok(true)
     }
 }
 
@@ -333,7 +318,7 @@ mod tests {
             expire_timeout: -1,
             timestamp: SystemTime::now(),
             urgency: Urgency::Normal,
-            sender_pid: None,
+            sender: None,
             icon: None,
         }
     }

@@ -15,6 +15,15 @@ pub mod tray;
 pub mod upower;
 pub mod xdg_icons;
 
+/// The pid of the process behind the D-Bus connection `name`.
+pub async fn connection_pid(conn: &zbus::Connection, name: &str) -> anyhow::Result<u32> {
+    let dbus = zbus::fdo::DBusProxy::new(conn).await?;
+
+    Ok(dbus
+        .get_connection_unix_process_id(name.try_into()?)
+        .await?)
+}
+
 #[derive(Debug, Clone)]
 pub enum ServiceEvent<S: ReadOnlyService> {
     Init(S),
