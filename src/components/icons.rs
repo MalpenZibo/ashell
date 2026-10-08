@@ -138,6 +138,7 @@ pub enum StaticIcon {
     BellBadge,
     BellOff,
     Delete,
+    QrCode,
 }
 
 impl StaticIcon {
@@ -260,6 +261,7 @@ impl StaticIcon {
             StaticIcon::BellBadge => "\u{eb9a}",
             StaticIcon::BellOff => "\u{ec08}",
             StaticIcon::Delete => "\u{f01b4}",
+            StaticIcon::QrCode => "\u{f0432}",
         }
     }
 

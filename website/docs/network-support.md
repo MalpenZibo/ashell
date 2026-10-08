@@ -48,6 +48,7 @@ network writes an entry to `/var/lib/iwd`, and removing it again requires
 | Temporary connections | ✅ | ❌ |
 | Airplane mode | ✅ | ✅ |
 | Connectivity state | ✅ | ✅ |
+| Share Wi-Fi (QR code) | ✅ | ❌ |
 
 A ❌ means the backend does not support that feature; the corresponding UI
 element is hidden or unavailable when running under that backend.
@@ -61,4 +62,7 @@ element is hidden or unavailable when running under that backend.
 - **Temporary connections** - When joining an open network, the "connect only
   this time" option is shown only under NetworkManager. Under IWD the option is
   hidden and any connection is saved to disk.
-
+- **Share Wi-Fi** - The QR code needs the saved passphrase, which NetworkManager
+  hands out over D-Bus. IWD keeps passphrases in root-only files and has no D-Bus
+  call to read them, so the share button is hidden under IWD. See
+  [Share Wi-Fi](./configuration/modules/settings.md#share-wi-fi).

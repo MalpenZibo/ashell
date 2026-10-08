@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use iced::futures::future::join_all;
-use log::{debug, error};
+use log::{debug, error, warn};
 use tokio::process::Command;
 use tokio::time::timeout;
 
@@ -11,7 +11,8 @@ use crate::{
         ButtonUIRef, MenuSize, collapsible,
         icons::{DynamicIcon, Icon, StaticIcon, icon, icon_button},
         menu::MenuType,
-        password_dialog, position_button, quick_setting_button, sub_menu_wrapper,
+        password_dialog, position_button, quick_setting_button, share_wifi_dialog,
+        sub_menu_wrapper,
     },
     config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
     modules::settings::{
@@ -27,7 +28,7 @@ use crate::{
 };
 use iced::{
     Element, Length, Subscription, SurfaceId, Task, Theme,
-    widget::{Column, Row, Space, container, row, space},
+    widget::{Column, Row, Space, container, image, row, space},
 };
 
 pub(crate) mod audio;
@@ -58,37 +59,21 @@ pub struct Settings {
 }
 
 #[derive(Debug, Clone)]
-enum NetworkDialogKind {
-    Password,
-    OpenNetworkWarning,
-}
-
-#[derive(Debug, Clone)]
-struct NetworkDialogState {
-    ssid: String,
-    password: Option<String>,
-    kind: NetworkDialogKind,
-    connect_once: bool,
-}
-
-impl NetworkDialogState {
-    fn new_password_dialog(ssid: String) -> Self {
-        Self {
-            ssid,
-            password: Some(String::new()),
-            kind: NetworkDialogKind::Password,
-            connect_once: false,
-        }
-    }
-
-    fn new_warning_dialog(ssid: String) -> Self {
-        Self {
-            ssid,
-            password: None,
-            kind: NetworkDialogKind::OpenNetworkWarning,
-            connect_once: false,
-        }
-    }
+enum NetworkDialogState {
+    Password {
+        ssid: String,
+        password: String,
+    },
+    OpenNetworkWarning {
+        ssid: String,
+        connect_once: bool,
+    },
+    ShareWifi {
+        ssid: String,
+        password: Option<String>,
+        error: Option<String>,
+        qr: Option<(image::Handle, u32)>,
+    },
 }
 
 fn focus_password_input() -> Task<Message> {
@@ -107,6 +92,7 @@ pub enum Message {
     Power(power::Message),
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
+    ShareDialog(share_wifi_dialog::Message),
     CustomButton(String),
     CustomButtonsStatus(Vec<(String, Option<bool>)>),
     MenuOpened,
@@ -309,18 +295,40 @@ impl Settings {
             Message::Network(msg) => match self.network.update(msg) {
                 network::Action::None => Action::None,
                 network::Action::RequestPasswordForSSID(ssid) => {
-                    self.network_dialog = Some(NetworkDialogState::new_password_dialog(ssid));
+                    self.network_dialog = Some(NetworkDialogState::Password {
+                        ssid,
+                        password: String::new(),
+                    });
                     self.network_dialog_show_password = false;
                     Action::Command(focus_password_input())
                 }
                 network::Action::RequestPassword(id, ssid) => {
-                    self.network_dialog = Some(NetworkDialogState::new_password_dialog(ssid));
+                    self.network_dialog = Some(NetworkDialogState::Password {
+                        ssid,
+                        password: String::new(),
+                    });
                     self.network_dialog_show_password = false;
                     Action::RequestKeyboardWithCommand(id, focus_password_input())
                 }
                 network::Action::ConfirmOpenNetwork(ssid) => {
-                    self.network_dialog = Some(NetworkDialogState::new_warning_dialog(ssid));
+                    self.network_dialog = Some(NetworkDialogState::OpenNetworkWarning {
+                        ssid,
+                        connect_once: false,
+                    });
                     self.network_dialog_show_password = false;
+                    Action::None
+                }
+                network::Action::OpenShareWifiDialog { ssid, outcome } => {
+                    let (password, error, qr_payload) =
+                        share_wifi_dialog::materialize(&ssid, outcome);
+                    self.network_dialog = Some(NetworkDialogState::ShareWifi {
+                        qr: qr_payload
+                            .as_deref()
+                            .and_then(share_wifi_dialog::qr_image_handle),
+                        ssid,
+                        password,
+                        error,
+                    });
                     Action::None
                 }
                 network::Action::Command(task) => Action::Command(task.map(Message::Network)),
@@ -387,8 +395,10 @@ impl Settings {
             }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
-                    if let Some(dialog) = &mut self.network_dialog {
-                        dialog.password = Some(password);
+                    if let Some(NetworkDialogState::Password { password: pw, .. }) =
+                        self.network_dialog.as_mut()
+                    {
+                        *pw = password;
                     }
 
                     Action::None
@@ -399,39 +409,40 @@ impl Settings {
                     Action::None
                 }
                 password_dialog::Message::ConnectOnceToggled(connect_once) => {
-                    if let Some(dialog) = &mut self.network_dialog {
-                        dialog.connect_once = connect_once;
+                    if let Some(NetworkDialogState::OpenNetworkWarning {
+                        connect_once: value,
+                        ..
+                    }) = self.network_dialog.as_mut()
+                    {
+                        *value = connect_once;
                     }
 
                     Action::None
                 }
                 password_dialog::Message::DialogConfirmed(id) => {
-                    let action = if let Some(dialog) = self.network_dialog.take() {
-                        let message = match dialog.kind {
-                            NetworkDialogKind::Password => {
-                                network::Message::PasswordDialogConfirmed(
-                                    dialog.ssid,
-                                    dialog.password.unwrap_or_default(),
-                                )
-                            }
-                            NetworkDialogKind::OpenNetworkWarning => {
-                                let connect_once = dialog.connect_once
-                                    && self.network.can_connect_once(&dialog.ssid);
-                                network::Message::OpenNetworkDialogConfirmed(
-                                    dialog.ssid,
-                                    connect_once,
-                                )
-                            }
-                        };
-
-                        match self.network.update(message) {
-                            network::Action::Command(task) => {
-                                Action::ReleaseKeyboardWithCommand(id, task.map(Message::Network))
-                            }
-                            _ => Action::ReleaseKeyboard(id),
+                    let message = match self.network_dialog.take() {
+                        Some(NetworkDialogState::Password { ssid, password }) => {
+                            Some(network::Message::PasswordDialogConfirmed(ssid, password))
                         }
-                    } else {
-                        Action::ReleaseKeyboard(id)
+                        Some(NetworkDialogState::OpenNetworkWarning { ssid, connect_once }) => {
+                            let connect_once = connect_once && self.network.can_connect_once(&ssid);
+                            Some(network::Message::OpenNetworkDialogConfirmed(
+                                ssid,
+                                connect_once,
+                            ))
+                        }
+                        Some(NetworkDialogState::ShareWifi { .. }) => {
+                            warn!("Ignoring password confirmation from the share Wi-Fi dialog");
+                            None
+                        }
+                        None => None,
+                    };
+
+                    let action = match message.map(|message| self.network.update(message)) {
+                        Some(network::Action::Command(task)) => {
+                            Action::ReleaseKeyboardWithCommand(id, task.map(Message::Network))
+                        }
+                        _ => Action::ReleaseKeyboard(id),
                     };
                     self.network_dialog_show_password = false;
                     action
@@ -441,6 +452,12 @@ impl Settings {
                     self.network_dialog_show_password = false;
 
                     Action::ReleaseKeyboard(id)
+                }
+            },
+            Message::ShareDialog(msg) => match msg {
+                share_wifi_dialog::Message::Close => {
+                    self.network_dialog = None;
+                    Action::None
                 }
             },
             Message::CustomButton(name) => {
@@ -610,16 +627,37 @@ impl Settings {
     ) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
         container(if let Some(dialog) = &self.network_dialog {
-            password_dialog::view(
-                id,
-                &dialog.ssid,
-                dialog.password.as_deref().unwrap_or(""),
-                self.network_dialog_show_password,
-                matches!(dialog.kind, NetworkDialogKind::OpenNetworkWarning),
-                self.network.can_connect_once(&dialog.ssid),
-                dialog.connect_once,
-            )
-            .map(Message::PasswordDialog)
+            match dialog {
+                NetworkDialogState::Password { ssid, password } => password_dialog::view(
+                    id,
+                    ssid,
+                    password,
+                    self.network_dialog_show_password,
+                    false,
+                    false,
+                    false,
+                )
+                .map(Message::PasswordDialog),
+                NetworkDialogState::OpenNetworkWarning { ssid, connect_once } => {
+                    password_dialog::view(
+                        id,
+                        ssid,
+                        "",
+                        self.network_dialog_show_password,
+                        true,
+                        self.network.can_connect_once(ssid),
+                        *connect_once,
+                    )
+                    .map(Message::PasswordDialog)
+                }
+                NetworkDialogState::ShareWifi {
+                    ssid,
+                    password,
+                    error,
+                    qr,
+                } => share_wifi_dialog::view(ssid, password.clone(), error.clone(), qr.clone())
+                    .map(Message::ShareDialog),
+            }
         } else {
             let battery_data = self
                 .power

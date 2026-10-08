@@ -32,6 +32,18 @@ password-dialog-connect-once = Connect only this time
 password-dialog-cancel = Cancel
 password-dialog-confirm = Confirm
 
+## Share Wi-Fi dialog
+share-wifi-title = Share Wi-Fi
+share-wifi-subtitle =
+    Scan this QR code with another device to join
+    "{ $ssid }"
+share-wifi-password-label = Wi-Fi password:
+share-wifi-password-open-network = Open network — no password required.
+share-wifi-password-unavailable-message = The password for this network is not readable, so it cannot be shared.
+share-wifi-unsupported-message = This network's authentication method cannot be shared via a QR code.
+share-wifi-error-message = Couldn't read the Wi-Fi password.
+share-wifi-close = Close
+
 ## OSD
 osd-airplane-toggle =
     { $state ->
