@@ -64,7 +64,8 @@ impl Snapshot {
             })
             .collect();
 
-        devices.sort_by(|a, b| a.name.cmp(&b.name));
+        // Same aliases are common (two "JBL Flip"): the path keeps their order stable
+        devices.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
 
         Self { adapter, devices }
     }
@@ -170,6 +171,7 @@ impl BluetoothDbus<'_> {
     interface = "org.freedesktop.DBus.ObjectManager"
 )]
 pub trait BluezObjectManager {
+    #[zbus(no_autostart)]
     fn get_managed_objects(&self) -> zbus::Result<ManagedObjects>;
 
     #[zbus(signal)]
@@ -191,13 +193,16 @@ pub trait Adapter {
     #[zbus(property)]
     fn set_powered(&self, value: bool) -> zbus::Result<()>;
 
+    #[zbus(no_autostart)]
     fn start_discovery(&self) -> zbus::Result<()>;
 
+    #[zbus(no_autostart)]
     fn stop_discovery(&self) -> zbus::Result<()>;
 
     #[zbus(property)]
     fn discovering(&self) -> zbus::Result<bool>;
 
+    #[zbus(no_autostart)]
     fn remove_device(&self, device: zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
 }
 
@@ -212,10 +217,13 @@ pub trait Device {
     #[zbus(property)]
     fn paired(&self) -> zbus::Result<bool>;
 
+    #[zbus(no_autostart)]
     fn pair(&self) -> zbus::Result<()>;
 
+    #[zbus(no_autostart)]
     fn connect(&self) -> zbus::Result<()>;
 
+    #[zbus(no_autostart)]
     fn disconnect(&self) -> zbus::Result<()>;
 }
 
@@ -283,6 +291,27 @@ mod tests {
         let names: Vec<_> = snapshot.devices.iter().map(|d| d.name.as_str()).collect();
         assert_eq!(names, ["Headphones", "Mouse"]);
         assert_eq!(snapshot.devices[1].battery, Some(80));
+    }
+
+    #[test]
+    fn same_alias_sorted_by_path() {
+        let objects = ManagedObjects::from([
+            (
+                path("/org/bluez/hci0/dev_B"),
+                device("JBL Flip", false, None),
+            ),
+            (
+                path("/org/bluez/hci0/dev_A"),
+                device("JBL Flip", false, None),
+            ),
+        ]);
+
+        let paths: Vec<_> = Snapshot::from_objects(&objects)
+            .devices
+            .into_iter()
+            .map(|d| d.path.to_string())
+            .collect();
+        assert_eq!(paths, ["/org/bluez/hci0/dev_A", "/org/bluez/hci0/dev_B"]);
     }
 
     #[test]

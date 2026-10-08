@@ -1,10 +1,13 @@
 use crate::{bus, rfkill, stream::channel};
 use dbus::{ADAPTER, BATTERY, BluetoothDbus, DEVICE};
 use futures::{
-    FutureExt, SinkExt, Stream, StreamExt, future::ready, stream::BoxStream, stream_select,
+    FutureExt, SinkExt, Stream, StreamExt,
+    future::{Either, ready, select},
+    stream::BoxStream,
+    stream_select,
 };
 use log::{debug, error, warn};
-use std::time::Duration;
+use std::{pin::pin, time::Duration};
 use zbus::{
     MatchRule, MessageStream, fdo::PropertiesChanged, message::Type, zvariant::OwnedObjectPath,
 };
@@ -64,6 +67,14 @@ enum Event {
     Changed,
 }
 
+impl Event {
+    fn apply(self, bluez_running: &mut bool) {
+        if let Self::Bluez(running) = self {
+            *bluez_running = running;
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Bluetooth {
     conn: zbus::Connection,
@@ -91,21 +102,41 @@ impl Bluetooth {
 
             let mut bluez_running = false;
             let mut last = None;
+            // Something changed while the last read was in flight: read again
+            let mut stale = false;
 
-            while let Some(event) = events.next().await {
+            loop {
+                if !stale {
+                    let Some(event) = events.next().await else {
+                        return;
+                    };
+                    event.apply(&mut bluez_running);
+                }
+                stale = false;
+
                 // One action fires a burst of signals (pairing: Paired, Connected,
                 // Battery1, Percentage): read once for all those already queued.
-                let mut event = Some(event);
-                while let Some(current) = event {
-                    if let Event::Bluez(running) = current {
-                        bluez_running = running;
-                    }
-                    event = events.next().now_or_never().flatten();
+                while let Some(event) = events.next().now_or_never().flatten() {
+                    event.apply(&mut bluez_running);
                 }
 
                 // Reading bluez while it isn't running would activate it
                 let data = if bluez_running {
-                    match Self::read_data(&conn).await {
+                    // Keep consuming events while waiting for the reply: once a zbus
+                    // signal queue is full, the connection stops reading replies too.
+                    let mut read = pin!(Self::read_data(&conn));
+                    let result = loop {
+                        match select(read.as_mut(), events.next()).await {
+                            Either::Left((result, _)) => break result,
+                            Either::Right((Some(event), _)) => {
+                                event.apply(&mut bluez_running);
+                                stale = true;
+                            }
+                            Either::Right((None, _)) => return,
+                        }
+                    };
+
+                    match result {
                         Ok(data) => data,
                         Err(err) => {
                             warn!("Failed to read bluetooth data: {err}");
@@ -185,6 +216,7 @@ impl Bluetooth {
         // One rule for every bluez object instead of a stream per device
         let rule = MatchRule::builder()
             .msg_type(Type::Signal)
+            .sender(BLUEZ)?
             .interface("org.freedesktop.DBus.Properties")?
             .member("PropertiesChanged")?
             .path_namespace("/org/bluez")?
@@ -193,7 +225,7 @@ impl Bluetooth {
             .await?
             .filter_map(|message| ready(message.ok().filter(shows_change).map(|_| {})));
 
-        let changed = stream_select!(topology, properties, rfkill::soft_block_changes().await?)
+        let changed = stream_select!(topology, properties, rfkill::soft_block_changes())
             .map(|_| Event::Changed);
 
         Ok(stream_select!(bluez, changed).boxed())
