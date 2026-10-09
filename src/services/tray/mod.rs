@@ -124,34 +124,13 @@ impl From<&str> for ItemStatus {
     }
 }
 
-/// SNI tooltip (`org.kde.StatusNotifierItem` `ToolTip`).
-/// Protocol surface; not yet surfaced in the UI.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Default)]
-pub struct ToolTip {
-    pub icon_name: Option<String>,
-    pub icon_pixmap: Option<dbus::Icon>,
-    pub title: String,
-    pub description: String,
-}
-
 #[derive(Debug, Clone)]
 pub struct StatusNotifierItem {
     pub name: String,
     pub icon: Option<TrayIcon>,
     pub menu: Layout,
-    /// SNI `Category` (`ApplicationStatus` / `Communications` / ...).
-    /// Read for completeness; not yet surfaced in the UI.
-    #[allow(dead_code)]
-    pub category: String,
     /// SNI `Status` (`Passive` / `Active` / `NeedsAttention`).
     pub status: ItemStatus,
-    /// SNI `Id` / `ItemId` (stable app id). Read for completeness.
-    #[allow(dead_code)]
-    pub item_id: String,
-    /// SNI `Title` (tooltip title). Read for completeness.
-    #[allow(dead_code)]
-    pub title: String,
     /// Attention icon (used when `NeedsAttention`).
     pub attention_icon: Option<TrayIcon>,
     /// Overlay icon.
@@ -184,18 +163,15 @@ impl StatusNotifierItem {
         // Full SNI properties. Each read is guarded — some clients (or
         // clients that expose only a subset) may not implement a property;
         // fall back to a default rather than failing.
-        let category = item_proxy.category().await.unwrap_or_default();
+        // A client that does not implement `Status` (the read fails) is not
+        // necessarily a passive item: defaulting to `Passive` would hide it
+        // from the tray entirely. Only an explicit `Passive` reply should
+        // hide an item, so fall back to `Active`.
         let status_str = item_proxy
             .status()
             .await
-            .unwrap_or_else(|_| "Passive".to_owned());
+            .unwrap_or_else(|_| "Active".to_owned());
         let status = ItemStatus::from(status_str.as_str());
-        let item_id = item_proxy
-            .id()
-            .await
-            .or(item_proxy.item_id().await)
-            .unwrap_or_default();
-        let title = item_proxy.title().await.unwrap_or_default();
 
         // Attention/overlay icons: pixmap first (preferred), then icon name.
         let attention_pixmap = item_proxy
@@ -237,10 +213,7 @@ impl StatusNotifierItem {
             name,
             icon,
             menu,
-            category,
             status,
-            item_id,
-            title,
             attention_icon,
             overlay_icon,
             item_proxy,
@@ -544,7 +517,20 @@ impl TrayService {
                     Ok(mut events) => {
                         while let Some(event) = events.next().await {
                             debug!("tray data {event:?}");
+
+                            // Per-item signal subscriptions (icon/menu/status
+                            // changes) are only created in `events()` for the
+                            // items present at call time. A newly registered
+                            // item arrives via the `Registered` signal without
+                            // any subscriptions, so restart the event loop to
+                            // rebuild the stream including the new item.
+                            let reload_events = matches!(event, TrayEvent::Registered(_));
+
                             let _ = output.send(ServiceEvent::Update(event)).await;
+
+                            if reload_events {
+                                break;
+                            }
                         }
 
                         State::Active(conn)
@@ -592,16 +578,17 @@ impl ReadOnlyService for TrayService {
         match event {
             TrayEvent::Registered(new_item) => {
                 let new_item = *new_item;
-                // Dedup by stable SNI `Id` first (some clients register under
-                // multiple names — e.g. unique-name and well-known-name — but
-                // share the same `Id`), then fall back to `name`-based lookup.
-                let existing_idx = self.data.0.iter().position(|item| {
-                    (!new_item.item_id.is_empty() && item.item_id == new_item.item_id)
-                        || item.name == new_item.name
-                });
-                match existing_idx {
-                    Some(idx) => {
-                        self.data.0[idx] = new_item;
+                // The watcher registers each sender (unique bus name) only
+                // once, so a duplicate `Registered` cannot arrive; replace
+                // by name as a defensive fallback, otherwise append.
+                match self
+                    .data
+                    .0
+                    .iter_mut()
+                    .find(|item| item.name == new_item.name)
+                {
+                    Some(existing_item) => {
+                        *existing_item = new_item;
                     }
                     _ => {
                         self.data.0.push(new_item);
@@ -648,18 +635,6 @@ impl ReadOnlyService for TrayService {
 pub enum TrayCommand {
     MenuSelected(String, i32),
     Activate(String),
-    /// SNI `ContextMenu` — request the menu be shown at (x, y).
-    /// Protocol surface; not yet triggered from the UI.
-    #[allow(dead_code)]
-    ContextMenu(String, i32, i32),
-    /// SNI `SecondaryActivate` — secondary click.
-    /// Protocol surface; not yet triggered from the UI.
-    #[allow(dead_code)]
-    SecondaryActivate(String, i32, i32),
-    /// SNI `Scroll` — scroll delta + orientation (`Horizontal`/`Vertical`).
-    /// Protocol surface; not yet triggered from the UI.
-    #[allow(dead_code)]
-    Scroll(String, i32, &'static str),
 }
 
 impl Service for TrayService {
@@ -701,57 +676,6 @@ impl Service for TrayService {
                             async move {
                                 debug!("Activate tray item {name}");
                                 let _ = proxy.activate(0, 0).await;
-                            }
-                        },
-                        |_| ServiceEvent::Update(TrayEvent::None),
-                    )
-                } else {
-                    Task::none()
-                }
-            }
-            TrayCommand::ContextMenu(name, x, y) => {
-                let item = self.data.iter().find(|item| item.name == name);
-                if let Some(item) = item {
-                    Task::perform(
-                        {
-                            let proxy = item.item_proxy.clone();
-                            async move {
-                                debug!("Context menu tray item {name} at ({x}, {y})");
-                                let _ = proxy.context_menu(x, y).await;
-                            }
-                        },
-                        |_| ServiceEvent::Update(TrayEvent::None),
-                    )
-                } else {
-                    Task::none()
-                }
-            }
-            TrayCommand::SecondaryActivate(name, x, y) => {
-                let item = self.data.iter().find(|item| item.name == name);
-                if let Some(item) = item {
-                    Task::perform(
-                        {
-                            let proxy = item.item_proxy.clone();
-                            async move {
-                                debug!("Secondary activate tray item {name} at ({x}, {y})");
-                                let _ = proxy.secondary_activate(x, y).await;
-                            }
-                        },
-                        |_| ServiceEvent::Update(TrayEvent::None),
-                    )
-                } else {
-                    Task::none()
-                }
-            }
-            TrayCommand::Scroll(name, delta, orientation) => {
-                let item = self.data.iter().find(|item| item.name == name);
-                if let Some(item) = item {
-                    Task::perform(
-                        {
-                            let proxy = item.item_proxy.clone();
-                            async move {
-                                debug!("Scroll tray item {name} by {delta} ({orientation})");
-                                let _ = proxy.scroll(delta, orientation).await;
                             }
                         },
                         |_| ServiceEvent::Update(TrayEvent::None),

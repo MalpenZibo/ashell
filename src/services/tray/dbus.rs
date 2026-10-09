@@ -16,6 +16,16 @@ const NAME: WellKnownName =
     WellKnownName::from_static_str_unchecked("org.kde.StatusNotifierWatcher");
 const OBJECT_PATH: &str = "/StatusNotifierWatcher";
 
+/// How many times the `NameOwnerChanged` fast path re-probes a
+/// `StatusNotifierItem`-suffixed name whose item object is not ready yet.
+/// Clients grab their well-known name *before* exporting `/StatusNotifierItem`
+/// (startup race), so the first probe can fire while the object does not
+/// exist yet. Re-probing briefly closes that window; without it the sender
+/// would be registered into `items` before its properties are readable and
+/// the item would be lost forever (every later probe is deduped on sender).
+const READY_PROBE_ATTEMPTS: usize = 6;
+const READY_PROBE_INTERVAL: Duration = Duration::from_secs(1);
+
 #[derive(Debug, Default)]
 pub struct StatusNotifierWatcher {
     items: Vec<(UniqueName<'static>, String)>,
@@ -52,10 +62,14 @@ impl StatusNotifierWatcher {
             let unique_name = internal_connection.unique_name().map(|x| x.as_ref());
 
             let mut name_owner_changed_stream = name_owner_changed_stream.fuse();
-            // Continuous drain loop: probe well-known names every 3s (not 30s).
-            // 30s is too slow for late-start — a client started after ashell
-            // would take up to 30s to appear.
-            let mut interval = tokio::time::interval(Duration::from_secs(3));
+            // Discovery tick: a slow self-healing fallback. Late-starting
+            // clients are caught by the `NameOwnerChanged` fast path below
+            // (probe a name when it appears, with a short readiness retry),
+            // and the full scan at startup covers names that already existed.
+            // The periodic scan only catches the remaining case — an item
+            // whose bus name predates this watcher but whose item object
+            // appeared later — so it can stay slow.
+            let mut interval = tokio::time::interval(Duration::from_secs(30));
 
             loop {
                 tokio::select! {
@@ -72,30 +86,49 @@ impl StatusNotifierWatcher {
                                 info!("Lost bus name: {NAME}");
                                 have_bus_name = false;
                             }
-                        } else if let BusName::Unique(name) = &args.name {
-                            let mut interface = internal_interface.get_mut().await;
-                            if let Some(idx) = interface
-                                .items
-                                .iter()
-                                .position(|(unique_name, _)| unique_name == name)
-                            {
-                                let emitter = match
-                                    SignalEmitter::new(&internal_connection, OBJECT_PATH)
+                        } else if args.new_owner.as_ref().is_none() {
+                            // Name left the bus: if it owned a tracked SNI
+                            // item, emit `ItemUnregistered` and drop it.
+                            if let BusName::Unique(name) = &args.name {
+                                let mut interface = internal_interface.get_mut().await;
+                                if let Some(idx) = interface
+                                    .items
+                                    .iter()
+                                    .position(|(unique_name, _)| unique_name == name)
                                 {
-                                    Ok(e) => e,
-                                    Err(e) => {
-                                        warn!("Failed to create signal emitter: {e}");
-                                        continue;
+                                    let emitter = match
+                                        SignalEmitter::new(&internal_connection, OBJECT_PATH)
+                                    {
+                                        Ok(e) => e,
+                                        Err(e) => {
+                                            warn!("Failed to create signal emitter: {e}");
+                                            continue;
+                                        }
+                                    };
+                                    let service = interface.items.remove(idx).1;
+                                    if let Err(e) = StatusNotifierWatcher::status_notifier_item_unregistered(
+                                        &emitter, &service,
+                                    )
+                                    .await {
+                                        warn!("Failed to emit item_unregistered signal: {e}");
                                     }
-                                };
-                                let service = interface.items.remove(idx).1;
-                                if let Err(e) = StatusNotifierWatcher::status_notifier_item_unregistered(
-                                    &emitter, &service,
-                                )
-                                .await {
-                                    warn!("Failed to emit item_unregistered signal: {e}");
                                 }
                             }
+                        } else {
+                            // A name appeared: probe it (with a short
+                            // readiness retry) instead of waiting for the
+                            // periodic discovery tick, so a late-starting
+                            // client shows up immediately. Run outside the
+                            // select loop so a slow/unresponsive owner cannot
+                            // stall signal handling; the sender-based dedup
+                            // in `register_status_notifier_item_manual` makes
+                            // racing with the periodic scan harmless.
+                            let conn = internal_connection.clone();
+                            let interface = internal_interface.clone();
+                            let name = args.name.to_string();
+                            tokio::spawn(async move {
+                                Self::probe_and_register_name(&conn, &interface, &name).await;
+                            });
                         }
                     }
                     _ = interval.tick() => {
@@ -181,17 +214,6 @@ impl StatusNotifierWatcher {
         let dbus_proxy = DBusProxy::new(conn).await?;
         let names = dbus_proxy.list_names().await?;
 
-        // Snapshot of tracked senders (owned) so we can dedup both
-        // well-known and unique-name probes below without borrowing
-        // `interface` across the concurrent probes.
-        let tracked: std::collections::HashSet<String> = interface
-            .get()
-            .await
-            .items
-            .iter()
-            .map(|(s, _)| s.as_str().to_owned())
-            .collect();
-
         // Probe every name (well-known AND unique) concurrently so a slow
         // or unresponsive name does not block the watcher's event loop.
         // Probing unique names is essential: Qt/GTK/Chromium SNI clients
@@ -199,7 +221,7 @@ impl StatusNotifierWatcher {
         // `RegisterStatusNotifierItem` method and live under a unique
         // name; their item may not be reachable from the well-known
         // name, and a missed registration signal means the item only
-        // appeared after a restart. Concurrent probes keep the 3s tick
+        // appeared after a restart. Concurrent probes keep the tick
         // bounded regardless of how many names are on the bus.
         let futures = names
             .into_iter()
@@ -209,64 +231,107 @@ impl StatusNotifierWatcher {
             })
             .map(|name| {
                 let conn = conn.clone();
-                let dbus_proxy = dbus_proxy.clone();
                 let interface = interface.clone();
-                let tracked = tracked.clone();
                 async move {
-                    if !Self::is_status_notifier_item(&conn, name.as_str()).await {
-                        return;
-                    }
-                    let sender = match dbus_proxy.get_name_owner(BusName::from(name.clone())).await
-                    {
-                        Ok(owner) => owner,
-                        Err(_) => return,
-                    };
-                    // Skip if already tracked (by the method handler, the
-                    // `RegisteredItems` sync, or a previous probe) to
-                    // avoid re-emitting `StatusNotifierItemRegistered`.
-                    if tracked.contains(sender.as_str()) {
-                        return;
-                    }
-                    let emitter = match SignalEmitter::new(&conn, OBJECT_PATH) {
-                        Ok(e) => e,
-                        Err(e) => {
-                            warn!("Failed to create signal emitter: {e}");
-                            return;
-                        }
-                    };
-                    let mut watcher = interface.get_mut().await;
-                    watcher
-                        .register_status_notifier_item_manual(
-                            "/StatusNotifierItem",
-                            sender.into_inner(),
-                            &emitter,
-                        )
-                        .await;
+                    Self::probe_and_register_name(&conn, &interface, name.as_str()).await;
                 }
             });
         iced::futures::future::join_all(futures).await;
         Ok(())
     }
 
-    /// Probe whether a well-known name exposes an `org.kde.StatusNotifierItem`
-    /// interface. Some SNI clients (Qt `QSystemTrayIcon`, GTK `GtkStatusIcon`,
+    /// Probe a single bus name for an `org.kde.StatusNotifierItem` interface
+    /// and register the item if found and not already tracked. Shared by the
+    /// periodic discovery tick and the `NameOwnerChanged` fast path.
+    async fn probe_and_register_name(
+        conn: &Connection,
+        interface: &zbus::object_server::InterfaceRef<StatusNotifierWatcher>,
+        name: &str,
+    ) {
+        let dbus_proxy = match DBusProxy::new(conn).await {
+            Ok(p) => p,
+            Err(_) => return,
+        };
+        let bus_name = match BusName::try_from(name) {
+            Ok(n) => n,
+            Err(_) => return,
+        };
+        let sender = match dbus_proxy.get_name_owner(bus_name).await {
+            Ok(owner) => owner,
+            Err(_) => return,
+        };
+        // Skip if already tracked (by the method handler, the
+        // `RegisteredItems` sync, or a previous probe) to avoid
+        // re-emitting `StatusNotifierItemRegistered` for the same item.
+        // Checked *before* the readiness probe so the periodic scan does
+        // not re-probe items that are already registered.
+        let tracked: std::collections::HashSet<String> = interface
+            .get()
+            .await
+            .items
+            .iter()
+            .map(|(s, _)| s.as_str().to_owned())
+            .collect();
+        if tracked.contains(sender.as_str()) {
+            return;
+        }
+        // A name containing the `StatusNotifierItem` suffix is almost
+        // certainly an SNI item, but its owner may not have exported the
+        // `/StatusNotifierItem` object yet when the name appeared (clients
+        // grab their well-known name first, set up the object later). Re-probe
+        // briefly so we do not register — and burn the item in `items` — at a
+        // moment when the UI still cannot read its properties. Names that do
+        // not look like SNI (e.g. unique names probed by the periodic scan)
+        // are checked once, to avoid a re-probe storm whenever a process
+        // appears on the bus.
+        let attempts = if name.contains("StatusNotifierItem") {
+            READY_PROBE_ATTEMPTS
+        } else {
+            1
+        };
+        for attempt in 0..attempts {
+            if Self::is_status_notifier_item(conn, name).await {
+                let emitter = match SignalEmitter::new(conn, OBJECT_PATH) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        warn!("Failed to create signal emitter: {e}");
+                        return;
+                    }
+                };
+                let mut watcher = interface.get_mut().await;
+                watcher
+                    .register_status_notifier_item_manual(
+                        "/StatusNotifierItem",
+                        sender.into_inner(),
+                        &emitter,
+                    )
+                    .await;
+                return;
+            }
+            if attempt + 1 < attempts {
+                tokio::time::sleep(READY_PROBE_INTERVAL).await;
+            }
+        }
+    }
+
+    /// Probe whether a name exposes an `org.kde.StatusNotifierItem` interface.
+    /// Some SNI clients (Qt `QSystemTrayIcon`, GTK `GtkStatusIcon`,
     /// Chromium/CEF) register the item under a well-known name that does *not*
     /// contain the `StatusNotifierItem` suffix, so a suffix-only match misses
     /// them. We probe the standard object path `/StatusNotifierItem` with a
     /// short timeout (500ms) so discovery stays fast for late-start.
+    ///
+    /// The object is always verified rather than trusting the name suffix:
+    /// a client grabs its well-known name *before* exporting the item object,
+    /// so a suffix-only match would let us register — and burn — an item
+    /// whose properties the UI still cannot read.
     async fn is_status_notifier_item(conn: &Connection, name: &str) -> bool {
-        // Fast path: name contains the suffix (most clients, e.g.
-        // `org.kde.StatusNotifierItem-<pid>-<n>` or `org.gnome.StatusNotifierItem`).
-        if name.contains("StatusNotifierItem") {
-            return true;
-        }
-
-        // Slow path: probe the standard object path for the SNI interface.
+        // Probe the standard object path for the SNI interface.
         // A single property read (`IconName`) confirms the item exists.
         // Disable property caching so zbus does not call `GetAll` on
         // `/StatusNotifierItem` at `build()` time — that emits a WARN
         // ("Object does not exist at path /StatusNotifierItem") on every
-        // 3s discovery tick for names that do not yet (or no longer)
+        // discovery probe for names that do not yet (or no longer)
         // expose the object. The probe only needs a single method
         // call (`icon_name`), which works without a cached property.
         let builder = match StatusNotifierItemProxy::builder(conn)
@@ -444,22 +509,9 @@ pub trait StatusNotifierItem {
     #[zbus(property)]
     fn menu(&self) -> zbus::Result<OwnedObjectPath>;
 
-    /// SNI `Category`: `ApplicationStatus` / `Communications` /
-    /// `SystemServices` / `Hardware`.
-    #[zbus(property)]
-    fn category(&self) -> zbus::Result<String>;
-
     /// SNI `Status`: `Passive` / `Active` / `NeedsAttention`.
     #[zbus(property)]
     fn status(&self) -> zbus::Result<String>;
-
-    /// SNI `Title` (tooltip title).
-    #[zbus(property)]
-    fn title(&self) -> zbus::Result<String>;
-
-    /// SNI `Id`: stable application id.
-    #[zbus(property)]
-    fn id(&self) -> zbus::Result<String>;
 
     /// SNI `IconThemePath`: extra icon theme search path.
     #[zbus(property)]
@@ -481,10 +533,6 @@ pub trait StatusNotifierItem {
     #[zbus(property)]
     fn overlay_icon_pixmap(&self) -> zbus::Result<Vec<Icon>>;
 
-    /// SNI `ItemId` (stable id) — some clients expose it as `Id` instead.
-    #[zbus(property)]
-    fn item_id(&self) -> zbus::Result<String>;
-
     #[zbus(signal)]
     async fn new_icon(&self) -> zbus::Result<()>;
 
@@ -493,15 +541,6 @@ pub trait StatusNotifierItem {
     async fn new_status(&self, status: &str) -> zbus::Result<()>;
 
     fn activate(&self, x: i32, y: i32) -> zbus::Result<()>;
-
-    /// SNI `ContextMenu` — request the menu be shown at (x, y).
-    fn context_menu(&self, x: i32, y: i32) -> zbus::Result<()>;
-
-    /// SNI `SecondaryActivate` — secondary click.
-    fn secondary_activate(&self, x: i32, y: i32) -> zbus::Result<()>;
-
-    /// SNI `Scroll` — scroll delta + orientation (`Horizontal`/`Vertical`).
-    fn scroll(&self, delta: i32, orientation: &str) -> zbus::Result<()>;
 }
 
 #[derive(Clone, Debug, Type)]
