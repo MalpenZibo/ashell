@@ -29,8 +29,21 @@ password-dialog-open-network-warning =
     «{ $ssid }» — открытая сеть. Данные, передаваемые по этому соединению, могут быть видны другим.
     Подключиться всё равно?
 password-dialog-insert-password = Введите пароль для подключения к: { $ssid }
+password-dialog-connect-once = Подключить только в этот раз
 password-dialog-cancel = Отмена
 password-dialog-confirm = Подтвердить
+
+## Диалог «Поделиться Wi-Fi»
+share-wifi-title = Поделиться Wi-Fi
+share-wifi-subtitle =
+    Отсканируйте этот QR-код другим устройством,
+    чтобы подключиться к "{ $ssid }"
+share-wifi-password-label = Пароль Wi-Fi:
+share-wifi-password-open-network = Открытая сеть — пароль не требуется.
+share-wifi-password-unavailable-message = Пароль этой сети нельзя прочитать, поэтому поделиться им невозможно.
+share-wifi-unsupported-message = Метод аутентификации этой сети нельзя передать через QR-код.
+share-wifi-error-message = Не удалось прочитать пароль Wi-Fi.
+share-wifi-close = Закрыть
 
 ## OSD
 osd-airplane-toggle =
@@ -92,9 +105,19 @@ settings-power-status-discharging = Разряжается
 settings-power-status-not-charging = Не заряжается
 settings-power-status-unknown = Неизвестно
 settings-power-status-full = Полная зарядка
+settings-power-health = Состояние { $percentage }% ({ $energy_full } / { $energy_full_design } Вт·ч)
+settings-power-charge-cycles =
+    { $count ->
+        [one] { $count } цикл зарядки
+       [few] { $count } цикла зарядки
+      *[other] { $count } циклов зарядки
+    }
 
 ## Настройки — блокировка простоя
 settings-idle-inhibitor = Блокировка простоя
+
+## Настройки — «Не беспокоить»
+settings-dnd = Не беспокоить
 
 ## Настройки — всплывающие подсказки
 settings-tooltip-empty = Нечего показать
