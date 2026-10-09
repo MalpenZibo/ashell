@@ -98,11 +98,16 @@ For binary distribution, runtime dependencies are declared in `Cargo.toml` metad
 ```toml
 [package.metadata.nfpm]
 provides = ["ashell"]
-depends = ["libxkbcommon", "dbus"]
 
-[package.metadata.nfpm.deb]
-depends = ["libwayland-client0", "libpipewire-0.3-0t64", "libpulse0"]
+[package.metadata.nfpm.overrides.deb]
+depends = ["libxkbcommon0", "libwayland-client0", "libpipewire-0.3-0t64", "libpulse0", "libudev1", "dbus"]
 
-[package.metadata.nfpm.rpm]
-depends = ["libwayland-client", "pipewire-libs", "pulseaudio-libs"]
+[package.metadata.nfpm.overrides.rpm]
+depends = ["libxkbcommon", "libwayland-client", "pipewire-libs", "pulseaudio-libs", "systemd-libs", "dbus"]
 ```
+
+Dependencies go under `overrides` because package names differ per distro
+(`libxkbcommon0` on Debian/Ubuntu, `libxkbcommon` on Fedora). cargo-nfpm ignores
+`depends` in the plain `[package.metadata.nfpm.deb]` / `.rpm` tables. When adding
+a crate that links a new system library, add it to both lists. Check the result
+with `readelf -d target/release/ashell | grep NEEDED`.
