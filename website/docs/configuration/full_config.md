@@ -234,6 +234,7 @@ enabled = false   # (default)
 
 [appearance]
 # font_name = "Sans"           # (default: None) custom font family
+# font_weight = "normal"       # (default) thin|extralight|light|normal|medium|semibold|bold|extrabold|black
 # scale_factor = 1.0           # (default) range: 0.0 < x <= 2.0
 # opacity = 1.0                # (default) range: 0.0 to 1.0, every surface ashell draws
                                # or a table: [appearance.opacity] with default/bar/menu/osd/notifications
