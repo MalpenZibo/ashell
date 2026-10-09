@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://malpenzibo.github.io/ashell/docs/intro
+    about: Installation, configuration, and compositor support
+  - name: Troubleshooting
+    url: https://malpenzibo.github.io/ashell/docs/configuration/troubleshooting
+    about: Common issues and quick fixes

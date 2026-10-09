@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest a new feature or an improvement to an existing one
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion!
+        Please search [existing issues](https://github.com/MalpenZibo/ashell/issues) first, someone may have asked for the same thing already.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What would you like ashell to do, and why? If you have an idea of how it could work, describe it here too.
+      placeholder: I'd like to see ... in the bar, because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you use today, or how other bars solve this.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Mockups, screenshots, links, or anything else that helps.
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to work on a pull request for this

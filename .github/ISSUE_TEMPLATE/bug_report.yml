@@ -1,0 +1,66 @@
+name: Bug report
+description: Something in ashell is broken or behaves unexpectedly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+        Please check the [troubleshooting guide](https://malpenzibo.github.io/ashell/docs/configuration/troubleshooting) and search [existing issues](https://github.com/MalpenZibo/ashell/issues) first.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect instead? Include how to trigger it if you know.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ashell version
+      description: Output of `ashell -V`
+      placeholder: ashell 0.11.0 (8623dfb1)
+    validations:
+      required: true
+
+  - type: textarea
+    id: system
+    attributes:
+      label: System information
+      description: |
+        Output of `fastfetch --logo none --pipe` (OS, compositor, GPU, drivers).
+        If you don't have fastfetch installed, list your distro, compositor and version, and GPU manually.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Relevant parts of `~/.config/ashell/config.toml`. Leave empty if you use the default config.
+      render: toml
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Run `RUST_LOG=debug ashell` and paste the output around the moment the bug happens.
+        By default ashell also writes its log to `$XDG_RUNTIME_DIR/ashell_rCURRENT.log`.
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Screenshots, recordings, or anything else that helps.
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to work on a fix for this
