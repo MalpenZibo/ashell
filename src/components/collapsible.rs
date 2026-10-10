@@ -5,12 +5,43 @@ use iced::{
         Clipboard, Layout, Shell, Widget, event, layout, mouse, overlay, renderer,
         widget::{Operation, Tree, tree},
     },
+    touch,
 };
 use std::time::{Duration, Instant};
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
 pub const DEFAULT_DURATION: Duration = Duration::from_millis(100);
+
+/// Height below which the collapsible counts as invisible. Shared with the
+/// `draw` skip so the layout and the drawn band cannot disagree.
+const MIN_VISIBLE_HEIGHT: f32 = 0.5;
+
+/// Whether `event` should be forwarded to the content.
+///
+/// The content is laid out at natural height inside a node sized to the
+/// animated height, so it overflows that node while collapsing. `draw` clips
+/// it away, but descendants hit-test against their own layout, never an
+/// ancestor's, so without this gate a collapsing sub-menu keeps its buttons
+/// live under whatever now occupies that space.
+fn forward_to_content(event: &event::Event, cursor: mouse::Cursor, visible: Rectangle) -> bool {
+    let gated = matches!(
+        event,
+        event::Event::Mouse(
+            mouse::Event::CursorEntered
+                | mouse::Event::CursorLeft
+                | mouse::Event::CursorMoved { .. }
+                | mouse::Event::ButtonPressed(_)
+                | mouse::Event::WheelScrolled { .. }
+        ) | event::Event::Touch(
+            touch::Event::FingerPressed { .. } | touch::Event::FingerMoved { .. }
+        )
+    );
+
+    // Releases and FingerLost still reach the content: a button pressed while
+    // visible has to disarm once the cursor leaves the band.
+    !gated || cursor.is_over(visible)
+}
 
 struct State {
     height_anim: Animation<f32>,
@@ -180,6 +211,12 @@ where
             target_height
         };
 
+        // `draw` skips anything thinner than `MIN_VISIBLE_HEIGHT`, so drop the
+        // child rather than hang a full-height subtree off an invisible node.
+        if display_height < MIN_VISIBLE_HEIGHT {
+            return layout::Node::new(Size::new(child_width, display_height));
+        }
+
         let positioned_child = child_node.translate(Vector::new(0.0, self.open_padding_top));
         layout::Node::with_children(
             Size::new(child_width, display_height),
@@ -198,7 +235,9 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        if let Some(child_layout) = layout.children().next() {
+        if let Some(child_layout) = layout.children().next()
+            && forward_to_content(event, cursor, layout.bounds())
+        {
             self.content.as_widget_mut().update(
                 &mut tree.children[0],
                 event,
@@ -231,7 +270,7 @@ where
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
-        if bounds.height < 0.5 || layout.children().next().is_none() {
+        if bounds.height < MIN_VISIBLE_HEIGHT || layout.children().next().is_none() {
             return;
         }
         // A nested scrollable re-clips to its own bounds ∩ viewport (the layer
@@ -278,7 +317,9 @@ where
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
-        if let Some(child_layout) = layout.children().next() {
+        if let Some(child_layout) = layout.children().next()
+            && cursor.is_over(layout.bounds())
+        {
             self.content.as_widget().mouse_interaction(
                 &tree.children[0],
                 child_layout,
