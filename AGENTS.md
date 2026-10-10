@@ -3,7 +3,7 @@
 ## Quick reference
 
 ```bash
-make check    # format check + cargo check + clippy -D warnings (run before pushing)
+make check    # format check + cargo check + clippy -D warnings on the whole workspace (run before pushing)
 make build    # cargo build --release
 make fmt      # cargo fmt
 make start    # run ./target/release/ashell
@@ -40,16 +40,19 @@ src/
 ├── components/          # shared UI components, icons
 ├── modules/             # UI modules (clock, workspaces, settings, tray, etc.)
 │   └── settings/        # settings sub-panels (audio, network, bluetooth, power, brightness)
-├── services/            # backend services (D-Bus, IPC, system integration)
+├── services/            # iced glue (ReadOnlyService/Service) + services not yet migrated to ashell-services
 │   ├── compositor/      # Hyprland/Niri/generic Wayland abstraction
 │   ├── network/         # NetworkManager + IWD backends
-│   ├── bluetooth/
 │   ├── mpris/           # media player control
 │   ├── tray/
 │   └── upower/          # battery/power
 ├── widgets/             # custom iced widgets (centerbox, position_button, menu_wrapper)
 └── utils/
+crates/
+└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth
 ```
+
+The repo is a Cargo workspace: the root package is the `ashell` binary, `crates/ashell-services` is a library member.
 
 ## Key system dependencies
 
@@ -94,7 +97,7 @@ Scope examples: `fix(brightness)`, `feat(system_info)`, `fix(network)`
 ## Architecture patterns
 
 - **Elm architecture:** `App` struct holds all state. `Message` enum drives updates. `update()` returns `Task<Message>` for async work.
-- **Services** are backend abstractions (D-Bus, IPC). Two traits: `ReadOnlyService` and `Service` (mutable).
+- **Services** are backend abstractions (D-Bus, IPC). Two traits: `ReadOnlyService` and `Service` (mutable). Services moved to `ashell-services` expose a plain API with no trait (a cloneable handle with `execute(command)` and an updates `Stream` that starts with the current state); a module in `src/services/` wraps each one into the iced traits.
 - **Modules** are UI components (workspaces, clock, settings). Each implements `view()` returning iced `Element`.
 - **Compositor abstraction:** the `CompositorChoice` enum routes to per-backend modules (Hyprland, Niri, generic Wayland), each exposing `is_available`/`run_listener`/`execute_command`, auto-detected at runtime.
 - **Config hot-reload:** inotify file watcher triggers `ConfigChanged` message on config file changes.

@@ -21,7 +21,6 @@ use iced::{
     alignment::{Horizontal, Vertical},
     widget::{Column, MouseArea, Row, column, container, row, text},
 };
-use itertools::Itertools;
 use zbus::zvariant::OwnedObjectPath;
 
 #[derive(Debug, Clone)]
@@ -221,23 +220,14 @@ impl BluetoothSettings {
         theme: &AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
-            let connected_devices = service
-                .devices
-                .iter()
-                .filter(|d| d.connected)
-                .sorted_by_key(|d| &d.name);
-            let paired_devices = service
-                .devices
-                .iter()
-                .filter(|d| d.paired && !d.connected)
-                .sorted_by_key(|d| &d.name);
+            let connected_devices = service.devices.iter().filter(|d| d.connected);
+            let paired_devices = service.devices.iter().filter(|d| d.paired && !d.connected);
 
             let mut known_devices = connected_devices.chain(paired_devices).peekable();
             let mut available_devices = service
                 .devices
                 .iter()
                 .filter(|d| !d.paired && !d.connected)
-                .sorted_by_key(|d| &d.name)
                 .peekable();
 
             let some_known = known_devices.peek().is_some();

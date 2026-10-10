@@ -11,7 +11,7 @@ D-Bus is the standard IPC mechanism on Linux desktops. ashell connects to the **
 ashell uses zbus's `#[proxy]` attribute macro to generate type-safe D-Bus client code. These are defined in `dbus.rs` files alongside each service:
 
 ```rust
-// Example from services/bluetooth/dbus.rs
+// Example from crates/ashell-services/src/bluetooth/dbus.rs
 #[proxy(
     default_service = "org.bluez",
     default_path = "/org/bluez/hci0",
@@ -41,7 +41,7 @@ The `#[proxy]` macro generates an `AdapterProxy` struct with async methods for e
 
 | Service | Bus | D-Bus Service Name | Proxy File |
 |---------|-----|-------------------|------------|
-| Bluetooth | System | `org.bluez` | `services/bluetooth/dbus.rs` |
+| Bluetooth | System | `org.bluez` | `crates/ashell-services/src/bluetooth/dbus.rs` |
 | Network (NM) | System | `org.freedesktop.NetworkManager` | `services/network/dbus.rs` |
 | Network (IWD) | System | `net.connman.iwd` | `services/network/iwd_dbus/` |
 | UPower | System | `org.freedesktop.UPower` | `services/upower/dbus.rs` |
