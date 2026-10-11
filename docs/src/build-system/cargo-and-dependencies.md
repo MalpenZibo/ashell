@@ -81,6 +81,16 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 |-------|---------|---------|
 | `allsorts` | 0.17 | Font parsing and subsetting in `build.rs` |
 
+## Git Sources
+
+Three dependencies come from git instead of crates.io:
+
+- [`iced_layershell`](https://github.com/MalpenZibo/iced_layershell) (aliased as `iced`) — pinned to tag `v0.6.0`
+- [`hyprland`](https://github.com/hyprland-community/hyprland-rs) — tracks the `master` branch
+- [`softbuffer`](https://github.com/MalpenZibo/softbuffer) — replaced via `[patch.crates-io]` with a fork (branch `wayland-argb`) that uses `wl_shm` Argb8888, so the tiny-skia fallback renderer honors alpha on Wayland (upstream hardcodes Xrgb8888, which the compositor treats as fully opaque). The fork is based on v0.4.8 to match the `iced_tiny_skia` release `iced` depends on — rebasing it past 0.4.x will break the patch.
+
+`Cargo.lock` pins each source to an exact commit, so clones build reproducibly; only an explicit `cargo update -p <crate>` moves a branch-tracking dependency.
+
 ## Release Profile
 
 ```toml
