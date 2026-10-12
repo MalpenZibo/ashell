@@ -43,14 +43,26 @@ body:
       description: Relevant parts of `~/.config/ashell/config.toml`. Leave empty if you use the default config.
       render: toml
 
-  - type: textarea
+  - type: upload
     id: logs
     attributes:
-      label: Logs
+      label: Log file
       description: |
-        Run `RUST_LOG=debug ashell` and paste the output around the moment the bug happens.
-        By default ashell also writes its log to `$XDG_RUNTIME_DIR/ashell_rCURRENT.log`.
-      render: text
+        ashell always writes a log file, so no setup is needed. Attach the file from the run
+        that had the issue (drag & drop or click the field):
+
+        - `$XDG_RUNTIME_DIR/ashell_rCURRENT.log`, or `/tmp/ashell/ashell_rCURRENT.log` when
+          `$XDG_RUNTIME_DIR` is not a private per-user directory
+
+        It holds warnings and errors, which is usually enough. If it says nothing about the
+        problem, restart ashell from a terminal with `RUST_LOG=debug ashell`, reproduce the bug,
+        and attach that log file instead.
+
+        `.log`, `.txt` and `.zip` files up to 25 MB are accepted — if several rotated
+        `ashell_r*.log` files are relevant, zip them together and attach the archive.
+    validations:
+      required: false
+      accept: ".log,.txt,.zip"
 
   - type: textarea
     id: extra
