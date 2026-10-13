@@ -69,6 +69,11 @@ fn shows_seconds(format: &str) -> bool {
     false
 }
 
+/// Local wall-clock minute, so a system time zone change also triggers a redraw.
+fn local_minute(now: DateTime<Local>) -> i64 {
+    now.naive_local().and_utc().timestamp().div_euclid(60)
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Update,
@@ -266,21 +271,26 @@ impl Tempo {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let current_format = self.current_format();
-        let interval = if shows_seconds(current_format) {
-            Duration::from_secs(1)
-        } else {
-            Duration::from_secs(5)
-        };
+        let shows_seconds = shows_seconds(self.current_format());
 
-        let time_sub = Subscription::run_with(interval, |interval| {
-            let interval = *interval;
+        let time_sub = Subscription::run_with(shows_seconds, |&shows_seconds| {
             channel(
                 100,
                 async move |mut output: iced::futures::channel::mpsc::Sender<Message>| {
-                    let mut interval = tokio::time::interval(interval);
+                    let period = if shows_seconds { 1 } else { 5 };
+                    let mut interval = tokio::time::interval(Duration::from_secs(period));
+                    let mut last_minute = None;
                     loop {
                         interval.tick().await;
+
+                        if !shows_seconds {
+                            let minute = local_minute(Local::now());
+                            if last_minute == Some(minute) {
+                                continue;
+                            }
+                            last_minute = Some(minute);
+                        }
+
                         output.send(Message::Update).await.ok();
                     }
                 },
