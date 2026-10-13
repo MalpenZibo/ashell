@@ -23,9 +23,9 @@ use crate::{
         power::{PowerSettings, PowerSettingsConfig},
     },
     services::idle_inhibitor::IdleInhibitorManager,
-    t,
     theme::{transparent_button_style, use_theme},
 };
+use ashell_i18n::t;
 use iced::{
     Element, Length, Subscription, SurfaceId, Task, Theme,
     widget::{Column, Row, Space, container, image, row, space},

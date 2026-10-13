@@ -12,10 +12,10 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothService, BluetoothState},
     },
-    t,
     theme::{AshellTheme, use_theme},
     utils::IndicatorState,
 };
+use ashell_i18n::t;
 use iced::{
     Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     alignment::{Horizontal, Vertical},

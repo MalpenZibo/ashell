@@ -1,4 +1,5 @@
 fallback_language = "en-US"
 
 [fluent]
-assets_dir = "i18n"
+domain = "ashell"
+assets_dir = "crates/ashell-i18n/i18n"

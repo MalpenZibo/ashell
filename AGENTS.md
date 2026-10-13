@@ -49,10 +49,12 @@ src/
 ├── widgets/             # custom iced widgets (centerbox, position_button, menu_wrapper)
 └── utils/
 crates/
+├── ashell-i18n/         # localization: Fluent catalogs, locale/unit system, t!() macro
 └── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth
 ```
 
-The repo is a Cargo workspace: the root package is the `ashell` binary, `crates/ashell-services` is a library member.
+The repo is a Cargo workspace: the root package is the `ashell` binary, the crates in `crates/` are library members.
+`t!()` validates keys at compile time against the `i18n.toml` of the calling crate: any crate using it needs one with `domain = "ashell"` pointing to `crates/ashell-i18n/i18n`.
 
 ## Key system dependencies
 

@@ -14,9 +14,9 @@ use crate::{
         icons::{StaticIcon, icon_button},
         styled_button,
     },
-    i18n::chrono_locale,
     theme::{AshellTheme, use_theme},
 };
+use ashell_i18n::chrono_locale;
 
 use super::{Message, Tempo};
 
