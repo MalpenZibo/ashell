@@ -15,10 +15,10 @@ use crate::{
             NetworkService, PskOutcome, Vpn, dbus::ConnectivityState, frequency_band,
         },
     },
-    t,
     theme::use_theme,
     utils::IndicatorState,
 };
+use ashell_i18n::t;
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     widget::{Column, column, container, row, text},

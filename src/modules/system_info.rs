@@ -6,10 +6,10 @@ use crate::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         TemperatureSensor, TemperatureSensorType,
     },
-    t,
     theme::{lerp_color, use_theme},
     utils,
 };
+use ashell_i18n::t;
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
     futures::channel::mpsc,

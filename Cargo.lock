@@ -140,6 +140,7 @@ version = "0.11.0"
 dependencies = [
  "allsorts",
  "anyhow",
+ "ashell-i18n",
  "ashell-services",
  "chrono",
  "chrono-tz",
@@ -149,8 +150,6 @@ dependencies = [
  "freedesktop-icons",
  "hex_color",
  "hyprland",
- "i18n-embed",
- "i18n-embed-fl",
  "iced_anim",
  "iced_layershell",
  "inotify",
@@ -164,7 +163,6 @@ dependencies = [
  "qrcode",
  "regex",
  "reqwest",
- "rust-embed",
  "serde",
  "serde_ignored",
  "serde_json",
@@ -177,13 +175,25 @@ dependencies = [
  "tokio-stream",
  "toml 1.1.4+spec-1.1.0",
  "udev",
- "unic-langid",
  "unicode-segmentation",
  "url",
  "wayland-client",
  "wayland-protocols",
  "wayland-protocols-wlr",
  "zbus",
+]
+
+[[package]]
+name = "ashell-i18n"
+version = "0.11.0"
+dependencies = [
+ "chrono",
+ "i18n-embed",
+ "i18n-embed-fl",
+ "log",
+ "rust-embed",
+ "serde",
+ "unic-langid",
 ]
 
 [[package]]

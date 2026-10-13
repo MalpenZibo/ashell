@@ -3,7 +3,6 @@ use crate::{
     components::{Centerbox, menu::MenuType},
     config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
     get_log_spec,
-    i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
     modules::{
         self,
@@ -26,6 +25,7 @@ use crate::{
     services::{ReadOnlyService, xdg_icons},
     theme::{AshellTheme, BarLayout, backdrop_color, darken_color, init_theme, use_theme},
 };
+use ashell_i18n::{Localizer, init_localizer};
 use flexi_logger::LoggerHandle;
 use iced::futures::StreamExt;
 use iced::{
@@ -41,7 +41,11 @@ const OSD_WIDTH: u32 = 250;
 const OSD_HEIGHT: u32 = 64;
 
 fn resolve_localizer(config: &Config) -> Localizer {
-    Localizer::resolve(config.language.as_deref(), config.region.as_deref())
+    Localizer::resolve(
+        config.language.as_deref(),
+        config.region.as_deref(),
+        crate::i18n::CATALOGS,
+    )
 }
 
 pub struct GeneralConfig {
