@@ -283,7 +283,7 @@ impl Default for SystemInfoMemory {
 const DEFAULT_TEMP_WARN_CELSIUS: i32 = 60;
 const DEFAULT_TEMP_ALERT_CELSIUS: i32 = 80;
 
-#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TemperatureSensorType {
     #[default]
     Cpu,
@@ -293,7 +293,7 @@ pub enum TemperatureSensorType {
 }
 
 /// A type keyword (auto-detected) or an exact sensor label.
-#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(untagged)]
 pub enum TemperatureSensor {
     Type(TemperatureSensorType),

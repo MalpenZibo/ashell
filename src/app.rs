@@ -200,7 +200,10 @@ impl App {
                 config.window_title,
             ));
 
-        self.system_info = SystemInfo::new(config.system_info);
+        self.system_info
+            .update(modules::system_info::Message::ConfigReloaded(
+                config.system_info,
+            ));
 
         let _ = self
             .keyboard_layout
