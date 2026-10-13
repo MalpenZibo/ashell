@@ -226,16 +226,14 @@ impl App {
             .set_animations_enabled(config.animations.enabled);
         self.notifications
             .set_animations_enabled(config.animations.enabled);
-        let _ = self
-            .notifications
-            .update(modules::notifications::Message::ConfigReloaded(
-                config.notifications,
-            ));
+        let notifications_task = self.update(Message::Notifications(
+            modules::notifications::Message::ConfigReloaded(config.notifications),
+        ));
         self.tray
             .update(modules::tray::Message::ConfigReloaded(config.tray));
         self.osd.update(osd::Message::ConfigReloaded(config.osd));
 
-        Task::batch([close_custom_tooltips, workspaces_task])
+        Task::batch([close_custom_tooltips, workspaces_task, notifications_task])
     }
 
     pub fn theme(&self, id: SurfaceId) -> Theme {

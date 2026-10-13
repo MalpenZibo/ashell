@@ -135,6 +135,15 @@ Maximum height (in pixels) of each individual toast card. Cards with less conten
 **Type:** `integer`
 **Default:** `150`
 
+### history_limit
+
+Maximum number of notifications kept in the menu. When a new notification arrives and the history is full, the oldest one is removed and closed, so the app that sent it sees it as expired.
+
+Values outside `1..=1000` are clamped. Notifications still shown as a toast are never removed, so the history can hold more entries than the limit while toasts are on screen.
+
+**Type:** `integer`
+**Default:** `200`
+
 ### blocklist
 
 Notification app names to ignore.
@@ -157,5 +166,6 @@ toast_position = "TopRight"
 toast_timeout = 4000
 toast_limit = 5
 toast_max_height = 150
+history_limit = 200
 blocklist = ["blueman", "^org\\.gnome\\."]
 ```
