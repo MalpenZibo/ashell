@@ -3,7 +3,7 @@
 ## Quick reference
 
 ```bash
-make check    # format check + cargo check + clippy -D warnings (run before pushing)
+make check    # cargo fmt (rewrites files) + cargo check + clippy -D warnings (run before pushing)
 make build    # cargo build --release
 make fmt      # cargo fmt
 make start    # run ./target/release/ashell
