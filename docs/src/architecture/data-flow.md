@@ -87,9 +87,23 @@ Task::batch(vec![
 **Subscriptions** are returned from `subscription()`:
 
 ```rust
-// Example: timer-based subscription (system_info module)
-every(Duration::from_secs(self.config.interval)).map(|_| Message::Update)
+// Example: sampler threads keyed on config (system_info module)
+Subscription::batch([
+    Subscription::run_with(
+        (self.config.interval, self.config.temperature.sensor.clone()),
+        stats_sampler,
+    ),
+    Subscription::run_with(
+        (self.config.interval, self.config.disk.mounts.clone()),
+        disks_sampler,
+    ),
+])
 ```
+
+`run_with` identifies a subscription by its key, so the sampler threads keep running across
+config reloads and restart only when the key changes. `system_info` samples on dedicated threads
+because sysinfo calls block: `statvfs` on an unreachable network mount can hang for minutes, and
+anything that blocks in `update()` or `view()` freezes the whole bar.
 
 ## The ServiceEvent Pattern
 
