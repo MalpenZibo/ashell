@@ -1,6 +1,6 @@
 # Configuration System
 
-The configuration system is defined in `src/config.rs`. ashell uses a TOML file for all user-facing settings.
+The configuration system is defined in the `ashell-config` workspace crate (`crates/ashell-config/src/lib.rs`), which does not depend on iced. ashell uses a TOML file for all user-facing settings. The binary imports the crate as `config` (`use ashell_config as config;` in `main.rs`).
 
 ## Config File Location
 
@@ -89,12 +89,12 @@ Groups are rendered together in a single container, which is especially visible 
 
 Config changes are detected via [inotify](https://docs.rs/inotify) file watching:
 
-1. The `config::subscription()` function watches the config file's **parent directory** for `CREATE`, `MODIFY`, `DELETE`, and `MOVE` events.
+1. `config::watch(path)` returns a `Stream` of configs. It watches the config file's **parent directory** for `CREATE`, `MODIFY`, `DELETE`, and `MOVE` events.
 2. Events are batched using `ready_chunks(10)` to handle editors that perform atomic saves (write to temp file, then rename).
 3. `DELETE` events include a 500ms delay before re-reading, to handle atomic save patterns where the file is briefly absent.
-4. On change, the new config is parsed and sent as `Message::ConfigChanged(Box<Config>)`.
+4. On change, the new config is parsed and yielded; when the file is removed, the default config is yielded.
 
-The subscription is created with `Subscription::run_with(path, ...)`, keyed on the config path, so only one watcher runs per path.
+`app.rs` wraps the stream with `Subscription::run_with(path, ...)`, keyed on the config path so only one watcher runs per path, and maps each config to `Message::ConfigChanged(Box<Config>)`.
 
 ## Module-Specific Configs
 

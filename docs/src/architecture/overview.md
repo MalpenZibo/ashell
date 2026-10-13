@@ -12,8 +12,9 @@ ashell is structured in three layers:
                        │
 ┌──────────────────────▼───────────────────────────┐
 │                  Core Layer                       │
-│  app.rs · config.rs · outputs.rs · theme.rs      │
-│  osd.rs · ipc.rs · i18n.rs · components/         │
+│  app.rs · outputs.rs · theme.rs · osd.rs         │
+│  ipc.rs · i18n.rs · components/                  │
+│  ashell-config crate                             │
 │                                                  │
 │  Central state, message routing, config,         │
 │  multi-monitor management, theming               │

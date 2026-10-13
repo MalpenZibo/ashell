@@ -33,7 +33,6 @@ src/
 ├── main.rs              # entry point, font embedding, CLI dispatch
 ├── app.rs               # App state, Elm update/view cycle
 ├── app/                 # top-level Message enum + OSD display info
-├── config.rs            # configuration types (TOML deserialization)
 ├── i18n.rs              # ashell's translation catalogs (CATALOGS)
 ├── ipc.rs               # Unix socket IPC (client + server + subscription)
 ├── osd.rs               # on-screen display overlay (volume, brightness, ...)
@@ -52,6 +51,7 @@ src/
 │   └── ...              # audio, bluetooth, brightness, privacy, idle_inhibitor, logind, throttle, upower, xdg_icons
 └── utils/
 crates/
+├── ashell-config/       # configuration types (TOML deserialization), imported as `config` in the binary
 ├── ashell-i18n/         # localization: locale/unit system, catalog loading, t!() macro
 └── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth, upower
 ```

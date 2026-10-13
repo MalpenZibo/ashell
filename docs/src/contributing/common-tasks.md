@@ -11,7 +11,7 @@
 
 ## Adding a New Config Option
 
-1. Add the field to the relevant config struct in `src/config.rs`:
+1. Add the field to the relevant config struct in `crates/ashell-config/src/lib.rs`:
    ```rust
    #[derive(Deserialize, Clone, Debug)]
    #[serde(default)]

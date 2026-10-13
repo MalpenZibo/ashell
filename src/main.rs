@@ -2,6 +2,7 @@ use crate::config::{LogTarget, get_config};
 use crate::outputs::{BarVisibility, Outputs};
 use crate::theme::BarLayout;
 use app::App;
+use ashell_config as config;
 use clap::Parser;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
@@ -17,7 +18,6 @@ use std::path::PathBuf;
 
 mod app;
 mod components;
-mod config;
 mod i18n;
 mod ipc;
 mod modules;

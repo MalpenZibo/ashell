@@ -1,10 +1,10 @@
 use ashell_i18n::{TemperatureUnit, UnitSystem, unit_system};
-use hex_color::HexColor;
-use iced::futures::{
+use futures::{
     SinkExt, Stream, StreamExt,
     channel::mpsc,
     stream::{self},
 };
+use hex_color::HexColor;
 use inotify::EventMask;
 use inotify::Inotify;
 use inotify::WatchMask;

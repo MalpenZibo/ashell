@@ -48,7 +48,7 @@ impl MyModule {
 
 ## Step 2: Register the Module Name
 
-In `src/config.rs`, add your module to the `ModuleName` enum:
+In `crates/ashell-config/src/lib.rs`, add your module to the `ModuleName` enum:
 
 ```rust
 pub enum ModuleName {
@@ -134,7 +134,7 @@ ModuleName::MyModule => Some(
 
 ## Step 9: Add Config (Optional)
 
-If your module needs configuration, add a config struct in `src/config.rs`:
+If your module needs configuration, add a config struct in `crates/ashell-config/src/lib.rs`:
 
 ```rust
 #[derive(Deserialize, Clone, Debug)]
