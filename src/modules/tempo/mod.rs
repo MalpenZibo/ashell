@@ -23,6 +23,52 @@ use crate::{
 
 pub use self::weather::weather_icon;
 
+/// Specifiers whose output changes at least once per second, so a format
+/// containing any of them has to be refreshed every second.
+const SECOND_SPECIFIERS: [&str; 15] = [
+    "%S",  // seconds
+    "%T",  // %H:%M:%S
+    "%X",  // locale time representation, with seconds
+    "%r",  // 12-hour clock time, with seconds
+    "%c",  // locale date and time, with seconds
+    "%+",  // ISO 8601 / RFC 3339, with seconds
+    "%s",  // seconds since epoch
+    "%f",  // nanoseconds, also covers ".%f"
+    "%.f", // nanoseconds, left aligned
+    "%3f", // milliseconds
+    "%6f", // microseconds
+    "%9f", // nanoseconds
+    "%.3f", "%.6f", "%.9f", // the left aligned fractional variants
+];
+
+fn shows_seconds(format: &str) -> bool {
+    let mut rest = format;
+
+    while let Some(percent) = rest.find('%') {
+        let after = &rest[percent + 1..];
+
+        // `%%` is a literal percent sign, not the start of a specifier.
+        if let Some(literal) = after.strip_prefix('%') {
+            rest = literal;
+            continue;
+        }
+
+        // skip padding flags
+        let specifier = after.trim_start_matches(['-', '_', '0']);
+
+        if SECOND_SPECIFIERS
+            .iter()
+            .any(|candidate| specifier.starts_with(&candidate[1..]))
+        {
+            return true;
+        }
+
+        rest = specifier;
+    }
+
+    false
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Update,
@@ -220,21 +266,8 @@ impl Tempo {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let second_specifiers = [
-            "%S",  // Seconds (00-60)
-            "%T",  // Hour:Minute:Second
-            "%X",  // Locale time representation with seconds
-            "%r",  // 12-hour clock time with seconds
-            "%:z", // UTC offset with seconds
-            "%s",  // Seconds since epoch
-        ];
-
         let current_format = self.current_format();
-
-        let interval = if second_specifiers
-            .iter()
-            .any(|&spec| current_format.contains(spec))
-        {
+        let interval = if shows_seconds(current_format) {
             Duration::from_secs(1)
         } else {
             Duration::from_secs(5)
