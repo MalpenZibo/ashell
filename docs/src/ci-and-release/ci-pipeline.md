@@ -20,7 +20,7 @@ ashell uses GitHub Actions for continuous integration. All workflow files are in
 2. **Format check**: `cargo fmt --all -- --check`
    - Fails if any code is not properly formatted.
 
-3. **Clippy lint**: `cargo clippy --all-features -- -D warnings`
+3. **Clippy lint**: `cargo clippy --workspace --all-features -- -D warnings`
    - Zero warnings policy. All clippy warnings are treated as errors.
 
 4. **Build**: `cargo build`

@@ -1,14 +1,13 @@
-use crate::services::{
-    bluetooth::BluetoothService,
-    network::{NetworkBackend, NetworkData, NetworkEvent, PskOutcome, WifiSecurity},
+use crate::services::network::{
+    NetworkBackend, NetworkData, NetworkEvent, PskOutcome, WifiSecurity,
 };
+use ashell_services::rfkill;
 
 use super::{AccessPointData, ActiveConnectionInfo, KnownConnection, Vpn};
 use iced::futures::{Stream, StreamExt, stream::select_all};
 use itertools::Itertools;
 use log::{debug, warn};
 use std::{collections::HashMap, ops::Deref};
-use tokio::process::Command;
 use zbus::{
     Result, proxy,
     zvariant::{self, ObjectPath, OwnedObjectPath, OwnedValue, Value},
@@ -21,9 +20,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
         let nm = self;
 
         // airplane mode
-        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block()
-            .await
-            .unwrap_or_default();
+        let bluetooth_soft_blocked = rfkill::bluetooth_soft_blocked().await.unwrap_or_default();
 
         let wifi_present = nm.wifi_device_present().await?;
 
@@ -57,13 +54,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
     }
 
     async fn set_airplane_mode(&self, enable: bool) -> anyhow::Result<()> {
-        let rfkill_res = Command::new("/usr/sbin/rfkill")
-            .arg(if enable { "block" } else { "unblock" })
-            .arg("bluetooth")
-            .output()
-            .await;
-
-        if let Err(e) = rfkill_res {
+        if let Err(e) = rfkill::set_bluetooth_soft_block(enable).await {
             debug!("Failed to set bluetooth rfkill: {e}");
         } else {
             debug!("Bluetooth rfkill set successfully");

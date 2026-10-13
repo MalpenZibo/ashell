@@ -2,6 +2,28 @@
 
 The service abstraction is defined in `src/services/mod.rs`. It provides a standard interface for all backend services.
 
+## UI-agnostic services (`ashell-services`)
+
+Services are being moved to the `ashell-services` workspace crate (`crates/ashell-services/`), which does not depend on iced or any other UI toolkit. The crate imposes no service trait: the traits on this page are iced glue and stay in ashell. Each crate service is a plain API built on `futures` types, typically:
+
+- plain data types (`PartialEq`, with a `Default` for the unavailable state) so reactive UIs can diff them;
+- a cloneable **handle** holding the connection;
+- a **command** enum and an `execute(command)` method on the handle, which owns the command semantics (e.g. what toggling means, how long discovery lasts);
+- an **updates** stream that yields the current state as soon as it is subscribed, then a fresh snapshot on every change. It is the single source of truth: commands return only success or failure, and their effect arrives through the stream.
+
+```rust
+let bluetooth = Bluetooth::connect().await?;
+let mut updates = pin!(bluetooth.updates());
+let initial = updates.next().await;
+bluetooth.execute(BluetoothCommand::Toggle).await?;
+```
+
+ashell wraps each of them in a small module under `src/services/` (e.g. `src/services/bluetooth.rs`) that implements `ReadOnlyService`/`Service`: `subscribe` connects, sends `Init` with the handle and the first snapshot, then forwards the rest of the stream as `Update`s; `command` runs `execute` and produces no message. Other UIs write their own glue on the same API.
+
+Each service sits behind a cargo feature of the same name, so consumers only compile the services, and pull in the system dependencies, they need. The crate has no default features.
+
+Currently migrated: Bluetooth (`bluetooth` feature). Shared helpers that are not services live in plain modules, e.g. `rfkill` (soft-block state and change notifications, used by both bluetooth and network).
+
 ## ServiceEvent
 
 All services communicate through a common event enum:

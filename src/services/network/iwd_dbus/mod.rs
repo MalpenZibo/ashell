@@ -19,7 +19,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 // source for dbus: https://git.kernel.org/pub/scm/network/wireless/iwd.git/tree/doc
 //info!("{:?}",n.inner().introspect().await?); => can use this to generate proxy implementations
 
-use crate::services::bluetooth::BluetoothService;
+use ashell_services::rfkill;
 
 use zbus::interface;
 
@@ -33,7 +33,6 @@ use log::{debug, info, warn};
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::process::Command;
 use zbus::fdo::ObjectManagerProxy;
 use zbus::zvariant::OwnedObjectPath;
 
@@ -98,9 +97,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
         let nm = self;
 
         // airplane mode
-        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block()
-            .await
-            .unwrap_or_default();
+        let bluetooth_soft_blocked = rfkill::bluetooth_soft_blocked().await.unwrap_or_default();
 
         let wifi_present = nm.wifi_device_present().await?;
 
@@ -302,11 +299,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     async fn set_airplane_mode(&self, airplane: bool) -> anyhow::Result<()> {
-        Command::new("/usr/sbin/rfkill")
-            .arg(if airplane { "block" } else { "unblock" })
-            .arg("bluetooth")
-            .output()
-            .await?;
+        rfkill::set_bluetooth_soft_block(airplane).await?;
         self.set_wifi_enabled(!airplane).await?;
         Ok(())
     }
