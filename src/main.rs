@@ -205,7 +205,7 @@ fn main() -> iced::Result {
         .build();
     let log_directory = match log_prefs.target {
         LogTarget::File => log_prefs
-            .log_directory()
+            .log_directory(|| xdg::private_dir(true))
             .inspect_err(|e| {
                 eprintln!("ashell: cannot use a log directory: {e:#}, logging to stderr")
             })

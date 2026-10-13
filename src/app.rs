@@ -805,7 +805,9 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.left)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.center)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.right)),
-            config::subscription(&self.config_path),
+            Subscription::run_with(self.config_path.clone(), |path| {
+                config::watch(path.clone()).map(|config| Message::ConfigChanged(Box::new(config)))
+            }),
             crate::services::logind::LogindService::subscribe().map(|event| match event {
                 crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,
                 _ => Message::None,

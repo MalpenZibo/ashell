@@ -6,12 +6,12 @@ use crate::{
         icons::{StaticIcon, icon},
         quick_setting_button, slider_control, styled_button,
     },
-    config::{PeripheralIndicators, SettingsFormat},
+    config::{PeripheralIndicators, PeripheralKind, SettingsFormat},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         upower::{
-            BatteryData, BatteryDataExt, BatteryHealth, BatteryStatus, PeripheralDeviceKindExt,
-            PeripheralExt, PowerProfile, UPowerCommand, UPowerService,
+            BatteryData, BatteryDataExt, BatteryHealth, BatteryStatus, PeripheralDeviceKind,
+            PeripheralDeviceKindExt, PeripheralExt, PowerProfile, UPowerCommand, UPowerService,
         },
     },
     theme::use_theme,
@@ -368,7 +368,7 @@ impl PowerSettings {
         let Some(service) = self.service.as_ref().filter(|p| {
             !p.peripherals.is_empty()
                 && kinds_filter
-                    .is_none_or(|kinds| p.peripherals.iter().any(|p| kinds.contains(&p.kind)))
+                    .is_none_or(|kinds| p.peripherals.iter().any(|p| has_kind(kinds, p.kind)))
         }) else {
             return Vec::new();
         };
@@ -376,7 +376,7 @@ impl PowerSettings {
         service
             .peripherals
             .iter()
-            .filter(|p| kinds_filter.is_none_or(|kinds| kinds.contains(&p.kind)))
+            .filter(|p| kinds_filter.is_none_or(|kinds| has_kind(kinds, p.kind)))
             .map(|p| {
                 let state = p.data.get_indicator_state();
                 container(match self.config.peripheral_battery_format {
@@ -746,4 +746,15 @@ impl PowerSettings {
             })
         })
     }
+}
+
+fn has_kind(kinds: &[PeripheralKind], kind: PeripheralDeviceKind) -> bool {
+    kinds.iter().any(|k| {
+        kind == match k {
+            PeripheralKind::Keyboard => PeripheralDeviceKind::Keyboard,
+            PeripheralKind::Mouse => PeripheralDeviceKind::Mouse,
+            PeripheralKind::Headphones => PeripheralDeviceKind::Headphones,
+            PeripheralKind::Gamepad => PeripheralDeviceKind::Gamepad,
+        }
+    })
 }
