@@ -1,6 +1,7 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{
     components::icons::StaticIcon,
+    config::PeripheralKind,
     services::{throttle::ThrottleExt, upower::dbus::KbdBacklightProxy},
     utils::{IndicatorState, remote_value::Remote},
 };
@@ -16,7 +17,6 @@ use iced::{
     stream::channel,
 };
 use log::{debug, error, warn};
-use serde::Deserialize;
 use std::{any::TypeId, fmt, time::Duration};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -192,7 +192,7 @@ impl Peripheral {
     }
 }
 
-#[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum PeripheralDeviceKind {
     Keyboard,
     Mouse,
@@ -207,6 +207,17 @@ impl fmt::Display for PeripheralDeviceKind {
             PeripheralDeviceKind::Mouse => write!(f, "Mouse"),
             PeripheralDeviceKind::Headphones => write!(f, "Headphones"),
             PeripheralDeviceKind::Gamepad => write!(f, "Gamepad"),
+        }
+    }
+}
+
+impl From<PeripheralKind> for PeripheralDeviceKind {
+    fn from(kind: PeripheralKind) -> Self {
+        match kind {
+            PeripheralKind::Keyboard => PeripheralDeviceKind::Keyboard,
+            PeripheralKind::Mouse => PeripheralDeviceKind::Mouse,
+            PeripheralKind::Headphones => PeripheralDeviceKind::Headphones,
+            PeripheralKind::Gamepad => PeripheralDeviceKind::Gamepad,
         }
     }
 }

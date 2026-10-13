@@ -1,10 +1,10 @@
-use crate::app::Message;
-use crate::services::upower::PeripheralDeviceKind;
-use crate::theme::Space;
 use ashell_i18n::{TemperatureUnit, UnitSystem, unit_system};
 use hex_color::HexColor;
-use iced::futures::StreamExt;
-use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
+use iced::futures::{
+    SinkExt, Stream, StreamExt,
+    channel::mpsc,
+    stream::{self},
+};
 use inotify::EventMask;
 use inotify::Inotify;
 use inotify::WatchMask;
@@ -51,15 +51,7 @@ impl Default for LoggingConfig {
 }
 
 impl LoggingConfig {
-    pub fn log_directory(&self) -> PathBuf {
-        let default_directory = || {
-            crate::xdg::get_runtime_dir().unwrap_or_else(|| {
-                [std::env::temp_dir(), PathBuf::from("ashell")]
-                    .iter()
-                    .collect()
-            })
-        };
-
+    pub fn log_directory(&self, default_directory: impl FnOnce() -> PathBuf) -> PathBuf {
         match &self.directory {
             Some(directory) => expand_path(directory.clone()).unwrap_or_else(|e| {
                 eprintln!(
@@ -656,7 +648,15 @@ pub enum SettingsFormat {
 pub enum PeripheralIndicators {
     #[default]
     All,
-    Specific(Vec<PeripheralDeviceKind>),
+    Specific(Vec<PeripheralKind>),
+}
+
+#[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
+pub enum PeripheralKind {
+    Keyboard,
+    Mouse,
+    Headphones,
+    Gamepad,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -896,17 +896,6 @@ impl MediaPlayerModuleConfig {
     }
 }
 
-fn hex_to_color(hex: HexColor) -> Color {
-    Color::from_rgb8(hex.r, hex.g, hex.b)
-}
-
-fn hex_to_pair(hex: HexColor, text: Option<HexColor>, text_fallback: Color) -> palette::Pair {
-    palette::Pair::new(
-        hex_to_color(hex),
-        text.map(hex_to_color).unwrap_or(text_fallback),
-    )
-}
-
 #[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(untagged)]
 pub enum AppearanceColor {
@@ -920,35 +909,31 @@ pub enum AppearanceColor {
 }
 
 impl AppearanceColor {
-    pub fn get_base(&self) -> Color {
+    pub fn base(&self) -> HexColor {
         match self {
-            AppearanceColor::Simple(color) => hex_to_color(*color),
-            AppearanceColor::Complete { base, .. } => hex_to_color(*base),
+            AppearanceColor::Simple(color) => *color,
+            AppearanceColor::Complete { base, .. } => *base,
         }
     }
 
-    pub fn get_text(&self) -> Option<Color> {
+    pub fn text(&self) -> Option<HexColor> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { text, .. } => text.map(hex_to_color),
+            AppearanceColor::Complete { text, .. } => *text,
         }
     }
 
-    pub fn get_weak_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
+    pub fn weak(&self) -> Option<HexColor> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { weak, text, .. } => {
-                weak.map(|color| hex_to_pair(color, *text, text_fallback))
-            }
+            AppearanceColor::Complete { weak, .. } => *weak,
         }
     }
 
-    pub fn get_strong_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
+    pub fn strong(&self) -> Option<HexColor> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { strong, text, .. } => {
-                strong.map(|color| hex_to_pair(color, *text, text_fallback))
-            }
+            AppearanceColor::Complete { strong, .. } => *strong,
         }
     }
 }
@@ -971,21 +956,21 @@ pub enum BackgroundAppearanceColor {
 }
 
 impl BackgroundAppearanceColor {
-    pub fn get_base(&self) -> Color {
+    pub fn base(&self) -> HexColor {
         match self {
-            BackgroundAppearanceColor::Simple(color) => hex_to_color(*color),
-            BackgroundAppearanceColor::Complete { base, .. } => hex_to_color(*base),
+            BackgroundAppearanceColor::Simple(color) => *color,
+            BackgroundAppearanceColor::Complete { base, .. } => *base,
         }
     }
 
-    pub fn get_text(&self) -> Option<Color> {
+    pub fn text(&self) -> Option<HexColor> {
         match self {
             BackgroundAppearanceColor::Simple(_) => None,
-            BackgroundAppearanceColor::Complete { text, .. } => text.map(hex_to_color),
+            BackgroundAppearanceColor::Complete { text, .. } => *text,
         }
     }
 
-    pub fn get_pair(&self, level: BackgroundLevel, text_fallback: Color) -> Option<palette::Pair> {
+    pub fn level(&self, level: BackgroundLevel) -> Option<HexColor> {
         match self {
             BackgroundAppearanceColor::Simple(_) => None,
             BackgroundAppearanceColor::Complete {
@@ -996,20 +981,16 @@ impl BackgroundAppearanceColor {
                 strong,
                 stronger,
                 strongest,
-                text,
                 ..
-            } => {
-                let hex = match level {
-                    BackgroundLevel::Weakest => *weakest,
-                    BackgroundLevel::Weaker => *weaker,
-                    BackgroundLevel::Weak => *weak,
-                    BackgroundLevel::Neutral => *neutral,
-                    BackgroundLevel::Strong => *strong,
-                    BackgroundLevel::Stronger => *stronger,
-                    BackgroundLevel::Strongest => *strongest,
-                };
-                hex.map(|h| hex_to_pair(h, *text, text_fallback))
-            }
+            } => match level {
+                BackgroundLevel::Weakest => *weakest,
+                BackgroundLevel::Weaker => *weaker,
+                BackgroundLevel::Weak => *weak,
+                BackgroundLevel::Neutral => *neutral,
+                BackgroundLevel::Strong => *strong,
+                BackgroundLevel::Stronger => *stronger,
+                BackgroundLevel::Strongest => *strongest,
+            },
         }
     }
 }
@@ -1057,6 +1038,47 @@ pub enum SpaceSize {
     Lg,
     Xl,
     Xxl,
+}
+
+#[allow(unused)]
+#[derive(Debug, Copy, Clone)]
+pub struct Space {
+    pub xxs: f32,
+    pub xs: f32,
+    pub sm: f32,
+    pub md: f32,
+    pub lg: f32,
+    pub xl: f32,
+    pub xxl: f32,
+}
+
+impl Default for Space {
+    fn default() -> Self {
+        Self {
+            xxs: 4.0,
+            xs: 8.0,
+            sm: 12.0,
+            md: 16.0,
+            lg: 24.0,
+            xl: 32.0,
+            xxl: 48.0,
+        }
+    }
+}
+
+impl Space {
+    pub fn resolve(&self, size: SpaceSize) -> f32 {
+        match size {
+            SpaceSize::None => 0.0,
+            SpaceSize::Xxs => self.xxs,
+            SpaceSize::Xs => self.xs,
+            SpaceSize::Sm => self.sm,
+            SpaceSize::Md => self.md,
+            SpaceSize::Lg => self.lg,
+            SpaceSize::Xl => self.xl,
+            SpaceSize::Xxl => self.xxl,
+        }
+    }
 }
 
 #[derive(Deserialize, Copy, Clone, PartialEq, Debug)]
@@ -2172,121 +2194,125 @@ pub fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
     }
 }
 
+fn channel<T, F>(size: usize, f: impl FnOnce(mpsc::Sender<T>) -> F) -> impl Stream<Item = T>
+where
+    F: Future<Output = ()>,
+{
+    let (sender, receiver) = mpsc::channel(size);
+    let runner = stream::once(f(sender)).filter_map(|_| async { None });
+
+    stream::select(receiver, runner)
+}
+
 enum Event {
     Changed,
     Removed,
 }
 
-pub fn subscription(path: &Path) -> Subscription<Message> {
-    let path = path.to_path_buf();
+/// Watches the config file and yields the reloaded config on every change,
+/// or the default config when the file is removed.
+pub fn watch(path: PathBuf) -> impl Stream<Item = Config> {
+    let path = std::fs::canonicalize(&path).unwrap_or(path);
+    channel(100, async move |mut output| {
+        match (path.parent(), path.file_name(), Inotify::init()) {
+            (Some(folder), Some(file_name), Ok(inotify)) => {
+                debug!("Watching config file at {path:?}");
 
-    Subscription::run_with(path, |path| {
-        let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.clone());
-        channel(100, async move |mut output| {
-            match (path.parent(), path.file_name(), Inotify::init()) {
-                (Some(folder), Some(file_name), Ok(inotify)) => {
-                    debug!("Watching config file at {path:?}");
+                let res = inotify.watches().add(
+                    folder,
+                    WatchMask::CREATE | WatchMask::DELETE | WatchMask::MOVE | WatchMask::MODIFY,
+                );
 
-                    let res = inotify.watches().add(
-                        folder,
-                        WatchMask::CREATE | WatchMask::DELETE | WatchMask::MOVE | WatchMask::MODIFY,
-                    );
+                if let Err(e) = res {
+                    error!("Failed to add watch for {folder:?}: {e}");
+                    return;
+                }
 
-                    if let Err(e) = res {
-                        error!("Failed to add watch for {folder:?}: {e}");
-                        return;
-                    }
+                let buffer = [0; 1024];
+                let stream = inotify.into_event_stream(buffer);
 
-                    let buffer = [0; 1024];
-                    let stream = inotify.into_event_stream(buffer);
+                if let Ok(stream) = stream {
+                    let mut stream = stream.ready_chunks(10);
 
-                    if let Ok(stream) = stream {
-                        let mut stream = stream.ready_chunks(10);
+                    debug!("Starting config file watch loop");
 
-                        debug!("Starting config file watch loop");
+                    loop {
+                        let events = stream.next().await.unwrap_or(vec![]);
 
-                        loop {
-                            let events = stream.next().await.unwrap_or(vec![]);
+                        debug!("Received inotify events: {events:?}");
 
-                            debug!("Received inotify events: {events:?}");
+                        let mut file_event = None;
 
-                            let mut file_event = None;
-
-                            for event in events {
-                                debug!("Event: {event:?}");
-                                match event {
-                                    Ok(inotify::Event {
-                                        name: Some(name),
-                                        mask: EventMask::DELETE | EventMask::MOVED_FROM,
-                                        ..
-                                    }) if file_name == name => {
-                                        debug!("File deleted or moved");
-                                        file_event = Some(Event::Removed);
-                                    }
-                                    Ok(inotify::Event {
-                                        name: Some(name),
-                                        mask:
-                                            EventMask::CREATE | EventMask::MODIFY | EventMask::MOVED_TO,
-                                        ..
-                                    }) if file_name == name => {
-                                        debug!("File created or moved");
-
-                                        file_event = Some(Event::Changed);
-                                    }
-                                    _ => {
-                                        debug!("Ignoring event");
-                                    }
+                        for event in events {
+                            debug!("Event: {event:?}");
+                            match event {
+                                Ok(inotify::Event {
+                                    name: Some(name),
+                                    mask: EventMask::DELETE | EventMask::MOVED_FROM,
+                                    ..
+                                }) if file_name == name => {
+                                    debug!("File deleted or moved");
+                                    file_event = Some(Event::Removed);
                                 }
-                            }
+                                Ok(inotify::Event {
+                                    name: Some(name),
+                                    mask:
+                                        EventMask::CREATE | EventMask::MODIFY | EventMask::MOVED_TO,
+                                    ..
+                                }) if file_name == name => {
+                                    debug!("File created or moved");
 
-                            match file_event {
-                                Some(Event::Changed) => {
-                                    info!("Reload config file");
-
-                                    let path_clone = path.clone();
-                                    let new_config = tokio::task::spawn_blocking(move || {
-                                        read_config(&path_clone).unwrap_or_default()
-                                    })
-                                    .await
-                                    .unwrap_or_default();
-
-                                    let _ = output
-                                        .send(Message::ConfigChanged(Box::new(new_config)))
-                                        .await;
+                                    file_event = Some(Event::Changed);
                                 }
-                                Some(Event::Removed) => {
-                                    // wait and double check if the file is really gone
-                                    sleep(Duration::from_millis(500)).await;
-
-                                    if !path.exists() {
-                                        info!("Config file removed");
-                                        let _ = output
-                                            .send(Message::ConfigChanged(Box::default()))
-                                            .await;
-                                    }
-                                }
-                                None => {
-                                    debug!("No relevant file event detected.");
+                                _ => {
+                                    debug!("Ignoring event");
                                 }
                             }
                         }
-                    } else {
-                        error!("Failed to create inotify event stream");
+
+                        match file_event {
+                            Some(Event::Changed) => {
+                                info!("Reload config file");
+
+                                let path_clone = path.clone();
+                                let new_config = tokio::task::spawn_blocking(move || {
+                                    read_config(&path_clone).unwrap_or_default()
+                                })
+                                .await
+                                .unwrap_or_default();
+
+                                let _ = output.send(new_config).await;
+                            }
+                            Some(Event::Removed) => {
+                                // wait and double check if the file is really gone
+                                sleep(Duration::from_millis(500)).await;
+
+                                if !path.exists() {
+                                    info!("Config file removed");
+                                    let _ = output.send(Config::default()).await;
+                                }
+                            }
+                            None => {
+                                debug!("No relevant file event detected.");
+                            }
+                        }
                     }
-                }
-                (None, _, _) => {
-                    error!(
-                        "Config file path does not have a parent directory, cannot watch for changes"
-                    );
-                }
-                (_, None, _) => {
-                    error!("Config file path does not have a file name, cannot watch for changes");
-                }
-                (_, _, Err(e)) => {
-                    error!("Failed to initialize inotify: {e}");
+                } else {
+                    error!("Failed to create inotify event stream");
                 }
             }
-        })
+            (None, _, _) => {
+                error!(
+                    "Config file path does not have a parent directory, cannot watch for changes"
+                );
+            }
+            (_, None, _) => {
+                error!("Config file path does not have a file name, cannot watch for changes");
+            }
+            (_, _, Err(e)) => {
+                error!("Failed to initialize inotify: {e}");
+            }
+        }
     })
 }
 

@@ -178,6 +178,14 @@ fn resolve_font(name: &str) -> Font {
     }
 }
 
+fn default_log_directory() -> PathBuf {
+    xdg::get_runtime_dir().unwrap_or_else(|| {
+        [std::env::temp_dir(), PathBuf::from("ashell")]
+            .iter()
+            .collect()
+    })
+}
+
 fn main() -> iced::Result {
     let args = Args::parse();
 
@@ -198,7 +206,9 @@ fn main() -> iced::Result {
         .build();
     let logger = match log_prefs.target {
         LogTarget::File => Logger::with(log_spec)
-            .log_to_file(FileSpec::default().directory(log_prefs.log_directory()))
+            .log_to_file(
+                FileSpec::default().directory(log_prefs.log_directory(default_log_directory)),
+            )
             .rotate(
                 Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),
                 Naming::Timestamps,
