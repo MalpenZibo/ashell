@@ -1,9 +1,11 @@
 use crate::{
-    components::divider,
-    components::icons::{StaticIcon, icon},
-    components::scrollable,
-    components::spinning_icon::spinning_icon,
-    components::{IconPosition, MenuSize, styled_button},
+    components::{
+        IconPosition, MenuSize, ModuleView, divider,
+        icons::{StaticIcon, icon},
+        scrollable,
+        spinning_icon::spinning_icon,
+        styled_button,
+    },
     config::UpdatesModuleConfig,
     t,
     theme::use_theme,
@@ -172,7 +174,7 @@ impl Updates {
         }
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> ModuleView<'_, Message> {
         let (space, font_size, animated) =
             use_theme(|theme| (theme.space, theme.font_size, theme.animations_enabled));
         let is_checking = matches!(self.state, State::Checking);

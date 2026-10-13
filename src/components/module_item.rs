@@ -1,4 +1,4 @@
-use crate::{components::position_button, theme::use_theme};
+use crate::{components::position_button, config::ModuleStyle, theme::use_theme};
 use iced::{Alignment, Element, Length, widget::container};
 
 use super::ButtonUIRef;
@@ -16,6 +16,9 @@ enum Handler<'a, Msg> {
 /// When no handler at all is set, renders as a plain container.
 pub struct ModuleItem<'a, Msg> {
     content: Element<'a, Msg>,
+    // NOTE: implement styling
+    #[allow(dead_code)]
+    style: Option<ModuleStyle>,
     on_press: Option<Handler<'a, Msg>>,
     on_right_press: Option<Handler<'a, Msg>>,
     on_middle_press: Option<Handler<'a, Msg>>,
@@ -23,9 +26,13 @@ pub struct ModuleItem<'a, Msg> {
     on_scroll_down: Option<Msg>,
 }
 
-pub fn module_item<'a, Msg: 'static + Clone>(content: Element<'a, Msg>) -> ModuleItem<'a, Msg> {
+pub fn module_item<'a, Msg: 'static + Clone>(
+    content: Element<'a, Msg>,
+    style: Option<ModuleStyle>,
+) -> ModuleItem<'a, Msg> {
     ModuleItem {
         content,
+        style,
         on_press: None,
         on_right_press: None,
         on_middle_press: None,
