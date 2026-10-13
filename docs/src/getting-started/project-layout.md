@@ -4,13 +4,13 @@
 
 ```
 ashell/
-├── src/                     # Rust source code
+├── src/                     # Rust source code (the ashell binary)
+├── crates/                  # Workspace library crates (see below)
 ├── assets/                  # Fonts and icons
 ├── .github/workflows/       # CI/CD pipelines
 ├── website/                 # User-facing Docusaurus website
 ├── docs/                    # This developer guide (mdbook)
-├── i18n/                    # Fluent translation catalogs (en-US, de-DE, fr-FR)
-├── i18n.toml                # i18n-embed configuration
+├── i18n.toml                # i18n-embed configuration for the t!() key check in the binary
 ├── build.rs                 # Build script (font subsetting, git hash)
 ├── Cargo.toml               # Dependencies and project metadata
 ├── Cargo.lock               # Locked dependency versions
@@ -21,6 +21,18 @@ ashell/
 ├── CHANGELOG.md             # Version history
 └── LICENSE                  # GPL-3.0-or-later License
 ```
+
+## Workspace Crates
+
+```
+crates/
+├── ashell-i18n/             # Localization: Fluent catalogs, locale and unit system, t!() macro
+│   ├── i18n/                # Fluent translation catalogs (en-US, de-DE, fr-FR)
+│   └── i18n.toml            # i18n-embed configuration of the crate
+└── ashell-services/         # UI-agnostic backend services (no iced dependency)
+```
+
+`t!()` checks message keys at compile time against the catalogs of the crate that calls it, so every crate using it needs an `i18n.toml` with `domain = "ashell"` and an `assets_dir` pointing to `crates/ashell-i18n/i18n`.
 
 ## Source Tree
 
@@ -36,7 +48,6 @@ src/
 ├── theme.rs                 # Theme system: colors, spacing, fonts, bar styles
 ├── osd.rs                   # On-screen display overlay (volume, brightness, ...)
 ├── ipc.rs                   # IPC socket server and `ashell msg` client
-├── i18n.rs                  # Localization (Fluent catalogs)
 ├── xdg.rs                   # XDG runtime directory lookup
 │
 ├── components/              # Shared UI building blocks and custom iced widgets

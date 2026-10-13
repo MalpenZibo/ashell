@@ -70,12 +70,12 @@ pub fn my_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
 ## Adding a Translation
 
 ashell uses [Fluent](https://projectfluent.org/) via the `i18n-embed` crate. 
-Catalogs live in `i18n/<lang-tag>/ashell.ftl` and are baked into the binary at compile time with `include_str!`.
+Catalogs live in the `ashell-i18n` crate, in `crates/ashell-i18n/i18n/<lang-tag>/ashell.ftl`, and are baked into the binary at compile time with `include_str!`.
 
 1. Copy the seed catalog to a new BCP-47 directory (e.g. `fr-FR`, `de-DE`, `it-IT`):
    ```bash
-   mkdir -p i18n/<lang-tag>
-   cp i18n/en-US/ashell.ftl i18n/<lang-tag>/ashell.ftl
+   mkdir -p crates/ashell-i18n/i18n/<lang-tag>
+   cp crates/ashell-i18n/i18n/en-US/ashell.ftl crates/ashell-i18n/i18n/<lang-tag>/ashell.ftl
    ```
 
 2. Translate the right-hand side of every entry. Preserve:
@@ -85,7 +85,7 @@ Catalogs live in `i18n/<lang-tag>/ashell.ftl` and are baked into the binary at c
      The bracketed identifiers are Fluent literals — only the messages on the right-hand side get translated. 
      Use the [CLDR plural categories](https://www.unicode.org/cldr/charts/latest/supplemental/language_plural_rules.html) that apply to your language; `*[other]` is the required default.
 
-3. Register the catalog in the `CATALOGS` slice in `src/i18n.rs`:
+3. Register the catalog in the `CATALOGS` slice in `crates/ashell-i18n/src/lib.rs`:
    ```rust
    const CATALOGS: &[(&str, &str)] = &[
        ("en-US", include_str!("../i18n/en-US/ashell.ftl")),

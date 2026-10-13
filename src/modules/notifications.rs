@@ -12,9 +12,9 @@ use crate::{
             dbus::{CloseGuard, DEFAULT_ACTION_KEY, NotificationDaemon, NotificationEvent},
         },
     },
-    t,
     theme::{Paint, surface_border, use_theme},
 };
+use ashell_i18n::t;
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,

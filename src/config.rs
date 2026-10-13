@@ -1,7 +1,7 @@
 use crate::app::Message;
-use crate::i18n::{TemperatureUnit, UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
 use crate::theme::Space;
+use ashell_i18n::{TemperatureUnit, UnitSystem, unit_system};
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};

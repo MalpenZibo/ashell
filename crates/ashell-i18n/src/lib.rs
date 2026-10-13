@@ -2,15 +2,13 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 
 use chrono::Locale;
-use i18n_embed::{
-    I18nAssets, LanguageLoader,
-    fluent::{FluentLanguageLoader, fluent_language_loader},
-};
+use i18n_embed::{I18nAssets, LanguageLoader, fluent::FluentLanguageLoader};
 use log::warn;
 use serde::Deserialize;
 use unic_langid::LanguageIdentifier;
 
-use crate::utils::celsius_to_fahrenheit;
+#[doc(hidden)]
+pub use i18n_embed_fl;
 
 const CATALOGS: &[(&str, &str)] = &[
     ("en-US", include_str!("../i18n/en-US/ashell.ftl")),
@@ -136,7 +134,7 @@ pub fn language_subtag() -> String {
 #[macro_export]
 macro_rules! t {
     ($($args:tt)*) => {
-        $crate::i18n::use_localizer(|l| ::i18n_embed_fl::fl!(l.loader(), $($args)*))
+        $crate::use_localizer(|l| $crate::i18n_embed_fl::fl!(l.loader(), $($args)*))
     };
 }
 
@@ -219,7 +217,7 @@ fn expected_path(lang: &str) -> String {
 }
 
 fn load_loader(langid: &LanguageIdentifier) -> FluentLanguageLoader {
-    let loader = fluent_language_loader!();
+    let loader = FluentLanguageLoader::new("ashell", en_us_langid());
     let result = i18n_embed::select(&loader, &StaticCatalogs, std::slice::from_ref(langid));
     if !result.as_ref().is_ok_and(|s| s.contains(langid)) {
         warn!("i18n: ashell does not support language {langid}, using {FALLBACK_LANG}");
@@ -288,4 +286,8 @@ fn script_subtag_for_variant(variant: &str) -> Option<&'static str> {
 
 fn en_us_langid() -> LanguageIdentifier {
     FALLBACK_LANG.parse().expect("en-US is a valid langid")
+}
+
+fn celsius_to_fahrenheit(cel: i32) -> i32 {
+    (cel as f64 * 9.0 / 5.0 + 32.0).round() as i32
 }

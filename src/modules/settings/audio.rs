@@ -10,11 +10,11 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioEvent, AudioService, ChannelVolumesExt, DevicePortType, Port},
     },
-    t,
     theme::use_theme,
     utils::IndicatorState,
     utils::remote_value::{self, Remote},
 };
+use ashell_i18n::t;
 use iced::{
     Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
     mouse::ScrollDelta,

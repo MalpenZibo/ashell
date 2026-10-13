@@ -3,9 +3,9 @@ use qrcode::QrCode;
 use crate::{
     components::{ButtonKind, styled_button},
     services::network::{PskOutcome, WifiSecurity},
-    t,
     theme::use_theme,
 };
+use ashell_i18n::t;
 use iced::{
     Alignment, Element, Length,
     widget::{Column, column, container, image, row, text},

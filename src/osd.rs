@@ -12,9 +12,9 @@ use crate::{
     modules::settings::audio::AudioSettings,
     modules::settings::network::NetworkSettings,
     services::idle_inhibitor::IdleInhibitorManager,
-    t,
     theme::{surface_border, use_theme},
 };
+use ashell_i18n::t;
 
 pub struct Osd {
     config: OsdConfig,

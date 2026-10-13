@@ -1,9 +1,9 @@
 use super::icons::{StaticIcon, icon, icon_button};
 use crate::{
     components::{ButtonHierarchy, ButtonKind, styled_button},
-    t,
     theme::use_theme,
 };
+use ashell_i18n::t;
 use iced::{
     Alignment, Element, Length, SurfaceId,
     id::Id,
