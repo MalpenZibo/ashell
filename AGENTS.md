@@ -32,7 +32,6 @@ It follows the Elm architecture (model → update → view) with a modular desig
 src/
 ├── main.rs              # entry point, font embedding, CLI dispatch
 ├── app.rs               # App state, Elm update/view cycle
-├── config.rs            # configuration types (TOML deserialization)
 ├── ipc.rs               # Unix socket IPC (client + server + subscription)
 ├── theme.rs             # theming (transparent/solid bar surface, radius, margin)
 ├── menu.rs              # menu UI
@@ -49,6 +48,7 @@ src/
 ├── widgets/             # custom iced widgets (centerbox, position_button, menu_wrapper)
 └── utils/
 crates/
+├── ashell-config/       # configuration types (TOML deserialization), imported as `config` in the binary
 ├── ashell-i18n/         # localization: Fluent catalogs, locale/unit system, t!() macro
 └── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth
 ```

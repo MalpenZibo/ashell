@@ -26,6 +26,7 @@ ashell/
 
 ```
 crates/
+├── ashell-config/           # TOML config types, defaults, validation, hot-reload watcher (no iced)
 ├── ashell-i18n/             # Localization: Fluent catalogs, locale and unit system, t!() macro
 │   ├── i18n/                # Fluent translation catalogs (en-US, de-DE, fr-FR)
 │   └── i18n.toml            # i18n-embed configuration of the crate
@@ -43,7 +44,6 @@ src/
 ├── app/
 │   ├── message.rs           # Top-level Message enum
 │   └── osd_info.rs          # OSD display info for IPC commands
-├── config.rs                # TOML config parsing, defaults, hot-reload via inotify
 ├── outputs.rs               # Multi-monitor management, layer surface creation
 ├── theme.rs                 # Theme system: colors, spacing, fonts, bar styles
 ├── osd.rs                   # On-screen display overlay (volume, brightness, ...)

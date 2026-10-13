@@ -65,6 +65,8 @@ the same at any opacity.
 
 ### Spacing
 
+`Space` is defined in the config crate, next to the `SpaceSize` tokens it resolves:
+
 ```rust
 pub struct Space {
     pub xxs: f32,  // 4px

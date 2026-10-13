@@ -1,0 +1,26 @@
+[package]
+name = "ashell-config"
+description = "ashell configuration: TOML types, defaults, validation and file watching"
+version = "0.11.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+ashell-i18n = { path = "../ashell-i18n" }
+futures = "0.3"
+hex_color.workspace = true
+inotify.workspace = true
+log.workspace = true
+regex = "1.12.2"
+serde = { workspace = true, features = ["derive", "std"] }
+serde_ignored = "0.1"
+serde_with = { version = "3.12", default-features = false, features = [
+  "macros",
+] }
+shellexpand = { version = "3", features = ["path"] }
+tokio = { workspace = true, features = ["rt", "time"] }
+toml.workspace = true

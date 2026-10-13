@@ -140,6 +140,7 @@ version = "0.11.0"
 dependencies = [
  "allsorts",
  "anyhow",
+ "ashell-config",
  "ashell-i18n",
  "ashell-services",
  "chrono",
@@ -162,13 +163,9 @@ dependencies = [
  "pin-project-lite",
  "pipewire",
  "qrcode",
- "regex",
  "reqwest",
  "serde",
- "serde_ignored",
  "serde_json",
- "serde_with",
- "shellexpand",
  "signal-hook",
  "signal-hook-tokio",
  "sysinfo",
@@ -182,6 +179,24 @@ dependencies = [
  "wayland-protocols",
  "wayland-protocols-wlr",
  "zbus",
+]
+
+[[package]]
+name = "ashell-config"
+version = "0.11.0"
+dependencies = [
+ "ashell-i18n",
+ "futures",
+ "hex_color",
+ "inotify",
+ "log",
+ "regex",
+ "serde",
+ "serde_ignored",
+ "serde_with",
+ "shellexpand",
+ "tokio",
+ "toml 1.1.4+spec-1.1.0",
 ]
 
 [[package]]

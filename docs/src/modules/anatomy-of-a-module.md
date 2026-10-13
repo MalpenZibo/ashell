@@ -135,4 +135,4 @@ Each module is integrated into the App through several touchpoints:
 3. **Match arm in `App::update()`** (`src/app.rs`)
 4. **Entry in `get_module_view()`** (`src/modules/mod.rs`)
 5. **Entry in `get_module_subscription()`** (`src/modules/mod.rs`)
-6. **`ModuleName` variant** (`src/config.rs`)
+6. **`ModuleName` variant** (`crates/ashell-config/src/lib.rs`)
