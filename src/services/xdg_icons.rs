@@ -47,6 +47,12 @@ static SYSTEM_ICON_ENTRIES: LazyLock<Vec<IconEntry>> = LazyLock::new(|| {
 });
 static DESKTOP_ICON_INDEX: LazyLock<HashMap<String, String>> =
     LazyLock::new(build_desktop_icon_index);
+// `get_icon_theme` can spawn `gsettings`, so resolve it once instead of per lookup.
+static ICON_THEME: LazyLock<Option<String>> = LazyLock::new(get_icon_theme);
+
+pub fn icon_theme() -> Option<&'static str> {
+    ICON_THEME.as_deref()
+}
 
 #[derive(Debug, Clone)]
 pub enum XdgIcon {
@@ -62,6 +68,7 @@ pub fn fallback_icon() -> XdgIcon {
 fn warm_cache() {
     LazyLock::force(&SYSTEM_ICON_ENTRIES);
     LazyLock::force(&DESKTOP_ICON_INDEX);
+    LazyLock::force(&ICON_THEME);
 }
 
 // Build the indexes on a blocking worker: they scan every icon dir and parse
@@ -165,8 +172,8 @@ fn icon_from_path(path: PathBuf) -> Option<XdgIcon> {
 fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
     let base_lookup = lookup(icon_name).with_cache();
 
-    match get_icon_theme() {
-        Some(theme) => base_lookup.with_theme(&theme).find().or_else(|| {
+    match icon_theme() {
+        Some(theme) => base_lookup.with_theme(theme).find().or_else(|| {
             let fallback_lookup = lookup(icon_name).with_cache();
             fallback_lookup.find()
         }),
