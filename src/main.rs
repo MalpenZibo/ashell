@@ -2,6 +2,7 @@ use crate::config::{LogTarget, get_config};
 use crate::outputs::{BarVisibility, Outputs};
 use crate::theme::BarLayout;
 use app::App;
+use ashell_config as config;
 use clap::Parser;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
@@ -17,7 +18,6 @@ use std::path::PathBuf;
 
 mod app;
 mod components;
-mod config;
 mod ipc;
 mod modules;
 mod osd;
@@ -178,6 +178,14 @@ fn resolve_font(name: &str) -> Font {
     }
 }
 
+fn default_log_directory() -> PathBuf {
+    xdg::get_runtime_dir().unwrap_or_else(|| {
+        [std::env::temp_dir(), PathBuf::from("ashell")]
+            .iter()
+            .collect()
+    })
+}
+
 fn main() -> iced::Result {
     let args = Args::parse();
 
@@ -198,7 +206,9 @@ fn main() -> iced::Result {
         .build();
     let logger = match log_prefs.target {
         LogTarget::File => Logger::with(log_spec)
-            .log_to_file(FileSpec::default().directory(log_prefs.log_directory()))
+            .log_to_file(
+                FileSpec::default().directory(log_prefs.log_directory(default_log_directory)),
+            )
             .rotate(
                 Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),
                 Naming::Timestamps,

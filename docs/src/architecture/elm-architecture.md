@@ -83,7 +83,9 @@ Subscriptions are long-lived event sources. They run in the background and produ
 pub fn subscription(&self) -> Subscription<Message> {
     Subscription::batch(vec![
         Subscription::batch(self.modules_subscriptions(/* ... */)), // Module subscriptions
-        config::subscription(&self.config_path),                     // Config file changes
+        Subscription::run_with(self.config_path.clone(), |path| {     // Config file changes
+            config::watch(path.clone()).map(|c| Message::ConfigChanged(Box::new(c)))
+        }),
         iced::output_events().map(Message::OutputEvent),             // Output events
         // ... more subscriptions (logind, ESC key, SIGUSR1, IPC)
     ])

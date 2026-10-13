@@ -3,10 +3,12 @@ use std::cell::RefCell;
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
-        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarPadding,
-        BarRadius, BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize, Surface,
+        Appearance, AppearanceColor, BackgroundAppearanceColor, BackgroundLevel, BarAppearance,
+        BarMargin, BarPadding, BarRadius, BarSurface, MenuAppearance, Position, RadiusSize, Space,
+        Surface,
     },
 };
+use hex_color::HexColor;
 use iced::{
     Background, Border, Color, Shadow, Theme, Vector, border,
     theme::{Palette, palette},
@@ -28,47 +30,6 @@ pub fn init_theme(theme: AshellTheme) {
 
 pub fn use_theme<R, F: FnOnce(&AshellTheme) -> R>(f: F) -> R {
     THEME.with_borrow(f)
-}
-
-#[allow(unused)]
-#[derive(Debug, Copy, Clone)]
-pub struct Space {
-    pub xxs: f32,
-    pub xs: f32,
-    pub sm: f32,
-    pub md: f32,
-    pub lg: f32,
-    pub xl: f32,
-    pub xxl: f32,
-}
-
-impl Default for Space {
-    fn default() -> Self {
-        Self {
-            xxs: 4.0,
-            xs: 8.0,
-            sm: 12.0,
-            md: 16.0,
-            lg: 24.0,
-            xl: 32.0,
-            xxl: 48.0,
-        }
-    }
-}
-
-impl Space {
-    pub fn resolve(&self, size: SpaceSize) -> f32 {
-        match size {
-            SpaceSize::None => 0.0,
-            SpaceSize::Xxs => self.xxs,
-            SpaceSize::Xs => self.xs,
-            SpaceSize::Sm => self.sm,
-            SpaceSize::Md => self.md,
-            SpaceSize::Lg => self.lg,
-            SpaceSize::Xl => self.xl,
-            SpaceSize::Xxl => self.xxl,
-        }
-    }
 }
 
 #[allow(unused)]
@@ -392,6 +353,65 @@ pub fn card_style(radius: impl Into<border::Radius>) -> impl Fn(&Theme) -> conta
         ),
         border: Border::default().rounded(radius),
         ..container::Style::default()
+    }
+}
+
+fn hex_to_color(hex: HexColor) -> Color {
+    Color::from_rgb8(hex.r, hex.g, hex.b)
+}
+
+fn hex_to_pair(hex: HexColor, text: Option<HexColor>, text_fallback: Color) -> palette::Pair {
+    palette::Pair::new(
+        hex_to_color(hex),
+        text.map(hex_to_color).unwrap_or(text_fallback),
+    )
+}
+
+trait AppearanceColorExt {
+    fn get_base(&self) -> Color;
+    fn get_text(&self) -> Option<Color>;
+    fn get_weak_pair(&self, text_fallback: Color) -> Option<palette::Pair>;
+    fn get_strong_pair(&self, text_fallback: Color) -> Option<palette::Pair>;
+}
+
+impl AppearanceColorExt for AppearanceColor {
+    fn get_base(&self) -> Color {
+        hex_to_color(self.base())
+    }
+
+    fn get_text(&self) -> Option<Color> {
+        self.text().map(hex_to_color)
+    }
+
+    fn get_weak_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
+        self.weak()
+            .map(|color| hex_to_pair(color, self.text(), text_fallback))
+    }
+
+    fn get_strong_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
+        self.strong()
+            .map(|color| hex_to_pair(color, self.text(), text_fallback))
+    }
+}
+
+trait BackgroundColorExt {
+    fn get_base(&self) -> Color;
+    fn get_text(&self) -> Option<Color>;
+    fn get_pair(&self, level: BackgroundLevel, text_fallback: Color) -> Option<palette::Pair>;
+}
+
+impl BackgroundColorExt for BackgroundAppearanceColor {
+    fn get_base(&self) -> Color {
+        hex_to_color(self.base())
+    }
+
+    fn get_text(&self) -> Option<Color> {
+        self.text().map(hex_to_color)
+    }
+
+    fn get_pair(&self, level: BackgroundLevel, text_fallback: Color) -> Option<palette::Pair> {
+        self.level(level)
+            .map(|color| hex_to_pair(color, self.text(), text_fallback))
     }
 }
 

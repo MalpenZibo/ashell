@@ -59,6 +59,10 @@ jobs:
         if: steps.filter.outputs.code == 'true'
         run: cargo test -p ashell-services --all-features
 
+      - name: Test ashell-config
+        if: steps.filter.outputs.code == 'true'
+        run: cargo test -p ashell-config
+
       - name: Build
         if: steps.filter.outputs.code == 'true'
         run: cargo build
