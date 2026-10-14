@@ -1,4 +1,4 @@
-use crate::services::{ReadOnlyService, ServiceEvent};
+use crate::services::{ReadOnlyService, ServiceEvent, xdg_icons};
 use iced::Subscription;
 use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
 use iced::stream::channel;
@@ -140,9 +140,9 @@ fn resolve_candidate(candidate: String) -> Option<PathBuf> {
 
 fn freedesktop_lookup(name: &str) -> Option<PathBuf> {
     let base = freedesktop_icons::lookup(name).with_cache();
-    match linicon_theme::get_icon_theme() {
+    match xdg_icons::icon_theme() {
         Some(theme) => base
-            .with_theme(&theme)
+            .with_theme(theme)
             .find()
             .or_else(|| freedesktop_icons::lookup(name).with_cache().find()),
         None => base.find(),
