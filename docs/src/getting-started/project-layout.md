@@ -9,7 +9,7 @@ ashell/
 ├── .github/workflows/       # CI/CD pipelines
 ├── website/                 # User-facing Docusaurus website
 ├── docs/                    # This developer guide (mdbook)
-├── i18n/                    # Fluent translation catalogs (en-US, de-DE, fr-FR)
+├── i18n/                    # Fluent translation catalogs (en-US, de-DE, fr-FR, ru-RU)
 ├── i18n.toml                # i18n-embed configuration
 ├── build.rs                 # Build script (font subsetting, git hash)
 ├── Cargo.toml               # Dependencies and project metadata
