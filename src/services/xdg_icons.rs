@@ -451,7 +451,9 @@ fn icon_directories() -> Vec<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{get_icon_from_name, is_safe_icon_name};
+    use super::{
+        get_icon_from_name, is_safe_icon_name, normalize_icon_name, strip_icon_separators,
+    };
 
     #[test]
     fn accepts_ordinary_icon_names() {
@@ -494,5 +496,60 @@ mod tests {
         assert!(get_icon_from_name("../../etc/passwd").is_none());
         assert!(get_icon_from_name("/etc/passwd").is_none());
         assert!(get_icon_from_name("").is_none());
+    }
+
+    #[test]
+    fn normalize_icon_name_keeps_lowercase_alphanumeric_unchanged() {
+        assert_eq!(normalize_icon_name("telegram"), "telegram");
+        assert_eq!(normalize_icon_name("blueman"), "blueman");
+    }
+
+    #[test]
+    fn normalize_icon_name_strips_separators_in_mixed_names() {
+        assert_eq!(normalize_icon_name("org.blueman"), "orgblueman");
+        assert_eq!(
+            normalize_icon_name("org.telegram.desktop"),
+            "orgtelegramdesktop"
+        );
+    }
+
+    #[test]
+    fn normalize_icon_name_lowercases_and_strips_non_alphanumeric() {
+        assert_eq!(normalize_icon_name("Telegram"), "telegram");
+        assert_eq!(
+            normalize_icon_name("org.telegram.desktop"),
+            "orgtelegramdesktop"
+        );
+        assert_eq!(normalize_icon_name("BlueMan!"), "blueman");
+        assert_eq!(normalize_icon_name("123"), "123");
+    }
+
+    #[test]
+    fn normalize_icon_name_strips_unicode_non_ascii() {
+        assert_eq!(normalize_icon_name("naïve"), "nave");
+        assert_eq!(normalize_icon_name("app-1.0"), "app10");
+    }
+
+    #[test]
+    fn strip_icon_separators_removes_dashes_and_underscores() {
+        assert_eq!(strip_icon_separators("org.telegram"), "org.telegram");
+        assert_eq!(
+            strip_icon_separators("org-telegram-desktop"),
+            "orgtelegramdesktop"
+        );
+        assert_eq!(strip_icon_separators("foo_bar-baz"), "foobarbaz");
+    }
+
+    #[test]
+    fn strip_icon_separators_no_separators_is_borrowed() {
+        assert_eq!(strip_icon_separators("telegram"), "telegram");
+        assert_eq!(strip_icon_separators("org.telegram"), "org.telegram");
+    }
+
+    #[test]
+    fn normalize_then_strip_is_idempotent_for_clean_names() {
+        let normalized = normalize_icon_name("telegram");
+        let stripped = strip_icon_separators(normalized.as_ref());
+        assert_eq!(normalized, stripped);
     }
 }
