@@ -18,7 +18,9 @@ The `[logging]` section controls log level, destination, and file location.
 By default, ashell logs at `warn` level to a file directly inside
 `$XDG_RUNTIME_DIR`, for example `/run/user/1000/ashell_rCURRENT.log`. When
 `$XDG_RUNTIME_DIR` is unset or is not a private per-user directory, the
-fallback is `/tmp/ashell/`. Log files are rotated daily or when they reach
+fallback is `$TMPDIR/ashell-<uid>/` (typically `/tmp/ashell-1000/`), created
+with mode `0700`. If that directory exists but is not yours with mode `0700`,
+ashell logs to stderr instead. Log files are rotated daily or when they reach
 10 MB, and the last 7 files are kept.
 
 See [log levels](https://docs.rs/env_logger/latest/env_logger/#enabling-logging)
@@ -42,9 +44,8 @@ The log destination is set once at startup and cannot be changed via hot-reload.
 :::caution
 
 On multi-user systems, avoid setting `directory` to a shared path like `/tmp/ashell`.
-The default `$XDG_RUNTIME_DIR` is per-user and avoids permission conflicts when
-multiple users run ashell on the same machine; ashell only falls back to
-`/tmp/ashell` when `$XDG_RUNTIME_DIR` is unusable.
+ashell does not check the ownership or mode of a `directory` you set yourself.
+The default directories are private to your user.
 
 :::
 

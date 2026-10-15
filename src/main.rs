@@ -197,21 +197,34 @@ fn main() -> iced::Result {
     let log_spec = LogSpecBuilder::new()
         .default(log::LevelFilter::Info)
         .build();
-    let logger = match log_prefs.target {
-        LogTarget::File => Logger::with(log_spec)
-            .log_to_file(FileSpec::default().directory(log_prefs.log_directory()))
-            .rotate(
-                Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),
-                Naming::Timestamps,
-                Cleanup::KeepLogFiles(7),
-            ),
-        LogTarget::Stdout => Logger::with(log_spec).log_to_stdout(),
-        LogTarget::Stderr => Logger::with(log_spec).log_to_stderr(),
+    let log_directory = match log_prefs.target {
+        LogTarget::File => log_prefs
+            .log_directory()
+            .inspect_err(|e| {
+                eprintln!("ashell: cannot use a log directory: {e:#}, logging to stderr")
+            })
+            .ok(),
+        LogTarget::Stdout | LogTarget::Stderr => None,
     };
-    let logger = if cfg!(debug_assertions) && matches!(log_prefs.target, LogTarget::File) {
-        logger.duplicate_to_stdout(flexi_logger::Duplicate::All)
-    } else {
-        logger
+    let logger = match &log_directory {
+        Some(directory) => {
+            let logger = Logger::with(log_spec)
+                .log_to_file(FileSpec::default().directory(directory))
+                .rotate(
+                    Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),
+                    Naming::Timestamps,
+                    Cleanup::KeepLogFiles(7),
+                );
+            if cfg!(debug_assertions) {
+                logger.duplicate_to_stdout(flexi_logger::Duplicate::All)
+            } else {
+                logger
+            }
+        }
+        None if matches!(log_prefs.target, LogTarget::Stdout) => {
+            Logger::with(log_spec).log_to_stdout()
+        }
+        None => Logger::with(log_spec).log_to_stderr(),
     };
     let logger = logger.start().unwrap_or_else(|e| {
         eprintln!("Failed to initialize logger: {e}, falling back to stderr-only");
@@ -229,6 +242,13 @@ fn main() -> iced::Result {
     }));
 
     info!("ashell {VERSION}");
+
+    if xdg::get_runtime_dir().is_none() {
+        warn!(
+            "XDG_RUNTIME_DIR is unset or invalid, ashell's runtime files fall back to {}",
+            xdg::fallback_dir().display()
+        );
+    }
 
     let (config, config_path) = get_config(args.config_path.as_ref()).unwrap_or_else(|err| {
         error!("Failed to read config: {err}");

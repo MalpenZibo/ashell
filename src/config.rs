@@ -51,17 +51,11 @@ impl Default for LoggingConfig {
 }
 
 impl LoggingConfig {
-    pub fn log_directory(&self) -> PathBuf {
-        let default_directory = || {
-            crate::xdg::get_runtime_dir().unwrap_or_else(|| {
-                [std::env::temp_dir(), PathBuf::from("ashell")]
-                    .iter()
-                    .collect()
-            })
-        };
+    pub fn log_directory(&self) -> anyhow::Result<PathBuf> {
+        let default_directory = || crate::xdg::private_dir(true);
 
         match &self.directory {
-            Some(directory) => expand_path(directory.clone()).unwrap_or_else(|e| {
+            Some(directory) => expand_path(directory.clone()).or_else(|e| {
                 eprintln!(
                     "ashell: warning: cannot expand logging.directory {directory:?}: {e}, using the default"
                 );

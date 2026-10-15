@@ -22,7 +22,7 @@ The config path can be overridden with the `--config-path` CLI flag. The path is
 
 | Variable | Purpose |
 |----------|---------|
-| `XDG_RUNTIME_DIR` | Location of the IPC socket (`ashell.sock`) and the default log directory (logs fall back to `/tmp/ashell` if unset) |
+| `XDG_RUNTIME_DIR` | Location of the IPC socket (`ashell.sock`) and the default log directory (both fall back to a private `$TMPDIR/ashell-<uid>` if unset or invalid) |
 
 ## Graphics
 
