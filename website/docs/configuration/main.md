@@ -119,6 +119,7 @@ ashell currently ships UI translations for:
 - `de-DE`
 - `fr-FR`
 - `ru-RU`
+- `uk-UA`
 
 Setting `language` to anything else is not an error; untranslated strings just
 fall back to English. `region` is not restricted to this list: it accepts any
