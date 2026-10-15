@@ -20,6 +20,8 @@ use iced::futures::StreamExt;
 
 /// Maximum bytes to read from a client connection.
 const MAX_REQUEST_LEN: u64 = 4096;
+/// How long the server waits for a connected client to send its command.
+const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// IPC command that can be sent to the daemon.
 #[derive(Subcommand, Debug, Clone)]
@@ -269,6 +271,16 @@ fn write_response(stream: &mut UnixStream, response: &str) {
 
 /// Handle a single accepted client connection.
 fn handle_connection(mut stream: UnixStream) -> Option<IpcCommand> {
+    // tokio's `into_std` leaves the socket nonblocking, so a read that races
+    // ahead of the client's write fails with EAGAIN. Block instead, bounded so
+    // a client that never writes can't stall the IPC subscription.
+    if let Err(e) = stream
+        .set_nonblocking(false)
+        .and_then(|()| stream.set_read_timeout(Some(REQUEST_TIMEOUT)))
+    {
+        log::debug!("IPC: failed to make stream blocking: {e}");
+    }
+
     match read_request(&stream) {
         Ok(cmd) => {
             write_response(&mut stream, "ok");
