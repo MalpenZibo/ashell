@@ -35,4 +35,5 @@ pub enum Message {
     None,
     ToggleVisibility,
     LoadConfig(PathBuf),
+    Restart,
 }

@@ -4,7 +4,7 @@ use crate::{
     config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
     get_log_spec,
     i18n::{Localizer, init_localizer},
-    ipc::IpcCommand,
+    ipc::{self, IpcCommand},
     modules::{
         self,
         custom_module::Custom,
@@ -34,8 +34,8 @@ use iced::{
     keyboard,
     widget::{Row, blur_container, container, mouse_area},
 };
-use log::{debug, info, warn};
-use std::{collections::HashMap, path::PathBuf};
+use log::{debug, error, info, warn};
+use std::{collections::HashMap, os::unix::process::CommandExt, path::PathBuf};
 
 const OSD_WIDTH: u32 = 250;
 const OSD_HEIGHT: u32 = 64;
@@ -586,6 +586,12 @@ impl App {
                         );
                         modules::settings::Action::None
                     }
+                    IpcCommand::Restart => {
+                        warn!(
+                            "IpcCommand::Restart reached IpcOsdCommand handler; use Message::Restart instead"
+                        );
+                        modules::settings::Action::None
+                    }
                 };
                 if let settings::Action::Command(task) = action {
                     tasks.push(task.map(Message::Settings));
@@ -641,7 +647,41 @@ impl App {
                     Task::none()
                 }
             },
+            Message::Restart => self.restart(),
         }
+    }
+
+    /// Replace the running process with a fresh one, reloading the
+    /// configuration from disk.
+    ///
+    /// `exec` keeps the pid, so a supervisor sees a continuously running bar
+    /// rather than a crash-loop, and there is no window where nothing is
+    /// serving the bar. It only returns if the re-exec itself fails.
+    fn restart(&self) -> ! {
+        info!("Restarting ashell");
+
+        // The replacement must be able to bind the IPC socket, so drop it
+        // first: this process may still hold the old listener across `exec`.
+        if let Err(e) = ipc::clear_socket() {
+            warn!("Failed to clear the IPC socket before restarting: {e:#}");
+        }
+
+        let exe = match std::env::current_exe() {
+            Ok(exe) => exe,
+            Err(e) => {
+                error!("Failed to locate the running binary ({e}), exiting instead");
+                std::process::exit(1);
+            }
+        };
+
+        // `exec` only returns on failure.
+        let err = std::process::Command::new(exe)
+            .arg("--config-path")
+            .arg(&self.config_path)
+            .exec();
+
+        error!("Failed to re-exec ashell: {err}, exiting instead");
+        std::process::exit(1);
     }
 
     pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
@@ -849,6 +889,7 @@ impl App {
             crate::ipc::subscription().map(|cmd| match cmd {
                 IpcCommand::ToggleVisibility => Message::ToggleVisibility,
                 IpcCommand::LoadConfig { file } => Message::LoadConfig(file),
+                IpcCommand::Restart => Message::Restart,
                 other => Message::IpcOsdCommand(other),
             }),
         ])
