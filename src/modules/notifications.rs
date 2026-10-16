@@ -161,6 +161,7 @@ pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
     InvokeAction(u32, String),
+    InvokeIpc { id: Option<u32>, action: String },
     CloseNotificationById(u32),
     ClearNotifications,
     ClearGroup(String),
@@ -306,6 +307,10 @@ impl Notifications {
 
     pub fn toggle_dnd(&mut self) {
         self.dnd = !self.dnd;
+    }
+
+    pub fn snapshot(&self) -> Arc<[Arc<Notification>]> {
+        Arc::clone(&self.notifications)
     }
 
     fn find_notification(&self, id: u32) -> Option<&Notification> {
@@ -549,6 +554,21 @@ impl Notifications {
                     Action::TaskAndCloseMenu(task)
                 } else {
                     Action::Task(task)
+                }
+            }
+            Message::InvokeIpc { id, action } => {
+                let notification = self.notifications.iter().find(|notification| {
+                    id.is_none_or(|id| notification.id == id)
+                        && notification.action_pairs().any(|(key, _)| key == action)
+                });
+                match notification {
+                    Some(notification) => {
+                        self.invoke_and_dismiss(notification.id, Some(action), None)
+                    }
+                    None => {
+                        debug!("No notification matching id {id:?} and action {action:?}");
+                        Action::None
+                    }
                 }
             }
             Message::InvokeAction(id, action_key) => {

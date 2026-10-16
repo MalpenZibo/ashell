@@ -61,6 +61,44 @@ Click the notification indicator to open the notifications menu. The menu displa
 - **Clicking a notification**: Invokes its default action (if provided by the app), closes it and the menu
 - **Action buttons**: Any other actions the app provides (for example `notify-send -A "Reply"`) appear as buttons below the notification, on toasts and in the menu. Clicking one invokes that action and closes the notification. This applies to grouped notifications too
 
+## IPC commands
+
+See [IPC messaging](../index.md#ipc-messaging) for command syntax.
+
+- `notifications-clear` closes all retained notifications, or just the specified ID.
+- `notifications-invoke` runs an action and closes the notification without
+  focusing the app. Pass the action's `key` from `notifications-list`, not its
+  `label`. The key defaults to `default`. Without `--id`, it picks the newest
+  notification offering that key.
+- `notifications-list` requires the Notifications module to be enabled. It lists
+  retained notifications newest first, or prints `[]` if none remain.
+
+Clear and invoke print `ok` on acceptance, not completion. If nothing matches,
+they have no effect.
+
+Example `notifications-list` output:
+
+```json
+[
+  {
+    "id": 42,
+    "app_name": "Example",
+    "summary": "Download complete",
+    "body": "Your file is ready.",
+    "urgency": "normal",
+    "actions": [{"key": "show-folder", "label": "Show in Folder"}]
+  }
+]
+```
+
+Urgency is `low`, `normal`, or `critical`.
+
+To run “Show in Folder” on notification 42, use its key:
+
+```bash
+ashell msg notifications-invoke --id 42 show-folder
+```
+
 ## Configuration
 
 ### format
