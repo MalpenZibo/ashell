@@ -12,11 +12,16 @@ use futures::{
 };
 use log::{debug, error, warn};
 use std::{fmt, pin::pin, time::Duration};
-use zbus::{OwnedObjectPath, fdo::DBusProxy, names::WellKnownName};
+use zbus::{
+    OwnedObjectPath,
+    fdo::DBusProxy,
+    names::{BusName, WellKnownName},
+};
 
 mod dbus;
 
 const UPOWER: &str = "org.freedesktop.UPower";
+const POWER_PROFILES: &str = "org.freedesktop.UPower.PowerProfiles";
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 const TIME_ESTIMATE_THROTTLE: Duration = Duration::from_secs(30);
 
@@ -435,6 +440,11 @@ impl UPower {
     }
 
     async fn read_power_profile(conn: &zbus::Connection) -> anyhow::Result<PowerProfile> {
+        // Reading it would start power-profiles-daemon
+        if !has_owner(conn, POWER_PROFILES).await? {
+            return Ok(PowerProfile::Unknown);
+        }
+
         let profile = PowerProfilesProxy::new(conn)
             .await?
             .active_profile()
@@ -460,6 +470,10 @@ impl UPower {
             upower.receive_device_added().await?.map(|_| {}),
             upower.receive_device_removed().await?.map(|_| {}),
             bus::owner_watch(conn, UPOWER).await?.skip(1).map(|_| {}),
+            bus::owner_watch(conn, POWER_PROFILES)
+                .await?
+                .skip(1)
+                .map(|_| {}),
         )
         .map(|_| Change::Topology);
 
@@ -569,6 +583,13 @@ async fn start_service(conn: &zbus::Connection, name: &'static str) -> anyhow::R
         .await?;
 
     Ok(())
+}
+
+async fn has_owner(conn: &zbus::Connection, name: &'static str) -> anyhow::Result<bool> {
+    Ok(DBusProxy::new(conn)
+        .await?
+        .name_has_owner(BusName::try_from(name)?)
+        .await?)
 }
 
 // DBus exposes the keyboard backlight as a signed integer: clamp negative values to 0
