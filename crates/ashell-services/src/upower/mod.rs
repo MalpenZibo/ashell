@@ -4,13 +4,14 @@ use dbus::{
     UpDeviceKind,
 };
 use futures::{
-    SinkExt, Stream, StreamExt,
-    future::ready,
+    FutureExt, SinkExt, Stream, StreamExt,
+    channel::mpsc::Sender,
+    future::{Either, ready, select},
     stream::{BoxStream, select_all},
     stream_select,
 };
 use log::{debug, error, warn};
-use std::{fmt, time::Duration};
+use std::{fmt, pin::pin, time::Duration};
 use zbus::{fdo::DBusProxy, names::WellKnownName, zvariant::OwnedObjectPath};
 
 mod dbus;
@@ -173,6 +174,8 @@ impl UPower {
                 debug!("Failed to start upower: {err}");
             }
 
+            let mut last = None;
+
             loop {
                 let mut owner = match bus::owner_watch(&conn, UPOWER).await {
                     Ok(owner) => owner.boxed(),
@@ -185,7 +188,7 @@ impl UPower {
                 match owner.next().await {
                     Some(true) => {}
                     Some(false) => {
-                        if output.send(UPowerData::default()).await.is_err() {
+                        if !send(&mut output, &mut last, UPowerData::default()).await {
                             return;
                         }
                         if owner.filter(|owned| ready(*owned)).next().await.is_none() {
@@ -207,19 +210,40 @@ impl UPower {
                     }
                 };
 
-                loop {
-                    match Self::read_data(&conn).await {
+                let mut stale = true;
+
+                'changes: loop {
+                    if !stale {
+                        match changes.next().await {
+                            Some(Change::Property) => {}
+                            Some(Change::Topology) | None => break,
+                        }
+                    }
+                    stale = false;
+
+                    while let Some(change) = changes.next().now_or_never() {
+                        if !matches!(change, Some(Change::Property)) {
+                            break 'changes;
+                        }
+                    }
+
+                    // A full zbus signal queue also stops reply reads: keep draining changes
+                    let mut read = pin!(Self::read_data(&conn));
+                    let result = loop {
+                        match select(read.as_mut(), changes.next()).await {
+                            Either::Left((result, _)) => break result,
+                            Either::Right((Some(Change::Property), _)) => stale = true,
+                            Either::Right((Some(Change::Topology) | None, _)) => break 'changes,
+                        }
+                    };
+
+                    match result {
                         Ok(data) => {
-                            if output.send(data).await.is_err() {
+                            if !send(&mut output, &mut last, data).await {
                                 return;
                             }
                         }
                         Err(err) => warn!("Failed to read upower data: {err}"),
-                    }
-
-                    match changes.next().await {
-                        Some(Change::Property) => {}
-                        Some(Change::Topology) | None => break,
                     }
                 }
             }
@@ -523,6 +547,19 @@ impl UPower {
                 .boxed(),
         ]
     }
+}
+
+async fn send(
+    output: &mut Sender<UPowerData>,
+    last: &mut Option<UPowerData>,
+    data: UPowerData,
+) -> bool {
+    if last.as_ref() == Some(&data) {
+        return true;
+    }
+
+    *last = Some(data.clone());
+    output.send(data).await.is_ok()
 }
 
 async fn start_service(conn: &zbus::Connection, name: &'static str) -> anyhow::Result<()> {
