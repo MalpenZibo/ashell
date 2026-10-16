@@ -117,6 +117,8 @@ or the font has a non-standard weight that causes a silent fallback.
    ```bash
    fc-list | grep -i <search-term>
    ```
+   Use the name shared by all weights (`"Open Sans"`), not a per-weight name
+   like `"Open Sans Light"`; pick the weight with `font_weight` instead.
 2. ashell prints warnings at startup when the font name is not found or when
    the weight doesn't match — check the logs.
 3. Restart ashell after editing the config (font changes are not hot-reloaded).
