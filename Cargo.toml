@@ -78,7 +78,7 @@ chrono = { version = "0.4", default-features = false, features = [
   "unstable-locales",
 ] }
 hyprland = { git = "https://github.com/hyprland-community/hyprland-rs", branch = "master" }
-serde = { version = "1.0", default-features = false, features = [] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 sysinfo = { version = "0.39", features = ["linux-netdevs"] }
 tokio = { workspace = true, features = ["net"] }
 zbus.workspace = true

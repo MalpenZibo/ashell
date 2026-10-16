@@ -98,6 +98,13 @@ ashell msg load-config <file>
 
 Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD overlay. Add `--no-osd` to suppress it.
 
+The CLI and socket share a command enum with Clap and Serde derives. The socket
+uses one newline-delimited JSON request and response per connection, for example
+`{"command":"volume-up","no_osd":true}` and `{"status":"ok"}`. Errors return
+`{"status":"error","message":"..."}`. The previous plain-text socket format
+is no longer accepted. Direct requests are limited to 4096 bytes, including the
+newline; `load-config` paths must be absolute and valid.
+
 ## Signal Handling
 
 - **SIGUSR1**: Toggles bar visibility (same as `ashell msg toggle-visibility`):

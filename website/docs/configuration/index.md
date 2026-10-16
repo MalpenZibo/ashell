@@ -109,3 +109,25 @@ without IPC and `ashell msg` refuses to connect.
 
 If another ashell instance already owns the socket, the new instance still
 starts but runs without IPC and logs a warning.
+
+### Direct socket access
+
+The socket accepts one newline-delimited JSON request per connection and returns
+one JSON response. Command names match the CLI; argument fields use snake_case:
+
+```json
+{"command":"toggle-visibility"}
+{"command":"volume-up","no_osd":true}
+{"command":"load-config","file":"/home/user/.config/ashell/another config.toml"}
+```
+
+`no_osd` defaults to `false`. Config paths sent directly to the socket must be
+absolute and point to a valid config. Requests, including the newline, may be at
+most 4096 bytes.
+
+Responses are `{"status":"ok"}` or
+`{"status":"error","message":"description of the error"}`. The CLI continues
+to print `ok` on success and exits with status 1 on errors.
+
+The socket protocol uses JSON only. Scripts sending the previous plain-text
+format must migrate; existing `ashell msg` commands and flags are unchanged.

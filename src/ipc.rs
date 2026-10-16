@@ -4,17 +4,16 @@
 //! `$TMPDIR/ashell-<uid>/ashell.sock` when the runtime dir is unusable.
 //! The same binary acts as a client via `ashell msg <command>`.
 
-use std::fmt;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use crate::config;
 use crate::xdg;
 use anyhow::{Context, Result, anyhow};
 use clap::Subcommand;
 use iced::Subscription;
+use serde::{Deserialize, Serialize};
 
 use iced::futures::StreamExt;
 
@@ -24,48 +23,59 @@ const MAX_REQUEST_LEN: u64 = 4096;
 const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// IPC command that can be sent to the daemon.
-#[derive(Subcommand, Debug, Clone)]
+#[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "command", rename_all = "kebab-case")]
 pub enum IpcCommand {
     /// Toggle bar visibility
     ToggleVisibility,
     VolumeUp {
         #[arg(long)]
+        #[serde(default)]
         no_osd: bool,
     },
     VolumeDown {
         #[arg(long)]
+        #[serde(default)]
         no_osd: bool,
     },
     VolumeToggleMute {
         #[arg(long)]
+        #[serde(default)]
         no_osd: bool,
     },
     MicrophoneUp {
         #[arg(long)]
+        #[serde(default)]
         no_osd: bool,
     },
     MicrophoneDown {
         #[arg(long)]
+        #[serde(default)]
         no_osd: bool,
     },
     MicrophoneToggleMute {
         #[arg(long)]
+        #[serde(default)]
         no_osd: bool,
     },
     BrightnessUp {
         #[arg(long)]
+        #[serde(default)]
         no_osd: bool,
     },
     BrightnessDown {
         #[arg(long)]
+        #[serde(default)]
         no_osd: bool,
     },
     ToggleAirplaneMode {
         #[arg(long)]
+        #[serde(default)]
         no_osd: bool,
     },
     ToggleIdleInhibitor {
         #[arg(long)]
+        #[serde(default)]
         no_osd: bool,
     },
     LoadConfig {
@@ -93,76 +103,12 @@ impl IpcCommand {
     }
 }
 
-const NO_OSD_SUFFIX: &str = "?no-osd";
-
-impl fmt::Display for IpcCommand {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let base = match self {
-            IpcCommand::ToggleVisibility => "toggle-visibility",
-            IpcCommand::VolumeUp { .. } => "volume-up",
-            IpcCommand::VolumeDown { .. } => "volume-down",
-            IpcCommand::VolumeToggleMute { .. } => "volume-toggle-mute",
-            IpcCommand::MicrophoneUp { .. } => "microphone-up",
-            IpcCommand::MicrophoneDown { .. } => "microphone-down",
-            IpcCommand::MicrophoneToggleMute { .. } => "microphone-toggle-mute",
-            IpcCommand::BrightnessUp { .. } => "brightness-up",
-            IpcCommand::BrightnessDown { .. } => "brightness-down",
-            IpcCommand::ToggleAirplaneMode { .. } => "toggle-airplane-mode",
-            IpcCommand::ToggleIdleInhibitor { .. } => "toggle-idle-inhibitor",
-            IpcCommand::LoadConfig { .. } => "load-config",
-        };
-        write!(f, "{base}")?;
-        if let IpcCommand::LoadConfig { file } = self {
-            write!(f, " {}", file.display())?;
-        }
-        if self.no_osd() {
-            write!(f, "{NO_OSD_SUFFIX}")?;
-        }
-        Ok(())
-    }
-}
-
-impl FromStr for IpcCommand {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        let (cmd, no_osd) = match s.strip_suffix(NO_OSD_SUFFIX) {
-            Some(base) => (base, true),
-            None => (s, false),
-        };
-
-        let mut parts = cmd.splitn(2, char::is_whitespace);
-        let name = parts.next().unwrap_or("").trim();
-        let rest = parts.next().map(str::trim).filter(|s| !s.is_empty());
-
-        match name {
-            "toggle-visibility" => Ok(IpcCommand::ToggleVisibility),
-            "volume-up" => Ok(IpcCommand::VolumeUp { no_osd }),
-            "volume-down" => Ok(IpcCommand::VolumeDown { no_osd }),
-            "volume-toggle-mute" => Ok(IpcCommand::VolumeToggleMute { no_osd }),
-            "microphone-up" => Ok(IpcCommand::MicrophoneUp { no_osd }),
-            "microphone-down" => Ok(IpcCommand::MicrophoneDown { no_osd }),
-            "microphone-toggle-mute" => Ok(IpcCommand::MicrophoneToggleMute { no_osd }),
-            "brightness-up" => Ok(IpcCommand::BrightnessUp { no_osd }),
-            "brightness-down" => Ok(IpcCommand::BrightnessDown { no_osd }),
-            "toggle-airplane-mode" => Ok(IpcCommand::ToggleAirplaneMode { no_osd }),
-            "toggle-idle-inhibitor" => Ok(IpcCommand::ToggleIdleInhibitor { no_osd }),
-            "load-config" => {
-                let file =
-                    PathBuf::from(rest.ok_or_else(|| anyhow!("load-config requires a file path"))?);
-                if !file.is_absolute() {
-                    return Err(anyhow!(
-                        "load-config expects an absolute path, got {}",
-                        file.display()
-                    ));
-                }
-                config::read_config(&file)
-                    .map_err(|e| anyhow!("invalid config {}: {e}", file.display()))?;
-                Ok(IpcCommand::LoadConfig { file })
-            }
-            _ => Err(anyhow!("unknown IPC command: {s:?}")),
-        }
-    }
+/// A newline-delimited JSON reply to a socket request.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum IpcResponse {
+    Ok,
+    Error { message: String },
 }
 
 /// `$XDG_RUNTIME_DIR/ashell.sock`, else a private (0700, ours, not a symlink)
@@ -181,23 +127,18 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
     let mut stream = UnixStream::connect(&path)
         .with_context(|| format!("connect to {} — is ashell running?", path.display()))?;
 
-    let line = format!("{cmd}\n");
+    let line = serde_json::to_string(cmd).context("encode IPC command")? + "\n";
     stream.write_all(line.as_bytes()).context("send command")?;
     stream.flush()?;
     stream.shutdown(std::net::Shutdown::Write)?;
 
     let mut response = String::new();
-    BufReader::new((&stream).take(MAX_REQUEST_LEN))
+    BufReader::new(&stream)
         .read_line(&mut response)
         .context("read response")?;
-    let response = response.trim_end();
-
-    if let Some(err) = response.strip_prefix("error ") {
-        return Err(anyhow!("{err}"));
-    }
-
-    if !response.is_empty() {
-        println!("{response}");
+    match serde_json::from_str(&response).context("decode IPC response")? {
+        IpcResponse::Ok => println!("ok"),
+        IpcResponse::Error { message } => return Err(anyhow!(message)),
     }
     Ok(())
 }
@@ -255,15 +196,34 @@ fn create_listener() -> std::result::Result<UnixListener, ListenerError> {
 /// Read a single command from an accepted client connection.
 fn read_request(stream: &UnixStream) -> Result<IpcCommand> {
     let mut line = String::new();
-    BufReader::new(stream.take(MAX_REQUEST_LEN))
+    BufReader::new(stream.take(MAX_REQUEST_LEN + 1))
         .read_line(&mut line)
         .context("read IPC command")?;
-    line.trim().parse()
+    if line.len() as u64 > MAX_REQUEST_LEN {
+        return Err(anyhow!("IPC request exceeds {MAX_REQUEST_LEN} bytes"));
+    }
+    let cmd = serde_json::from_str(&line).context("decode IPC command")?;
+    if let IpcCommand::LoadConfig { file } = &cmd {
+        if !file.is_absolute() {
+            return Err(anyhow!(
+                "load-config expects an absolute path, got {}",
+                file.display()
+            ));
+        }
+        config::read_config(file).map_err(|e| anyhow!("invalid config {}: {e}", file.display()))?;
+    }
+    Ok(cmd)
 }
 
 /// Write a response line to the client.
-fn write_response(stream: &mut UnixStream, response: &str) {
-    let msg = format!("{response}\n");
+fn write_response(stream: &mut UnixStream, response: &IpcResponse) {
+    let msg = match serde_json::to_string(response) {
+        Ok(json) => json + "\n",
+        Err(e) => {
+            log::error!("IPC encode response failed: {e}");
+            return;
+        }
+    };
     if let Err(e) = stream.write_all(msg.as_bytes()) {
         log::debug!("IPC write response failed: {e}");
     }
@@ -283,11 +243,16 @@ fn handle_connection(mut stream: UnixStream) -> Option<IpcCommand> {
 
     match read_request(&stream) {
         Ok(cmd) => {
-            write_response(&mut stream, "ok");
+            write_response(&mut stream, &IpcResponse::Ok);
             Some(cmd)
         }
         Err(e) => {
-            write_response(&mut stream, &format!("error {e:#}"));
+            write_response(
+                &mut stream,
+                &IpcResponse::Error {
+                    message: format!("{e:#}"),
+                },
+            );
             None
         }
     }
@@ -336,7 +301,12 @@ pub fn subscription() -> Subscription<IpcCommand> {
                     let request = match stream.into_std() {
                         Ok(mut std_stream) if !same_user => {
                             log::warn!("IPC: rejected connection from another user");
-                            write_response(&mut std_stream, "error permission denied");
+                            write_response(
+                                &mut std_stream,
+                                &IpcResponse::Error {
+                                    message: "permission denied".into(),
+                                },
+                            );
                             None
                         }
                         Ok(std_stream) => handle_connection(std_stream),
