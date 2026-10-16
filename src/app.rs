@@ -4,7 +4,7 @@ use crate::{
     config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
     get_log_spec,
     i18n::{Localizer, init_localizer},
-    ipc::IpcCommand,
+    ipc::{IpcCommand, IpcEvent, NotificationInfo},
     modules::{
         self,
         custom_module::Custom,
@@ -578,10 +578,11 @@ impl App {
                         );
                         modules::settings::Action::None
                     }
-                    IpcCommand::LoadConfig { .. } => {
-                        warn!(
-                            "IpcCommand::LoadConfig reached IpcOsdCommand handler; use Message::LoadConfig instead"
-                        );
+                    IpcCommand::LoadConfig { .. }
+                    | IpcCommand::NotificationsClear { .. }
+                    | IpcCommand::NotificationsInvoke { .. }
+                    | IpcCommand::NotificationsList => {
+                        warn!("Non-OSD command reached IpcOsdCommand handler");
                         modules::settings::Action::None
                     }
                 };
@@ -628,6 +629,28 @@ impl App {
                             .close_all_menus(self.general_config.enable_esc_key),
                     ])
                 }
+            }
+            Message::IpcNotificationsList(stream) => {
+                let response = if self
+                    .general_config
+                    .modules
+                    .contains(&ModuleName::Notifications)
+                {
+                    serde_json::to_string(
+                        &self
+                            .notifications
+                            .list()
+                            .map(NotificationInfo::from)
+                            .collect::<Vec<_>>(),
+                    )
+                    .unwrap_or_else(|e| format!("error {e}"))
+                } else {
+                    "error Notifications module is disabled".into()
+                };
+                Task::perform(
+                    crate::ipc::respond_notifications_list(stream, response),
+                    |_| Message::None,
+                )
             }
             Message::LoadConfig(config_file) => match config::read_config(&config_file) {
                 Ok(config) => {
@@ -844,10 +867,23 @@ impl App {
             // Always subscribe to audio/brightness services so OSD works
             // even when the Settings module isn't in the module list.
             self.settings.subscription().map(Message::Settings),
-            crate::ipc::subscription().map(|cmd| match cmd {
-                IpcCommand::ToggleVisibility => Message::ToggleVisibility,
-                IpcCommand::LoadConfig { file } => Message::LoadConfig(file),
-                other => Message::IpcOsdCommand(other),
+            crate::ipc::subscription().map(|event| match event {
+                IpcEvent::NotificationsList(stream) => Message::IpcNotificationsList(stream),
+                IpcEvent::Command(cmd) => match cmd {
+                    IpcCommand::ToggleVisibility => Message::ToggleVisibility,
+                    IpcCommand::LoadConfig { file } => Message::LoadConfig(file),
+                    IpcCommand::NotificationsClear { id } => Message::Notifications(match id {
+                        Some(id) => modules::notifications::Message::CloseNotificationById(id),
+                        None => modules::notifications::Message::ClearNotifications,
+                    }),
+                    IpcCommand::NotificationsInvoke { id, action } => {
+                        Message::Notifications(modules::notifications::Message::InvokeIpc {
+                            id,
+                            action,
+                        })
+                    }
+                    other => Message::IpcOsdCommand(other),
+                },
             }),
         ])
     }

@@ -137,6 +137,7 @@ pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
     InvokeAction(u32, String),
+    InvokeIpc { id: Option<u32>, action: String },
     NotificationClosed,
     CloseNotificationById(u32),
     ClearNotifications,
@@ -242,6 +243,10 @@ impl Notifications {
         self.blocklist
             .iter()
             .any(|pattern| pattern.is_match(app_name))
+    }
+
+    pub fn list(&self) -> impl Iterator<Item = &Notification> {
+        self.notifications.iter()
     }
 
     fn find_notification(&self, id: u32) -> Option<&Notification> {
@@ -493,6 +498,20 @@ impl Notifications {
                     Action::TaskAndCloseMenu(task)
                 } else {
                     Action::Task(task)
+                }
+            }
+            Message::InvokeIpc { id, action } => {
+                let notification_id = self.notifications.iter().find_map(|notification| {
+                    (id.is_none_or(|id| notification.id == id)
+                        && notification.action_pairs().any(|(key, _)| key == action))
+                    .then_some(notification.id)
+                });
+                match notification_id {
+                    Some(id) => self.invoke_and_dismiss(id, Some(action), None),
+                    None => {
+                        debug!("No notification matching id {id:?} and action {action:?}");
+                        Action::None
+                    }
                 }
             }
             Message::InvokeAction(id, action_key) => {

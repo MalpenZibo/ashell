@@ -59,6 +59,50 @@ Click the notification indicator to open the notifications menu. The menu displa
 - **Clicking a notification**: Invokes its default action (if provided by the app), closes it and the menu
 - **Action buttons**: Any other actions the app provides (for example `notify-send -A "Reply"`) appear as buttons below the notification, on toasts and in the menu. Clicking one invokes that action and closes the notification. This applies to grouped notifications too
 
+## IPC commands
+
+Bind these commands to compositor hotkeys or call them from scripts:
+
+```bash
+ashell msg notifications-clear
+ashell msg notifications-clear --id 42
+ashell msg notifications-invoke
+ashell msg notifications-invoke --id 42 open
+ashell msg notifications-list
+```
+
+- **Clear** closes every retained notification, or just the specified ID. Clearing
+  an empty list or specifying an unknown ID has no effect.
+- **Invoke** accepts an optional `--id <id>` and positional action key, defaulting
+  to `default`. Without an ID it selects the newest notification offering that
+  action. Use the action's key, not its display label. It invokes the action and
+  closes the notification without asking the compositor to focus the app. Missing
+  IDs, unavailable actions, and no matching notification have no effect.
+- **List** prints a JSON array, newest first, including notifications retained in
+  the panel after their toast disappears. An empty list prints `[]`.
+
+Clear and invoke print `ok` when the command is accepted, like other IPC actions;
+they do not wait for execution. Listing requires the Notifications module to be
+enabled. Socket and parsing errors go to stderr with exit status 1.
+
+Example `notifications-list` output:
+
+```json
+[
+  {
+    "id": 42,
+    "app_name": "Example",
+    "summary": "Download complete",
+    "body": "Your file is ready.",
+    "urgency": "normal",
+    "actions": [{"key": "default", "label": "Open"}]
+  }
+]
+```
+
+Urgency is `low`, `normal`, or `critical`. The list exposes these public fields;
+it does not include internal revision numbers, D-Bus hints, or image data.
+
 ## Configuration
 
 ### format

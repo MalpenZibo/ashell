@@ -82,6 +82,9 @@ pub fn osd_info_for(app: &App, cmd: &IpcCommand) -> Option<(OsdKind, f32, f32, b
             }
         }
         IpcCommand::ToggleVisibility => None,
-        IpcCommand::LoadConfig { .. } => None,
+        IpcCommand::LoadConfig { .. }
+        | IpcCommand::NotificationsClear { .. }
+        | IpcCommand::NotificationsInvoke { .. }
+        | IpcCommand::NotificationsList => None,
     }
 }

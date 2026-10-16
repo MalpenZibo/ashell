@@ -29,6 +29,7 @@ pub enum Message {
     Notifications(modules::notifications::Message),
     Osd(osd::Message),
     IpcOsdCommand(IpcCommand),
+    IpcNotificationsList(std::sync::Arc<std::os::unix::net::UnixStream>),
     OutputEvent(OutputEvent),
     CloseAllMenus,
     ResumeFromSleep,

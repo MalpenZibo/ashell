@@ -87,6 +87,11 @@ Available commands:
 | `toggle-airplane-mode`   | Toggle airplane mode                                         |
 | `toggle-idle-inhibitor`  | Toggle idle inhibitor                                        |
 | `load-config <file>`            | Load another config without restarting ashell         |
+| `notifications-clear [--id <id>]` | Close all notifications, or a single notification |
+| `notifications-invoke [--id <id>] [action]` | Invoke an action and close its notification |
+| `notifications-list` | Print notifications as a JSON array, newest first |
+
+See [Notifications](./modules/notifications.md#ipc-commands) for arguments and the JSON output format.
 
 Only `volume-up` / `volume-down` honour
 [`settings.volume_step`](./modules/settings.md#volume-step); the microphone and
