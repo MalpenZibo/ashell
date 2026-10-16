@@ -93,6 +93,7 @@ fn split_service_name(name: &str) -> (&str, &str) {
 pub enum TrayEvent {
     Registered(StatusNotifierItem),
     IconChanged(String, TrayIcon),
+    TitleChanged(String, String),
     MenuLayoutChanged(String, Layout),
     Unregistered(String),
     None,
@@ -101,6 +102,7 @@ pub enum TrayEvent {
 #[derive(Debug, Clone)]
 pub struct StatusNotifierItem {
     pub name: String,
+    pub title: String,
     pub icon: Option<TrayIcon>,
     pub menu: Layout,
     item_proxy: StatusNotifierItemProxy<'static>,
@@ -119,6 +121,7 @@ impl StatusNotifierItem {
 
         debug!("item_proxy {item_proxy:?}");
 
+        let title = item_proxy.title().await.unwrap_or_default();
         let icon = current_icon_from_proxy(&item_proxy).await;
 
         let menu_path = item_proxy.menu().await?;
@@ -132,6 +135,7 @@ impl StatusNotifierItem {
 
         Ok(Self {
             name,
+            title,
             icon,
             menu,
             item_proxy,
@@ -230,6 +234,7 @@ impl TrayService {
         let mut icon_pixel_change = Vec::with_capacity(items.len());
         let mut icon_name_change = Vec::with_capacity(items.len());
         let mut new_icon_change = Vec::with_capacity(items.len());
+        let mut title_change = Vec::with_capacity(items.len());
         let mut menu_layout_change = Vec::with_capacity(items.len());
 
         for name in items {
@@ -307,6 +312,37 @@ impl TrayService {
                 );
             }
 
+            let new_title = item.item_proxy.receive_new_title().await;
+            if let Ok(new_title) = new_title {
+                let (dest, path) = split_service_name(&name);
+                let uncached_proxy = StatusNotifierItemProxy::builder(conn)
+                    .destination(dest.to_owned())?
+                    .path(path.to_owned())?
+                    .cache_properties(zbus::proxy::CacheProperties::No)
+                    .build()
+                    .await?;
+
+                title_change.push(
+                    new_title
+                        .filter_map({
+                            let name = name.clone();
+                            let uncached_proxy = uncached_proxy;
+
+                            move |_| {
+                                let name = name.clone();
+                                let uncached_proxy = uncached_proxy.clone();
+
+                                async move {
+                                    uncached_proxy.title().await.ok().map(|title| {
+                                        TrayEvent::TitleChanged(name.to_owned(), title)
+                                    })
+                                }
+                            }
+                        })
+                        .boxed(),
+                );
+            }
+
             let layout_updated = item.menu_proxy.receive_layout_updated().await;
             if let Ok(layout_updated) = layout_updated {
                 menu_layout_change.push(
@@ -339,6 +375,7 @@ impl TrayService {
             select_all(icon_pixel_change),
             select_all(icon_name_change),
             select_all(new_icon_change),
+            select_all(title_change),
             select_all(menu_layout_change)
         )
         .boxed())
@@ -454,6 +491,11 @@ impl ReadOnlyService for TrayService {
             TrayEvent::IconChanged(name, handle) => {
                 if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
                     item.icon = Some(handle);
+                }
+            }
+            TrayEvent::TitleChanged(name, title) => {
+                if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
+                    item.title = title;
                 }
             }
             TrayEvent::MenuLayoutChanged(name, layout) => {

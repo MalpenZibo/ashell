@@ -21,6 +21,10 @@ You can configure what happens when right-clicking a tray icon using `right_clic
 - `"Open"` — right click activates the application (e.g. show/raise its window); left click opens the context menu
 - `"Menu"` — right click opens the context menu; left click activates the application
 
+## Tooltip
+
+You can show a tooltip with the item's title when hovering over a tray icon by setting `show_title_on_hover = true`. The title is read from the item's `StatusNotifierItem` `Title` property (e.g. the window title for minimized windows).
+
 ## Examples
 
 **Hide multiple applications by pattern:**
@@ -35,6 +39,13 @@ blocklist = ["spotify", "^org\\.gnome\\."]
 ```toml
 [tray]
 right_click = "Menu"
+```
+
+**Show the title on hover:**
+
+```toml
+[tray]
+show_title_on_hover = true
 ```
 
 ## Default Configuration

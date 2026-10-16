@@ -520,6 +520,7 @@ pub enum TrayClickAction {
 pub struct TrayModuleConfig {
     pub blocklist: Vec<RegexCfg>,
     pub right_click: Option<TrayClickAction>,
+    pub show_title_on_hover: bool,
 }
 
 #[derive(Deserialize, Clone, Debug)]

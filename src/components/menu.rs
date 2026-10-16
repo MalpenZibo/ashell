@@ -20,6 +20,7 @@ pub enum MenuType {
     Settings,
     Notifications,
     Tray(String),
+    TrayTooltip(String),
     MediaPlayer,
     SystemInfo,
     Tempo,
@@ -205,6 +206,7 @@ impl Menu {
                 | MenuType::BatteryTooltip
                 | MenuType::PeripheralBatteryTooltip(_)
                 | MenuType::CustomTooltip(_)
+                | MenuType::TrayTooltip(_)
         );
         match &mut self.open {
             None => self.open(menu_type, button_ui_ref, request_keyboard, output_id),
@@ -226,6 +228,7 @@ impl Menu {
                         | MenuType::BatteryTooltip
                         | MenuType::PeripheralBatteryTooltip(_)
                         | MenuType::CustomTooltip(_)
+                        | MenuType::TrayTooltip(_)
                 ) && menu_is_tooltip =>
             {
                 Task::none()
