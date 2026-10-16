@@ -148,12 +148,12 @@ impl StatusNotifierItem {
     pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
         let (dest, path) = dbus::split_service_name(&name);
 
-        // Disable property caching: `GetAll` at build time logs a WARN when
-        // the client has not exported `/StatusNotifierItem` yet.
+        // Keep property caching enabled: `receive_icon_name_changed` and
+        // `receive_icon_pixmap_changed` are `PropertyStream`s and yield
+        // nothing when the proxy has no property cache.
         let item_proxy = StatusNotifierItemProxy::builder(conn)
             .destination(dest.to_owned())?
             .path(path.to_owned())?
-            .cache_properties(zbus::proxy::CacheProperties::No)
             .build()
             .await?;
 
