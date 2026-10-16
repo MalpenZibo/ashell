@@ -59,6 +59,8 @@ pub enum Message {
     MenuToggled(String, i32),
     MenuOpened(String),
     Activate(String),
+    TooltipHover(ButtonUIRef, SurfaceId, String),
+    TooltipUnhover(SurfaceId, String),
     ConfigReloaded(TrayModuleConfig),
 }
 
@@ -68,6 +70,8 @@ pub enum Action {
     TrayMenuCommand(Task<Message>),
     TrayMenuCommandKeepOpen(Task<Message>),
     CloseTrayMenu(String),
+    OpenTooltipMenu(SurfaceId, String, ButtonUIRef),
+    CloseTooltipMenu(SurfaceId, String),
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +80,7 @@ pub struct TrayModule {
     submenus: Vec<i32>,
     blocklist: Vec<crate::config::RegexCfg>,
     right_click: Option<TrayClickAction>,
+    show_title_on_hover: bool,
 }
 
 impl TrayModule {
@@ -85,6 +90,7 @@ impl TrayModule {
             submenus: Vec::new(),
             blocklist: config.blocklist.clone(),
             right_click: config.right_click,
+            show_title_on_hover: config.show_title_on_hover,
         }
     }
 
@@ -170,9 +176,12 @@ impl TrayModule {
                 }
                 _ => Action::None,
             },
+            Message::TooltipHover(ui_ref, id, name) => Action::OpenTooltipMenu(id, name, ui_ref),
+            Message::TooltipUnhover(id, name) => Action::CloseTooltipMenu(id, name),
             Message::ConfigReloaded(config) => {
                 self.blocklist = config.blocklist;
                 self.right_click = config.right_click;
+                self.show_title_on_hover = config.show_title_on_hover;
                 Action::None
             }
         }
@@ -299,6 +308,7 @@ impl TrayModule {
                                     _ => icon(StaticIcon::Point).into(),
                                 };
                                 let open_app = Message::Activate(name.clone());
+                                let tooltip_name = name.clone();
                                 let toggle_menu = move |r| Message::ToggleMenu(name.clone(), id, r);
 
                                 let mut btn = position_button(icon_content);
@@ -311,6 +321,16 @@ impl TrayModule {
                                         .on_press(open_app.clone())
                                         .on_right_press_with_position(toggle_menu.clone()),
                                 };
+                                if self.show_title_on_hover && !item.title.is_empty() {
+                                    btn = btn
+                                        .on_hover_with_position({
+                                            let name = tooltip_name.clone();
+                                            move |ui_ref| {
+                                                Message::TooltipHover(ui_ref, id, name.clone())
+                                            }
+                                        })
+                                        .on_unhover(Message::TooltipUnhover(id, tooltip_name));
+                                }
                                 btn.padding(space.xxs)
                                     .style(move |t, s| button_style(t, s))
                                     .into()
@@ -341,6 +361,17 @@ impl TrayModule {
             .width(MenuSize::Medium)
             .max_height(MENU_MAX_HEIGHT)
             .into()
+    }
+
+    pub fn tooltip_view<'a>(&'a self, name: &'a str) -> Element<'a, Message> {
+        let title = self
+            .service
+            .as_ref()
+            .and_then(|service| service.data.iter().find(|item| item.name == name))
+            .map(|item| item.title.as_str())
+            .unwrap_or_default();
+
+        text(title).into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

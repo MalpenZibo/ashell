@@ -404,9 +404,24 @@ impl App {
                     task.map(Message::Tray),
                 ]),
                 modules::tray::Action::TrayMenuCommandKeepOpen(task) => task.map(Message::Tray),
-                modules::tray::Action::CloseTrayMenu(name) => self
+                modules::tray::Action::CloseTrayMenu(name) => Task::batch(vec![
+                    self.outputs.close_all_menu_if(
+                        MenuType::Tray(name.clone()),
+                        self.general_config.enable_esc_key,
+                    ),
+                    self.outputs.close_all_menu_if(
+                        MenuType::TrayTooltip(name),
+                        self.general_config.enable_esc_key,
+                    ),
+                ]),
+                modules::tray::Action::OpenTooltipMenu(id, name, ui_ref) => self
                     .outputs
-                    .close_all_menu_if(MenuType::Tray(name), self.general_config.enable_esc_key),
+                    .toggle_menu(id, MenuType::TrayTooltip(name), ui_ref, false),
+                modules::tray::Action::CloseTooltipMenu(id, name) => self.outputs.close_menu(
+                    id,
+                    Some(MenuType::TrayTooltip(name)),
+                    self.general_config.enable_esc_key,
+                ),
             },
             Message::Tempo(message) => match self.tempo.update(message) {
                 modules::tempo::Action::None => Task::none(),
@@ -729,6 +744,11 @@ impl App {
                     MenuType::Tray(name) => {
                         self.menu_wrapper(id, self.tray.menu_view(name).map(Message::Tray), ui_ref)
                     }
+                    MenuType::TrayTooltip(name) => self.menu_wrapper(
+                        id,
+                        self.tray.tooltip_view(name).map(Message::Tray),
+                        ui_ref,
+                    ),
                     MenuType::Notifications => self.menu_wrapper(
                         id,
                         self.notifications.menu_view().map(Message::Notifications),

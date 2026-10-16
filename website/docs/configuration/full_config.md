@@ -146,6 +146,7 @@ alert_threshold = 85
 [tray]
 # blocklist = ["regex"]    # (default: []) hide tray items matching regex patterns
 # right_click = "Menu"     # (default: None) "Open" or "Menu"; sets right-click action, left click gets the complement
+# show_title_on_hover = false  # (default: false) show the tray item's title in a tooltip on hover
 
 # ── Tempo ─────────────────────────────────────────────────────────────────────
 

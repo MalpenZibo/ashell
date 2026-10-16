@@ -254,6 +254,9 @@ pub struct Icon {
 #[proxy(interface = "org.kde.StatusNotifierItem")]
 pub trait StatusNotifierItem {
     #[zbus(property)]
+    fn title(&self) -> zbus::Result<String>;
+
+    #[zbus(property)]
     fn icon_name(&self) -> zbus::Result<String>;
 
     #[zbus(property)]
@@ -264,6 +267,9 @@ pub trait StatusNotifierItem {
 
     #[zbus(signal)]
     fn new_icon(&self) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    fn new_title(&self) -> zbus::Result<()>;
 
     fn activate(&self, x: i32, y: i32) -> zbus::Result<()>;
 }

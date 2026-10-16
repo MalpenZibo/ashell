@@ -211,6 +211,7 @@ blocklist = ["^Spotify$"]              # Regexes matched against the app name
 [tray]
 blocklist = ["^nm-applet$"]            # Regexes matched against the tray item name
 right_click = "Menu"                   # Optional: "Open" or "Menu"
+show_title_on_hover = false            # Optional: show the tray item's title in a tooltip on hover
 ```
 
 ## Settings Module
