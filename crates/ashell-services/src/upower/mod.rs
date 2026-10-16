@@ -434,7 +434,11 @@ impl UPower {
             });
         }
 
-        peripherals.sort_by(|a, b| a.path.as_str().cmp(b.path.as_str()));
+        peripherals.sort_by(|a, b| {
+            a.name
+                .cmp(&b.name)
+                .then_with(|| a.path.as_str().cmp(b.path.as_str()))
+        });
 
         Ok(peripherals)
     }

@@ -229,6 +229,7 @@ pub struct UPowerService {
     handle: UPower,
     data: UPowerData,
     pub kbd_backlight: Option<KbdBacklight>,
+    kbd_retained: Option<u32>,
     kbd_commander: UnboundedSender<u32>,
 }
 
@@ -251,9 +252,13 @@ impl UPowerService {
             (None, Some(data)) => Some(KbdBacklight {
                 max: data.max,
                 current: Remote::new(data.current),
-                retained: None,
+                retained: self.kbd_retained.take(),
             }),
-            (_, None) => None,
+            (Some(state), None) => {
+                self.kbd_retained = state.retained;
+                None
+            }
+            (None, None) => None,
         };
     }
 
@@ -304,6 +309,7 @@ impl ReadOnlyService for UPowerService {
                     handle,
                     data,
                     kbd_backlight: None,
+                    kbd_retained: None,
                     kbd_commander,
                 };
                 service.sync_kbd_backlight();
