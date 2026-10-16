@@ -11,7 +11,7 @@ use futures::{
 };
 use log::{debug, error, warn};
 use std::{fmt, time::Duration};
-use zbus::zvariant::OwnedObjectPath;
+use zbus::{fdo::DBusProxy, names::WellKnownName, zvariant::OwnedObjectPath};
 
 mod dbus;
 
@@ -168,6 +168,11 @@ impl UPower {
         let conn = self.conn.clone();
 
         channel(100, |mut output| async move {
+            // upowerd is usually D-Bus activated, and owner_watch never activates it
+            if let Err(err) = start_service(&conn, UPOWER).await {
+                debug!("Failed to start upower: {err}");
+            }
+
             loop {
                 let mut owner = match bus::owner_watch(&conn, UPOWER).await {
                     Ok(owner) => owner.boxed(),
@@ -518,6 +523,15 @@ impl UPower {
                 .boxed(),
         ]
     }
+}
+
+async fn start_service(conn: &zbus::Connection, name: &'static str) -> anyhow::Result<()> {
+    DBusProxy::new(conn)
+        .await?
+        .start_service_by_name(WellKnownName::try_from(name)?, 0)
+        .await?;
+
+    Ok(())
 }
 
 // DBus exposes the keyboard backlight as a signed integer: clamp negative values to 0
