@@ -84,8 +84,24 @@ Catalogs live in `i18n/<lang-tag>/ashell.ftl` and are baked into the binary at c
    - Fluent selector keys: state selectors `[on]/*[off]` and plural selectors like `[one]/*[other]`. 
      The bracketed identifiers are Fluent literals — only the messages on the right-hand side get translated. 
      Use the [CLDR plural categories](https://www.unicode.org/cldr/charts/latest/supplemental/language_plural_rules.html) that apply to your language; `*[other]` is the required default.
+   - A message that takes `{ $count }` may need a plural selector in your language even when the en-US entry has none
+     (e.g. `notifications-group-count`: French needs "1 nouvelle" / "2 nouvelles").
 
-3. Register the catalog in the `CATALOGS` slice in `src/i18n.rs`:
+3. Check the wording against established translations instead of translating each string in isolation.
+   Users of a status bar already know the terms from their desktop, so match them:
+   - **Desktop terms** (power actions, power profiles, battery states, Bluetooth pairing, idle inhibition, system monitor labels):
+     look up the same English string in the GNOME and KDE Plasma translations for your language.
+     GNOME `.po` files are on [l10n.gnome.org](https://l10n.gnome.org/) and in each project's `po/` directory
+     (`gnome-shell`, `gnome-control-center`, `gnome-bluetooth`, `gnome-system-monitor`).
+     KDE catalogs are on [l10n.kde.org](https://l10n.kde.org/), or in your distribution's packages
+     (`powerdevil`, `plasma-workspace`, `bluedevil`, `libksysguard`) as `.mo` files you can turn back into text with `msgunfmt`.
+     Pay attention to term pairs: Suspend and Hibernate must not end up with each other's usual names.
+   - **Weather conditions** (the `weather-*` keys follow the WMO codes used by Open-Meteo):
+     compare with `libgweather` and with the wording of a major weather service or site in your language.
+     Prefer how they phrase intensities ("light", "moderate", "heavy") and "feels like".
+   - If GNOME and KDE disagree, either is fine; say which one you followed in the PR description.
+
+4. Register the catalog in the `CATALOGS` slice in `src/i18n.rs`:
    ```rust
    const CATALOGS: &[(&str, &str)] = &[
        ("en-US", include_str!("../i18n/en-US/ashell.ftl")),
@@ -93,11 +109,11 @@ Catalogs live in `i18n/<lang-tag>/ashell.ftl` and are baked into the binary at c
    ];
    ```
 
-4. Test by setting `language = "<lang-tag>"` in `~/.config/ashell/config.toml`, 
+5. Test by setting `language = "<lang-tag>"` in `~/.config/ashell/config.toml`, 
    or by launching with `LC_MESSAGES=<lang-tag> ./target/release/ashell`. 
    POSIX locale names are normalized to BCP-47 automatically.
 
-5. Run `make check` before pushing.
+6. Run `make check` before pushing.
 
 ## Running Checks Before Committing
 
