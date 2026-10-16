@@ -66,7 +66,9 @@ pub struct Notification {
     pub summary: String,
     pub body: String,
     pub actions: Vec<String>,
-    pub hints: HashMap<String, OwnedValue>,
+    /// Kept instead of all hints, which can carry raw `image-data`.
+    #[serde(default)]
+    pub desktop_entry: Option<String>,
     pub expire_timeout: i32,
     pub timestamp: SystemTime,
     pub urgency: Urgency,
@@ -94,12 +96,9 @@ impl Notification {
     /// App ids or window classes the sender's windows likely carry: the
     /// `desktop-entry` hint (without `.desktop`), then the app name.
     pub fn app_ids(&self) -> Vec<String> {
-        let desktop_entry = self
-            .hints
-            .get("desktop-entry")
-            .and_then(|v| String::try_from(v.clone()).ok());
-        desktop_entry
-            .into_iter()
+        self.desktop_entry
+            .iter()
+            .cloned()
             .chain(std::iter::once(self.app_name.clone()))
             .map(|id| {
                 let id = id.trim();
@@ -168,6 +167,9 @@ impl NotificationDaemon {
 
         let icon = NotificationIcon::resolve(&app_name, &app_icon, &hints);
         let urgency = Urgency::from_hints(&hints);
+        let desktop_entry = hints
+            .get("desktop-entry")
+            .and_then(|v| String::try_from(v.clone()).ok());
         let notification = Notification {
             id,
             revision,
@@ -176,7 +178,7 @@ impl NotificationDaemon {
             summary,
             body,
             actions,
-            hints,
+            desktop_entry,
             expire_timeout,
             timestamp: SystemTime::now(),
             urgency,
@@ -195,22 +197,7 @@ impl NotificationDaemon {
     }
 
     async fn close_notification(&mut self, id: u32) {
-        self.revisions.remove(&id);
-
-        // Send event through channel
-        let _ = self.event_tx.send(NotificationEvent::Closed(id));
-
-        // Emit DBus signal for external applications
-        let _ = self
-            .connection
-            .emit_signal(
-                None::<&str>,
-                OBJECT_PATH,
-                NAME.as_str(),
-                "NotificationClosed",
-                &(id, 3u32),
-            )
-            .await;
+        self.close_with_reason(id, 3).await;
     }
 
     async fn get_server_information(&self) -> (String, String, String, String) {
@@ -288,24 +275,56 @@ impl NotificationDaemon {
                 .await?;
         }
 
-        daemon.close_notification(id).await;
+        daemon.close_with_reason(id, 2).await;
         Ok(true)
+    }
+
+    /// `reason` per the freedesktop Notifications spec: 1 expired,
+    /// 2 dismissed by the user, 3 closed by `CloseNotification`.
+    async fn close_with_reason(&mut self, id: u32, reason: u32) {
+        self.revisions.remove(&id);
+
+        let _ = self.event_tx.send(NotificationEvent::Closed(id));
+
+        let _ = self
+            .connection
+            .emit_signal(
+                None::<&str>,
+                OBJECT_PATH,
+                NAME.as_str(),
+                "NotificationClosed",
+                &(id, reason),
+            )
+            .await;
+    }
+
+    /// Skips ids replaced since, like [`Self::invoke_and_close`].
+    pub async fn evict_notifications(
+        connection: &Connection,
+        evicted: &[(u32, u64)],
+    ) -> anyhow::Result<()> {
+        let iface_ref = connection
+            .object_server()
+            .interface::<_, NotificationDaemon>(OBJECT_PATH)
+            .await?;
+        let mut daemon = iface_ref.get_mut().await;
+
+        for (id, revision) in evicted {
+            if daemon.revisions.get(id) != Some(revision) {
+                debug!("Skipping eviction of notification {id}: replaced since");
+                continue;
+            }
+            daemon.close_with_reason(*id, 1).await;
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zbus::zvariant::Value;
 
     fn notification(app_name: &str, desktop_entry: Option<&str>) -> Notification {
-        let hints = desktop_entry
-            .map(|entry| {
-                let value = OwnedValue::try_from(Value::from(entry)).unwrap();
-                ("desktop-entry".to_string(), value)
-            })
-            .into_iter()
-            .collect();
         Notification {
             id: 1,
             revision: 1,
@@ -314,7 +333,7 @@ mod tests {
             summary: String::new(),
             body: String::new(),
             actions: vec![],
-            hints,
+            desktop_entry: desktop_entry.map(str::to_string),
             expire_timeout: -1,
             timestamp: SystemTime::now(),
             urgency: Urgency::Normal,

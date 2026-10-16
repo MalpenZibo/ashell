@@ -201,6 +201,7 @@ toast_position = "TopRight"            # "TopLeft", "TopRight", "TopCenter", "Bo
 toast_timeout = 5000                   # Milliseconds
 toast_limit = 5
 toast_max_height = 150
+history_limit = 200                    # Notifications kept in the menu, 1..=1000
 blocklist = ["^Spotify$"]              # Regexes matched against the app name
 ```
 

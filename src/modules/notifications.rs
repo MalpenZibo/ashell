@@ -100,6 +100,19 @@ async fn close_notification_ids(connection: Option<Connection>, notification_ids
     }
 }
 
+fn evict_task(connection: Option<Connection>, evicted: Vec<(u32, u64)>) -> Task<Message> {
+    Task::perform(
+        async move {
+            if let Some(connection) = connection
+                && let Err(e) = NotificationDaemon::evict_notifications(&connection, &evicted).await
+            {
+                error!("Failed to close evicted notifications: {e}");
+            }
+        },
+        |_| Message::NotificationClosed,
+    )
+}
+
 fn delayed_toast_message(delay: Duration, id: u32, msg: fn(u32) -> Message) -> Task<Message> {
     Task::perform(
         async move {
@@ -158,6 +171,19 @@ pub enum Action {
     Show(Task<Message>),
     Hide(Task<Message>),
     UpdateToastInputRegion(Size),
+}
+
+impl Action {
+    fn with_task(self, task: Task<Message>) -> Self {
+        match self {
+            Action::None => Action::Task(task),
+            Action::Task(t) => Action::Task(Task::batch([t, task])),
+            Action::TaskAndCloseMenu(t) => Action::TaskAndCloseMenu(Task::batch([t, task])),
+            Action::Show(t) => Action::Show(Task::batch([t, task])),
+            Action::Hide(t) => Action::Hide(Task::batch([t, task])),
+            Action::UpdateToastInputRegion(_) => Action::Task(task),
+        }
+    }
 }
 
 // Must match the widget durations so task delays align with animation end.
@@ -377,15 +403,40 @@ impl Notifications {
         }
     }
 
-    fn apply_update_event(&mut self, update_event: NotificationEvent) {
+    fn apply_update_event(&mut self, update_event: NotificationEvent) -> Vec<(u32, u64)> {
         match update_event {
             NotificationEvent::Received(notification) => {
                 self.notifications.retain(|n| n.id != notification.id);
                 self.notifications.push_front(*notification);
+                self.evict_over_limit()
             }
             NotificationEvent::Closed(id) => {
                 self.notifications.retain(|n| n.id != id);
+                Vec::new()
             }
+        }
+    }
+
+    /// Skips visible toasts, which can be older than the limit under DND.
+    fn evict_over_limit(&mut self) -> Vec<(u32, u64)> {
+        let mut evicted = Vec::new();
+        while self.notifications.len() > self.config.history_limit
+            && let Some(pos) = self
+                .notifications
+                .iter()
+                .rposition(|n| !self.toasts.contains(&n.id))
+            && let Some(notification) = self.notifications.remove(pos)
+        {
+            evicted.push((notification.id, notification.revision));
+        }
+        evicted
+    }
+
+    fn with_eviction(&self, action: Action, evicted: Vec<(u32, u64)>) -> Action {
+        if evicted.is_empty() {
+            action
+        } else {
+            action.with_task(evict_task(self.connection.clone(), evicted))
         }
     }
 
@@ -395,12 +446,14 @@ impl Notifications {
                 let hide = !config.toast && self.config.toast && !self.toasts.is_empty();
                 self.blocklist = config.blocklist.clone();
                 self.config = config;
-                if hide {
+                let action = if hide {
                     self.clear_toasts();
                     Action::Hide(Task::none())
                 } else {
                     Action::None
-                }
+                };
+                let evicted = self.evict_over_limit();
+                self.with_eviction(action, evicted)
             }
             Message::Event(event) => match event {
                 ServiceEvent::Init(service) => {
@@ -425,9 +478,8 @@ impl Notifications {
                     } else {
                         self.toast_action_for_update_event(&update_event)
                     };
-                    self.apply_update_event(update_event);
-
-                    toast_action
+                    let evicted = self.apply_update_event(update_event);
+                    self.with_eviction(toast_action, evicted)
                 }
                 ServiceEvent::Error(_) => Action::None,
             },

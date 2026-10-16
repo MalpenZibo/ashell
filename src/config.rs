@@ -122,6 +122,7 @@ impl Config {
         self.tempo.validate();
         self.settings.validate();
         self.media_player.validate();
+        self.notifications.validate();
     }
 }
 
@@ -480,6 +481,7 @@ pub struct NotificationsModuleConfig {
     pub toast_timeout: u64,
     pub toast_limit: usize,
     pub toast_max_height: u32,
+    pub history_limit: usize,
     pub blocklist: Vec<RegexCfg>,
 }
 impl Default for NotificationsModuleConfig {
@@ -494,7 +496,21 @@ impl Default for NotificationsModuleConfig {
             toast_timeout: 5000,
             toast_limit: 5,
             toast_max_height: 150,
+            history_limit: 200,
             blocklist: vec![],
+        }
+    }
+}
+
+impl NotificationsModuleConfig {
+    fn validate(&mut self) {
+        let clamped = self.history_limit.clamp(1, 1000);
+        if self.history_limit != clamped {
+            warn!(
+                "notifications.history_limit ({}) out of range 1..=1000, clamping to {clamped}",
+                self.history_limit
+            );
+            self.history_limit = clamped;
         }
     }
 }
