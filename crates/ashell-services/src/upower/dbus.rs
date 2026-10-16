@@ -404,9 +404,9 @@ impl TryFrom<u32> for UpDeviceKind {
 
 impl UPowerDbus<'_> {
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
-        let nm = UPowerProxy::new(conn).await?;
+        let proxy = UPowerProxy::new(conn).await?;
 
-        Ok(Self(nm))
+        Ok(Self(proxy))
     }
 
     pub async fn get_system_batteries(&self) -> anyhow::Result<Option<SystemBattery>> {
