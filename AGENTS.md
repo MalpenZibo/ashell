@@ -101,3 +101,4 @@ Scope examples: `fix(brightness)`, `feat(system_info)`, `fix(network)`
 - **Modules** are UI components (workspaces, clock, settings). Each implements `view()` returning iced `Element`.
 - **Compositor abstraction:** the `CompositorChoice` enum routes to per-backend modules (Hyprland, Niri, generic Wayland), each exposing `is_available`/`run_listener`/`execute_command`, auto-detected at runtime.
 - **Config hot-reload:** inotify file watcher triggers `ConfigChanged` message on config file changes.
+- **Translations:** Fluent catalogs in `i18n/<lang-tag>/ashell.ftl`, registered in `CATALOGS` in `src/i18n.rs`. When adding or changing a translation, follow "Adding a Translation" in `docs/src/contributing/common-tasks.md`: check desktop terms against the GNOME and KDE translations for that language and weather terms against libgweather and a major weather site, rather than translating strings in isolation.
