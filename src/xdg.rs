@@ -3,7 +3,6 @@ use std::fs::{DirBuilder, Metadata};
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::PathBuf;
-use std::sync::Once;
 
 use anyhow::{Context, Result, anyhow};
 
@@ -23,7 +22,10 @@ pub fn is_private_dir(metadata: &Metadata) -> bool {
     metadata.is_dir() && metadata.st_uid() == uid && metadata.permissions().mode() & 0o777 == 0o700
 }
 
-static FALLBACK_WARNED: Once = Once::new();
+pub fn fallback_dir() -> PathBuf {
+    let uid = unsafe { libc::geteuid() };
+    env::temp_dir().join(format!("ashell-{uid}"))
+}
 
 /// A private directory for ashell's own files: `$XDG_RUNTIME_DIR` when it
 /// validates, else `$TMPDIR/ashell-<uid>`. With `create`, the fallback
@@ -35,15 +37,8 @@ pub fn private_dir(create: bool) -> Result<PathBuf> {
         return Ok(dir);
     }
 
-    let uid = unsafe { libc::geteuid() };
-    let dir = env::temp_dir().join(format!("ashell-{uid}"));
+    let dir = fallback_dir();
     if create {
-        FALLBACK_WARNED.call_once(|| {
-            log::warn!(
-                "XDG_RUNTIME_DIR is unset or invalid, falling back to {} for ashell's runtime files",
-                dir.display()
-            );
-        });
         match DirBuilder::new().mode(0o700).create(&dir) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}

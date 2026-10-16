@@ -62,7 +62,7 @@ The default config path is `~/.config/ashell/config.toml`.
 
 ## Logging
 
-ashell uses [flexi_logger](https://docs.rs/flexi_logger) and writes logs into `$XDG_RUNTIME_DIR` (falling back to `/tmp/ashell/`).
+ashell uses [flexi_logger](https://docs.rs/flexi_logger) and writes logs into `$XDG_RUNTIME_DIR` (falling back to a private `$TMPDIR/ashell-<uid>/`).
 
 - Log files rotate daily (or when they reach 10 MB) and the 7 most recent are kept.
 - In debug builds, logs are also printed to stdout when `logging.target = "file"`.

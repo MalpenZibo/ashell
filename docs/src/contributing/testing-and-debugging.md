@@ -6,7 +6,7 @@ ashell does not currently have an automated test suite. Testing is done manually
 
 ## Debugging with Logs
 
-ashell writes logs into `$XDG_RUNTIME_DIR` (falling back to `/tmp/ashell/`).
+ashell writes logs into `$XDG_RUNTIME_DIR` (falling back to a private `$TMPDIR/ashell-<uid>/`).
 To watch logs in real time:
 
 ```bash
