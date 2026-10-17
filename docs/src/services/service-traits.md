@@ -22,7 +22,7 @@ ashell wraps each of them in a small module under `src/services/` (e.g. `src/ser
 
 Each service sits behind a cargo feature of the same name, so consumers only compile the services, and pull in the system dependencies, they need. The crate has no default features.
 
-Currently migrated: Bluetooth (`bluetooth` feature). Shared helpers that are not services live in plain modules, e.g. `rfkill` (soft-block state and change notifications, used by both bluetooth and network).
+Currently migrated: Bluetooth (`bluetooth` feature) and UPower (`upower` feature). Shared helpers that are not services live in plain modules, e.g. `rfkill` (soft-block state and change notifications, used by both bluetooth and network) and `throttle` (a stream rate limiter). The optional `serde` feature derives `Deserialize` on types that appear in configuration, such as `upower::PeripheralDeviceKind`.
 
 ## ServiceEvent
 
