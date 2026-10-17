@@ -36,8 +36,9 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 | MPRIS | `org.mpris.MediaPlayer2.Player` | `services/mpris/dbus.rs` | Playback control | MPRIS-compatible player |
 | StatusNotifier | `org.kde.StatusNotifierWatcher` (served by ashell) | `services/tray/dbus.rs` | System tray icon registration | — |
 | StatusNotifier | `org.kde.StatusNotifierItem` | `services/tray/dbus.rs` | Individual tray icons | — |
-| DBusMenu | `com.canonical.dbusmenu` | `services/tray/dbus.rs` | Tray item menus | — |
+| DBusMenu | `com.canonical.dbusmenu` | `services/tray/dbus.rs` | Tray menu layout (SNI context menus) | — |
 | Notifications | `org.freedesktop.Notifications` (served by ashell) | `services/notifications/dbus.rs` | Notification daemon | — |
+| Portal | `org.freedesktop.portal.Desktop` | `services/privacy.rs` | Privacy indicators (mic/camera) | `pipewire` |
 
 ## Checking D-Bus Availability
 
@@ -48,7 +49,7 @@ You can verify that D-Bus services are running:
 busctl --system list | grep -E "bluez|NetworkManager|UPower|login1|connman"
 
 # Session bus
-busctl --user list | grep -E "mpris|StatusNotifier|Notifications"
+busctl --user list | grep -E "mpris|StatusNotifier|Notifications|portal"
 ```
 
 If a module is not working (e.g., battery info is missing), check that the corresponding service is active:
