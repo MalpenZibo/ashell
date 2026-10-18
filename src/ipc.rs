@@ -4,9 +4,10 @@
 //! `$TMPDIR/ashell-<uid>/ashell.sock` when the runtime dir is unusable.
 //! The same binary acts as a client via `ashell msg <command>`.
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
+use std::time::Duration;
 
 use crate::config;
 use crate::xdg;
@@ -14,13 +15,19 @@ use anyhow::{Context, Result, anyhow};
 use clap::Subcommand;
 use iced::Subscription;
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+use tokio::sync::mpsc::{Receiver, Sender as ReplySender, channel};
+use tokio::task::JoinSet;
+use tokio::time::timeout;
 
-use iced::futures::StreamExt;
+use crate::services::notifications::{Notification, Urgency};
+use iced::futures::{SinkExt, channel::mpsc::Sender};
 
 /// Maximum bytes to read from a client connection.
 const MAX_REQUEST_LEN: u64 = 4096;
-/// How long the server waits for a connected client to send its command.
-const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+const MAX_CONNECTIONS: usize = 32;
+const IO_TIMEOUT: Duration = Duration::from_secs(5);
+const RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// IPC command that can be sent to the daemon.
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +89,25 @@ pub enum IpcCommand {
         #[arg(value_parser = config::resolve_config_arg)]
         file: PathBuf,
     },
+    /// Close all notifications, or a single notification by ID
+    NotificationsClear {
+        #[arg(long)]
+        id: Option<u32>,
+    },
+    /// Invoke an action and close its notification
+    NotificationsInvoke {
+        #[arg(long)]
+        id: Option<u32>,
+        #[arg(default_value = "default")]
+        #[serde(default = "default_action")]
+        action: String,
+    },
+    /// Print retained notifications as a JSON array, newest first
+    NotificationsList,
+}
+
+fn default_action() -> String {
+    "default".into()
 }
 
 impl IpcCommand {
@@ -98,17 +124,100 @@ impl IpcCommand {
             | IpcCommand::BrightnessDown { no_osd }
             | IpcCommand::ToggleAirplaneMode { no_osd }
             | IpcCommand::ToggleIdleInhibitor { no_osd } => *no_osd,
-            IpcCommand::LoadConfig { .. } => false,
+            IpcCommand::LoadConfig { .. }
+            | IpcCommand::NotificationsClear { .. }
+            | IpcCommand::NotificationsInvoke { .. }
+            | IpcCommand::NotificationsList => false,
         }
     }
 }
 
 /// A newline-delimited JSON reply to a socket request.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
-enum IpcResponse {
-    Ok,
-    Error { message: String },
+pub enum IpcResponse {
+    Ok {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notifications: Option<Vec<NotificationInfo>>,
+    },
+    Error {
+        message: String,
+    },
+}
+
+impl IpcResponse {
+    pub fn ok() -> Self {
+        Self::Ok {
+            notifications: None,
+        }
+    }
+
+    pub fn error(message: impl ToString) -> Self {
+        Self::Error {
+            message: message.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotificationInfo {
+    id: u32,
+    app_name: String,
+    summary: String,
+    body: String,
+    urgency: String,
+    actions: Vec<NotificationAction>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NotificationAction {
+    key: String,
+    label: String,
+}
+
+impl From<&Notification> for NotificationInfo {
+    fn from(notification: &Notification) -> Self {
+        Self {
+            id: notification.id,
+            app_name: notification.app_name.clone(),
+            summary: notification.summary.clone(),
+            body: notification.body.clone(),
+            urgency: match notification.urgency {
+                Urgency::Low => "low",
+                Urgency::Normal => "normal",
+                Urgency::Critical => "critical",
+            }
+            .into(),
+            actions: notification
+                .action_pairs()
+                .map(|(key, label)| NotificationAction {
+                    key: key.to_owned(),
+                    label: label.to_owned(),
+                })
+                .collect(),
+        }
+    }
+}
+
+/// A cloneable reply handle so requests can travel through iced messages/tasks.
+#[derive(Debug, Clone)]
+pub struct IpcReply(ReplySender<IpcResponse>);
+
+impl IpcReply {
+    pub fn channel() -> (Self, Receiver<IpcResponse>) {
+        let (sender, receiver) = channel(1);
+        (Self(sender), receiver)
+    }
+
+    pub fn send(&self, response: IpcResponse) {
+        let _ = self.0.try_send(response);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct IpcRequest {
+    pub command: IpcCommand,
+    pub reply: IpcReply,
 }
 
 /// `$XDG_RUNTIME_DIR/ashell.sock`, else a private (0700, ours, not a symlink)
@@ -127,6 +236,9 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
     let mut stream = UnixStream::connect(&path)
         .with_context(|| format!("connect to {} — is ashell running?", path.display()))?;
 
+    stream.set_read_timeout(Some(RESPONSE_TIMEOUT + IO_TIMEOUT * 2))?;
+    stream.set_write_timeout(Some(IO_TIMEOUT))?;
+
     let line = serde_json::to_string(cmd).context("encode IPC command")? + "\n";
     stream.write_all(line.as_bytes()).context("send command")?;
     stream.flush()?;
@@ -137,7 +249,12 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
         .read_line(&mut response)
         .context("read response")?;
     match serde_json::from_str(&response).context("decode IPC response")? {
-        IpcResponse::Ok => println!("ok"),
+        IpcResponse::Ok {
+            notifications: Some(notifications),
+        } => println!("{}", serde_json::to_string(&notifications)?),
+        IpcResponse::Ok {
+            notifications: None,
+        } => println!("ok"),
         IpcResponse::Error { message } => return Err(anyhow!(message)),
     }
     Ok(())
@@ -194,29 +311,20 @@ fn create_listener() -> std::result::Result<UnixListener, ListenerError> {
 }
 
 /// Read a single command from an accepted client connection.
-fn read_request(stream: &UnixStream) -> Result<IpcCommand> {
+async fn read_request(stream: &mut tokio::net::UnixStream) -> Result<IpcCommand> {
     let mut line = String::new();
-    BufReader::new(stream.take(MAX_REQUEST_LEN + 1))
+    tokio::io::BufReader::new(stream.take(MAX_REQUEST_LEN + 1))
         .read_line(&mut line)
+        .await
         .context("read IPC command")?;
     if line.len() as u64 > MAX_REQUEST_LEN {
         return Err(anyhow!("IPC request exceeds {MAX_REQUEST_LEN} bytes"));
     }
-    let cmd = serde_json::from_str(&line).context("decode IPC command")?;
-    if let IpcCommand::LoadConfig { file } = &cmd {
-        if !file.is_absolute() {
-            return Err(anyhow!(
-                "load-config expects an absolute path, got {}",
-                file.display()
-            ));
-        }
-        config::read_config(file).map_err(|e| anyhow!("invalid config {}: {e}", file.display()))?;
-    }
-    Ok(cmd)
+    serde_json::from_str(&line).context("decode IPC command")
 }
 
 /// Write a response line to the client.
-fn write_response(stream: &mut UnixStream, response: &IpcResponse) {
+async fn write_response(stream: &mut tokio::net::UnixStream, response: &IpcResponse) {
     let msg = match serde_json::to_string(response) {
         Ok(json) => json + "\n",
         Err(e) => {
@@ -224,38 +332,45 @@ fn write_response(stream: &mut UnixStream, response: &IpcResponse) {
             return;
         }
     };
-    if let Err(e) = stream.write_all(msg.as_bytes()) {
-        log::debug!("IPC write response failed: {e}");
+    match timeout(IO_TIMEOUT, stream.write_all(msg.as_bytes())).await {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => log::debug!("IPC write response failed: {e}"),
+        Err(_) => log::debug!("IPC write response timed out"),
     }
 }
 
-/// Handle a single accepted client connection.
-fn handle_connection(mut stream: UnixStream) -> Option<IpcCommand> {
-    // tokio's `into_std` leaves the socket nonblocking, so a read that races
-    // ahead of the client's write fails with EAGAIN. Block instead, bounded so
-    // a client that never writes can't stall the IPC subscription.
-    if let Err(e) = stream
-        .set_nonblocking(false)
-        .and_then(|()| stream.set_read_timeout(Some(REQUEST_TIMEOUT)))
-    {
-        log::debug!("IPC: failed to make stream blocking: {e}");
-    }
-
-    match read_request(&stream) {
-        Ok(cmd) => {
-            write_response(&mut stream, &IpcResponse::Ok);
-            Some(cmd)
+/// Each connection waits for its own app reply without holding up the listener.
+async fn handle_connection(mut stream: tokio::net::UnixStream, mut output: Sender<IpcRequest>) {
+    let response = if !is_same_user(&stream) {
+        log::warn!("IPC: rejected connection from another user");
+        IpcResponse::error("permission denied")
+    } else {
+        match timeout(IO_TIMEOUT, read_request(&mut stream)).await {
+            Ok(Ok(command)) => {
+                let (reply, mut rx) = IpcReply::channel();
+                let request = IpcRequest { command, reply };
+                match timeout(RESPONSE_TIMEOUT, async {
+                    if output.send(request).await.is_err() {
+                        IpcResponse::error("ashell is shutting down")
+                    } else {
+                        rx.recv()
+                            .await
+                            .unwrap_or_else(|| IpcResponse::error("IPC request was cancelled"))
+                    }
+                })
+                .await
+                {
+                    Ok(response) => response,
+                    Err(_) => {
+                        IpcResponse::error("IPC response timed out; the command may still complete")
+                    }
+                }
+            }
+            Ok(Err(e)) => IpcResponse::error(format!("{e:#}")),
+            Err(_) => IpcResponse::error("IPC request timed out"),
         }
-        Err(e) => {
-            write_response(
-                &mut stream,
-                &IpcResponse::Error {
-                    message: format!("{e:#}"),
-                },
-            );
-            None
-        }
-    }
+    };
+    write_response(&mut stream, &response).await;
 }
 
 /// Defence in depth: the socket dir is already private.
@@ -288,42 +403,35 @@ fn init_listener() -> Option<tokio::net::UnixListener> {
 }
 
 /// Subscription that listens for IPC commands on the Unix socket.
-pub fn subscription() -> Subscription<IpcCommand> {
+pub fn subscription() -> Subscription<IpcRequest> {
     Subscription::run(|| {
-        iced::futures::stream::unfold(None::<tokio::net::UnixListener>, |listener| async {
-            let listener = match listener {
-                Some(l) => l,
-                None => init_listener()?,
+        iced::stream::channel(10, |output: Sender<IpcRequest>| async move {
+            let Some(listener) = init_listener() else {
+                return;
             };
-            let (request, listener) = match listener.accept().await {
-                Ok((stream, _)) => {
-                    let same_user = is_same_user(&stream);
-                    let request = match stream.into_std() {
-                        Ok(mut std_stream) if !same_user => {
-                            log::warn!("IPC: rejected connection from another user");
-                            write_response(
-                                &mut std_stream,
-                                &IpcResponse::Error {
-                                    message: "permission denied".into(),
-                                },
-                            );
-                            None
+            let mut connections = JoinSet::new();
+            loop {
+                tokio::select! {
+                    // Finished handlers are reaped even under a steady stream of clients.
+                    biased;
+                    Some(result) = connections.join_next(), if !connections.is_empty() => {
+                        if let Err(e) = result {
+                            log::error!("IPC connection task failed: {e}");
                         }
-                        Ok(std_stream) => handle_connection(std_stream),
-                        Err(e) => {
-                            log::error!("IPC stream conversion error: {e}");
-                            None
+                    }
+                    accepted = listener.accept(), if connections.len() < MAX_CONNECTIONS => {
+                        match accepted {
+                            Ok((stream, _)) => {
+                                connections.spawn(handle_connection(stream, output.clone()));
+                            }
+                            Err(e) => {
+                                log::error!("IPC accept error: {e}");
+                                return;
+                            }
                         }
-                    };
-                    (request, listener)
+                    }
                 }
-                Err(e) => {
-                    log::error!("IPC accept error: {e}");
-                    (None, listener)
-                }
-            };
-            Some((request, Some(listener)))
+            }
         })
-        .filter_map(iced::futures::future::ready)
     })
 }

@@ -72,6 +72,7 @@ pub struct App {
     pub osd: Osd,
 }
 
+mod ipc;
 mod message;
 mod osd_info;
 
@@ -251,6 +252,10 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Ipc(request) => self.handle_ipc(request),
+            Message::IpcNotificationsFinished { result, reply } => {
+                self.finish_notifications_ipc(result, reply)
+            }
             Message::ConfigChanged(config) => {
                 info!("New config: {config:?}");
                 let mut tasks = Vec::new();
@@ -572,16 +577,8 @@ impl App {
                     IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
                     IpcCommand::ToggleAirplaneMode { .. } => self.settings.toggle_airplane(),
                     IpcCommand::ToggleIdleInhibitor { .. } => self.settings.toggle_idle_inhibitor(),
-                    IpcCommand::ToggleVisibility => {
-                        warn!(
-                            "IpcCommand::ToggleVisibility reached IpcOsdCommand handler; use Message::ToggleVisibility instead"
-                        );
-                        modules::settings::Action::None
-                    }
-                    IpcCommand::LoadConfig { .. } => {
-                        warn!(
-                            "IpcCommand::LoadConfig reached IpcOsdCommand handler; use Message::LoadConfig instead"
-                        );
+                    unexpected => {
+                        warn!("Unexpected command in OSD handler: {unexpected:?}");
                         modules::settings::Action::None
                     }
                 };
@@ -629,16 +626,6 @@ impl App {
                     ])
                 }
             }
-            Message::LoadConfig(config_file) => match config::read_config(&config_file) {
-                Ok(config) => {
-                    self.config_path = config_file;
-                    self.update(Message::ConfigChanged(Box::new(config)))
-                }
-                Err(e) => {
-                    warn!("Invalid config {}: {e}", config_file.display());
-                    Task::none()
-                }
-            },
         }
     }
 
@@ -844,11 +831,7 @@ impl App {
             // Always subscribe to audio/brightness services so OSD works
             // even when the Settings module isn't in the module list.
             self.settings.subscription().map(Message::Settings),
-            crate::ipc::subscription().map(|cmd| match cmd {
-                IpcCommand::ToggleVisibility => Message::ToggleVisibility,
-                IpcCommand::LoadConfig { file } => Message::LoadConfig(file),
-                other => Message::IpcOsdCommand(other),
-            }),
+            crate::ipc::subscription().map(Message::Ipc),
         ])
     }
 }

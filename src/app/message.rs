@@ -1,12 +1,11 @@
 use crate::{
     components::{ButtonUIRef, menu::MenuType},
     config::Config,
-    ipc::IpcCommand,
+    ipc::{IpcCommand, IpcReply, IpcRequest},
     modules::{self, custom_module},
     osd,
 };
 use iced::{OutputEvent, SurfaceId};
-use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -29,10 +28,14 @@ pub enum Message {
     Notifications(modules::notifications::Message),
     Osd(osd::Message),
     IpcOsdCommand(IpcCommand),
+    Ipc(IpcRequest),
+    IpcNotificationsFinished {
+        result: modules::notifications::CloseResult,
+        reply: IpcReply,
+    },
     OutputEvent(OutputEvent),
     CloseAllMenus,
     ResumeFromSleep,
     None,
     ToggleVisibility,
-    LoadConfig(PathBuf),
 }
