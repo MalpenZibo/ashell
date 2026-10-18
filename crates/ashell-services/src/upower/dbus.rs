@@ -495,6 +495,9 @@ impl UPowerDbus<'_> {
 pub trait UPower {
     fn enumerate_devices(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
 
+    #[zbus(property)]
+    fn on_battery(&self) -> zbus::Result<bool>;
+
     #[zbus(signal)]
     fn device_added(&self) -> zbus::Result<OwnedObjectPath>;
 

@@ -137,6 +137,9 @@ pub struct KbdBacklight {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct UPowerData {
+    /// No charger is connected. Unlike the battery's state, it does not
+    /// change when the firmware pauses charging near a full battery.
+    pub on_battery: bool,
     pub system_battery: Option<BatteryData>,
     pub charge_limit: Option<ChargeLimit>,
     pub peripherals: Vec<Peripheral>,
@@ -147,6 +150,7 @@ pub struct UPowerData {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum UPowerCommand {
     TogglePowerProfile,
+    SetPowerProfile(PowerProfile),
     ToggleChargeLimit,
     SetKbdBacklight(u32),
 }
@@ -263,6 +267,7 @@ impl UPower {
                 let current = Self::read_power_profile(&self.conn).await?;
                 self.set_power_profile(current.next()).await
             }
+            UPowerCommand::SetPowerProfile(profile) => self.set_power_profile(profile).await,
             UPowerCommand::ToggleChargeLimit => {
                 let upower = UPowerDbus::new(&self.conn).await?;
                 let Some(battery) = upower.get_system_batteries().await? else {
@@ -326,6 +331,11 @@ impl UPower {
             None => (None, None),
         };
 
+        let on_battery = upower.on_battery().await.unwrap_or_else(|err| {
+            debug!("Failed to get on battery: {err}");
+            false
+        });
+
         let peripherals = Self::read_peripherals(&upower).await?;
 
         let power_profile = Self::read_power_profile(conn).await.unwrap_or_else(|err| {
@@ -336,6 +346,7 @@ impl UPower {
         let kbd_backlight = Self::read_kbd_backlight(conn).await;
 
         Ok(UPowerData {
+            on_battery,
             system_battery,
             charge_limit,
             peripherals,
@@ -482,7 +493,14 @@ impl UPower {
         .map(|_| Change::Topology);
 
         // Property streams yield their current value first: skip it, updates() reads a snapshot
-        let mut properties: Vec<BoxStream<'static, ()>> = Vec::new();
+        let mut properties: Vec<BoxStream<'static, ()>> = vec![
+            upower
+                .receive_on_battery_changed()
+                .await
+                .skip(1)
+                .map(|_| {})
+                .boxed(),
+        ];
 
         if let Some(battery) = upower.get_system_batteries().await? {
             for device in battery.devices() {
