@@ -2251,7 +2251,10 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                         debug!("Starting config file watch loop");
 
                         loop {
-                            let events = stream.next().await.unwrap_or(vec![]);
+                            let Some(events) = stream.next().await else {
+                                error!("inotify event stream ended, config hot-reload disabled");
+                                return;
+                            };
 
                             debug!("Received inotify events: {events:?}");
 
