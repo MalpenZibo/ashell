@@ -5,9 +5,16 @@ use super::ButtonUIRef;
 
 /// A handler for one mouse button: a plain message, or one built from the
 /// button's on-screen position (needed to place a menu popup under it).
-enum Handler<'a, Msg> {
+pub enum Handler<'a, Msg> {
     Message(Msg),
     WithPosition(Box<dyn Fn(ButtonUIRef) -> Msg + 'a>),
+}
+
+/// Which mouse button a [`Handler`] is bound to.
+pub enum MouseButton {
+    Press,
+    RightPress,
+    MiddlePress,
 }
 
 /// Builder for a bar module item: content wrapped in a position_button
@@ -35,49 +42,22 @@ pub fn module_item<'a, Msg: 'static + Clone>(content: Element<'a, Msg>) -> Modul
 }
 
 impl<'a, Msg: 'static + Clone> ModuleItem<'a, Msg> {
-    pub fn on_press(mut self, msg: Msg) -> Self {
-        self.on_press = Some(Handler::Message(msg));
+    pub fn set_handler(mut self, button: MouseButton, handler: Option<Handler<'a, Msg>>) -> Self {
+        match button {
+            MouseButton::Press => self.on_press = handler,
+            MouseButton::RightPress => self.on_right_press = handler,
+            MouseButton::MiddlePress => self.on_middle_press = handler,
+        }
         self
     }
 
-    pub fn on_press_with_position(mut self, handler: impl Fn(ButtonUIRef) -> Msg + 'a) -> Self {
-        self.on_press = Some(Handler::WithPosition(Box::new(handler)));
+    pub fn set_scroll_up(mut self, msg: Option<Msg>) -> Self {
+        self.on_scroll_up = msg;
         self
     }
 
-    pub fn on_right_press(mut self, msg: Msg) -> Self {
-        self.on_right_press = Some(Handler::Message(msg));
-        self
-    }
-
-    pub fn on_right_press_with_position(
-        mut self,
-        handler: impl Fn(ButtonUIRef) -> Msg + 'a,
-    ) -> Self {
-        self.on_right_press = Some(Handler::WithPosition(Box::new(handler)));
-        self
-    }
-
-    pub fn on_middle_press(mut self, msg: Msg) -> Self {
-        self.on_middle_press = Some(Handler::Message(msg));
-        self
-    }
-
-    pub fn on_middle_press_with_position(
-        mut self,
-        handler: impl Fn(ButtonUIRef) -> Msg + 'a,
-    ) -> Self {
-        self.on_middle_press = Some(Handler::WithPosition(Box::new(handler)));
-        self
-    }
-
-    pub fn on_scroll_up(mut self, msg: Msg) -> Self {
-        self.on_scroll_up = Some(msg);
-        self
-    }
-
-    pub fn on_scroll_down(mut self, msg: Msg) -> Self {
-        self.on_scroll_down = Some(msg);
+    pub fn set_scroll_down(mut self, msg: Option<Msg>) -> Self {
+        self.on_scroll_down = msg;
         self
     }
 }
