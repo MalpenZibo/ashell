@@ -21,7 +21,6 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
     alignment::Vertical,
-    mouse::ScrollDelta,
     widget::{Column, Row, column, container, row, text},
 };
 
@@ -187,7 +186,7 @@ impl PowerSettings {
                     }
                     Action::None
                 }
-                ServiceEvent::Error(_) => Action::None,
+                ServiceEvent::Error(()) => Action::None,
             },
             Message::ToggleBatteryMenu => Action::ToggleBatteryMenu,
             Message::ToggleKbdBacklight => {
@@ -260,7 +259,7 @@ impl PowerSettings {
                                 .map(Message::KbdBacklightChanged),
                         );
                     }
-                };
+                }
                 Action::None
             }
             Message::ConfigReloaded(config) => {
@@ -683,10 +682,7 @@ impl PowerSettings {
                 current,
                 Message::KbdBacklightChanged,
                 move |delta| {
-                    let y = match delta {
-                        ScrollDelta::Lines { y, .. } => y,
-                        ScrollDelta::Pixels { y, .. } => y,
-                    };
+                    let y = crate::utils::scroll_delta_y(delta);
                     let step = (5 * backlight.max / 100).max(1);
                     let new = if y > 0.0 {
                         (current + step).min(backlight.max)

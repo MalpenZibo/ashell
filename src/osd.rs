@@ -192,8 +192,7 @@ impl Osd {
             background: Some(t.palette().background.into()),
             border: surface_border(t, radius.xl),
             text_color: Some(match (state.kind, state.muted) {
-                (OsdKind::IdleInhibitor, true) => t.palette().danger,
-                (OsdKind::Airplane, true) => t.palette().danger,
+                (OsdKind::IdleInhibitor | OsdKind::Airplane, true) => t.palette().danger,
                 _ => t.palette().text,
             }),
             ..Default::default()

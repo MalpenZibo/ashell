@@ -65,10 +65,7 @@ impl BrightnessSettings {
 
     fn on_scroll(current: u32, max: u32) -> impl Fn(ScrollDelta) -> Message {
         move |delta| {
-            let y = match delta {
-                ScrollDelta::Lines { y, .. } => y,
-                ScrollDelta::Pixels { y, .. } => y,
-            };
+            let y = crate::utils::scroll_delta_y(delta);
             let step = Self::step(max);
             let new = if y > 0.0 {
                 (current + step).min(max)
