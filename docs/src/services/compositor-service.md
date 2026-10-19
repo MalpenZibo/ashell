@@ -97,12 +97,16 @@ Commands that can be sent to the compositor:
 pub enum CompositorCommand {
     FocusWorkspace(i32),
     FocusNamedWorkspace(String),
-    FocusSpecialWorkspace(String),
-    FocusMonitor(i128),
     ToggleSpecialWorkspace(String),
-    ScrollWorkspace(i32),           // +1 or -1
     CustomDispatch(String, String), // For "vdesk"
     NextLayout,
+    /// Focus a window owned by `pid`, or one whose app id/class is in `apps`,
+    /// preferring the one whose title contains `title`.
+    FocusAppWindow {
+        pid: Option<u32>,
+        apps: Vec<String>,
+        title: Option<String>,
+    },
 }
 ```
 

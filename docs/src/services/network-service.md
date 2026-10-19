@@ -10,11 +10,11 @@ services/network/
 ├── dbus.rs      # NetworkManager D-Bus proxy definitions
 └── iwd_dbus/    # IWD D-Bus proxy definitions (extensive)
     ├── mod.rs
-    ├── station.rs
-    ├── network.rs
-    ├── known_network.rs
+    ├── adapter.rs
+    ├── agent_manager.rs
     ├── device.rs
-    └── ...
+    ├── network.rs
+    └── station.rs
 ```
 
 ## Dual Backend
