@@ -1,6 +1,6 @@
 # D-Bus Services Pattern
 
-Most of ashell's services communicate with system daemons over D-Bus using the [zbus](https://docs.rs/zbus) crate (version 5).
+Most of ashell's services communicate with system daemons over D-Bus using the [zbus](https://docs.rs/zbus) crate (version 6).
 
 ## D-Bus Overview
 
@@ -31,7 +31,7 @@ pub trait Adapter {
     #[zbus(property)]
     fn discovering(&self) -> zbus::Result<bool>;
 
-    fn remove_device(&self, device: zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
+    fn remove_device(&self, device: zbus::ObjectPath<'_>) -> zbus::Result<()>;
 }
 ```
 

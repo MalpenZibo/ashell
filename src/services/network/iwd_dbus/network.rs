@@ -29,15 +29,15 @@ pub trait Network {
 
     /// Device property
     #[zbus(property)]
-    fn device(&self) -> zbus::Result<zbus::zvariant::OwnedObjectPath>;
+    fn device(&self) -> zbus::Result<zbus::OwnedObjectPath>;
 
     /// `ExtendedServiceSet` property
     #[zbus(property)]
-    fn extended_service_set(&self) -> zbus::Result<Vec<zbus::zvariant::OwnedObjectPath>>;
+    fn extended_service_set(&self) -> zbus::Result<Vec<zbus::OwnedObjectPath>>;
 
     /// `KnownNetwork` property
     #[zbus(property)]
-    fn known_network(&self) -> zbus::Result<zbus::zvariant::OwnedObjectPath>;
+    fn known_network(&self) -> zbus::Result<zbus::OwnedObjectPath>;
 
     /// Name property
     #[zbus(property)]

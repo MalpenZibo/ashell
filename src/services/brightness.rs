@@ -106,7 +106,9 @@ impl BrightnessService {
             .match_subsystem("backlight")?
             .listen()?;
 
-        Ok(AsyncFd::with_interest(socket, Interest::READABLE)?)
+        // SAFETY: the socket owns its udev monitor fd until it is dropped,
+        // and `as_raw_fd` always returns that same fd.
+        Ok(unsafe { AsyncFd::register_with_interest(socket, Interest::READABLE) }?)
     }
 
     fn backlight_enumerate() -> anyhow::Result<Vec<udev::Device>> {

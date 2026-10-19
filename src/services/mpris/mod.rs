@@ -21,7 +21,7 @@ use std::{
     time::Duration,
 };
 use url::Url;
-use zbus::{fdo::DBusProxy, zvariant::OwnedValue};
+use zbus::{OwnedVariant, fdo::DBusProxy};
 
 mod dbus;
 
@@ -72,8 +72,8 @@ impl Display for MprisPlayerMetadata {
     }
 }
 
-impl From<HashMap<String, OwnedValue>> for MprisPlayerMetadata {
-    fn from(value: HashMap<String, OwnedValue>) -> Self {
+impl From<HashMap<String, OwnedVariant>> for MprisPlayerMetadata {
+    fn from(value: HashMap<String, OwnedVariant>) -> Self {
         let artists = match value.get("xesam:artist") {
             Some(v) => v.clone().try_into().ok(),
             None => None,

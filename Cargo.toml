@@ -15,7 +15,7 @@ inotify = { version = "0.11.1", default-features = false, features = [
 ] }
 log = { version = "0.4", features = [] }
 tokio = { version = "1", default-features = false }
-zbus = { version = "5", default-features = false, features = ["tokio"] }
+zbus = { version = "6", default-features = false, features = ["tokio", "proxy", "service"] }
 
 [package]
 name = "ashell"
@@ -78,9 +78,9 @@ chrono = { version = "0.4", default-features = false, features = [
   "unstable-locales",
 ] }
 hyprland = { git = "https://github.com/hyprland-community/hyprland-rs", branch = "master" }
-serde = { version = "1.0", default-features = false, features = [] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 sysinfo = { version = "0.39", features = ["linux-netdevs"] }
-tokio = { workspace = true, features = ["net"] }
+tokio = { workspace = true, features = ["fs", "io-util", "net", "process"] }
 zbus.workspace = true
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 log.workspace = true

@@ -12,7 +12,7 @@ use iwd_dbus::IwdDbus;
 use log::{debug, error, info, warn};
 use std::{any::TypeId, ops::Deref, time::Duration};
 use tokio::time::sleep;
-use zbus::zvariant::OwnedObjectPath;
+use zbus::OwnedObjectPath;
 
 pub mod dbus;
 pub mod iwd_dbus;

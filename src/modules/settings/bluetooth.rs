@@ -21,7 +21,7 @@ use iced::{
     alignment::{Horizontal, Vertical},
     widget::{Column, MouseArea, Row, column, container, row, text},
 };
-use zbus::zvariant::OwnedObjectPath;
+use zbus::OwnedObjectPath;
 
 #[derive(Debug, Clone)]
 pub enum Message {

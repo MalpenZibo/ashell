@@ -26,7 +26,7 @@ pub trait ServiceManager {
     /// `RegisterDisplayService` method
     fn register_display_service(
         &self,
-        properties: std::collections::HashMap<&str, &zbus::zvariant::Value<'_>>,
+        properties: std::collections::HashMap<&str, &zbus::Variant<'_>>,
     ) -> zbus::Result<()>;
 
     /// `UnregisterDisplayService` method

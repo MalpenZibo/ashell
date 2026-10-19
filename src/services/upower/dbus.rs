@@ -1,10 +1,7 @@
 use super::{BatteryHealth, ChargeLimit};
 use log::debug;
 use std::ops::Deref;
-use zbus::{
-    proxy,
-    zvariant::{ObjectPath, OwnedObjectPath},
-};
+use zbus::{ObjectPath, OwnedObjectPath, proxy};
 
 pub struct UPowerDbus<'a>(UPowerProxy<'a>);
 
@@ -436,7 +433,7 @@ impl UPowerDbus<'_> {
         path: &ObjectPath<'static>,
     ) -> anyhow::Result<DeviceProxy<'static>> {
         let device = DeviceProxy::builder(self.inner().connection())
-            .path(path)?
+            .path(path)
             .build()
             .await?;
 
@@ -455,7 +452,7 @@ impl UPowerDbus<'_> {
 
         for device in devices {
             let device = DeviceProxy::builder(self.inner().connection())
-                .path(device)?
+                .path(device)
                 .build()
                 .await?;
 

@@ -22,7 +22,7 @@ use zbus::proxy;
 pub trait Device {
     /// Adapter property
     #[zbus(property)]
-    fn adapter(&self) -> zbus::Result<zbus::zvariant::OwnedObjectPath>;
+    fn adapter(&self) -> zbus::Result<zbus::OwnedObjectPath>;
 
     /// Address property
     #[zbus(property)]

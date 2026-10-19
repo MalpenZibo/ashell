@@ -20,7 +20,7 @@ use serde::Deserialize;
 use std::{any::TypeId, fmt, time::Duration};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use zbus::zvariant::ObjectPath;
+use zbus::ObjectPath;
 
 mod dbus;
 
@@ -1011,12 +1011,11 @@ impl Service for UPowerService {
                         let Some(charge_limit) = charge_limit else {
                             return UPowerEvent::UpdateChargeLimit(None);
                         };
-                        let Ok(device) =
-                            DeviceProxy::builder(&conn).path(charge_limit.device_path.clone())
+                        let Ok(device) = DeviceProxy::builder(&conn)
+                            .path(charge_limit.device_path.clone())
+                            .build()
+                            .await
                         else {
-                            return UPowerEvent::UpdateChargeLimit(Some(charge_limit));
-                        };
-                        let Ok(device) = device.build().await else {
                             return UPowerEvent::UpdateChargeLimit(Some(charge_limit));
                         };
 

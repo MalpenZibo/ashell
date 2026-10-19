@@ -152,8 +152,8 @@ impl StatusNotifierItem {
         // `receive_icon_pixmap_changed` are `PropertyStream`s and yield
         // nothing when the proxy has no property cache.
         let item_proxy = StatusNotifierItemProxy::builder(conn)
-            .destination(dest.to_owned())?
-            .path(path.to_owned())?
+            .destination(dest.to_owned())
+            .path(path.to_owned())
             .build()
             .await?;
 
@@ -173,8 +173,8 @@ impl StatusNotifierItem {
 
         let menu_path = item_proxy.menu().await?;
         let menu_proxy = dbus::DBusMenuProxy::builder(conn)
-            .destination(dest.to_owned())?
-            .path(menu_path.to_owned())?
+            .destination(dest.to_owned())
+            .path(menu_path.to_owned())
             .build()
             .await?;
 
@@ -352,8 +352,8 @@ impl TrayService {
                 let (dest, path) = dbus::split_service_name(&name);
                 // NewIcon has no matching PropertiesChanged, so a cached read would be stale;
                 let uncached_proxy = StatusNotifierItemProxy::builder(conn)
-                    .destination(dest.to_owned())?
-                    .path(path.to_owned())?
+                    .destination(dest.to_owned())
+                    .path(path.to_owned())
                     .cache_properties(zbus::proxy::CacheProperties::No)
                     .build()
                     .await?;
@@ -383,8 +383,8 @@ impl TrayService {
             if let Ok(new_attention_icon) = new_attention_icon {
                 let (dest, path) = dbus::split_service_name(&name);
                 let uncached_proxy = StatusNotifierItemProxy::builder(conn)
-                    .destination(dest.to_owned())?
-                    .path(path.to_owned())?
+                    .destination(dest.to_owned())
+                    .path(path.to_owned())
                     .cache_properties(zbus::proxy::CacheProperties::No)
                     .build()
                     .await?;
@@ -549,7 +549,7 @@ impl TrayService {
         menu_proxy: &DBusMenuProxy<'_>,
         id: i32,
     ) -> anyhow::Result<Layout> {
-        let value = zbus::zvariant::Value::I32(32).try_to_owned()?;
+        let value = zbus::Variant::I32(32).try_to_owned()?;
         menu_proxy
             .event(
                 id,
