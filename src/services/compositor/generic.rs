@@ -10,7 +10,7 @@ use super::types::{
 use crate::services::ServiceEvent;
 use anyhow::{Context, Result, anyhow};
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{LazyLock, Mutex};
 use tokio::sync::broadcast;
 use wayland_client::{
     Connection, Dispatch, Proxy, QueueHandle,
@@ -74,7 +74,7 @@ fn event_loop(tx: broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<
     }
 }
 
-pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
+pub fn execute_command(cmd: CompositorCommand) -> Result<()> {
     match cmd {
         CompositorCommand::FocusWorkspace(id) => {
             activate_workspace(|handles| handles.iter().find(|h| h.numeric_id == id).cloned())
@@ -99,16 +99,13 @@ struct CommandState {
     handles: Vec<WorkspaceHandle>,
 }
 
-fn command_slot() -> &'static Mutex<Option<CommandState>> {
-    static SLOT: OnceLock<Mutex<Option<CommandState>>> = OnceLock::new();
-    SLOT.get_or_init(|| Mutex::new(None))
-}
+static COMMAND_SLOT: LazyLock<Mutex<Option<CommandState>>> = LazyLock::new(|| Mutex::new(None));
 
 // `ext-workspace` stages requests, so `activate` is followed by `commit` + flush.
 fn activate_workspace(
     pick: impl FnOnce(&[WorkspaceHandle]) -> Option<WorkspaceHandle>,
 ) -> Result<()> {
-    let guard = command_slot().lock().unwrap();
+    let guard = COMMAND_SLOT.lock().unwrap();
     let cmd = guard
         .as_ref()
         .ok_or_else(|| anyhow!("generic workspace control is unavailable on this compositor"))?;
@@ -311,7 +308,7 @@ impl GenericState {
                 })
             })
             .collect();
-        let mut slot = command_slot().lock().unwrap();
+        let mut slot = COMMAND_SLOT.lock().unwrap();
         match slot.as_mut() {
             Some(state) => state.handles = handles,
             None => {
@@ -319,7 +316,7 @@ impl GenericState {
                     conn: conn.clone(),
                     manager: manager.clone(),
                     handles,
-                })
+                });
             }
         }
     }
@@ -378,7 +375,7 @@ impl Dispatch<WlRegistry, ()> for GenericState {
                     state.workspaces.clear();
                     state.workspace_handles.clear();
                     state.workspace_order.clear();
-                    *command_slot().lock().unwrap() = None;
+                    *COMMAND_SLOT.lock().unwrap() = None;
                     state.dirty = true;
                 } else if state.toplevel_manager_name == Some(name) {
                     state.toplevel_manager = None;

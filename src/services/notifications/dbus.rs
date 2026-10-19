@@ -131,7 +131,7 @@ impl NotificationDaemon {
 
 #[interface(name = "org.freedesktop.Notifications")]
 impl NotificationDaemon {
-    async fn get_capabilities(&self) -> Vec<String> {
+    fn get_capabilities(&self) -> Vec<String> {
         vec![
             "body".to_string(),
             "body-markup".to_string(),
@@ -141,7 +141,7 @@ impl NotificationDaemon {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn notify(
+    fn notify(
         &mut self,
         app_name: String,
         replaces_id: u32,
@@ -186,7 +186,7 @@ impl NotificationDaemon {
             icon,
         };
 
-        debug!("New notification: {:?}", notification);
+        debug!("New notification: {notification:?}");
 
         // Send event through channel
         let _ = self
@@ -200,7 +200,7 @@ impl NotificationDaemon {
         self.close_with_reason(id, 3).await;
     }
 
-    async fn get_server_information(&self) -> (String, String, String, String) {
+    fn get_server_information(&self) -> (String, String, String, String) {
         (
             "ashell".to_string(),
             "MalpenZibo".to_string(),
@@ -259,7 +259,7 @@ impl NotificationDaemon {
         if let CloseGuard::Revision(revision) = guard
             && daemon.revisions.get(&id) != Some(&revision)
         {
-            debug!("Skipping close of notification {}: replaced since", id);
+            debug!("Skipping close of notification {id}: replaced since");
             return Ok(false);
         }
 

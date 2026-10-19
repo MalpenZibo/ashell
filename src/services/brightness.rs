@@ -48,22 +48,22 @@ impl DerefMut for BrightnessService {
 }
 
 impl BrightnessService {
-    async fn get_max_brightness(device_path: &Path) -> anyhow::Result<u32> {
+    fn get_max_brightness(device_path: &Path) -> anyhow::Result<u32> {
         let max_brightness = fs::read_to_string(device_path.join("max_brightness"))?;
         let max_brightness = max_brightness.trim().parse::<u32>()?;
 
         Ok(max_brightness)
     }
 
-    async fn get_brightness(device_path: &Path) -> anyhow::Result<u32> {
+    fn get_brightness(device_path: &Path) -> anyhow::Result<u32> {
         let brightness = fs::read_to_string(device_path.join("brightness"))?;
         let brightness = brightness.trim().parse::<u32>()?;
         Ok(brightness)
     }
 
-    async fn initialize_data(device_path: &Path) -> anyhow::Result<BrightnessData> {
-        let max_brightness = Self::get_max_brightness(device_path).await?;
-        let actual_brightness = Self::get_brightness(device_path).await?;
+    fn initialize_data(device_path: &Path) -> anyhow::Result<BrightnessData> {
+        let max_brightness = Self::get_max_brightness(device_path)?;
+        let actual_brightness = Self::get_brightness(device_path)?;
         Ok(BrightnessData {
             current: Remote::new(actual_brightness),
             max: max_brightness,
@@ -72,9 +72,9 @@ impl BrightnessService {
     }
 
     pub fn sync_brightness(&mut self) {
-        if let Ok(value) = fs::read_to_string(self.data.device_path.join("brightness"))
-            .map_err(anyhow::Error::from)
-            .and_then(|s| Ok(s.trim().parse::<u32>()?))
+        let path = self.data.device_path.join("brightness");
+        if let Ok(contents) = fs::read_to_string(path)
+            && let Ok(value) = contents.trim().parse::<u32>()
         {
             self.data.current.receive(value);
         }
@@ -101,7 +101,7 @@ impl BrightnessService {
         }
     }
 
-    pub async fn backlight_monitor_listener() -> anyhow::Result<AsyncFd<udev::MonitorSocket>> {
+    pub fn backlight_monitor_listener() -> anyhow::Result<AsyncFd<udev::MonitorSocket>> {
         let socket = udev::MonitorBuilder::new()?
             .match_subsystem("backlight")?
             .listen()?;
@@ -134,7 +134,7 @@ impl BrightnessService {
         match state {
             State::Init => match Self::init_service().await {
                 Ok((conn, device_path)) => {
-                    let data = BrightnessService::initialize_data(&device_path).await;
+                    let data = BrightnessService::initialize_data(&device_path);
 
                     match data {
                         Ok(data) => {
@@ -164,10 +164,9 @@ impl BrightnessService {
             },
             State::Active(device_path) => {
                 info!("Listening for brightness events");
-                let mut current_value =
-                    Self::get_brightness(&device_path).await.unwrap_or_default();
+                let mut current_value = Self::get_brightness(&device_path).unwrap_or_default();
 
-                match BrightnessService::backlight_monitor_listener().await {
+                match BrightnessService::backlight_monitor_listener() {
                     Ok(mut socket) => {
                         loop {
                             debug!("Waiting for brightness events");
@@ -187,7 +186,7 @@ impl BrightnessService {
                                                         evt.syspath()
                                                     );
                                                     if let Ok(new_value) =
-                                                        Self::get_brightness(&device_path).await
+                                                        Self::get_brightness(&device_path)
                                                         && new_value != current_value
                                                     {
                                                         current_value = new_value;

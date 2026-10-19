@@ -148,8 +148,7 @@ impl PrivacyService {
         }
     }
 
-    async fn webcam_listener() -> anyhow::Result<Box<dyn Stream<Item = PrivacyEvent> + Unpin + Send>>
-    {
+    fn webcam_listener() -> anyhow::Result<Box<dyn Stream<Item = PrivacyEvent> + Unpin + Send>> {
         let inotify = Inotify::init()?;
 
         inotify.watches().add(
@@ -186,7 +185,7 @@ impl PrivacyService {
         match state {
             State::Init => {
                 let pipewire = Self::create_pipewire_listener().await;
-                let webcam = Self::webcam_listener().await;
+                let webcam = Self::webcam_listener();
                 match (pipewire, webcam) {
                     (Ok(pipewire), Ok(webcam)) => {
                         let data = PrivacyData::new();

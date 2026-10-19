@@ -57,7 +57,7 @@ async fn broadcaster_event_loop(tx: broadcast::Sender<ServiceEvent<CompositorSer
         return;
     };
 
-    log::info!("Starting compositor event loop with {:?} backend", backend);
+    log::info!("Starting compositor event loop with {backend:?} backend");
 
     let result = match backend {
         CompositorChoice::Hyprland => hyprland::run_listener(&tx).await,
@@ -67,7 +67,7 @@ async fn broadcaster_event_loop(tx: broadcast::Sender<ServiceEvent<CompositorSer
     };
 
     if let Err(e) = result {
-        log::error!("Compositor event loop failed: {}", e);
+        log::error!("Compositor event loop failed: {e}");
         let _ = tx.send(ServiceEvent::Error(e.to_string()));
     }
 }
@@ -139,7 +139,7 @@ impl ReadOnlyService for CompositorService {
                             }
                         }
                         Err(broadcast::error::RecvError::Lagged(n)) => {
-                            log::warn!("Compositor subscriber lagged by {} messages", n);
+                            log::warn!("Compositor subscriber lagged by {n} messages");
                         }
                         Err(broadcast::error::RecvError::Closed) => {
                             log::error!("Compositor broadcaster closed unexpectedly");
@@ -204,7 +204,7 @@ async fn execute_command(
         CompositorChoice::Hyprland => hyprland::execute_command(command).await,
         CompositorChoice::Niri => niri::execute_command(command).await,
         CompositorChoice::Mango => mangowc::execute_command(command).await,
-        CompositorChoice::Generic => generic::execute_command(command).await,
+        CompositorChoice::Generic => generic::execute_command(command),
     }
     .map_err(|e| e.to_string())
 }
