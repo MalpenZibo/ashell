@@ -23,6 +23,8 @@ The toast surface spans the full output height and uses a Wayland input region s
 
 The `expire_timeout` hint sent by applications is respected: a value of `-1` falls back to `toast_timeout`, `0` means the toast never auto-dismisses, and any positive value (in milliseconds) is used directly.
 
+Moving the pointer over a toast pauses the countdown so a notification cannot disappear while you are reading it. The pause applies to every toast on screen, not only the one under the pointer, so the stack stays intact. Each toast resumes with the time it had left when the pointer arrives elsewhere.
+
 If you prefer no popups and only the panel indicator, set `toast = false`.
 
 ### Focusing the app
@@ -114,7 +116,7 @@ The corner or edge of the screen where toast notifications appear.
 
 ### toast_timeout
 
-How long (in milliseconds) a toast is shown before auto-dismissing when the application does not specify a timeout (`expire_timeout = -1`).
+How long (in milliseconds) a toast is shown before auto-dismissing when the application does not specify a timeout (`expire_timeout = -1`). The countdown is paused while the pointer is over the toasts.
 
 **Type:** `integer`
 **Default:** `5000`
