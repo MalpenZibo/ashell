@@ -18,7 +18,6 @@ pub trait Icon {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[allow(dead_code)]
 pub enum StaticIcon {
     #[default]
     None,
@@ -142,7 +141,7 @@ pub enum StaticIcon {
 }
 
 impl StaticIcon {
-    fn get_str(&self) -> &'static str {
+    fn get_str(self) -> &'static str {
         match self {
             StaticIcon::None => "",
             StaticIcon::Refresh => "\u{f0453}",
@@ -265,7 +264,7 @@ impl StaticIcon {
         }
     }
 
-    fn is_custom_icon(&self) -> bool {
+    fn is_custom_icon(self) -> bool {
         matches!(
             self,
             StaticIcon::KeyboardBatteryFull
@@ -288,7 +287,7 @@ impl StaticIcon {
         )
     }
 
-    fn get_font(&self) -> &'static str {
+    fn get_font(self) -> &'static str {
         if self.is_custom_icon() {
             "Ashell Custom Icon"
         } else {
@@ -296,7 +295,7 @@ impl StaticIcon {
         }
     }
 
-    fn get_font_mono(&self) -> &'static str {
+    fn get_font_mono(self) -> &'static str {
         if self.is_custom_icon() {
             "Ashell Custom Icon"
         } else {

@@ -115,8 +115,7 @@ impl Menu {
         let destroy = self
             .open
             .take()
-            .map(|o| destroy_layer_surface(o.id))
-            .unwrap_or_else(Task::none);
+            .map_or_else(Task::none, |o| destroy_layer_surface(o.id));
 
         self.open = Some(OpenMenu {
             id: menu_id,
@@ -265,7 +264,6 @@ impl Menu {
     }
 }
 
-#[allow(unused)]
 pub enum MenuSize {
     Small,
     Medium,

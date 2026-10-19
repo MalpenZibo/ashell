@@ -127,14 +127,10 @@ pub enum CompositorEvent {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum CompositorCommand {
     FocusWorkspace(i32),
     FocusNamedWorkspace(String),
-    FocusSpecialWorkspace(String),
-    FocusMonitor(i128),
     ToggleSpecialWorkspace(String),
-    ScrollWorkspace(i32),           // +1 or -1
     CustomDispatch(String, String), // For "vdesk"
     NextLayout,
     /// Focus a window of an application: one owned by `pid`, or, when none is

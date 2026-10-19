@@ -231,7 +231,7 @@ impl NetworkDbus<'_> {
 
         // 802.1X, OWE and static WEP have no PSK a `WIFI:` URI can carry.
         let security = match key_mgmt.as_deref() {
-            Some("wpa-psk") | Some("wpa-psk-sha256") => WifiSecurity::Wpa,
+            Some("wpa-psk" | "wpa-psk-sha256") => WifiSecurity::Wpa,
             Some("sae") => WifiSecurity::Sae,
             _ => return Ok(PskOutcome::Unsupported),
         };
@@ -418,7 +418,7 @@ impl NetworkDbus<'_> {
         let wireless_ac = nm.wireless_access_points().await?;
 
         let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
-        for ac in wireless_ac.iter() {
+        for ac in &wireless_ac {
             let dp = DeviceProxy::builder(conn)
                 .path(ac.device_path.clone())?
                 .build()
@@ -448,7 +448,7 @@ impl NetworkDbus<'_> {
 
         // Set up access point change listeners on wireless devices
         let mut ac_changes = Vec::with_capacity(devices.len());
-        for device_path in devices.iter() {
+        for device_path in &devices {
             let dp = WirelessDeviceProxy::builder(conn)
                 .path(device_path.clone())?
                 .build()
@@ -500,7 +500,7 @@ impl NetworkDbus<'_> {
                         let path = path.clone();
                         async move {
                             let value = val.get().await.unwrap_or_default();
-                            debug!("Strength changed value: {}, {}", ssid, value);
+                            debug!("Strength changed value: {ssid}, {value}");
                             NetworkEvent::Strength((Some(path.clone()), ssid.clone(), value))
                         }
                     })
@@ -513,7 +513,7 @@ impl NetworkDbus<'_> {
 
         // Set up LastScan change listeners on wireless devices to detect scan completion
         let mut last_scan_changes = Vec::with_capacity(devices.len());
-        for device_path in devices.iter() {
+        for device_path in &devices {
             let dp = WirelessDeviceProxy::builder(conn)
                 .path(device_path.clone())?
                 .build()
@@ -790,14 +790,6 @@ impl NetworkDbus<'_> {
                     .path(&path)?
                     .build()
                     .await?;
-                // disable scan for now for performance reason
-                // wireless_device.request_scan(HashMap::new()).await?;
-                // let mut scan_changed = wireless_device.receive_last_scan_changed().await;
-                // if let Some(t) = scan_changed.next().await {
-                //     if let Ok(-1) = t.get().await {
-                //         return Ok(Default::default());
-                //     }
-                // }
                 let access_points = wireless_device.get_access_points().await?;
                 let state: DeviceState = device
                     .cached_state()
@@ -1121,9 +1113,6 @@ trait ActiveConnection {
     fn id(&self) -> Result<String>;
 
     #[zbus(property)]
-    fn uuid(&self) -> Result<String>;
-
-    #[zbus(property)]
     fn connection(&self) -> Result<OwnedObjectPath>;
 
     #[zbus(property, name = "Type")]
@@ -1147,9 +1136,6 @@ trait ActiveConnection {
 pub trait Device {
     #[zbus(property)]
     fn device_type(&self) -> Result<u32>;
-
-    #[zbus(property)]
-    fn available_connections(&self) -> Result<Vec<OwnedObjectPath>>;
 
     #[zbus(property)]
     fn active_connection(&self) -> Result<OwnedObjectPath>;
@@ -1207,15 +1193,8 @@ pub trait AccessPoint {
     interface = "org.freedesktop.NetworkManager.Settings"
 )]
 pub trait Settings {
-    fn add_connection(
-        &self,
-        connection: HashMap<String, HashMap<String, OwnedValue>>,
-    ) -> Result<OwnedObjectPath>;
-
     #[zbus(property)]
     fn connections(&self) -> Result<Vec<OwnedObjectPath>>;
-
-    fn load_connections(&self, filenames: &[&str]) -> Result<(bool, Vec<String>)>;
 
     fn list_connections(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
 }

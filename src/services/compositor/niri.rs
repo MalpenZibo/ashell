@@ -17,7 +17,7 @@ use tokio::{
 };
 
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
-    let mut stream = connect().await?;
+    let mut stream = connect()?;
 
     let action = match cmd {
         CompositorCommand::FocusWorkspace(id) => match u64::try_from(id) {
@@ -26,25 +26,13 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
             },
             Err(_) => {
                 return Err(anyhow!(
-                    "Workspace ID {} is out of range for Niri backend",
-                    id
+                    "Workspace ID {id} is out of range for Niri backend"
                 ));
             }
         },
         CompositorCommand::FocusNamedWorkspace(_)
-        | CompositorCommand::FocusSpecialWorkspace(_)
         | CompositorCommand::ToggleSpecialWorkspace(_) => {
             return Err(anyhow!("Special workspaces not supported in Niri backend"));
-        }
-        CompositorCommand::FocusMonitor(_) => {
-            return Err(anyhow!("FocusMonitor by ID not supported in Niri backend"));
-        }
-        CompositorCommand::ScrollWorkspace(dir) => {
-            if dir > 0 {
-                Action::FocusWorkspaceUp {}
-            } else {
-                Action::FocusWorkspaceDown {}
-            }
         }
         CompositorCommand::NextLayout => Action::SwitchLayout {
             layout: niri_ipc::LayoutSwitchTarget::Next,
@@ -53,7 +41,7 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
             if action == "spawn" {
                 Action::SpawnSh { command: args }
             } else {
-                return Err(anyhow!("Unknown custom dispatch: {}", action));
+                return Err(anyhow!("Unknown custom dispatch: {action}"));
             }
         }
 
@@ -74,7 +62,7 @@ pub fn is_available() -> bool {
 
 pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<()> {
     // 1. Init
-    let mut stream = connect().await?;
+    let mut stream = connect()?;
 
     // 2. Send the EventStream request
     let request_json = serde_json::to_string(&Request::EventStream)? + "\n";
@@ -90,7 +78,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
     let reply: Reply = serde_json::from_str(&line).context("Failed to parse handshake")?;
     if let Err(e) = reply {
-        return Err(anyhow!("Niri refused EventStream: {}", e));
+        return Err(anyhow!("Niri refused EventStream: {e}"));
     }
 
     // 5. Shutdown write half
@@ -116,8 +104,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
                 // - non-optional existing fields should not be removed
                 // However, new fields and enum variants will be added, so you should handle unknown fields or variants gracefully where reasonable.
                 log::debug!(
-                    "Failed to parse Niri event (this is caused by niri's IPC not being version bound) -> {:?}",
-                    e
+                    "Failed to parse Niri event (this is caused by niri's IPC not being version bound) -> {e:?}"
                 );
                 continue;
             }
@@ -138,7 +125,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
     Ok(())
 }
 
-async fn connect() -> Result<UnixStream> {
+fn connect() -> Result<UnixStream> {
     let socket_path = env::var_os("NIRI_SOCKET")
         .or_else(|| env::var_os("NIRI_SOCKET_PATH"))
         .ok_or_else(|| anyhow!("NIRI_SOCKET or NIRI_SOCKET_PATH environment variable not set"))?;
@@ -163,11 +150,11 @@ async fn send_request(stream: &mut UnixStream, request: Request) -> Result<Respo
     reader.read_line(&mut response_line).await?;
 
     let reply: Reply = serde_json::from_str(&response_line)?;
-    reply.map_err(|e| anyhow!("Niri error: {}", e))
+    reply.map_err(|e| anyhow!("Niri error: {e}"))
 }
 
 async fn app_window_id(pid: Option<u32>, apps: &[String], title: Option<&str>) -> Result<u64> {
-    let mut stream = connect().await?;
+    let mut stream = connect()?;
 
     let Response::Windows(windows) = send_request(&mut stream, Request::Windows).await? else {
         return Err(anyhow!("Unexpected reply to a Niri windows request"));

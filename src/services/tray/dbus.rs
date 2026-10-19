@@ -57,9 +57,8 @@ impl StatusNotifierWatcher {
             let mut name_owner_changed_stream = name_owner_changed_stream.fuse();
 
             while let Some(evt) = name_owner_changed_stream.next().await {
-                let args = match evt.args() {
-                    Ok(args) => args,
-                    Err(_) => continue,
+                let Ok(args) = evt.args() else {
+                    continue;
                 };
                 if args.name.as_ref() == NAME {
                     if args.new_owner.as_ref() == unique_name.as_ref() {
@@ -147,17 +146,14 @@ impl StatusNotifierWatcher {
         interface: &zbus::object_server::InterfaceRef<StatusNotifierWatcher>,
         name: &str,
     ) {
-        let dbus_proxy = match DBusProxy::new(conn).await {
-            Ok(p) => p,
-            Err(_) => return,
+        let Ok(dbus_proxy) = DBusProxy::new(conn).await else {
+            return;
         };
-        let bus_name = match BusName::try_from(name) {
-            Ok(n) => n,
-            Err(_) => return,
+        let Ok(bus_name) = BusName::try_from(name) else {
+            return;
         };
-        let sender = match dbus_proxy.get_name_owner(bus_name).await {
-            Ok(owner) => owner,
-            Err(_) => return,
+        let Ok(sender) = dbus_proxy.get_name_owner(bus_name).await else {
+            return;
         };
         // Already tracked → do not re-emit `StatusNotifierItemRegistered`.
         let tracked: std::collections::HashSet<String> = interface
@@ -208,19 +204,17 @@ impl StatusNotifierWatcher {
     async fn is_status_notifier_item(conn: &Connection, name: &str) -> bool {
         // Disable property caching: `GetAll` at build time logs a WARN for
         // names that have not exported `/StatusNotifierItem` (yet).
-        let builder = match StatusNotifierItemProxy::builder(conn)
+        let Ok(builder) = StatusNotifierItemProxy::builder(conn)
             .destination(name.to_owned())
             .and_then(|b| b.path("/StatusNotifierItem"))
-        {
-            Ok(b) => b,
-            Err(_) => return false,
+        else {
+            return false;
         };
         let builder = builder.cache_properties(zbus::proxy::CacheProperties::No);
         match builder.build().await {
             Ok(proxy) => tokio::time::timeout(Duration::from_millis(500), proxy.icon_name())
                 .await
-                .map(|r| r.is_ok())
-                .unwrap_or(false),
+                .is_ok_and(|r| r.is_ok()),
             Err(_) => false,
         }
     }
@@ -420,8 +414,6 @@ pub trait DBusMenu {
 
     fn event(&self, id: i32, event_id: &str, data: &OwnedValue, timestamp: u32)
     -> zbus::Result<()>;
-
-    fn about_to_show(&self, id: i32) -> zbus::Result<bool>;
 
     #[zbus(signal)]
     fn layout_updated(&self, revision: u32, parent: i32) -> zbus::Result<()>;

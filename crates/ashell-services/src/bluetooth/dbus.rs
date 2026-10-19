@@ -209,13 +209,7 @@ pub trait Adapter {
 #[proxy(default_service = "org.bluez", interface = "org.bluez.Device1")]
 pub trait Device {
     #[zbus(property)]
-    fn alias(&self) -> zbus::Result<String>;
-
-    #[zbus(property)]
     fn connected(&self) -> zbus::Result<bool>;
-
-    #[zbus(property)]
-    fn paired(&self) -> zbus::Result<bool>;
 
     #[zbus(no_autostart)]
     fn pair(&self) -> zbus::Result<()>;
