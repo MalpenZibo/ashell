@@ -35,7 +35,6 @@ pub enum PlaybackStatus {
 impl From<String> for PlaybackStatus {
     fn from(playback_status: String) -> PlaybackStatus {
         match playback_status.as_str() {
-            "Playing" => PlaybackStatus::Playing,
             "Paused" => PlaybackStatus::Paused,
             "Stopped" => PlaybackStatus::Stopped,
             _ => PlaybackStatus::Playing,
@@ -336,7 +335,7 @@ impl MprisPlayerService {
 
         let proxies = Self::create_proxies(conn, &Self::get_player_names(&dbus).await?).await;
 
-        for (_, p) in proxies.iter() {
+        for (_, p) in &proxies {
             combined.push(
                 p.receive_metadata_changed()
                     .await
@@ -352,7 +351,7 @@ impl MprisPlayerService {
             );
         }
 
-        for (_, p) in proxies.iter() {
+        for (_, p) in &proxies {
             combined.push(
                 p.receive_volume_changed()
                     .await
@@ -366,7 +365,7 @@ impl MprisPlayerService {
             );
         }
 
-        for (_, p) in proxies.iter() {
+        for (_, p) in &proxies {
             combined.push(
                 p.receive_playback_status_changed()
                     .await
@@ -547,7 +546,7 @@ impl MprisPlayerService {
             "file" => {
                 let path = url
                     .to_file_path()
-                    .map_err(|_| anyhow::anyhow!("Invalid file URL {}", url))?;
+                    .map_err(|_| anyhow::anyhow!("Invalid file URL {url}"))?;
                 Ok(tokio::fs::read(path).await?.into())
             }
             _ => anyhow::bail!("Unsupported URL scheme: {}", url.scheme()),

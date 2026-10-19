@@ -132,9 +132,9 @@ fn calculate_ui_workspaces(
                 index: w.index,
                 name: w
                     .name
-                    .split(":")
-                    .last()
-                    .map_or_else(|| "".to_string(), |s| s.to_owned()),
+                    .split(':')
+                    .next_back()
+                    .map_or_else(String::new, |s| s.to_owned()),
                 monitor_id: w.monitor_id,
                 monitor: w.monitor,
                 displayed: if active {
@@ -191,7 +191,7 @@ fn calculate_ui_workspaces(
                 index: id,
                 name: display_name,
                 monitor_id: None,
-                monitor: "".to_string(),
+                monitor: String::new(),
                 displayed: if vdesk.active {
                     Displayed::Active
                 } else {
@@ -296,7 +296,7 @@ fn calculate_ui_workspaces(
                 index,
                 name: display_name,
                 monitor_id: None,
-                monitor: "".to_string(),
+                monitor: String::new(),
                 displayed: Displayed::Hidden,
                 windows: 0,
                 has_urgent: false,
@@ -423,11 +423,10 @@ impl Workspaces {
                                     id.to_string(),
                                 ))
                                 .map(|event| Message::ServiceEvent(Box::new(event)));
-                        } else {
-                            return service
-                                .command(CompositorCommand::FocusWorkspace(id))
-                                .map(|event| Message::ServiceEvent(Box::new(event)));
                         }
+                        return service
+                            .command(CompositorCommand::FocusWorkspace(id))
+                            .map(|event| Message::ServiceEvent(Box::new(event)));
                     }
                 }
                 iced::Task::none()
@@ -456,8 +455,8 @@ impl Workspaces {
                         .command(CompositorCommand::ToggleSpecialWorkspace(
                             special
                                 .name
-                                .split(":")
-                                .last()
+                                .split(':')
+                                .next_back()
                                 .map_or_else(|| special.name.clone(), |s| s.to_string()),
                         ))
                         .map(|event| Message::ServiceEvent(Box::new(event)));
@@ -771,16 +770,14 @@ impl Workspaces {
                                 Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
                                     scroll(-1)
                                 }
-                                Some(InvertScrollDirection::Trackpad) => scroll(1),
-                                None => scroll(1),
+                                Some(InvertScrollDirection::Trackpad) | None => scroll(1),
                             }
                         } else {
                             match self.config.invert_scroll_direction {
                                 Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
                                     scroll(1)
                                 }
-                                Some(InvertScrollDirection::Trackpad) => scroll(-1),
-                                None => scroll(-1),
+                                Some(InvertScrollDirection::Trackpad) | None => scroll(-1),
                             }
                         }
                     }
@@ -794,16 +791,14 @@ impl Workspaces {
                                 Some(
                                     InvertScrollDirection::All | InvertScrollDirection::Trackpad,
                                 ) => scroll(-1),
-                                Some(InvertScrollDirection::Mouse) => scroll(1),
-                                None => scroll(1),
+                                Some(InvertScrollDirection::Mouse) | None => scroll(1),
                             }
                         } else {
                             match self.config.invert_scroll_direction {
                                 Some(
                                     InvertScrollDirection::All | InvertScrollDirection::Trackpad,
                                 ) => scroll(1),
-                                Some(InvertScrollDirection::Mouse) => scroll(-1),
-                                None => scroll(-1),
+                                Some(InvertScrollDirection::Mouse) | None => scroll(-1),
                             }
                         }
                     }

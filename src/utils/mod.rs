@@ -1,9 +1,17 @@
 use std::time::Duration;
 
+use iced::mouse::ScrollDelta;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub mod launcher;
 pub mod remote_value;
+
+/// Vertical scroll amount, regardless of the source device.
+pub fn scroll_delta_y(delta: ScrollDelta) -> f32 {
+    match delta {
+        ScrollDelta::Lines { y, .. } | ScrollDelta::Pixels { y, .. } => y,
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum IndicatorState {

@@ -206,9 +206,9 @@ pub enum ActiveConnectionInfo {
 impl ActiveConnectionInfo {
     pub fn name(&self) -> String {
         match &self {
-            Self::Wired { name, .. } => name.clone(),
-            Self::WiFi { name, .. } => name.clone(),
-            Self::Vpn { name, .. } => name.clone(),
+            Self::Wired { name, .. } | Self::WiFi { name, .. } | Self::Vpn { name, .. } => {
+                name.clone()
+            }
         }
     }
 }

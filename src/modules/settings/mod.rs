@@ -179,8 +179,9 @@ impl Settings {
 
     pub fn toggle_airplane(&mut self) -> Action {
         match self.network.update(network::Message::ToggleAirplaneMode) {
-            network::Action::CloseSubMenu(task) => Action::Command(task.map(Message::Network)),
-            network::Action::Command(task) => Action::Command(task.map(Message::Network)),
+            network::Action::CloseSubMenu(task) | network::Action::Command(task) => {
+                Action::Command(task.map(Message::Network))
+            }
             _ => Action::None,
         }
     }
@@ -471,7 +472,7 @@ impl Settings {
                 Action::None
             }
             Message::CustomButtonsStatus(statuses) => {
-                for (name, status) in statuses.into_iter() {
+                for (name, status) in statuses {
                     self.custom_buttons_status.insert(name, status);
                 }
                 Action::None
@@ -1022,7 +1023,7 @@ impl Settings {
                             if let Some(bat) = battery {
                                 row![
                                     iced::widget::text(name),
-                                    iced::widget::text(format!("{}%", bat))
+                                    iced::widget::text(format!("{bat}%"))
                                 ]
                                 .spacing(space.xs)
                                 .into()

@@ -312,7 +312,7 @@ impl App {
                             .update(modules::media_player::Message::MenuOpened);
                     }
                     _ => {}
-                };
+                }
                 cmd.push(self.outputs.toggle_menu(
                     id,
                     menu_type,
@@ -789,10 +789,9 @@ impl App {
                     ),
                 }
             }
-            Some(HasOutput::Menu(None)) => Row::new().into(),
+            Some(HasOutput::Menu(None)) | None => Row::new().into(),
             Some(HasOutput::Toast) => self.notifications.toast_view().map(Message::Notifications),
             Some(HasOutput::Osd) => self.osd.view().map(Message::Osd),
-            None => Row::new().into(),
         }
     }
 
