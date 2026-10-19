@@ -176,7 +176,7 @@ impl Bluetooth {
             BluetoothCommand::PairDevice(device) => bluetooth.pair_device(&device).await?,
             BluetoothCommand::ConnectDevice(device) => bluetooth.connect_device(&device).await?,
             BluetoothCommand::DisconnectDevice(device) => {
-                bluetooth.disconnect_device(&device).await?
+                bluetooth.disconnect_device(&device).await?;
             }
             BluetoothCommand::RemoveDevice(device) => bluetooth.remove_device(&device).await?,
         }
@@ -226,7 +226,7 @@ impl Bluetooth {
             .filter_map(|message| ready(message.ok().filter(shows_change).map(|_| {})));
 
         let changed = stream_select!(topology, properties, rfkill::soft_block_changes())
-            .map(|_| Event::Changed);
+            .map(|()| Event::Changed);
 
         Ok(stream_select!(bluez, changed).boxed())
     }

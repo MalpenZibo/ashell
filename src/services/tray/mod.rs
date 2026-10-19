@@ -420,7 +420,7 @@ impl TrayService {
                             let name = name.clone();
                             let menu_proxy = item.menu_proxy.clone();
                             move |_| {
-                                debug!("layout update event name {}", name);
+                                debug!("layout update event name {name}");
 
                                 let name = name.clone();
                                 let menu_proxy = menu_proxy.clone();
@@ -445,7 +445,7 @@ impl TrayService {
                             let name = name.clone();
                             let menu_proxy = item.menu_proxy.clone();
                             move |_| {
-                                debug!("items removed event name {}", name);
+                                debug!("items removed event name {name}");
 
                                 let name = name.clone();
                                 let menu_proxy = menu_proxy.clone();
@@ -676,7 +676,7 @@ impl Service for TrayService {
                                 let _ = proxy.activate(0, 0).await;
                             }
                         },
-                        |_| ServiceEvent::Update(TrayEvent::None),
+                        |()| ServiceEvent::Update(TrayEvent::None),
                     )
                 } else {
                     Task::none()

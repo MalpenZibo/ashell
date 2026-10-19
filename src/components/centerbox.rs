@@ -116,7 +116,7 @@ where
     }
 
     fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(&self.children)
+        tree.diff_children(&self.children);
     }
 
     fn size(&self) -> Size<Length> {
@@ -205,7 +205,7 @@ where
                 + nodes[0].size().width
                 + (available - nodes[0].size().width - nodes[2].size().width) / 2.0
         } else {
-            limits.max().width / 2. + (self.padding.left + self.padding.right) / 2.0
+            limits.max().width / 2. + f32::midpoint(self.padding.left, self.padding.right)
         };
 
         let state = tree.state.downcast_mut::<State>();

@@ -81,10 +81,10 @@ fn invoke_and_close_task(
                     }
                 }
                 Ok(false) => {}
-                Err(e) => error!("Failed to close notification id {}: {}", id, e),
+                Err(e) => error!("Failed to close notification id {id}: {e}"),
             }
         },
-        |_| Message::NotificationClosed,
+        |()| Message::NotificationClosed,
     )
 }
 
@@ -94,7 +94,7 @@ async fn close_notification_ids(connection: Option<Connection>, notification_ids
             if let Err(e) =
                 NotificationDaemon::invoke_and_close(&connection, *id, None, CloseGuard::Any).await
             {
-                error!("Failed to close notification id {}: {}", id, e);
+                error!("Failed to close notification id {id}: {e}");
             }
         }
     }
@@ -109,7 +109,7 @@ fn evict_task(connection: Option<Connection>, evicted: Vec<(u32, u64)>) -> Task<
                 error!("Failed to close evicted notifications: {e}");
             }
         },
-        |_| Message::NotificationClosed,
+        |()| Message::NotificationClosed,
     )
 }
 
@@ -481,7 +481,7 @@ impl Notifications {
                     let evicted = self.apply_update_event(update_event);
                     self.with_eviction(toast_action, evicted)
                 }
-                ServiceEvent::Error(_) => Action::None,
+                ServiceEvent::Error(()) => Action::None,
             },
             Message::NotificationClicked(id) => {
                 let connection = self.connection.clone();
@@ -511,7 +511,7 @@ impl Notifications {
                     async move {
                         close_notification_ids(connection, &notification_ids).await;
                     },
-                    |_| Message::NotificationsCleared,
+                    |()| Message::NotificationsCleared,
                 ))
             }
             Message::NotificationsCleared => {
@@ -955,17 +955,15 @@ impl Notifications {
             .spacing(space.sm)
             .padding(Padding::default().right(space.md).left(space.xs));
 
-        for (_app_name, group) in self
+        for (_app_name, group) in &self
             .notifications
             .iter()
             .sorted_by(|a, b| a.app_name.cmp(&b.app_name))
             .chunk_by(|n| n.app_name.clone())
-            .into_iter()
         {
             let mut iter = group.peekable();
-            let first = match iter.next() {
-                Some(n) => n,
-                None => continue,
+            let Some(first) = iter.next() else {
+                continue;
             };
 
             // Single notification in the group — use the normal card layout.

@@ -12,7 +12,7 @@ where
     F: Future<Output = ()>,
 {
     let (sender, receiver) = mpsc::channel(size);
-    let runner = stream::once(f(sender)).filter_map(|_| async { None });
+    let runner = stream::once(f(sender)).filter_map(|()| async { None });
 
     stream::select(receiver, runner)
 }

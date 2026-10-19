@@ -356,7 +356,7 @@ impl ReadOnlyService for UPowerService {
                 if let Some(kbd_backlight) = self.kbd_backlight.as_mut() {
                     kbd_backlight.current.receive(kbd_brightness);
                 } else {
-                    error!("Keyboard backlight not initialised")
+                    error!("Keyboard backlight not initialised");
                 }
             }
         }
@@ -659,7 +659,7 @@ impl UPowerService {
                     )
                     .filter_map({
                         let conn = conn.clone();
-                        move |_| {
+                        move |()| {
                             let conn = conn.clone();
                             async move {
                                 if let Some((data, _)) = Self::initialize_system_battery_data(&conn)
@@ -680,7 +680,7 @@ impl UPowerService {
 
             select_all(events).boxed()
         } else {
-            once(async {}).map(|_| UPowerEvent::NoBattery).boxed()
+            once(async {}).map(|()| UPowerEvent::NoBattery).boxed()
         };
 
         let charge_limit_event = if let Some(battery_devices) = system_battery_devices {
@@ -704,7 +704,7 @@ impl UPowerService {
                     )
                     .filter_map({
                         let conn = conn.clone();
-                        move |_| {
+                        move |()| {
                             let conn = conn.clone();
                             async move {
                                 Self::initialize_charge_limit_data(&conn)
@@ -752,7 +752,7 @@ impl UPowerService {
                     )
                     .filter_map({
                         let conn = conn.clone();
-                        move |_| {
+                        move |()| {
                             let conn = conn.clone();
                             async move {
                                 Self::initialize_peripheral_data(&conn)

@@ -94,11 +94,8 @@ pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
         return None;
     }
 
-    let cache = match ICON_CACHE.read() {
-        Ok(c) => c,
-        Err(_) => {
-            return lookup_icon(icon_name);
-        }
+    let Ok(cache) = ICON_CACHE.read() else {
+        return lookup_icon(icon_name);
     };
 
     if let Some(cached) = cache.get(icon_name) {
@@ -106,11 +103,8 @@ pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
     }
     drop(cache); // Release read lock before write
 
-    let mut cache = match ICON_CACHE.write() {
-        Ok(c) => c,
-        Err(_) => {
-            return lookup_icon(icon_name);
-        }
+    let Ok(mut cache) = ICON_CACHE.write() else {
+        return lookup_icon(icon_name);
     };
 
     // Double-check after acquiring write lock (another thread may have populated it)
@@ -225,7 +219,7 @@ fn normalize_icon_name(name: &str) -> Cow<'_, str> {
     Cow::Owned(
         name.to_lowercase()
             .chars()
-            .filter(|c| c.is_ascii_alphanumeric())
+            .filter(char::is_ascii_alphanumeric)
             .collect(),
     )
 }

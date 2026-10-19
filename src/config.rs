@@ -911,10 +911,7 @@ fn hex_to_color(hex: HexColor) -> Color {
 }
 
 fn hex_to_pair(hex: HexColor, text: Option<HexColor>, text_fallback: Color) -> palette::Pair {
-    palette::Pair::new(
-        hex_to_color(hex),
-        text.map(hex_to_color).unwrap_or(text_fallback),
-    )
+    palette::Pair::new(hex_to_color(hex), text.map_or(text_fallback, hex_to_color))
 }
 
 #[derive(Deserialize, Clone, Copy, Debug)]
@@ -2350,7 +2347,7 @@ mod tests {
         let mut ignored = Vec::new();
         let _: Config =
             serde_ignored::deserialize(toml::Deserializer::parse(toml).unwrap(), |path| {
-                ignored.push(path.to_string())
+                ignored.push(path.to_string());
             })
             .unwrap();
         ignored

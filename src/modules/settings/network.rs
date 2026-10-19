@@ -200,7 +200,7 @@ impl NetworkSettings {
                         Action::None
                     }
                 },
-                ServiceEvent::Error(_) => {
+                ServiceEvent::Error(()) => {
                     self.share_in_flight = false;
                     Action::None
                 }
@@ -385,7 +385,7 @@ impl NetworkSettings {
                         ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
                         _ => None,
                     };
-                    let strength_text = strength.map_or("100%".to_string(), |s| format!("{}%", s));
+                    let strength_text = strength.map_or("100%".to_string(), |s| format!("{s}%"));
                     let label = match self.config.indicator_format {
                         SettingsFormat::Name | SettingsFormat::IconAndName => a.name(),
                         _ => strength_text,

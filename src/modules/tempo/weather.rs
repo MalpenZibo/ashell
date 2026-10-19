@@ -161,7 +161,7 @@ impl Tempo {
                                     .filter(|(_, t)| **t > data.current.time)
                                     .take(23)
                                     .peekable();
-                                let start_index = time.peek().map(|(index, _)| *index).unwrap_or(0);
+                                let start_index = time.peek().map_or(0, |(index, _)| *index);
 
                                 izip!(
                                     time.map(|(_, v)| v),
@@ -382,8 +382,7 @@ pub async fn fetch_location(location: &WeatherLocation, lang: &str) -> anyhow::R
     match location {
         WeatherLocation::City(city) => {
             let url = format!(
-                "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language={}&format=json",
-                city, lang
+                "https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&language={lang}&format=json"
             );
             let response = client.get(&url).send().await?;
             let raw_data = response.text().await?;
@@ -409,7 +408,7 @@ pub async fn fetch_location(location: &WeatherLocation, lang: &str) -> anyhow::R
         WeatherLocation::Coordinates(lat, lon) => {
             let (city, region_name) = match try_reverse_geocode(&client, *lat, *lon, lang).await {
                 Ok(Some((city, region))) => (city, region),
-                _ => (format!("Lat: {}, Lon: {}", lat, lon), String::new()),
+                _ => (format!("Lat: {lat}, Lon: {lon}"), String::new()),
             };
 
             Ok(Location {
@@ -429,8 +428,7 @@ async fn try_reverse_geocode(
     lang: &str,
 ) -> anyhow::Result<Option<(String, String)>> {
     let url = format!(
-        "https://nominatim.openstreetmap.org/reverse?format=json&lat={}&lon={}&accept-language={}",
-        lat, lon, lang
+        "https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}&accept-language={lang}"
     );
 
     let response = client
@@ -602,21 +600,21 @@ fn weather_icon_bytes(code: u32, is_day: bool) -> &'static [u8] {
         (2, true) => include_bytes!("../../../assets/weather_icon/cloudy-3-day.svg"),
         (2, false) => include_bytes!("../../../assets/weather_icon/cloudy-3-night.svg"),
         (3, _) => include_bytes!("../../../assets/weather_icon/cloudy.svg"),
-        (45, _) | (48, _) => include_bytes!("../../../assets/weather_icon/fog.svg"),
+        (45 | 48, _) => include_bytes!("../../../assets/weather_icon/fog.svg"),
         (51, true) => include_bytes!("../../../assets/weather_icon/rainy-1-day.svg"),
         (51, false) => include_bytes!("../../../assets/weather_icon/rainy-1-night.svg"),
-        (53, true) | (56, true) => include_bytes!("../../../assets/weather_icon/rainy-2-day.svg"),
-        (53, false) | (56, false) => {
+        (53 | 56, true) => include_bytes!("../../../assets/weather_icon/rainy-2-day.svg"),
+        (53 | 56, false) => {
             include_bytes!("../../../assets/weather_icon/rainy-2-night.svg")
         }
-        (55, true) | (57, true) => include_bytes!("../../../assets/weather_icon/rainy-3-day.svg"),
-        (55, false) | (57, false) => {
+        (55 | 57, true) => include_bytes!("../../../assets/weather_icon/rainy-3-day.svg"),
+        (55 | 57, false) => {
             include_bytes!("../../../assets/weather_icon/rainy-3-night.svg")
         }
         (61, _) => include_bytes!("../../../assets/weather_icon/rainy-1.svg"),
-        (63, _) | (66, _) => include_bytes!("../../../assets/weather_icon/rainy-2.svg"),
-        (65, _) | (67, _) => include_bytes!("../../../assets/weather_icon/rainy-3.svg"),
-        (71, _) | (77, _) => include_bytes!("../../../assets/weather_icon/snowy-1.svg"),
+        (63 | 66, _) => include_bytes!("../../../assets/weather_icon/rainy-2.svg"),
+        (65 | 67, _) => include_bytes!("../../../assets/weather_icon/rainy-3.svg"),
+        (71 | 77, _) => include_bytes!("../../../assets/weather_icon/snowy-1.svg"),
         (73, _) => include_bytes!("../../../assets/weather_icon/snowy-2.svg"),
         (75, _) => include_bytes!("../../../assets/weather_icon/snowy-3.svg"),
         (80, true) => include_bytes!("../../../assets/weather_icon/showers-rainy-1-day.svg"),

@@ -413,7 +413,7 @@ impl BluetoothSettings {
                     format_indicator(
                         self.config.indicator_format,
                         StaticIcon::BluetoothConnected,
-                        text(format!("{}", connected_count)).into(),
+                        text(format!("{connected_count}")).into(),
                         IndicatorState::Normal,
                     )
                     .on_right_press(Message::OpenMore)

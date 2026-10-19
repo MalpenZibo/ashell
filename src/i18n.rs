@@ -126,7 +126,7 @@ pub fn chrono_locale() -> Locale {
 }
 
 pub fn unit_system() -> UnitSystem {
-    use_localizer(|l| l.units())
+    use_localizer(Localizer::units)
 }
 
 /// Base language subtag of the active locale (e.g. "en", "it"). Useful for
@@ -187,8 +187,7 @@ fn derive_units(c: Locale) -> UnitSystem {
 fn resolve_units(config: Option<&str>, chrono: Locale) -> UnitSystem {
     env_chain(config, "LC_MEASUREMENT")
         .as_deref()
-        .map(units_from_locale_name)
-        .unwrap_or_else(|| derive_units(chrono))
+        .map_or_else(|| derive_units(chrono), units_from_locale_name)
 }
 
 fn units_from_locale_name(s: &str) -> UnitSystem {

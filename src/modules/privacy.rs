@@ -30,7 +30,7 @@ impl Privacy {
                         privacy.update(data);
                     }
                 }
-                ServiceEvent::Error(_) => {}
+                ServiceEvent::Error(()) => {}
             },
         }
     }

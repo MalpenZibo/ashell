@@ -320,7 +320,7 @@ impl MediaPlayer {
                     }
                     Action::None
                 }
-                ServiceEvent::Error(_) => Action::None,
+                ServiceEvent::Error(()) => Action::None,
             },
             Message::ConfigReloaded(c) => {
                 self.config = c;
@@ -360,8 +360,7 @@ impl MediaPlayer {
                             .unwrap_or_else(|| t!("media-player-no-title"));
                         let artists = m
                             .and_then(|m| m.artists.clone())
-                            .map(|a| a.join(", "))
-                            .unwrap_or_else(|| t!("media-player-unknown-artist"));
+                            .map_or_else(|| t!("media-player-unknown-artist"), |a| a.join(", "));
                         let album = m
                             .and_then(|m| m.album.clone())
                             .unwrap_or_else(|| t!("media-player-unknown-album"));
@@ -741,12 +740,9 @@ fn cava_stream(framerate: u32) -> impl iced::futures::Stream<Item = Vec<f32>> {
             }
         };
 
-        let stdout = match child.stdout.take() {
-            Some(s) => s,
-            None => {
-                log::error!("cava: no stdout");
-                return;
-            }
+        let Some(stdout) = child.stdout.take() else {
+            log::error!("cava: no stdout");
+            return;
         };
         let stderr = child.stderr.take();
 

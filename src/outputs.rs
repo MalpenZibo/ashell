@@ -408,10 +408,7 @@ impl Outputs {
 
             Task::batch(vec![destroy_task, destroy_fallback_task, task])
         } else {
-            debug!(
-                "Output {:?} does not match configured output target {:?}",
-                name, request_outputs
-            );
+            debug!("Output {name:?} does not match configured output target {request_outputs:?}");
 
             self.entries.push((
                 OutputKey {
@@ -695,7 +692,7 @@ impl Outputs {
 
     pub fn set_animations_enabled(&mut self, enabled: bool) {
         self.animations_enabled = enabled;
-        for (_, shell_info, _) in self.entries.iter_mut() {
+        for (_, shell_info, _) in &mut self.entries {
             if let Some(si) = shell_info.as_mut() {
                 si.menu.set_animations_enabled(enabled);
             }

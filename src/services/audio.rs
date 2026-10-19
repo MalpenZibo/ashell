@@ -131,7 +131,7 @@ impl WakePipe {
         // Write a single byte to unblock the mainloop's poll().
         // Safe to ignore errors — if the pipe is full, the mainloop is already awake.
         let fd = self.0.as_raw_fd();
-        unsafe { libc::write(fd, [1u8].as_ptr() as *const _, 1) };
+        unsafe { libc::write(fd, [1u8].as_ptr().cast(), 1) };
     }
 }
 
@@ -291,7 +291,7 @@ impl AudioService {
             if device.is_filter {
                 if device.ports.len() > 1 {
                     let device_name = device.name.as_str();
-                    warn!("Unexpected multiple ports in a filter node: {device_name}")
+                    warn!("Unexpected multiple ports in a filter node: {device_name}");
                 }
                 Either::Left(std::iter::once(Route { device, port: None }))
             } else if device.ports.is_empty() {
@@ -538,13 +538,13 @@ impl PulseAudioServer {
                             Self::send_server_info(info, &tx);
                         }
                     })) {
-                        Ok(_) => {}
+                        Ok(()) => {}
                         Err(e) => {
                             error!("Failed to get server info: {e}");
                             let _ = from_server_tx.send(PulseAudioServerEvent::Error);
                             return;
                         }
-                    };
+                    }
 
                     let sinks = Rc::new(RefCell::new(Vec::new()));
                     match server.wait_for_response(server.introspector.get_sink_info_list({
@@ -554,13 +554,13 @@ impl PulseAudioServer {
                             Self::populate_and_send_sinks(info, &tx, &mut sinks.borrow_mut());
                         }
                     })) {
-                        Ok(_) => {}
+                        Ok(()) => {}
                         Err(e) => {
                             error!("Failed to get sink info: {e}");
                             let _ = from_server_tx.send(PulseAudioServerEvent::Error);
                             return;
                         }
-                    };
+                    }
 
                     let sources = Rc::new(RefCell::new(Vec::new()));
                     match server.wait_for_response(server.introspector.get_source_info_list({
@@ -570,13 +570,13 @@ impl PulseAudioServer {
                             Self::populate_and_send_sources(info, &tx, &mut sources.borrow_mut());
                         }
                     })) {
-                        Ok(_) => {}
+                        Ok(()) => {}
                         Err(e) => {
                             error!("Failed to get source info: {e}");
                             let _ = from_server_tx.send(PulseAudioServerEvent::Error);
                             return;
                         }
-                    };
+                    }
 
                     let introspector = server.context.introspect();
                     let error_tx = from_server_tx.clone();
@@ -625,7 +625,7 @@ impl PulseAudioServer {
                         Box::new(move |_event, _fd, _flags| {
                             // Drain the pipe so it doesn't keep firing
                             let mut buf = [0u8; 64];
-                            unsafe { libc::read(wake_fd, buf.as_mut_ptr() as *mut _, buf.len()) };
+                            unsafe { libc::read(wake_fd, buf.as_mut_ptr().cast(), buf.len()) };
                         }),
                     );
 
@@ -771,8 +771,7 @@ impl PulseAudioServer {
                 if data
                     .name
                     .as_ref()
-                    .map(|name| !name.contains("monitor"))
-                    .unwrap_or_default()
+                    .is_some_and(|name| !name.contains("monitor"))
                 {
                     debug!("Adding source data: {data:?}");
                     sources.push(data.into());
@@ -809,11 +808,11 @@ impl From<&SinkInfo<'_>> for Device {
             name: value
                 .name
                 .as_ref()
-                .map_or_else(String::default, |n| n.to_string()),
+                .map_or_else(String::default, |s| s.to_string()),
             description: value
                 .description
                 .as_ref()
-                .map(|d| d.to_string())
+                .map(|s| s.to_string())
                 .or_else(|| value.proplist.get_str("device.description"))
                 .unwrap_or_default(),
             volume: value.volume,
@@ -828,11 +827,11 @@ impl From<&SinkInfo<'_>> for Device {
                             name: port
                                 .name
                                 .as_ref()
-                                .map_or_else(String::default, |n| n.to_string()),
+                                .map_or_else(String::default, |s| s.to_string()),
                             description: port
                                 .description
                                 .as_ref()
-                                .map_or_else(String::default, |d| d.to_string()),
+                                .map_or_else(String::default, |s| s.to_string()),
                             device_type: port.r#type,
                         })
                     } else {
@@ -850,11 +849,11 @@ impl From<&SourceInfo<'_>> for Device {
             name: value
                 .name
                 .as_ref()
-                .map_or_else(String::default, |n| n.to_string()),
+                .map_or_else(String::default, |s| s.to_string()),
             description: value
                 .description
                 .as_ref()
-                .map(|d| d.to_string())
+                .map(|s| s.to_string())
                 .or_else(|| value.proplist.get_str("device.description"))
                 .unwrap_or_default(),
             volume: value.volume,
@@ -869,11 +868,11 @@ impl From<&SourceInfo<'_>> for Device {
                             name: port
                                 .name
                                 .as_ref()
-                                .map_or_else(String::default, |n| n.to_string()),
+                                .map_or_else(String::default, |s| s.to_string()),
                             description: port
                                 .description
                                 .as_ref()
-                                .map_or_else(String::default, |d| d.to_string()),
+                                .map_or_else(String::default, |s| s.to_string()),
                             device_type: port.r#type,
                         })
                     } else {

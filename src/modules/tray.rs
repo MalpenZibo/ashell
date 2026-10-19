@@ -120,7 +120,7 @@ impl TrayModule {
 
                     action
                 }
-                ServiceEvent::Error(_) => Action::None,
+                ServiceEvent::Error(()) => Action::None,
             },
             Message::ToggleMenu(menu_type, id, button_ui_ref) => {
                 Action::ToggleMenu(menu_type, id, button_ui_ref)
@@ -197,7 +197,7 @@ impl TrayModule {
                 ..
             } if toggle_type == "checkmark" => {
                 let content: Element<'a, Message> = toggler(*state > 0)
-                    .label(label.replace("_", "").to_owned())
+                    .label(label.replace('_', "").to_owned())
                     .on_toggle({
                         let name = name.to_owned();
                         let id = layout.0;
@@ -227,11 +227,11 @@ impl TrayModule {
 
                             move |_| Message::MenuToggled(name.to_owned(), id)
                         }))
-                        .push(text(label.replace("_", "")))
+                        .push(text(label.replace('_', "")))
                         .spacing(space.sm)
                         .align_y(Alignment::Center)
                         .into(),
-                    _ => text(label.replace("_", "")).into(),
+                    _ => text(label.replace('_', "")).into(),
                 };
                 Column::with_capacity(2)
                     .push(
@@ -263,7 +263,7 @@ impl TrayModule {
             }
             LayoutProps {
                 label: Some(label), ..
-            } if !label.is_empty() => styled_button(label.replace("_", ""))
+            } if !label.is_empty() => styled_button(label.replace('_', ""))
                 .on_press(Message::MenuSelected(name.to_owned(), layout.0))
                 .width(Length::Fill)
                 .into(),

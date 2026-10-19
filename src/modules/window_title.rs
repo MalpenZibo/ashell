@@ -61,14 +61,14 @@ impl WindowTitle {
                     WindowTitleMode::InitialTitle => match w.initial_title() {
                         Ok(v) => v,
                         Err(e) => {
-                            log::warn!("{}", e);
+                            log::warn!("{e}");
                             ""
                         }
                     },
                     WindowTitleMode::InitialClass => match w.initial_class() {
                         Ok(v) => v,
                         Err(e) => {
-                            log::warn!("{}", e);
+                            log::warn!("{e}");
                             ""
                         }
                     },

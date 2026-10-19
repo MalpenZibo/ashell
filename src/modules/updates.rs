@@ -165,7 +165,7 @@ impl Updates {
                         async move {
                             update(&update_command).await; // Wait for real completion
                         },
-                        move |_| Message::UpdateFinished,
+                        move |()| Message::UpdateFinished,
                     ),
                 )
             }

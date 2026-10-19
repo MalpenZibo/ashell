@@ -311,13 +311,13 @@ impl Tempo {
                     loop {
                         let loc = match fetch_location(&location, &lang).await {
                             Ok(loc) => {
-                                debug!("Location fetched successfully: {:?}", loc);
+                                debug!("Location fetched successfully: {loc:?}");
                                 let (lat, lon) = (loc.latitude, loc.longitude);
                                 output.send(Message::UpdateLocation(loc)).await.ok();
                                 Some((lat, lon))
                             }
                             Err(e) => {
-                                warn!("Failed to fetch location: {:?}", e);
+                                warn!("Failed to fetch location: {e:?}");
                                 None
                             }
                         };
@@ -326,7 +326,7 @@ impl Tempo {
                             match fetch_weather_data(lat, lon, units, wind_unit).await {
                                 Ok(weather_data) => {
                                     failed_attempt = 0;
-                                    debug!("Weather data fetched successfully: {:?}", weather_data);
+                                    debug!("Weather data fetched successfully: {weather_data:?}");
                                     output
                                         .send(Message::UpdateWeather(Box::new(weather_data)))
                                         .await
@@ -336,7 +336,7 @@ impl Tempo {
                                     continue;
                                 }
                                 Err(e) => {
-                                    warn!("Failed to fetch weather data: {:?}", e);
+                                    warn!("Failed to fetch weather data: {e:?}");
                                 }
                             }
                         }

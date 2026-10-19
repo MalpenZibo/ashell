@@ -146,7 +146,7 @@ fn resolve_font(name: &str, requested_weight: u16) -> Font {
         });
 
     let Some(face) = best_face else {
-        warn!("Font '{}' was not found in the system font database.", name);
+        warn!("Font '{name}' was not found in the system font database.");
         warn!("  Use `fc-list` to list all available fonts and their exact family names.");
         // fontdb indexes only the typographic family, so the per-weight names
         // `fc-list` also prints (e.g. "Open Sans Light") never match here.
@@ -207,7 +207,7 @@ fn main() -> iced::Result {
         LogTarget::File => log_prefs
             .log_directory()
             .inspect_err(|e| {
-                eprintln!("ashell: cannot use a log directory: {e:#}, logging to stderr")
+                eprintln!("ashell: cannot use a log directory: {e:#}, logging to stderr");
             })
             .ok(),
         LogTarget::Stdout | LogTarget::Stderr => None,

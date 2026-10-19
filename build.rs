@@ -60,7 +60,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
             Ok(c.to_string())
         })
         .collect::<Result<Vec<_>, _>>()?;
-    println!("Request the following unicodes {:?}", unicodes);
+    println!("Request the following unicodes {unicodes:?}");
 
     let text = unicodes.join("");
 

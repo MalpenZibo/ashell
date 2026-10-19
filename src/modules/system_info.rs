@@ -248,7 +248,7 @@ fn get_system_info(
 
         if reading.is_none() {
             if let Some(label) = (*cached_sensor_label).take() {
-                warn!("Cached sensor '{}' invalid; re-detecting", label);
+                warn!("Cached sensor '{label}' invalid; re-detecting");
             }
             *cached_sensor_label = get_temperature_sensor_label(sensor, components);
             reading = cached_sensor_label.as_ref().and_then(|label| {

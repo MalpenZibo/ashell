@@ -51,7 +51,7 @@ where
         if let Some(sleep) = &mut this.sleep {
             match sleep.as_mut().poll(cx) {
                 Poll::Pending => return Poll::Pending,
-                Poll::Ready(_) => *this.sleep = None, // Throttle period over
+                Poll::Ready(()) => *this.sleep = None, // Throttle period over
             }
         }
 
