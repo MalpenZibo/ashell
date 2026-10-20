@@ -49,11 +49,10 @@ src/
 │   ├── notifications/   # notification daemon
 │   ├── mpris/           # media player control
 │   ├── tray/            # system tray
-│   ├── upower/          # battery/power
-│   └── ...              # audio, bluetooth, brightness, privacy, idle_inhibitor, logind, throttle, xdg_icons
+│   └── ...              # audio, bluetooth, brightness, privacy, idle_inhibitor, logind, throttle, upower, xdg_icons
 └── utils/
 crates/
-└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth
+└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth, upower
 ```
 
 The repo is a Cargo workspace: the root package is the `ashell` binary, `crates/ashell-services` is a library member.
