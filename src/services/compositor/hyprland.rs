@@ -12,21 +12,54 @@ use hyprland::{
 };
 use itertools::Itertools;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::{RwLock, broadcast};
 
-/// Detect whether Hyprland is using Lua or hyprlang config.
-/// Checks `hyprctl status` for the `configProvider` field.
-/// Falls back to hyprlang (false) if detection fails.
-async fn is_lua_config() -> bool {
-    tokio::process::Command::new("hyprctl")
+/// Cached result of a successful [`detect_lua_config`] probe. Hyprland picks
+/// its config provider once at startup, so the answer stays valid for the
+/// lifetime of the process. Failed probes are not cached, so the next dispatch
+/// tries again instead of pinning the wrong protocol.
+static LUA_CONFIG: OnceLock<bool> = OnceLock::new();
+
+/// Detect whether Hyprland is using Lua or hyprlang config by checking
+/// `hyprctl status` for the `configProvider` field. Returns `None` when the
+/// probe itself failed, so a failed run is not mistaken for hyprlang.
+async fn detect_lua_config() -> Option<bool> {
+    let output = tokio::process::Command::new("hyprctl")
         .arg("status")
         .output()
         .await
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.lines().any(|l| l.starts_with("configProvider: lua")))
-        .unwrap_or(false)
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let status = String::from_utf8(output.stdout).ok()?;
+    let Some(provider) = status
+        .lines()
+        .find_map(|line| line.strip_prefix("configProvider:"))
+    else {
+        // `hyprctl status` only exists since Hyprland 0.55. Older versions
+        // answer "unknown request" but still exit 0, so a successful call
+        // without the field means hyprlang and is safe to cache.
+        return Some(false);
+    };
+
+    Some(provider.trim() == "lua")
+}
+
+/// Falls back to hyprlang (false) when detection fails.
+async fn is_lua_config() -> bool {
+    if let Some(cached) = LUA_CONFIG.get() {
+        return *cached;
+    }
+
+    let Some(detected) = detect_lua_config().await else {
+        return false;
+    };
+
+    *LUA_CONFIG.get_or_init(|| detected)
 }
 
 /// Dispatch a command using the old hyprlang socket protocol.
