@@ -137,9 +137,13 @@ pub struct KbdBacklight {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct UPowerData {
-    /// No charger is connected. Unlike the battery's state, it does not
-    /// change when the firmware pauses charging near a full battery.
-    pub on_battery: bool,
+    /// UPower's `OnBattery`: the battery is discharging and no line power is
+    /// online. Unlike the battery's state, it does not change when the
+    /// firmware pauses charging near a full battery. It is false without a
+    /// battery, when the battery reports an unknown state, and briefly after
+    /// unplugging, until the battery reports discharging. `None` when UPower
+    /// is not running or the read failed.
+    pub on_battery: Option<bool>,
     pub system_battery: Option<BatteryData>,
     pub charge_limit: Option<ChargeLimit>,
     pub peripherals: Vec<Peripheral>,
@@ -331,10 +335,11 @@ impl UPower {
             None => (None, None),
         };
 
-        let on_battery = upower.on_battery().await.unwrap_or_else(|err| {
-            debug!("Failed to get on battery: {err}");
-            false
-        });
+        let on_battery = upower
+            .on_battery()
+            .await
+            .inspect_err(|err| debug!("Failed to get on battery: {err}"))
+            .ok();
 
         let peripherals = Self::read_peripherals(&upower).await?;
 
