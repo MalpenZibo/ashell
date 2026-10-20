@@ -1,6 +1,8 @@
-use crate::services::{ReadOnlyService, ServiceEvent, xdg_icons};
+use crate::services::{
+    ReadOnlyService, RetryPolicy, ServiceError, ServiceEvent, wait_for_retry, xdg_icons,
+};
 use iced::Subscription;
-use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
+use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender};
 use iced::stream::channel;
 use iced::widget::{image, svg};
 use log::{error, info};
@@ -9,7 +11,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
-use zbus::{Connection, OwnedVariant};
+use zbus::zvariant::OwnedValue;
+use zbus::{Connection, zvariant};
 
 pub mod dbus;
 
@@ -26,7 +29,7 @@ impl NotificationIcon {
     pub fn resolve(
         app_name: &str,
         app_icon: &str,
-        hints: &HashMap<String, OwnedVariant>,
+        hints: &HashMap<String, OwnedValue>,
     ) -> Option<Self> {
         try_icon_from_hints(hints).or_else(|| {
             icon_candidates(app_name, app_icon, hints)
@@ -49,7 +52,7 @@ impl NotificationIcon {
 }
 
 // freedesktop notification hint image data type
-#[derive(zbus::OwnedVariant, Debug)]
+#[derive(zvariant::OwnedValue, Debug)]
 struct HintImageData {
     width: i32,
     height: i32,
@@ -60,7 +63,7 @@ struct HintImageData {
     image_bytes: Vec<u8>,
 }
 
-fn try_icon_from_hints(hints: &HashMap<String, OwnedVariant>) -> Option<NotificationIcon> {
+fn try_icon_from_hints(hints: &HashMap<String, OwnedValue>) -> Option<NotificationIcon> {
     if let Some(image_data) = hints
         .get("image-data")
         .or(hints.get("image_data"))
@@ -106,7 +109,7 @@ const HINT_KEYS: &[&str] = &[
 fn icon_candidates<'a>(
     app_name: &'a str,
     app_icon: &'a str,
-    hints: &'a HashMap<String, OwnedVariant>,
+    hints: &'a HashMap<String, OwnedValue>,
 ) -> impl Iterator<Item = String> + 'a {
     std::iter::once(app_icon.to_string())
         .chain(
@@ -173,7 +176,7 @@ impl NotificationsService {
                 }
                 Err(err) => {
                     error!("Failed to initialize notifications service: {err}");
-                    State::Error
+                    State::Error(ServiceError::transient(err))
                 }
             },
             State::Active(_connection, event_tx) => {
@@ -191,12 +194,23 @@ impl NotificationsService {
                     }
                 }
                 error!("Notification event stream ended unexpectedly");
-                State::Error
+                State::Error(ServiceError::transient(anyhow::anyhow!(
+                    "notification event stream ended"
+                )))
             }
-            State::Error => {
-                error!("Notifications service error");
-                let _ = pending::<u8>().next().await;
-                State::Error
+            State::Error(error) => {
+                match error.policy() {
+                    RetryPolicy::Transient => {
+                        error!("Notifications service error, retrying in 5 seconds: {error}");
+                    }
+                    RetryPolicy::Permanent => {
+                        error!("Notifications service unavailable, not retrying: {error}");
+                    }
+                }
+
+                wait_for_retry(&error).await;
+
+                State::Init
             }
         }
     }
@@ -205,7 +219,7 @@ impl NotificationsService {
 enum State {
     Init,
     Active(Connection, broadcast::Sender<NotificationEvent>),
-    Error,
+    Error(ServiceError),
 }
 
 impl ReadOnlyService for NotificationsService {

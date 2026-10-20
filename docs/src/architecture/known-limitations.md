@@ -42,7 +42,7 @@ This chapter documents known architectural limitations and design tradeoffs. Und
 
 ## Minimal Test Suite
 
-**Issue**: The project only has a handful of unit tests (in `app.rs`, `services/xdg_icons.rs`, `services/compositor/hyprland.rs`, `services/upower.rs` and the `ashell-services` crate), and CI only runs the `ashell-services` tests. The UI is tested manually, and services are verified by running ashell on real hardware.
+**Issue**: The project only has a handful of unit tests (in `app.rs`, `services/xdg_icons.rs`, `services/compositor/hyprland.rs` and `services/upower/mod.rs`), and CI does not run `cargo test`. The UI is tested manually, and services are verified by running ashell on real hardware.
 
 **Impact**: Regressions can slip through, especially for compositor-specific behavior (Hyprland vs. Niri) or hardware-specific features (brightness, Bluetooth).
 

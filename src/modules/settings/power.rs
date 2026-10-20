@@ -10,8 +10,7 @@ use crate::{
     services::{
         ReadOnlyService, Service, ServiceEvent,
         upower::{
-            BatteryData, BatteryDataExt, BatteryHealth, BatteryStatus, PeripheralDeviceKindExt,
-            PeripheralExt, PowerProfile, UPowerCommand, UPowerService,
+            BatteryData, BatteryHealth, BatteryStatus, PowerProfile, UPowerCommand, UPowerService,
         },
     },
     t,

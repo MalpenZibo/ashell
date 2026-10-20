@@ -1,9 +1,8 @@
-use super::{ReadOnlyService, Service, ServiceEvent};
-use crate::utils::remote_value::Remote;
-use ashell_services::throttle::ThrottleExt;
+use super::{ReadOnlyService, RetryPolicy, Service, ServiceError, ServiceEvent, wait_for_retry};
+use crate::{services::throttle::ThrottleExt, utils::remote_value::Remote};
 use iced::{
     Subscription, Task,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
+    futures::{SinkExt, StreamExt, channel::mpsc::Sender},
     stream::channel,
 };
 use log::{debug, error, info, warn};
@@ -81,25 +80,21 @@ impl BrightnessService {
         }
     }
 
-    async fn init_service() -> anyhow::Result<(zbus::Connection, PathBuf)> {
-        let backlight_devices = Self::backlight_enumerate()?;
+    async fn init_service() -> Result<(zbus::Connection, PathBuf), ServiceError> {
+        let backlight_devices = Self::backlight_enumerate().map_err(ServiceError::transient)?;
 
-        match backlight_devices
+        let device = backlight_devices
             .iter()
             .find(|d| d.subsystem().and_then(|s| s.to_str()) == Some("backlight"))
-        {
-            Some(device) => {
-                let device_path = device.syspath().to_path_buf();
+            .ok_or_else(|| {
+                ServiceError::permanent(anyhow::anyhow!("No backlight devices found"))
+            })?;
 
-                let conn = zbus::Connection::system().await?;
+        let conn = zbus::Connection::system()
+            .await
+            .map_err(ServiceError::transient)?;
 
-                Ok((conn, device_path))
-            }
-            _ => {
-                warn!("No backlight devices found");
-                Err(anyhow::anyhow!("No backlight devices found"))
-            }
-        }
+        Ok((conn, device.syspath().to_path_buf()))
     }
 
     pub async fn backlight_monitor_listener() -> anyhow::Result<AsyncFd<udev::MonitorSocket>> {
@@ -107,9 +102,7 @@ impl BrightnessService {
             .match_subsystem("backlight")?
             .listen()?;
 
-        // SAFETY: the socket owns its udev monitor fd until it is dropped,
-        // and `as_raw_fd` always returns that same fd.
-        Ok(unsafe { AsyncFd::register_with_interest(socket, Interest::READABLE) }?)
+        Ok(AsyncFd::with_interest(socket, Interest::READABLE)?)
     }
 
     fn backlight_enumerate() -> anyhow::Result<Vec<udev::Device>> {
@@ -155,14 +148,14 @@ impl BrightnessService {
                         Err(err) => {
                             error!("Failed to initialize brightness data: {err}");
 
-                            State::Error
+                            State::Error(ServiceError::transient(err))
                         }
                     }
                 }
                 Err(err) => {
-                    error!("Failed to access to brightness files: {err}");
+                    error!("Failed to access brightness files: {err}");
 
-                    State::Error
+                    State::Error(err)
                 }
             },
             State::Active(device_path) => {
@@ -225,15 +218,23 @@ impl BrightnessService {
                     Err(err) => {
                         error!("Failed to listen for brightness events: {err}");
 
-                        State::Error
+                        State::Error(ServiceError::transient(err))
                     }
                 }
             }
-            State::Error => {
-                error!("Brightness service error");
+            State::Error(error) => {
+                match error.policy() {
+                    RetryPolicy::Transient => {
+                        error!("Brightness service error, retrying in 5 seconds: {error}");
+                    }
+                    RetryPolicy::Permanent => {
+                        error!("Brightness service unavailable, not retrying: {error}");
+                    }
+                }
 
-                let _ = pending::<u8>().next().await;
-                State::Error
+                wait_for_retry(&error).await;
+
+                State::Init
             }
         }
     }
@@ -261,7 +262,7 @@ impl BrightnessService {
 enum State {
     Init,
     Active(PathBuf),
-    Error,
+    Error(ServiceError),
 }
 
 #[derive(Debug, Clone)]

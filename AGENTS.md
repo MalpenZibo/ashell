@@ -3,7 +3,7 @@
 ## Quick reference
 
 ```bash
-make check    # fmt + cargo check + clippy -D warnings + tests across the workspace (run before pushing)
+make check    # cargo fmt (rewrites files) + cargo check + clippy -D warnings on the whole workspace (run before pushing)
 make build    # cargo build --release
 make fmt      # cargo fmt
 make start    # run ./target/release/ashell
@@ -22,9 +22,9 @@ It follows the Elm architecture (model → update → view) with a modular desig
 
 ## Code quality
 
-- **Clippy is strict:** CI runs `cargo clippy --workspace --all-features -- -D warnings`. Zero warnings allowed.
+- **Clippy is strict:** CI runs `cargo clippy --all-features -- -D warnings`. Zero warnings allowed.
 - **Formatting:** `cargo fmt --all -- --check` enforced in CI.
-- **Tests:** unit tests live in the root crate (`src/`) and in `crates/ashell-services`. Run them with `cargo test --workspace` (use `-p ashell-services` for just the library crate).
+- No test suite — quality is enforced through clippy, formatting, and build checks.
 
 ## Project structure
 
@@ -32,27 +32,24 @@ It follows the Elm architecture (model → update → view) with a modular desig
 src/
 ├── main.rs              # entry point, font embedding, CLI dispatch
 ├── app.rs               # App state, Elm update/view cycle
-├── app/                 # top-level Message enum + OSD display info
 ├── config.rs            # configuration types (TOML deserialization)
-├── i18n.rs              # Fluent localization setup
 ├── ipc.rs               # Unix socket IPC (client + server + subscription)
-├── osd.rs               # on-screen display overlay (volume, brightness, ...)
-├── outputs.rs           # multi-monitor output management
 ├── theme.rs             # theming (transparent/solid bar surface, radius, margin)
-├── xdg.rs               # XDG runtime directory lookup
-├── components/          # shared UI components, icons, menus and custom iced widgets
+├── menu.rs              # menu UI
+├── outputs.rs           # multi-monitor output management
+├── components/          # shared UI components, icons
 ├── modules/             # UI modules (clock, workspaces, settings, tray, etc.)
 │   └── settings/        # settings sub-panels (audio, network, bluetooth, power, brightness)
 ├── services/            # iced glue (ReadOnlyService/Service) + services not yet migrated to ashell-services
 │   ├── compositor/      # Hyprland/Niri/generic Wayland abstraction
 │   ├── network/         # NetworkManager + IWD backends
-│   ├── notifications/   # notification daemon
 │   ├── mpris/           # media player control
-│   ├── tray/            # system tray
-│   └── ...              # audio, bluetooth, brightness, privacy, idle_inhibitor, logind, throttle, upower, xdg_icons
+│   ├── tray/
+│   └── upower/          # battery/power
+├── widgets/             # custom iced widgets (centerbox, position_button, menu_wrapper)
 └── utils/
 crates/
-└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth, upower
+└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth
 ```
 
 The repo is a Cargo workspace: the root package is the `ashell` binary, `crates/ashell-services` is a library member.

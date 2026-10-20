@@ -1,4 +1,6 @@
-use super::{ReadOnlyService, Service, ServiceEvent, compositor};
+use super::{
+    ReadOnlyService, RetryPolicy, Service, ServiceError, ServiceEvent, compositor, wait_for_retry,
+};
 use dbus::{MprisPlayerProxy, MprisRootProxy};
 use iced::{
     Subscription,
@@ -8,7 +10,7 @@ use iced::{
         channel::mpsc::Sender,
         future::{BoxFuture, join_all},
         select,
-        stream::{AbortHandle, Abortable, Aborted, FuturesUnordered, SelectAll, pending},
+        stream::{AbortHandle, Abortable, Aborted, FuturesUnordered, SelectAll},
     },
     stream::channel,
     widget::image,
@@ -21,7 +23,7 @@ use std::{
     time::Duration,
 };
 use url::Url;
-use zbus::{OwnedVariant, fdo::DBusProxy};
+use zbus::{fdo::DBusProxy, zvariant::OwnedValue};
 
 mod dbus;
 
@@ -72,8 +74,8 @@ impl Display for MprisPlayerMetadata {
     }
 }
 
-impl From<HashMap<String, OwnedVariant>> for MprisPlayerMetadata {
-    fn from(value: HashMap<String, OwnedVariant>) -> Self {
+impl From<HashMap<String, OwnedValue>> for MprisPlayerMetadata {
+    fn from(value: HashMap<String, OwnedValue>) -> Self {
         let artists = match value.get("xesam:artist") {
             Some(v) => v.clone().try_into().ok(),
             None => None,
@@ -140,7 +142,7 @@ impl ActiveData {
 enum State {
     Init,
     Active(ActiveData),
-    Error,
+    Error(ServiceError),
 }
 
 #[derive(Debug, Clone)]
@@ -387,10 +389,19 @@ impl MprisPlayerService {
         match state {
             State::Init => Self::init(output).await,
             State::Active(data) => Self::active(output, data).await,
-            State::Error => {
-                let _ = pending::<u8>().next().await;
+            State::Error(error) => {
+                match error.policy() {
+                    RetryPolicy::Transient => {
+                        error!("MPRIS service error, retrying in 5 seconds: {error}");
+                    }
+                    RetryPolicy::Permanent => {
+                        error!("MPRIS service unavailable, not retrying: {error}");
+                    }
+                }
 
-                State::Error
+                wait_for_retry(&error).await;
+
+                State::Init
             }
         }
     }
@@ -410,7 +421,7 @@ impl MprisPlayerService {
             }
             Err(err) => {
                 error!("Failed to connect to system bus for MPRIS player: {err}");
-                State::Error
+                State::Error(ServiceError::transient(err))
             }
         }
     }
@@ -468,7 +479,7 @@ impl MprisPlayerService {
             Err(err) => {
                 error!("Failed to listen for MPRIS player events: {err}");
 
-                State::Error
+                State::Error(ServiceError::transient(err))
             }
         }
     }

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use zbus::{OwnedVariant, Result, proxy};
+use zbus::{Result, proxy, zvariant::OwnedValue};
 
 #[proxy(
     interface = "org.mpris.MediaPlayer2",
@@ -27,7 +27,7 @@ pub trait MprisPlayer {
     #[zbus(property)]
     fn playback_status(&self) -> Result<String>;
     #[zbus(property)]
-    fn metadata(&self) -> Result<HashMap<String, OwnedVariant>>;
+    fn metadata(&self) -> Result<HashMap<String, OwnedValue>>;
     #[zbus(property)]
     fn set_volume(&self, v: f64) -> Result<()>;
     #[zbus(property)]

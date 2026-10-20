@@ -1,9 +1,13 @@
 use std::collections::HashMap;
-use zbus::{OwnedObjectPath, OwnedVariant, Variant, proxy, proxy::CacheProperties};
+use zbus::{
+    proxy,
+    proxy::CacheProperties,
+    zvariant::{OwnedObjectPath, OwnedValue, Value},
+};
 
 use super::BluetoothDevice;
 
-type Properties = HashMap<String, OwnedVariant>;
+type Properties = HashMap<String, OwnedValue>;
 type ManagedObjects = HashMap<OwnedObjectPath, HashMap<String, Properties>>;
 
 pub(super) const ADAPTER: &str = "org.bluez.Adapter1";
@@ -69,8 +73,8 @@ impl Snapshot {
 
 fn property<'a, T>(properties: &'a Properties, name: &str) -> Option<T>
 where
-    T: TryFrom<&'a Variant<'a>>,
-    <T as TryFrom<&'a Variant<'a>>>::Error: Into<zbus::Error>,
+    T: TryFrom<&'a Value<'a>>,
+    <T as TryFrom<&'a Value<'a>>>::Error: Into<zbus::zvariant::Error>,
 {
     properties.get(name)?.downcast_ref().ok()
 }
@@ -102,7 +106,7 @@ impl BluetoothDbus<'_> {
             .find_map(|(path, interfaces)| interfaces.contains_key(ADAPTER).then_some(path));
 
         let adapter = match adapter {
-            Some(path) => Some(AdapterProxy::builder(conn).path(path).build().await?),
+            Some(path) => Some(AdapterProxy::builder(conn).path(path)?.build().await?),
             None => None,
         };
 
@@ -155,7 +159,7 @@ impl BluetoothDbus<'_> {
 
     async fn device(&self, path: &OwnedObjectPath) -> zbus::Result<DeviceProxy<'static>> {
         DeviceProxy::builder(&self.conn)
-            .path(path.clone())
+            .path(path.clone())?
             .build()
             .await
     }
@@ -199,7 +203,7 @@ pub trait Adapter {
     fn discovering(&self) -> zbus::Result<bool>;
 
     #[zbus(no_autostart)]
-    fn remove_device(&self, device: zbus::ObjectPath<'_>) -> zbus::Result<()>;
+    fn remove_device(&self, device: zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
 }
 
 #[proxy(default_service = "org.bluez", interface = "org.bluez.Device1")]
@@ -227,7 +231,7 @@ pub trait Device {
 mod tests {
     use super::*;
 
-    fn properties(values: Vec<(&str, Variant<'static>)>) -> Properties {
+    fn properties(values: Vec<(&str, Value<'static>)>) -> Properties {
         values
             .into_iter()
             .map(|(name, value)| (name.to_owned(), value.try_into().unwrap()))
@@ -242,15 +246,15 @@ mod tests {
         let mut interfaces = HashMap::from([(
             DEVICE.to_owned(),
             properties(vec![
-                ("Alias", Variant::from(alias.to_owned())),
-                ("Connected", Variant::from(connected)),
-                ("Paired", Variant::from(true)),
+                ("Alias", Value::from(alias.to_owned())),
+                ("Connected", Value::from(connected)),
+                ("Paired", Value::from(true)),
             ]),
         )]);
         if let Some(percentage) = battery {
             interfaces.insert(
                 BATTERY.to_owned(),
-                properties(vec![("Percentage", Variant::from(percentage))]),
+                properties(vec![("Percentage", Value::from(percentage))]),
             );
         }
         interfaces
@@ -264,8 +268,8 @@ mod tests {
                 HashMap::from([(
                     ADAPTER.to_owned(),
                     properties(vec![
-                        ("Powered", Variant::from(true)),
-                        ("Discovering", Variant::from(false)),
+                        ("Powered", Value::from(true)),
+                        ("Discovering", Value::from(false)),
                     ]),
                 )]),
             ),

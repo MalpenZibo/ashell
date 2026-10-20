@@ -1,4 +1,4 @@
-use futures::{
+use iced::futures::{
     Stream,
     task::{Context, Poll},
 };
