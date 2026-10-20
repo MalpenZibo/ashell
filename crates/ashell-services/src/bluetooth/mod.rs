@@ -188,7 +188,7 @@ impl Bluetooth {
         let state = match snapshot.adapter {
             None => BluetoothState::Unavailable,
             Some(adapter) if !adapter.powered => BluetoothState::Inactive,
-            Some(_) if rfkill::bluetooth_soft_blocked().await? => BluetoothState::Inactive,
+            Some(_) if rfkill::bluetooth_soft_blocked().await => BluetoothState::Inactive,
             Some(_) => BluetoothState::Active,
         };
 
