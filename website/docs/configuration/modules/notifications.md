@@ -146,6 +146,17 @@ Values outside `1..=1000` are clamped. Notifications still shown as a toast are 
 **Type:** `integer`
 **Default:** `200`
 
+### toast_timeout_bar
+
+Show a thin bar under each toast that shrinks over the toast's remaining lifetime, so you can see how long it has left before it auto-dismisses. The bar is drawn in the theme's accent color.
+
+It appears on toasts only, never in the notification menu, and only on toasts that actually expire: a critical notification, or one sent with `expire_timeout = 0`, is persistent and has nothing to count down. It pauses along with the timeout while the pointer is over the toasts.
+
+The bar always animates while it shrinks. It does not follow the `[animations] enabled` setting, which defaults to `false`. To animate, the toasts are redrawn every frame while a bar is shrinking, which costs a few percent of one CPU core for as long as a toast is on screen. This is why the bar is off by default.
+
+**Type:** `boolean`
+**Default:** `false`
+
 ### blocklist
 
 Notification app names to ignore.
@@ -169,5 +180,6 @@ toast_timeout = 4000
 toast_limit = 5
 toast_max_height = 150
 history_limit = 200
+toast_timeout_bar = false
 blocklist = ["blueman", "^org\\.gnome\\."]
 ```

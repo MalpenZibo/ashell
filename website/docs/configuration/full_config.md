@@ -172,6 +172,7 @@ show_bodies = true
 # toast_limit = 5           # (default) max concurrent toasts
 # toast_max_height = 150    # (default) max height of toast cards in pixels
 # history_limit = 200      # (default) notifications kept in the menu, 1..=1000
+# toast_timeout_bar = false # (default) show a shrinking countdown bar on toasts
 # blocklist = ["regex"]     # (default: []) suppress notifications from apps matching regex
 
 # ── Settings ──────────────────────────────────────────────────────────────────
