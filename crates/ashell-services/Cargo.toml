@@ -11,7 +11,7 @@ publish = false
 
 [features]
 bluetooth = ["rfkill", "dep:zbus", "tokio/time"]
-brightness = ["dep:anyhow", "dep:log", "dep:tokio", "dep:udev", "dep:zbus", "tokio/net"]
+brightness = ["dep:anyhow", "dep:log", "dep:tokio", "dep:udev", "dep:zbus", "tokio/net", "tokio/time"]
 privacy = ["dep:anyhow", "dep:inotify", "dep:log", "dep:pipewire", "dep:tokio", "tokio/sync", "tokio/time"]
 rfkill = ["dep:anyhow", "dep:inotify", "dep:log", "dep:tokio", "tokio/process"]
 serde = ["dep:serde"]

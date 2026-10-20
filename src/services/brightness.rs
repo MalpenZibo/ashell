@@ -43,12 +43,15 @@ impl BrightnessService {
 }
 
 impl ReadOnlyService for BrightnessService {
-    type UpdateEvent = BrightnessData;
+    /// `None` when the backlight device went away.
+    type UpdateEvent = Option<BrightnessData>;
     type Error = ();
 
     fn update(&mut self, event: Self::UpdateEvent) {
-        self.max = event.max;
-        self.current.receive(event.current);
+        if let Some(data) = event {
+            self.max = data.max;
+            self.current.receive(data.current);
+        }
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
@@ -57,29 +60,30 @@ impl ReadOnlyService for BrightnessService {
                 let handle = match Brightness::connect().await {
                     Ok(handle) => handle,
                     Err(err) => {
-                        error!("Failed to access to brightness files: {err}");
+                        error!("Failed to connect to system bus for brightness: {err}");
                         return;
                     }
-                };
-
-                let mut updates = pin!(handle.updates());
-                let Some(data) = updates.next().await else {
-                    return;
                 };
 
                 let (commander, commands) = tokio::sync::mpsc::unbounded_channel();
                 Self::start_commander(handle.clone(), commands);
 
-                let service = BrightnessService {
-                    handle,
-                    current: Remote::new(data.current),
-                    max: data.max,
-                    commander,
-                };
-                let _ = output.send(ServiceEvent::Init(service)).await;
-
+                // A service exists only while there is a backlight device
+                let mut present = false;
+                let mut updates = pin!(handle.updates());
                 while let Some(data) = updates.next().await {
-                    let _ = output.send(ServiceEvent::Update(data)).await;
+                    let event = match data {
+                        Some(data) if !present => ServiceEvent::Init(BrightnessService {
+                            handle: handle.clone(),
+                            current: Remote::new(data.current),
+                            max: data.max,
+                            commander: commander.clone(),
+                        }),
+                        None if !present => continue,
+                        data => ServiceEvent::Update(data),
+                    };
+                    present = data.is_some();
+                    let _ = output.send(event).await;
                 }
             })
         })

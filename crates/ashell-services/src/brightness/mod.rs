@@ -1,15 +1,18 @@
 use crate::stream::channel;
 use dbus::BrightnessCtrlProxy;
-use futures::{SinkExt, Stream};
-use log::{debug, error, info, warn};
+use futures::{SinkExt, Stream, channel::mpsc::Sender};
+use log::{debug, info, warn};
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 use tokio::io::{Interest, unix::AsyncFd};
 
 mod dbus;
+
+const RETRY_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BrightnessData {
@@ -24,110 +27,88 @@ pub struct BrightnessCommand(pub u32);
 #[derive(Debug, Clone)]
 pub struct Brightness {
     conn: zbus::Connection,
-    device_path: Arc<PathBuf>,
+    device_path: Arc<Mutex<Option<PathBuf>>>,
 }
 
 impl Brightness {
-    /// Fails when there is no backlight device.
     pub async fn connect() -> anyhow::Result<Self> {
-        let backlight_devices = backlight_enumerate()?;
+        let conn = zbus::Connection::system().await?;
 
-        match backlight_devices
-            .iter()
-            .find(|d| d.subsystem().and_then(|s| s.to_str()) == Some("backlight"))
-        {
-            Some(device) => {
-                let device_path = device.syspath().to_path_buf();
-
-                let conn = zbus::Connection::system().await?;
-
-                Ok(Self {
-                    conn,
-                    device_path: Arc::new(device_path),
-                })
-            }
-            _ => {
-                warn!("No backlight devices found");
-                Err(anyhow::anyhow!("No backlight devices found"))
-            }
-        }
+        Ok(Self {
+            conn,
+            device_path: Arc::default(),
+        })
     }
 
-    /// Yields the current state first, then a snapshot whenever the backlight changes.
-    pub fn updates(&self) -> impl Stream<Item = BrightnessData> + Send + 'static {
+    /// Yields the current state first, then a snapshot whenever it changes.
+    /// `None` while there is no backlight device: the stream waits for one to
+    /// appear, and retries after errors.
+    pub fn updates(&self) -> impl Stream<Item = Option<BrightnessData>> + Send + 'static {
         let device_path = self.device_path.clone();
 
         channel(100, |mut output| async move {
-            let mut data = match initialize_data(&device_path) {
-                Ok(data) => data,
-                Err(err) => {
-                    error!("Failed to initialize brightness data: {err}");
-                    return;
-                }
-            };
-            if output.send(data).await.is_err() {
-                return;
-            }
+            let mut last = None;
 
             loop {
-                info!("Listening for brightness events");
-                data.current = get_brightness(&device_path).unwrap_or_default();
-
                 let mut socket = match backlight_monitor_listener() {
                     Ok(socket) => socket,
                     Err(err) => {
-                        error!("Failed to listen for brightness events: {err}");
-                        return;
+                        warn!("Failed to listen for brightness events: {err}");
+                        tokio::time::sleep(RETRY_DELAY).await;
+                        continue;
                     }
                 };
 
-                loop {
-                    debug!("Waiting for brightness events");
-
-                    match socket.readable_mut().await {
-                        Ok(mut socket) => {
-                            for evt in socket.get_inner().iter() {
-                                debug!("{:?}: {:?}", evt.event_type(), evt.device());
-
-                                if evt.device().subsystem().and_then(|s| s.to_str())
-                                    == Some("backlight")
-                                {
-                                    match evt.event_type() {
-                                        udev::EventType::Change => {
-                                            debug!("Changed backlight device: {:?}", evt.syspath());
-                                            if let Ok(new_value) = get_brightness(&device_path)
-                                                && new_value != data.current
-                                            {
-                                                data.current = new_value;
-                                                if output.send(data).await.is_err() {
-                                                    return;
-                                                }
-                                            }
-
-                                            break;
-                                        }
-                                        _ => {
-                                            debug!("Unhadled event type: {:?}", evt.event_type());
-                                        }
-                                    }
-                                }
-                            }
-                            socket.clear_ready();
-                        }
-                        _ => {
-                            warn!("Failed to get readable socket");
-                            break;
-                        }
+                // Enumerate once the monitor listens, so a device added in between is not missed
+                let device = match find_backlight() {
+                    Ok(device) => device,
+                    Err(err) => {
+                        warn!("Failed to enumerate backlight devices: {err}");
+                        tokio::time::sleep(RETRY_DELAY).await;
+                        continue;
                     }
+                };
+                if let Ok(mut slot) = device_path.lock() {
+                    slot.clone_from(&device);
+                }
+
+                let Some(device) = device else {
+                    if last != Some(None) {
+                        info!("No backlight devices found, waiting for one");
+                    }
+                    if !send(&mut output, &mut last, None).await {
+                        return;
+                    }
+                    wait_for_backlight(&mut socket).await;
+                    continue;
+                };
+
+                let data = match initialize_data(&device) {
+                    Ok(data) => data,
+                    Err(err) => {
+                        warn!("Failed to read brightness data: {err}");
+                        tokio::time::sleep(RETRY_DELAY).await;
+                        continue;
+                    }
+                };
+                if !send(&mut output, &mut last, Some(data)).await {
+                    return;
+                }
+
+                info!("Listening for brightness events");
+                if !listen(&mut socket, &device, data, &mut output, &mut last).await {
+                    return;
                 }
             }
         })
     }
 
     pub async fn execute(&self, command: BrightnessCommand) -> anyhow::Result<()> {
+        let device_path = self
+            .device_path()
+            .ok_or_else(|| anyhow::anyhow!("No backlight device"))?;
         let brightness_ctrl = BrightnessCtrlProxy::new(&self.conn).await?;
-        let device_name = self
-            .device_path
+        let device_name = device_path
             .iter()
             .next_back()
             .and_then(|d| d.to_str())
@@ -143,8 +124,124 @@ impl Brightness {
     /// Reads the current value straight from the device, to resync outside of
     /// [`updates`](Self::updates).
     pub fn brightness(&self) -> anyhow::Result<u32> {
-        get_brightness(&self.device_path)
+        let device_path = self
+            .device_path()
+            .ok_or_else(|| anyhow::anyhow!("No backlight device"))?;
+
+        get_brightness(&device_path)
     }
+
+    fn device_path(&self) -> Option<PathBuf> {
+        self.device_path.lock().ok().and_then(|slot| slot.clone())
+    }
+}
+
+async fn send(
+    output: &mut Sender<Option<BrightnessData>>,
+    last: &mut Option<Option<BrightnessData>>,
+    data: Option<BrightnessData>,
+) -> bool {
+    if *last == Some(data) {
+        return true;
+    }
+    *last = Some(data);
+    output.send(data).await.is_ok()
+}
+
+/// Follows `device` until it goes away or the monitor fails. Returns false
+/// once nobody listens to `output`.
+async fn listen(
+    socket: &mut AsyncFd<udev::MonitorSocket>,
+    device: &Path,
+    mut data: BrightnessData,
+    output: &mut Sender<Option<BrightnessData>>,
+    last: &mut Option<Option<BrightnessData>>,
+) -> bool {
+    loop {
+        debug!("Waiting for brightness events");
+
+        let mut guard = match socket.readable_mut().await {
+            Ok(guard) => guard,
+            Err(err) => {
+                warn!("Failed to get readable socket: {err}");
+                tokio::time::sleep(RETRY_DELAY).await;
+                return true;
+            }
+        };
+
+        let mut changed = false;
+        let mut removed = false;
+        for evt in guard.get_inner().iter() {
+            debug!("{:?}: {:?}", evt.event_type(), evt.device());
+
+            if !is_backlight(&evt) {
+                continue;
+            }
+            match evt.event_type() {
+                udev::EventType::Change => {
+                    debug!("Changed backlight device: {:?}", evt.syspath());
+                    changed = true;
+                }
+                udev::EventType::Remove if evt.syspath() == device => removed = true,
+                _ => debug!("Unhandled event type: {:?}", evt.event_type()),
+            }
+        }
+        guard.clear_ready();
+
+        if removed {
+            info!("Backlight device removed: {device:?}");
+            return true;
+        }
+
+        if changed
+            && let Ok(current) = get_brightness(device)
+            && current != data.current
+        {
+            data.current = current;
+            if !send(output, last, Some(data)).await {
+                return false;
+            }
+        }
+    }
+}
+
+async fn wait_for_backlight(socket: &mut AsyncFd<udev::MonitorSocket>) {
+    loop {
+        let mut guard = match socket.readable_mut().await {
+            Ok(guard) => guard,
+            Err(err) => {
+                warn!("Failed to get readable socket: {err}");
+                tokio::time::sleep(RETRY_DELAY).await;
+                return;
+            }
+        };
+
+        let mut added = false;
+        for evt in guard.get_inner().iter() {
+            if is_backlight(&evt) && evt.event_type() == udev::EventType::Add {
+                added = true;
+            }
+        }
+        guard.clear_ready();
+
+        if added {
+            return;
+        }
+    }
+}
+
+fn is_backlight(evt: &udev::Event) -> bool {
+    evt.device().subsystem().and_then(|s| s.to_str()) == Some("backlight")
+}
+
+fn find_backlight() -> anyhow::Result<Option<PathBuf>> {
+    let mut enumerator = udev::Enumerator::new()?;
+    enumerator.match_subsystem("backlight")?;
+
+    Ok(enumerator
+        .scan_devices()?
+        .find(|d| d.subsystem().and_then(|s| s.to_str()) == Some("backlight"))
+        .map(|d| d.syspath().to_path_buf()))
 }
 
 fn get_max_brightness(device_path: &Path) -> anyhow::Result<u32> {
@@ -177,11 +274,4 @@ fn backlight_monitor_listener() -> anyhow::Result<AsyncFd<udev::MonitorSocket>> 
     // SAFETY: the socket owns its udev monitor fd until it is dropped,
     // and `as_raw_fd` always returns that same fd.
     Ok(unsafe { AsyncFd::register_with_interest(socket, Interest::READABLE) }?)
-}
-
-fn backlight_enumerate() -> anyhow::Result<Vec<udev::Device>> {
-    let mut enumerator = udev::Enumerator::new()?;
-    enumerator.match_subsystem("backlight")?;
-
-    Ok(enumerator.scan_devices()?.collect())
 }

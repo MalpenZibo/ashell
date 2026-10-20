@@ -83,6 +83,10 @@ impl BrightnessSettings {
                     self.service = Some(service);
                     Action::None
                 }
+                ServiceEvent::Update(None) => {
+                    self.service = None;
+                    Action::None
+                }
                 ServiceEvent::Update(data) => {
                     if let Some(service) = self.service.as_mut() {
                         service.update(data);
