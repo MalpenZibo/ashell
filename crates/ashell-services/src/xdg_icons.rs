@@ -126,6 +126,13 @@ fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
     }
     debug!("icon '{icon_name}': no direct match");
 
+    // An app's own .desktop file beats a guess from similar icon names
+    if let Some(path) = find_desktop_icon(icon_name) {
+        debug!("icon '{icon_name}': desktop index match at {path:?}");
+        return icon_from_path(path);
+    }
+    debug!("icon '{icon_name}': no desktop index match");
+
     if let Some(candidates) = find_similar_icon(icon_name) {
         for candidate in candidates {
             debug!("icon '{icon_name}': similar candidate '{candidate}'");
@@ -135,12 +142,6 @@ fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
         }
     }
     debug!("icon '{icon_name}': no similar match");
-
-    if let Some(path) = find_desktop_icon(icon_name) {
-        debug!("icon '{icon_name}': desktop index match at {path:?}");
-        return icon_from_path(path);
-    }
-    debug!("icon '{icon_name}': no desktop index match");
 
     if let Some(prefix_candidate) = prefix_match_icon(icon_name)
         && let Some(path) = theme_icon_path(&prefix_candidate)
