@@ -2,11 +2,15 @@ use crate::stream::channel;
 use futures::{FutureExt, SinkExt, Stream, StreamExt, select, stream::pending};
 use inotify::{EventMask, Inotify, WatchMask};
 use log::{debug, error, info, warn};
-use pipewire::{context::ContextBox, main_loop::MainLoopBox};
-use std::{cell::RefCell, collections::HashSet, fs, path::Path, rc::Rc, thread};
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use pipewire::{context::ContextBox, core::PW_ID_CORE, main_loop::MainLoopRc};
+use std::{cell::RefCell, collections::HashSet, fs, path::Path, rc::Rc, thread, time::Duration};
+use tokio::{
+    sync::mpsc::{UnboundedReceiver, unbounded_channel},
+    time::{Instant, sleep_until},
+};
 
 const WEBCAM_DEVICE_PATH: &str = "/dev/video0";
+const RETRY_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Media {
@@ -50,6 +54,13 @@ impl PrivacyData {
         self.nodes.iter().any(|n| n.media == Media::Video)
     }
 
+    /// Streams can't be followed without PipeWire. Returns whether any was dropped.
+    fn forget_streams(&mut self) -> bool {
+        let had_streams = !self.nodes.is_empty();
+        self.nodes.clear();
+        had_streams
+    }
+
     fn update(&mut self, event: PrivacyEvent) {
         match event {
             PrivacyEvent::AddNode(node) => {
@@ -91,60 +102,102 @@ impl Privacy {
     }
 
     /// Yields the current state first, then a snapshot after every change.
+    /// Without PipeWire, streams are reported as unused while the connection
+    /// is retried; the webcam is followed either way.
     pub fn updates(&self) -> impl Stream<Item = PrivacyData> + Send + 'static {
         channel(100, |mut output| async move {
-            let (mut pipewire, mut webcam) =
-                match (create_pipewire_listener().await, webcam_listener()) {
-                    (Ok(pipewire), Ok(webcam)) => (pipewire, webcam),
-                    (Err(pipewire_error), Ok(_)) => {
-                        error!("Failed to connect to pipewire: {pipewire_error}");
-                        error!("Privacy service error");
-                        return;
-                    }
-                    (Ok(pipewire), Err(webcam_error)) => {
-                        warn!("Failed to connect to webcam: {webcam_error}");
-                        let webcam: WebcamEvents = Box::new(pending::<PrivacyEvent>().boxed());
-                        (pipewire, webcam)
-                    }
-                    (Err(pipewire_error), Err(webcam_error)) => {
-                        error!("Failed to connect to pipewire: {pipewire_error}");
-                        error!("Failed to connect to webcam: {webcam_error}");
-                        error!("Privacy service error");
-                        return;
-                    }
-                };
+            let mut webcam = webcam_listener().unwrap_or_else(|err| {
+                warn!("Failed to connect to webcam: {err}");
+                Box::new(pending::<PrivacyEvent>().boxed())
+            });
 
             let mut data = PrivacyData::new();
             if output.send(data.clone()).await.is_err() {
                 return;
             }
 
-            loop {
-                info!("Listening for privacy events");
+            let mut pipewire = None;
+            let mut next_attempt = Instant::now();
+            let mut unavailable = false;
 
-                let event = select! {
-                    value = pipewire.recv().fuse() => {
-                        if value.is_none() {
-                            error!("Pipewire listener exited");
+            loop {
+                if pipewire.is_none() && Instant::now() >= next_attempt {
+                    match create_pipewire_listener().await {
+                        Ok(listener) => {
+                            info!("Listening for privacy events");
+                            unavailable = false;
+                            pipewire = Some(listener);
                         }
-                        value
+                        Err(err) => {
+                            if unavailable {
+                                debug!("PipeWire is still not available: {err}");
+                            } else {
+                                warn!(
+                                    "PipeWire is not available, retrying every {}s: {err}",
+                                    RETRY_DELAY.as_secs()
+                                );
+                                unavailable = true;
+                            }
+                            next_attempt = Instant::now() + RETRY_DELAY;
+                        }
+                    }
+                }
+
+                let step = select! {
+                    step = next_pipewire_step(&mut pipewire, next_attempt).fuse() => step,
+                    value = webcam.next().fuse() => match value {
+                        Some(event) => Step::Event(event),
+                        None => Step::WebcamGone,
                     },
-                    value = webcam.next().fuse() => {
-                        if value.is_none() {
-                            error!("Webcam listener exited");
-                        }
-                        value
+                };
+
+                let changed = match step {
+                    Step::Event(event) => {
+                        data.update(event);
+                        true
+                    }
+                    Step::PipewireGone => {
+                        warn!("Lost the connection to PipeWire, reconnecting");
+                        pipewire = None;
+                        next_attempt = Instant::now();
+                        data.forget_streams()
+                    }
+                    Step::Retry => false,
+                    Step::WebcamGone => {
+                        error!("Webcam listener exited");
+                        webcam = Box::new(pending::<PrivacyEvent>().boxed());
+                        false
                     }
                 };
 
-                if let Some(event) = event {
-                    data.update(event);
-                    if output.send(data.clone()).await.is_err() {
-                        return;
-                    }
+                if changed && output.send(data.clone()).await.is_err() {
+                    return;
                 }
             }
         })
+    }
+}
+
+enum Step {
+    Event(PrivacyEvent),
+    PipewireGone,
+    Retry,
+    WebcamGone,
+}
+
+async fn next_pipewire_step(
+    pipewire: &mut Option<UnboundedReceiver<PrivacyEvent>>,
+    next_attempt: Instant,
+) -> Step {
+    match pipewire {
+        Some(listener) => match listener.recv().await {
+            Some(event) => Step::Event(event),
+            None => Step::PipewireGone,
+        },
+        None => {
+            sleep_until(next_attempt).await;
+            Step::Retry
+        }
     }
 }
 
@@ -165,10 +218,26 @@ async fn create_pipewire_listener() -> anyhow::Result<UnboundedReceiver<PrivacyE
     let (boot_tx, boot_rx) = tokio::sync::oneshot::channel::<Result<(), anyhow::Error>>();
 
     thread::spawn(move || {
-        let mainloop = unwrap_or_send_err!(MainLoopBox::new(None), boot_tx);
+        let mainloop = unwrap_or_send_err!(MainLoopRc::new(None), boot_tx);
         let context = unwrap_or_send_err!(ContextBox::new(mainloop.loop_(), None), boot_tx);
         let core = unwrap_or_send_err!(context.connect(None), boot_tx);
         let registry = unwrap_or_send_err!(core.get_registry(), boot_tx);
+
+        // A core error means the connection is gone: stop, so the service reconnects
+        let _core_listener = core
+            .add_listener_local()
+            .error({
+                let mainloop = mainloop.downgrade();
+                move |id, _seq, res, message| {
+                    if id == PW_ID_CORE {
+                        warn!("PipeWire core error {res}: {message}");
+                        if let Some(mainloop) = mainloop.upgrade() {
+                            mainloop.quit();
+                        }
+                    }
+                }
+            })
+            .register();
 
         let tracked_ids: Rc<RefCell<HashSet<u32>>> = Rc::new(RefCell::new(HashSet::new()));
 
