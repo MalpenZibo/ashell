@@ -2,14 +2,13 @@ use iced::futures::StreamExt;
 use log::{info, warn};
 use std::time::Duration;
 use zbus::{
-    Connection, Result,
+    Connection, OwnedObjectPath, OwnedVariant, Result, Type,
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
     interface,
     message::Header,
     names::{BusName, UniqueName, WellKnownName},
     object_server::SignalEmitter,
     proxy,
-    zvariant::{self, OwnedObjectPath, OwnedValue, Type},
 };
 
 const NAME: WellKnownName =
@@ -41,7 +40,7 @@ impl StatusNotifierWatcher {
         let dbus_proxy = DBusProxy::new(&connection).await?;
         let name_owner_changed_stream = dbus_proxy.receive_name_owner_changed().await?;
 
-        let flags = RequestNameFlags::AllowReplacement | RequestNameFlags::ReplaceExisting;
+        let flags = RequestNameFlags::ALLOW_REPLACEMENT | RequestNameFlags::REPLACE_EXISTING;
         if dbus_proxy.request_name(NAME, flags).await? == RequestNameReply::InQueue {
             warn!("Bus name '{NAME}' already owned");
         }
@@ -208,14 +207,10 @@ impl StatusNotifierWatcher {
     async fn is_status_notifier_item(conn: &Connection, name: &str) -> bool {
         // Disable property caching: `GetAll` at build time logs a WARN for
         // names that have not exported `/StatusNotifierItem` (yet).
-        let builder = match StatusNotifierItemProxy::builder(conn)
+        let builder = StatusNotifierItemProxy::builder(conn)
             .destination(name.to_owned())
-            .and_then(|b| b.path("/StatusNotifierItem"))
-        {
-            Ok(b) => b,
-            Err(_) => return false,
-        };
-        let builder = builder.cache_properties(zbus::proxy::CacheProperties::No);
+            .path("/StatusNotifierItem")
+            .cache_properties(zbus::proxy::CacheProperties::No);
         match builder.build().await {
             Ok(proxy) => tokio::time::timeout(Duration::from_millis(500), proxy.icon_name())
                 .await
@@ -254,7 +249,6 @@ impl StatusNotifierWatcher {
 #[interface(
     name = "org.kde.StatusNotifierWatcher",
     proxy(
-        gen_blocking = false,
         default_service = "org.kde.StatusNotifierWatcher",
         default_path = "/StatusNotifierWatcher",
     )
@@ -332,7 +326,7 @@ impl StatusNotifierWatcher {
     async fn status_notifier_host_unregistered(emitter: &SignalEmitter<'_>) -> Result<()>;
 }
 
-#[derive(Clone, Debug, zvariant::Value)]
+#[derive(Clone, Debug, serde::Deserialize, Type)]
 pub struct Icon {
     pub width: i32,
     pub height: i32,
@@ -381,7 +375,7 @@ pub trait StatusNotifierItem {
 }
 
 #[derive(Clone, Debug, Type)]
-#[zvariant(signature = "(ia{sv}av)")]
+#[zbus(signature = "(ia{sv}av)")]
 pub struct Layout(pub i32, pub LayoutProps, pub Vec<Layout>);
 
 impl<'a> serde::Deserialize<'a> for Layout {
@@ -389,22 +383,22 @@ impl<'a> serde::Deserialize<'a> for Layout {
         deserializer: D,
     ) -> std::result::Result<Self, D::Error> {
         let (id, props, children) =
-            <(i32, LayoutProps, Vec<(zvariant::Signature, Self)>)>::deserialize(deserializer)?;
+            <(i32, LayoutProps, Vec<(zbus::Signature, Self)>)>::deserialize(deserializer)?;
         Ok(Self(id, props, children.into_iter().map(|x| x.1).collect()))
     }
 }
 
-#[derive(Clone, Debug, Type, zvariant::DeserializeDict)]
-#[zvariant(signature = "dict")]
+#[derive(Clone, Debug, Type, zbus::DeserializeDict)]
+#[zbus(signature = "dict")]
 pub struct LayoutProps {
-    #[zvariant(rename = "children-display")]
+    #[zbus(rename = "children-display")]
     pub children_display: Option<String>,
     pub label: Option<String>,
-    #[zvariant(rename = "type")]
+    #[zbus(rename = "type")]
     pub type_: Option<String>,
-    #[zvariant(rename = "toggle-type")]
+    #[zbus(rename = "toggle-type")]
     pub toggle_type: Option<String>,
-    #[zvariant(rename = "toggle-state")]
+    #[zbus(rename = "toggle-state")]
     pub toggle_state: Option<i32>,
     pub visible: Option<bool>,
 }
@@ -418,8 +412,13 @@ pub trait DBusMenu {
         property_names: &[&str],
     ) -> zbus::Result<(u32, Layout)>;
 
-    fn event(&self, id: i32, event_id: &str, data: &OwnedValue, timestamp: u32)
-    -> zbus::Result<()>;
+    fn event(
+        &self,
+        id: i32,
+        event_id: &str,
+        data: &OwnedVariant,
+        timestamp: u32,
+    ) -> zbus::Result<()>;
 
     fn about_to_show(&self, id: i32) -> zbus::Result<bool>;
 

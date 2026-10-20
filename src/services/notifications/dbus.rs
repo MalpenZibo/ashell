@@ -4,12 +4,11 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 use tokio::sync::broadcast;
 use zbus::{
-    Connection,
+    Connection, OwnedVariant,
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
     interface,
     message::Header,
     names::WellKnownName,
-    zvariant::OwnedValue,
 };
 
 #[derive(Debug, Clone)]
@@ -42,7 +41,7 @@ pub enum Urgency {
 }
 
 impl Urgency {
-    fn from_hints(hints: &HashMap<String, OwnedValue>) -> Self {
+    fn from_hints(hints: &HashMap<String, OwnedVariant>) -> Self {
         hints
             .get("urgency")
             .and_then(|v| u8::try_from(v).ok())
@@ -149,7 +148,7 @@ impl NotificationDaemon {
         summary: String,
         body: String,
         actions: Vec<String>,
-        hints: HashMap<String, OwnedValue>,
+        hints: HashMap<String, OwnedVariant>,
         expire_timeout: i32,
         #[zbus(header)] header: Header<'_>,
     ) -> u32 {
@@ -224,7 +223,7 @@ impl NotificationDaemon {
         connection.object_server().at(OBJECT_PATH, daemon).await?;
 
         let dbus_proxy = DBusProxy::new(&connection).await?;
-        let flags = RequestNameFlags::AllowReplacement | RequestNameFlags::ReplaceExisting;
+        let flags = RequestNameFlags::ALLOW_REPLACEMENT | RequestNameFlags::REPLACE_EXISTING;
         match dbus_proxy.request_name(NAME, flags).await? {
             RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner => {
                 info!("Acquired notification daemon bus name");

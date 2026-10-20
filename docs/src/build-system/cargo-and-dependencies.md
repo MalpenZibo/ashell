@@ -35,7 +35,7 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| `zbus` | 5 | D-Bus client (BlueZ, NM, UPower, etc.) |
+| `zbus` | 6 | D-Bus client (BlueZ, NM, UPower, etc.) |
 | `libpulse-binding` | 2.28 | PulseAudio client library |
 | `pipewire` | 0.10 | PipeWire integration |
 | `wayland-client` | 0.31 | Wayland protocol client |

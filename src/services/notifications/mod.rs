@@ -9,8 +9,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
-use zbus::zvariant::OwnedValue;
-use zbus::{Connection, zvariant};
+use zbus::{Connection, OwnedVariant};
 
 pub mod dbus;
 
@@ -27,7 +26,7 @@ impl NotificationIcon {
     pub fn resolve(
         app_name: &str,
         app_icon: &str,
-        hints: &HashMap<String, OwnedValue>,
+        hints: &HashMap<String, OwnedVariant>,
     ) -> Option<Self> {
         try_icon_from_hints(hints).or_else(|| {
             icon_candidates(app_name, app_icon, hints)
@@ -50,7 +49,7 @@ impl NotificationIcon {
 }
 
 // freedesktop notification hint image data type
-#[derive(zvariant::OwnedValue, Debug)]
+#[derive(zbus::OwnedVariant, Debug)]
 struct HintImageData {
     width: i32,
     height: i32,
@@ -61,7 +60,7 @@ struct HintImageData {
     image_bytes: Vec<u8>,
 }
 
-fn try_icon_from_hints(hints: &HashMap<String, OwnedValue>) -> Option<NotificationIcon> {
+fn try_icon_from_hints(hints: &HashMap<String, OwnedVariant>) -> Option<NotificationIcon> {
     if let Some(image_data) = hints
         .get("image-data")
         .or(hints.get("image_data"))
@@ -107,7 +106,7 @@ const HINT_KEYS: &[&str] = &[
 fn icon_candidates<'a>(
     app_name: &'a str,
     app_icon: &'a str,
-    hints: &'a HashMap<String, OwnedValue>,
+    hints: &'a HashMap<String, OwnedVariant>,
 ) -> impl Iterator<Item = String> + 'a {
     std::iter::once(app_icon.to_string())
         .chain(
