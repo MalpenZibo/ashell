@@ -69,6 +69,7 @@ ashell-services = { path = "crates/ashell-services", features = [
   "serde",
   "throttle",
   "upower",
+  "xdg_icons",
 ] }
 iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.6.1", features = [
   "tokio",
@@ -100,7 +101,6 @@ anyhow.workspace = true
 toml = "1"
 serde_ignored = "0.1"
 freedesktop-icons = "0.4"
-linicon-theme = "1.2.0"
 serde_json = "1"
 regex = "1.12.2"
 serde_with = { version = "3.12", default-features = false, features = [

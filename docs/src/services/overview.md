@@ -19,15 +19,17 @@ Services are the backend layer of ashell. They manage communication with system 
 | Idle Inhibitor | `services/idle_inhibitor.rs` | Wayland `idle-inhibit-unstable-v1` | Wayland protocol | — |
 | Logind | `services/logind.rs` | systemd-logind | D-Bus | systemd-logind |
 | Throttle | `crates/ashell-services/src/throttle.rs` | (utility) | Stream adapter | — |
-| XDG Icons | `services/xdg_icons.rs` | (utility) | XDG icon theme | — |
+| XDG Icons | `crates/ashell-services/src/xdg_icons.rs` (iced glue in `services/xdg_icons.rs`) | (utility) | XDG icon theme | — |
 
 ## Shared Icon Resolution
 
-`services/xdg_icons.rs` is a shared helper (not an event-producing service) used
+`xdg_icons` is a shared helper (not an event-producing service) used
 by both the tray and the workspaces module to turn an identifier into a
-displayable icon. Given a name it resolves an `XdgIcon` (`Image`, `Svg`, or a
-`NerdFont` glyph fallback) via the XDG icon theme, a fuzzy/prefix match against
-the installed icon set, and a `.desktop` `StartupWMClass` index.
+displayable icon. Given a name, the `ashell-services` crate resolves the path of
+an image or SVG file via the XDG icon theme, a fuzzy/prefix match against
+the installed icon set, and a `.desktop` `StartupWMClass` index. The glue in
+`services/xdg_icons.rs` turns it into an `XdgIcon` (`Image`, `Svg`, or a
+`NerdFont` glyph fallback).
 
 Each consumer keeps its own concern on top of this core: the tray handles raw
 D-Bus pixmaps, while the workspaces module lowercases the window class before

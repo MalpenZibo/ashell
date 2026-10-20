@@ -42,7 +42,7 @@ This chapter documents known architectural limitations and design tradeoffs. Und
 
 ## Minimal Test Suite
 
-**Issue**: The project only has a handful of unit tests (in `app.rs`, `services/xdg_icons.rs`, `services/compositor/hyprland.rs`, `services/upower.rs` and the `ashell-services` crate), and CI only runs the `ashell-services` tests. The UI is tested manually, and services are verified by running ashell on real hardware.
+**Issue**: The project only has a handful of unit tests (in `app.rs`, `services/compositor/hyprland.rs`, `services/upower.rs` and the `ashell-services` crate), and CI only runs the `ashell-services` tests. The UI is tested manually, and services are verified by running ashell on real hardware.
 
 **Impact**: Regressions can slip through, especially for compositor-specific behavior (Hyprland vs. Niri) or hardware-specific features (brightness, Bluetooth).
 
@@ -56,7 +56,7 @@ This chapter documents known architectural limitations and design tradeoffs. Und
 
 ## Icon Index Staleness
 
-**Issue**: The XDG icon indexes in `services/xdg_icons.rs` (`SYSTEM_ICON_ENTRIES`, `DESKTOP_ICON_INDEX`) are built once via `LazyLock` and never rebuilt. Resolution results, including misses, are cached for the process lifetime.
+**Issue**: The XDG icon indexes in `crates/ashell-services/src/xdg_icons.rs` (`SYSTEM_ICON_ENTRIES`, `DESKTOP_ICON_INDEX`) are built once via `LazyLock` and never rebuilt. Resolution results, including misses, are cached for the process lifetime.
 
 **Impact**: Newly installed applications and runtime icon-theme changes are not picked up until ashell is restarted. This affects both the tray and the workspace window icons.
 

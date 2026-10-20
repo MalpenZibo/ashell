@@ -157,7 +157,6 @@ dependencies = [
  "itertools 0.15.0",
  "libc",
  "libpulse-binding",
- "linicon-theme",
  "log",
  "niri-ipc",
  "qrcode",
@@ -189,8 +188,10 @@ name = "ashell-services"
 version = "0.11.0"
 dependencies = [
  "anyhow",
+ "freedesktop-icons",
  "futures",
  "inotify",
+ "linicon-theme",
  "log",
  "pin-project-lite",
  "pipewire",
