@@ -94,9 +94,20 @@ ashell msg brightness-down
 ashell msg toggle-airplane-mode
 ashell msg toggle-idle-inhibitor
 ashell msg load-config <file>
+ashell msg notifications-clear [--id <id>]
+ashell msg notifications-invoke [--id <id>] [action]
+ashell msg notifications-list
 ```
 
 Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD overlay. Add `--no-osd` to suppress it.
+
+The CLI and socket share a command enum with Clap and Serde derives. Connections
+are handled asynchronously and delivered to `App` as an `IpcRequest` with a reply
+handle. The app dispatches commands; notification clear/invoke replies follow
+the D-Bus operation and shared local cleanup.
+
+See the [IPC documentation](https://malpenzibo.github.io/ashell/docs/configuration/#direct-socket-access)
+for the JSON protocol and command behavior.
 
 ## Signal Handling
 

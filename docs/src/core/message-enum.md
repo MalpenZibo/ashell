@@ -32,6 +32,11 @@ pub enum Message {
 
     // IPC volume/brightness/toggle commands (with optional OSD)
     IpcOsdCommand(IpcCommand),
+    Ipc(IpcRequest),                            // Socket command plus app reply handle
+    IpcNotificationsFinished {
+        result: modules::notifications::CloseResult,
+        reply: IpcReply,
+    },
 
     // System events
     OutputEvent(OutputEvent),                  // Wayland monitor added/removed
@@ -87,3 +92,10 @@ Emitted by the logind service when the system wakes from sleep. Re-syncs the out
 ### CloseAllMenus
 
 Emitted when all menus should close (e.g., when the ESC key is pressed with `enable_esc_key = true`).
+
+### IpcNotificationsFinished
+
+Notification clear/invoke tasks return a result without knowing about IPC.
+The app applies the shared notification cleanup before sending the socket reply.
+UI actions use the same execution and cleanup with their own focus and animation
+options.

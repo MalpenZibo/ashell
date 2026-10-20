@@ -87,6 +87,9 @@ Available commands:
 | `toggle-airplane-mode`   | Toggle airplane mode                                         |
 | `toggle-idle-inhibitor`  | Toggle idle inhibitor                                        |
 | `load-config <file>`            | Load another config without restarting ashell         |
+| `notifications-clear [--id <id>]` | Close all notifications, or a single notification |
+| `notifications-invoke [--id <id>] [action]` | Invoke an action and close its notification |
+| `notifications-list` | Print notifications as a JSON array, newest first |
 
 Only `volume-up` / `volume-down` honour
 [`settings.volume_step`](./modules/settings.md#volume-step); the microphone and
@@ -109,3 +112,38 @@ without IPC and `ashell msg` refuses to connect.
 
 If another ashell instance already owns the socket, the new instance still
 starts but runs without IPC and logs a warning.
+
+### Direct socket access
+
+The socket accepts one newline-delimited JSON request per connection and returns
+one JSON response. Command names match the CLI; argument fields use snake_case:
+
+```json
+{"command":"toggle-visibility"}
+{"command":"volume-up","no_osd":true}
+{"command":"load-config","file":"/home/user/.config/ashell/another config.toml"}
+```
+
+`no_osd` defaults to `false`. Config paths sent directly to the socket must be
+absolute and point to a valid config. Requests, including the newline, may be at
+most 4096 bytes.
+
+Responses are `{"status":"ok"}` or
+`{"status":"error","message":"description of the error"}`. The CLI continues
+to print `ok` for successful actions and exits with status 1 on errors. Replies
+come from the app after it handles the request; notification clear/invoke replies
+wait for the operation to finish and the local notification list to update.
+
+The server handles up to 32 connections at once. Sending a request and writing a
+response each have a 5-second deadline; waiting for the app to handle a request
+has a 30-second deadline. A response timeout does not cancel a command already
+submitted to the app, so it may still complete. The CLI also limits socket reads
+and writes to avoid waiting indefinitely.
+
+`{"command":"notifications-list"}` returns
+`{"status":"ok","notifications":[...]}`. The CLI prints only the array. List
+responses may exceed the request size limit. See [Notifications](./modules/notifications.md#ipc-commands)
+for the record format and command arguments.
+
+The socket protocol uses JSON only. Scripts sending the previous plain-text
+format must migrate; existing `ashell msg` commands and flags are unchanged.

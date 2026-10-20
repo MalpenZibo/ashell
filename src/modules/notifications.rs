@@ -53,51 +53,10 @@ struct FocusTarget {
     apps: Vec<String>,
 }
 
-fn invoke_and_close_task(
-    connection: Option<Connection>,
-    id: u32,
-    action_key: Option<String>,
-    guard: CloseGuard,
-    focus: Option<FocusTarget>,
-) -> Task<Message> {
-    Task::perform(
-        async move {
-            let Some(connection) = connection else {
-                return;
-            };
-            match NotificationDaemon::invoke_and_close(&connection, id, action_key, guard).await {
-                Ok(true) => {
-                    if let Some(FocusTarget { sender, apps }) = focus {
-                        let pid = match sender {
-                            Some(sender) => connection_pid(&connection, &sender)
-                                .await
-                                .inspect_err(|e| debug!("No pid for sender {sender}: {e}"))
-                                .ok(),
-                            None => None,
-                        };
-                        if let Err(e) = compositor::focus_app_window(pid, apps, None).await {
-                            debug!("Can't focus the window of notification {id}: {e}");
-                        }
-                    }
-                }
-                Ok(false) => {}
-                Err(e) => error!("Failed to close notification id {}: {}", id, e),
-            }
-        },
-        |_| Message::NotificationClosed,
-    )
-}
-
-async fn close_notification_ids(connection: Option<Connection>, notification_ids: &[u32]) {
-    if let Some(connection) = connection {
-        for id in notification_ids {
-            if let Err(e) =
-                NotificationDaemon::invoke_and_close(&connection, *id, None, CloseGuard::Any).await
-            {
-                error!("Failed to close notification id {}: {}", id, e);
-            }
-        }
-    }
+#[derive(Debug, Clone)]
+pub struct CloseResult {
+    closed: Vec<(u32, Option<u64>)>,
+    pub result: Result<(), String>,
 }
 
 fn evict_task(connection: Option<Connection>, evicted: Vec<(u32, u64)>) -> Task<Message> {
@@ -109,7 +68,7 @@ fn evict_task(connection: Option<Connection>, evicted: Vec<(u32, u64)>) -> Task<
                 error!("Failed to close evicted notifications: {e}");
             }
         },
-        |_| Message::NotificationClosed,
+        |_| Message::EvictionFinished,
     )
 }
 
@@ -137,12 +96,9 @@ pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
     InvokeAction(u32, String),
-    NotificationClosed,
     CloseNotificationById(u32),
     ClearNotifications,
-    NotificationsCleared,
     ClearGroup(String),
-    GroupCleared(String, Vec<u32>),
     Event(ServiceEvent<NotificationsService>),
     ToggleGroup(String),
     ToggleDnd,
@@ -151,6 +107,13 @@ pub enum Message {
     StartCollapse(u32),
     DismissAnimationComplete(u32),
     ToastResized(Size),
+    EvictionFinished,
+    CloseFinished(CloseResult),
+    UiCloseFinished {
+        result: CloseResult,
+        group: Option<String>,
+        preserve_animation: bool,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -238,6 +201,158 @@ impl Notifications {
         self.dnd = !self.dnd;
     }
 
+    pub fn is_available(&self) -> bool {
+        self.connection.is_some()
+    }
+
+    pub fn list(&self) -> impl Iterator<Item = &Notification> {
+        self.notifications.iter()
+    }
+
+    fn action_target(&self, id: Option<u32>, action: &str) -> anyhow::Result<&Notification> {
+        if let Some(id) = id {
+            let notification = self
+                .find_notification(id)
+                .ok_or_else(|| anyhow::anyhow!("Notification {id} not found"))?;
+            if notification.action_pairs().any(|(key, _)| key == action) {
+                Ok(notification)
+            } else {
+                Err(anyhow::anyhow!(
+                    "Notification {id} has no action {action:?}"
+                ))
+            }
+        } else {
+            self.notifications
+                .iter()
+                .find(|n| n.action_pairs().any(|(key, _)| key == action))
+                .ok_or_else(|| anyhow::anyhow!("No notification offers action {action:?}"))
+        }
+    }
+
+    pub fn clear(&self, id: Option<u32>) -> anyhow::Result<Task<CloseResult>> {
+        let targets = match id {
+            Some(id) => {
+                let n = self
+                    .find_notification(id)
+                    .ok_or_else(|| anyhow::anyhow!("Notification {id} not found"))?;
+                vec![(n.id, CloseGuard::Revision(n.revision))]
+            }
+            None => self
+                .notifications
+                .iter()
+                .map(|n| (n.id, CloseGuard::Revision(n.revision)))
+                .collect(),
+        };
+        self.close_task(targets, None, None)
+    }
+
+    pub fn invoke(&self, id: Option<u32>, action: String) -> anyhow::Result<Task<CloseResult>> {
+        let n = self.action_target(id, &action)?;
+        self.close_task(
+            vec![(n.id, CloseGuard::Revision(n.revision))],
+            Some(action),
+            None,
+        )
+    }
+
+    /// UI and IPC operations share execution and revision-aware completion.
+    /// Focus is requested only by UI default actions.
+    fn close_task(
+        &self,
+        targets: Vec<(u32, CloseGuard)>,
+        action: Option<String>,
+        focus: Option<FocusTarget>,
+    ) -> anyhow::Result<Task<CloseResult>> {
+        let connection = self
+            .connection
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Notifications service is unavailable"))?;
+        Ok(Task::perform(
+            async move {
+                let mut closed = Vec::new();
+                let mut error = None;
+                for (id, guard) in targets {
+                    let result = NotificationDaemon::invoke_and_close(
+                        &connection,
+                        id,
+                        action.clone(),
+                        guard,
+                    )
+                    .await;
+                    match result {
+                        Ok(true) => closed.push((
+                            id,
+                            match guard {
+                                CloseGuard::Any => None,
+                                CloseGuard::Revision(revision) => Some(revision),
+                            },
+                        )),
+                        Ok(false) => {
+                            error.get_or_insert_with(|| {
+                                format!("Notification {id} was replaced or closed")
+                            });
+                        }
+                        Err(e) => {
+                            let message = format!("Failed to close notification {id}: {e}");
+                            error!("{message}");
+                            error.get_or_insert(message);
+                        }
+                    }
+                }
+                if !closed.is_empty()
+                    && let Some(FocusTarget { sender, apps }) = focus
+                {
+                    let pid = match sender {
+                        Some(sender) => connection_pid(&connection, &sender)
+                            .await
+                            .inspect_err(|e| debug!("No pid for sender {sender}: {e}"))
+                            .ok(),
+                        None => None,
+                    };
+                    if let Err(e) = compositor::focus_app_window(pid, apps, None).await {
+                        debug!("Can't focus the window of notification: {e}");
+                    }
+                }
+                CloseResult {
+                    closed,
+                    result: error.map_or(Ok(()), Err),
+                }
+            },
+            std::convert::identity,
+        ))
+    }
+
+    fn close_ui_task(
+        &self,
+        ids: impl IntoIterator<Item = u32>,
+        action: Option<String>,
+        focus: Option<FocusTarget>,
+        group: Option<String>,
+        preserve_animation: bool,
+    ) -> Task<Message> {
+        let targets = ids
+            .into_iter()
+            .map(|id| {
+                (
+                    id,
+                    self.find_notification(id)
+                        .map_or(CloseGuard::Any, |n| CloseGuard::Revision(n.revision)),
+                )
+            })
+            .collect();
+        match self.close_task(targets, action, focus) {
+            Ok(task) => task.map(move |result| Message::UiCloseFinished {
+                result,
+                group: group.clone(),
+                preserve_animation,
+            }),
+            Err(e) => {
+                error!("Failed to close notifications: {e}");
+                Task::none()
+            }
+        }
+    }
+
     fn is_blocklisted(&self, app_name: &str) -> bool {
         self.blocklist
             .iter()
@@ -246,11 +361,6 @@ impl Notifications {
 
     fn find_notification(&self, id: u32) -> Option<&Notification> {
         self.notifications.iter().find(|n| n.id == id)
-    }
-
-    fn close_guard(&self, id: u32) -> CloseGuard {
-        self.find_notification(id)
-            .map_or(CloseGuard::Any, |n| CloseGuard::Revision(n.revision))
     }
 
     /// `id`'s default action and the window it brings up; the action buttons
@@ -275,9 +385,7 @@ impl Notifications {
         action_key: Option<String>,
         focus: Option<FocusTarget>,
     ) -> Action {
-        let connection = self.connection.clone();
-        let guard = self.close_guard(id);
-        let invoke_task = invoke_and_close_task(connection, id, action_key, guard, focus);
+        let invoke_task = self.close_ui_task([id], action_key, focus, None, true);
         if !self.toasts.contains(&id) || self.dismiss_phases.contains_key(&id) {
             return Action::Task(invoke_task);
         }
@@ -313,14 +421,6 @@ impl Notifications {
         self.toasts.retain(|toast_id| !ids.contains(toast_id));
         self.toast_timers.retain(|id, _| !ids.contains(id));
         had_toasts
-    }
-
-    fn notification_ids_for_app(&self, app_name: &str) -> Vec<u32> {
-        self.notifications
-            .iter()
-            .filter(|notification| notification.app_name == app_name)
-            .map(|notification| notification.id)
-            .collect()
     }
 
     fn hide_toasts_if_empty(&self, had_toasts: bool) -> Action {
@@ -440,8 +540,54 @@ impl Notifications {
         }
     }
 
+    pub fn apply_close_result(&mut self, result: CloseResult) -> Action {
+        self.finish_close(result, None, false)
+    }
+
+    fn finish_close(
+        &mut self,
+        result: CloseResult,
+        group: Option<String>,
+        preserve_animation: bool,
+    ) -> Action {
+        let CloseResult { closed, .. } = result;
+        // Completion may arrive after a replacement: never remove that newer instance.
+        let ids = closed
+            .iter()
+            .filter(|(id, revision)| {
+                self.find_notification(*id)
+                    .is_none_or(|n| revision.is_none_or(|revision| n.revision == revision))
+            })
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        let closed: HashSet<_> = closed.into_iter().collect();
+        self.notifications.retain(|n| {
+            !closed.contains(&(n.id, Some(n.revision))) && !closed.contains(&(n.id, None))
+        });
+        // UI dismissals keep their toast until the animation completes.
+        let ids = ids
+            .into_iter()
+            .filter(|id| !preserve_animation || !self.dismiss_phases.contains_key(id))
+            .collect::<Vec<_>>();
+        let had_toasts = self.remove_toasts(&ids);
+        for id in ids {
+            self.dismiss_phases.remove(&id);
+        }
+        if let Some(group) = group {
+            self.expanded_groups.remove(&group);
+        }
+        self.hide_toasts_if_empty(had_toasts)
+    }
+
     pub fn update(&mut self, message: Message) -> Action {
         match message {
+            Message::EvictionFinished => Action::None,
+            Message::CloseFinished(result) => self.apply_close_result(result),
+            Message::UiCloseFinished {
+                result,
+                group,
+                preserve_animation,
+            } => self.finish_close(result, group, preserve_animation),
             Message::ConfigReloaded(config) => {
                 let hide = !config.toast && self.config.toast && !self.toasts.is_empty();
                 self.blocklist = config.blocklist.clone();
@@ -484,11 +630,9 @@ impl Notifications {
                 ServiceEvent::Error(_) => Action::None,
             },
             Message::NotificationClicked(id) => {
-                let connection = self.connection.clone();
                 let (action_key, focus) = self.default_action(id).unzip();
-                let guard = self.close_guard(id);
                 let close_menu = focus.is_some();
-                let task = invoke_and_close_task(connection, id, action_key, guard, focus);
+                let task = self.close_ui_task([id], action_key, focus, None, true);
                 if close_menu {
                     Action::TaskAndCloseMenu(task)
                 } else {
@@ -498,43 +642,29 @@ impl Notifications {
             Message::InvokeAction(id, action_key) => {
                 self.invoke_and_dismiss(id, Some(action_key), None)
             }
-            Message::NotificationClosed => Action::None,
             Message::ToggleDnd => {
                 self.toggle_dnd();
                 Action::None
             }
-            Message::ClearNotifications => {
-                let connection = self.connection.clone();
-                let notification_ids: Vec<u32> = self.notifications.iter().map(|n| n.id).collect();
-
-                Action::Task(Task::perform(
-                    async move {
-                        close_notification_ids(connection, &notification_ids).await;
-                    },
-                    |_| Message::NotificationsCleared,
-                ))
-            }
-            Message::NotificationsCleared => {
-                let had_toasts = self.clear_toasts();
-                self.hide_toasts_if_empty(had_toasts)
-            }
-            Message::ClearGroup(app_name) => {
-                let connection = self.connection.clone();
-                let notification_ids = self.notification_ids_for_app(&app_name);
-
-                Action::Task(Task::perform(
-                    async move {
-                        close_notification_ids(connection, &notification_ids).await;
-                        (app_name, notification_ids)
-                    },
-                    |(app_name, ids)| Message::GroupCleared(app_name, ids),
-                ))
-            }
-            Message::GroupCleared(app_name, group_ids) => {
-                self.expanded_groups.remove(&app_name);
-                let had_toasts = self.remove_toasts(&group_ids);
-                self.hide_toasts_if_empty(had_toasts)
-            }
+            Message::ClearNotifications => Action::Task(self.close_ui_task(
+                self.notifications.iter().map(|n| n.id),
+                None,
+                None,
+                None,
+                false,
+            )),
+            Message::ClearGroup(app_name) => Action::Task(
+                self.close_ui_task(
+                    self.notifications
+                        .iter()
+                        .filter(|n| n.app_name == app_name)
+                        .map(|n| n.id),
+                    None,
+                    None,
+                    Some(app_name.clone()),
+                    false,
+                ),
+            ),
             Message::ToggleGroup(app_name) => {
                 if !self.expanded_groups.remove(&app_name) {
                     self.expanded_groups.insert(app_name);
@@ -572,12 +702,10 @@ impl Notifications {
                 }
             }
             Message::CloseNotificationById(id) => {
-                let connection = self.connection.clone();
-                let guard = self.close_guard(id);
                 let had_toasts = self.remove_toast(id);
                 self.dismiss_phases.remove(&id);
 
-                let task = invoke_and_close_task(connection, id, None, guard, None);
+                let task = self.close_ui_task([id], None, None, None, false);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
             Message::DismissToast(id) => {

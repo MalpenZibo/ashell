@@ -33,6 +33,11 @@ pub enum Message {
     // OSD and IPC
     Osd(osd::Message),
     IpcOsdCommand(IpcCommand),
+    Ipc(IpcRequest),
+    IpcNotificationsFinished {
+        result: modules::notifications::CloseResult,
+        reply: IpcReply,
+    },
 
     // System events
     OutputEvent(OutputEvent),
