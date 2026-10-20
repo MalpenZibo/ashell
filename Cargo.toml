@@ -63,6 +63,7 @@ depends = [
 [dependencies]
 ashell-services = { path = "crates/ashell-services", features = [
   "bluetooth",
+  "brightness",
   "privacy",
   "rfkill",
   "serde",
@@ -96,7 +97,6 @@ itertools = "0.15"
 unicode-segmentation = "1.13.2"
 hex_color = { version = "3", features = ["serde"] }
 anyhow.workspace = true
-udev = { version = "0.9", features = ["send", "sync"] }
 toml = "1"
 serde_ignored = "0.1"
 freedesktop-icons = "0.4"
