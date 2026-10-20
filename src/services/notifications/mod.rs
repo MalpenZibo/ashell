@@ -160,18 +160,7 @@ fn resolve_candidate(candidate: String) -> Option<PathBuf> {
     }
 
     let name = candidate.strip_suffix(".desktop").unwrap_or(&candidate);
-    freedesktop_lookup(name)
-}
-
-fn freedesktop_lookup(name: &str) -> Option<PathBuf> {
-    let base = freedesktop_icons::lookup(name).with_cache();
-    match xdg_icons::icon_theme() {
-        Some(theme) => base
-            .with_theme(theme)
-            .find()
-            .or_else(|| freedesktop_icons::lookup(name).with_cache().find()),
-        None => base.find(),
-    }
+    xdg_icons::find_icon_path(name)
 }
 
 #[derive(Debug, Clone)]

@@ -100,7 +100,6 @@ hex_color = { version = "3", features = ["serde"] }
 anyhow.workspace = true
 toml = "1"
 serde_ignored = "0.1"
-freedesktop-icons = "0.4"
 serde_json = "1"
 regex = "1.12.2"
 serde_with = { version = "3.12", default-features = false, features = [

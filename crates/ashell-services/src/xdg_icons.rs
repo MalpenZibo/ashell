@@ -120,7 +120,7 @@ pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
 }
 
 fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
-    if let Some(path) = find_icon_path(icon_name) {
+    if let Some(path) = theme_icon_path(icon_name) {
         debug!("icon '{icon_name}': direct match at {path:?}");
         return icon_from_path(path);
     }
@@ -129,7 +129,7 @@ fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
     if let Some(candidates) = find_similar_icon(icon_name) {
         for candidate in candidates {
             debug!("icon '{icon_name}': similar candidate '{candidate}'");
-            if let Some(path) = find_icon_path(&candidate) {
+            if let Some(path) = theme_icon_path(&candidate) {
                 return icon_from_path(path);
             }
         }
@@ -143,7 +143,7 @@ fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
     debug!("icon '{icon_name}': no desktop index match");
 
     if let Some(prefix_candidate) = prefix_match_icon(icon_name)
-        && let Some(path) = find_icon_path(&prefix_candidate)
+        && let Some(path) = theme_icon_path(&prefix_candidate)
     {
         debug!("icon '{icon_name}': prefix match '{prefix_candidate}' at {path:?}");
         return icon_from_path(path);
@@ -165,7 +165,18 @@ fn icon_from_path(path: PathBuf) -> Option<XdgIcon> {
     }
 }
 
-fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
+/// The path of `icon_name` in the icon theme, without the fallbacks of
+/// [`get_icon_from_name`]: no fuzzy, `.desktop` or prefix matching.
+pub fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
+    if !is_safe_icon_name(icon_name) {
+        debug!("icon '{icon_name}': rejected as unsafe name");
+        return None;
+    }
+
+    theme_icon_path(icon_name)
+}
+
+fn theme_icon_path(icon_name: &str) -> Option<PathBuf> {
     let base_lookup = lookup(icon_name).with_cache();
 
     match icon_theme() {
@@ -281,7 +292,7 @@ fn find_desktop_icon(icon_name: &str) -> Option<PathBuf> {
             None
         }
     } else {
-        find_icon_path(icon_value)
+        theme_icon_path(icon_value)
     }
 }
 
@@ -448,7 +459,8 @@ fn icon_directories() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        get_icon_from_name, is_safe_icon_name, normalize_icon_name, strip_icon_separators,
+        find_icon_path, get_icon_from_name, is_safe_icon_name, normalize_icon_name,
+        strip_icon_separators,
     };
 
     #[test]
@@ -492,6 +504,13 @@ mod tests {
         assert!(get_icon_from_name("../../etc/passwd").is_none());
         assert!(get_icon_from_name("/etc/passwd").is_none());
         assert!(get_icon_from_name("").is_none());
+    }
+
+    #[test]
+    fn find_icon_path_rejects_unsafe_names() {
+        assert!(find_icon_path("../../etc/passwd").is_none());
+        assert!(find_icon_path("/etc/passwd").is_none());
+        assert!(find_icon_path("").is_none());
     }
 
     #[test]

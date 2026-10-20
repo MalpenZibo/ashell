@@ -2,7 +2,7 @@ use crate::components::icons::StaticIcon;
 use ashell_services::xdg_icons;
 use iced::widget::{image, svg};
 
-pub use ashell_services::xdg_icons::{icon_theme, warm_cache_async};
+pub use ashell_services::xdg_icons::{find_icon_path, warm_cache_async};
 
 #[derive(Debug, Clone)]
 pub enum XdgIcon {

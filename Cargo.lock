@@ -146,7 +146,6 @@ dependencies = [
  "clap",
  "flexi_logger",
  "fontdb",
- "freedesktop-icons",
  "hex_color",
  "hyprland",
  "i18n-embed",
