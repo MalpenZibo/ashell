@@ -72,7 +72,7 @@ fn pixmap_to_icon(icons: Vec<dbus::Icon>) -> Option<TrayIcon> {
 }
 
 async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Option<TrayIcon> {
-    if let Ok(icons) = item_proxy.icon_pixmap().await
+    if let Ok(icons) = dbus::icon_pixmap(item_proxy, "IconPixmap").await
         && let Some(icon) = pixmap_to_icon(icons)
     {
         return Some(icon);
@@ -89,7 +89,7 @@ async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Op
 async fn current_attention_icon_from_proxy(
     item_proxy: &StatusNotifierItemProxy<'_>,
 ) -> Option<TrayIcon> {
-    if let Ok(icons) = item_proxy.attention_icon_pixmap().await
+    if let Ok(icons) = dbus::icon_pixmap(item_proxy, "AttentionIconPixmap").await
         && let Some(icon) = pixmap_to_icon(icons)
     {
         return Some(icon);
@@ -148,12 +148,19 @@ impl StatusNotifierItem {
     pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
         let (dest, path) = dbus::split_service_name(&name);
 
-        // Keep property caching enabled: `receive_icon_name_changed` and
-        // `receive_icon_pixmap_changed` are `PropertyStream`s and yield
-        // nothing when the proxy has no property cache.
+        // Keep property caching enabled: `receive_icon_name_changed` is a
+        // `PropertyStream` and yields nothing when the proxy has no property
+        // cache. Pixmaps stay out of it: zbus caches an `ay` as one `Value`
+        // per byte, 64 bytes each, so a 256x256 icon would hold ~17 MB.
         let item_proxy = StatusNotifierItemProxy::builder(conn)
             .destination(dest.to_owned())
             .path(path.to_owned())
+            .uncached_properties(&[
+                "IconPixmap",
+                "AttentionIconPixmap",
+                "OverlayIconPixmap",
+                "ToolTip",
+            ])
             .build()
             .await?;
 
@@ -289,16 +296,31 @@ impl TrayService {
         for name in items {
             let item = StatusNotifierItem::new(conn, name.to_string()).await?;
 
+            let (dest, path) = dbus::split_service_name(&name);
+            let properties = zbus::fdo::PropertiesProxy::builder(conn)
+                .destination(dest.to_owned())
+                .path(path.to_owned())
+                .build()
+                .await?;
             icon_pixel_change.push(
-                item.item_proxy
-                    .receive_icon_pixmap_changed()
-                    .await
+                properties
+                    .receive_properties_changed()
+                    .await?
                     .filter_map({
                         let name = name.clone();
-                        move |icon| {
+                        let item_proxy = item.item_proxy.clone();
+                        move |changed| {
                             let name = name.clone();
+                            let item_proxy = item_proxy.clone();
                             async move {
-                                let icons = icon.get().await.ok()?;
+                                let args = changed.args().ok()?;
+                                if !args.changed_properties().contains_key("IconPixmap")
+                                    && !args.invalidated_properties().contains(&"IconPixmap")
+                                {
+                                    return None;
+                                }
+                                let icons =
+                                    dbus::icon_pixmap(&item_proxy, "IconPixmap").await.ok()?;
                                 pixmap_to_icon(icons)
                                     .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
                             }

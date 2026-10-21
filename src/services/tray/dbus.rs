@@ -333,6 +333,28 @@ pub struct Icon {
     pub bytes: Vec<u8>,
 }
 
+/// Reads a pixmap property straight into [`Icon`]s. The generated getter
+/// goes through a `Value` per byte, which for a 256x256 icon peaks at ~42 MB.
+pub async fn icon_pixmap(
+    item_proxy: &StatusNotifierItemProxy<'_>,
+    property: &str,
+) -> Result<Vec<Icon>> {
+    let proxy = item_proxy.inner();
+    let reply = proxy
+        .connection()
+        .call_method(
+            Some(proxy.destination()),
+            proxy.path(),
+            Some("org.freedesktop.DBus.Properties"),
+            "Get",
+            &(proxy.interface(), property),
+        )
+        .await?;
+    let body = reply.body();
+    let icons: zbus::zvariant::as_value::Deserialize<Vec<Icon>> = body.deserialize()?;
+    Ok(icons.0)
+}
+
 /// Service names are `<unique-sender>/<object-path>` for method-registered
 /// items, or a bare path; split off the sender.
 pub(crate) fn split_service_name(name: &str) -> (&str, &str) {
@@ -348,9 +370,6 @@ pub trait StatusNotifierItem {
     fn icon_name(&self) -> zbus::Result<String>;
 
     #[zbus(property)]
-    fn icon_pixmap(&self) -> zbus::Result<Vec<Icon>>;
-
-    #[zbus(property)]
     fn menu(&self) -> zbus::Result<OwnedObjectPath>;
 
     #[zbus(property)]
@@ -358,9 +377,6 @@ pub trait StatusNotifierItem {
 
     #[zbus(property)]
     fn attention_icon_name(&self) -> zbus::Result<String>;
-
-    #[zbus(property)]
-    fn attention_icon_pixmap(&self) -> zbus::Result<Vec<Icon>>;
 
     #[zbus(signal)]
     async fn new_icon(&self) -> zbus::Result<()>;
