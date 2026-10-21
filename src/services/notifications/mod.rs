@@ -60,35 +60,54 @@ struct HintImageData {
     image_bytes: Vec<u8>,
 }
 
+impl HintImageData {
+    /// Repacks the rows into the tight RGBA buffer iced expects. The hint is
+    /// GdkPixbuf's memory layout: rows start `rowstride` bytes apart, aligned
+    /// to 4 bytes (so RGB rows are padded unless the width is a multiple of 4),
+    /// and the last row is unpadded.
+    fn to_rgba(&self) -> Option<Vec<u8>> {
+        let channels = match (self.has_alpha, self.channels) {
+            (true, 4) => 4,
+            (false, 3) => 3,
+            _ => return None,
+        };
+        let width = usize::try_from(self.width).ok()?;
+        let height = usize::try_from(self.height).ok()?;
+        let rowstride = usize::try_from(self.rowstride).ok()?;
+        let row_len = width.checked_mul(channels)?;
+        if self.bits_per_sample != 8 || width == 0 || height == 0 || rowstride < row_len {
+            return None;
+        }
+        let needed = rowstride.checked_mul(height - 1)?.checked_add(row_len)?;
+        if self.image_bytes.len() < needed {
+            return None;
+        }
+
+        let mut rgba = Vec::with_capacity(width.checked_mul(height)?.checked_mul(4)?);
+        for row in self.image_bytes.chunks(rowstride).take(height) {
+            let row = &row[..row_len];
+            if channels == 4 {
+                rgba.extend_from_slice(row);
+            } else {
+                rgba.extend(
+                    row.as_chunks::<3>()
+                        .0
+                        .iter()
+                        .flat_map(|[r, g, b]| [*r, *g, *b, 255_u8]),
+                );
+            }
+        }
+        Some(rgba)
+    }
+}
+
 fn try_icon_from_hints(hints: &HashMap<String, OwnedVariant>) -> Option<NotificationIcon> {
     if let Some(image_data) = hints
         .get("image-data")
         .or(hints.get("image_data"))
         .or(hints.get("icon_data"))
         && let Ok(hint_image_data) = HintImageData::try_from(image_data.clone())
-        && let Some(bytes) = if hint_image_data.has_alpha && hint_image_data.channels == 4 {
-            Some(hint_image_data.image_bytes)
-        } else if !hint_image_data.has_alpha && hint_image_data.channels == 3 {
-            Some(
-                hint_image_data
-                    .image_bytes
-                    .as_chunks::<3>()
-                    .0
-                    .iter()
-                    .flat_map(|[r, g, b]| [*r, *g, *b, 255_u8])
-                    .collect(),
-            )
-        } else {
-            None
-        }
-        && hint_image_data.width > 0
-        && hint_image_data.height > 0
-        && let Some(expected_len) = hint_image_data
-            .width
-            .checked_mul(hint_image_data.height)
-            .and_then(|pixels| pixels.checked_mul(4))
-            .map(|len| len as usize)
-        && bytes.len() == expected_len
+        && let Some(bytes) = hint_image_data.to_rgba()
     {
         Some(NotificationIcon::Image(
             iced::advanced::image::Handle::from_rgba(
@@ -231,5 +250,63 @@ impl ReadOnlyService for NotificationsService {
                 }
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hint(
+        width: i32,
+        height: i32,
+        rowstride: i32,
+        channels: i32,
+        bytes: Vec<u8>,
+    ) -> HintImageData {
+        HintImageData {
+            width,
+            height,
+            rowstride,
+            has_alpha: channels == 4,
+            bits_per_sample: 8,
+            channels,
+            image_bytes: bytes,
+        }
+    }
+
+    #[test]
+    fn rgb_rows_skip_padding_and_last_row_may_be_unpadded() {
+        // 3x2 RGB, rows padded from 9 to 12 bytes, last row unpadded.
+        let mut bytes: Vec<u8> = (1..=9).collect();
+        bytes.extend([0, 0, 0]);
+        bytes.extend(10..=18);
+        let rgba = hint(3, 2, 12, 3, bytes).to_rgba().unwrap();
+        assert_eq!(
+            rgba,
+            [
+                1, 2, 3, 255, 4, 5, 6, 255, 7, 8, 9, 255, 10, 11, 12, 255, 13, 14, 15, 255, 16, 17,
+                18, 255
+            ]
+        );
+    }
+
+    #[test]
+    fn rgba_tight_rows_pass_through() {
+        let bytes: Vec<u8> = (0..16).collect();
+        assert_eq!(hint(2, 2, 8, 4, bytes.clone()).to_rgba().unwrap(), bytes);
+    }
+
+    #[test]
+    fn rejects_empty_short_or_inconsistent_images() {
+        assert!(hint(0, 0, 0, 4, vec![]).to_rgba().is_none());
+        assert!(hint(2, 2, 8, 4, vec![0; 15]).to_rgba().is_none());
+        assert!(hint(2, 2, 7, 4, vec![0; 16]).to_rgba().is_none());
+        assert!(hint(-1, 2, 8, 4, vec![0; 16]).to_rgba().is_none());
+        assert!(
+            hint(i32::MAX, i32::MAX, i32::MAX, 4, vec![0; 16])
+                .to_rgba()
+                .is_none()
+        );
     }
 }
