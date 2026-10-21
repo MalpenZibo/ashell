@@ -189,7 +189,14 @@ fn get_system_info(
     system.refresh_memory();
     system.refresh_cpu_all();
 
-    components.refresh(true);
+    // Only the sensor in use: reading every hwmon sensor takes tens of ms.
+    match cached_sensor_label.as_deref() {
+        Some(label) => components
+            .iter_mut()
+            .filter(|c| c.label() == label)
+            .for_each(|c| c.refresh()),
+        None => components.refresh(true),
+    }
     networks.refresh(true);
 
     let cpus = system.cpus();
@@ -249,6 +256,7 @@ fn get_system_info(
         if reading.is_none() {
             if let Some(label) = (*cached_sensor_label).take() {
                 warn!("Cached sensor '{}' invalid; re-detecting", label);
+                components.refresh(true);
             }
             *cached_sensor_label = get_temperature_sensor_label(sensor, components);
             reading = cached_sensor_label.as_ref().and_then(|label| {
