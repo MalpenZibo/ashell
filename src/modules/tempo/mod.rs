@@ -50,7 +50,7 @@ const TWELVE_HOUR_SPECIFIERS: [&str; 5] = [
     "%r", // 12-hour clock time
 ];
 
-/// Weather times used when `weather_time_format` is unset, picked to match
+/// Weather times in the menu, picked to match
 /// the clock's hour cycle. Hourly forecast entries always fall on the hour,
 /// so the 12-hour variant drops the minutes there.
 const WEATHER_TIME_FORMAT_12H: &str = "%-I:%M %p";
@@ -167,10 +167,10 @@ impl Tempo {
     }
 
     fn weather_format(&self, twelve_hour: &'static str) -> &str {
-        match &self.config.weather_time_format {
-            Some(format) => format,
-            None if uses_twelve_hour(self.current_format()) => twelve_hour,
-            None => WEATHER_TIME_FORMAT_24H,
+        if uses_twelve_hour(self.current_format()) {
+            twelve_hour
+        } else {
+            WEATHER_TIME_FORMAT_24H
         }
     }
 

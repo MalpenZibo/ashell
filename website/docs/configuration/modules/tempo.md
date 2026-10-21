@@ -28,7 +28,10 @@ forecast, and a seven-day outlook.
 | `weather_location`  | `enum`   | *unset*              | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place. Use `Coordinates` to specify exact latitude and longitude. |
 | `weather_indicator` | `enum`   | `IconAndTemperature` | Determines what information about the weather is shown in the bar, valid options are `None`, `Icon`, and `IconAndTemperature`.                                                                                                                   |
 | `wind_speed_unit`   | `string` | *unset*              | Override wind speed unit for both display and API requests. Options: `"Kmh"`, `"Mph"`, `"Ms"`. When omitted, derives from locale (Metric → `Kmh`, Imperial → `Mph`). Temperature unit is not affected.                                           |
-| `weather_time_format` | `string` | *unset*            | Strftime-compatible format for the hourly forecast and the weather update time. When omitted, follows the clock: if the active clock format uses a 12-hour specifier (`%I`, `%l`, `%p`, `%P`, `%r`), the forecast uses `%-I %p` and the update time `%-I:%M %p`, otherwise both use `%H:%M`. |
+
+The weather times in the menu follow the clock's 12/24-hour format. When the active clock format uses a 12-hour specifier
+(`%I`, `%l`, `%p`, `%P` or `%r`), the hourly forecast shows `9 PM` and the update time `9:15 PM`. Otherwise both use
+`%H:%M`.
 
 ### City-based weather
 
@@ -149,7 +152,6 @@ weather_indicator = "IconAndTemperature"
 # timezones = []
 # weather_location is unset by default: omit the key to run clock-only
 # wind_speed_unit is unset by default: omit the key to follow the locale
-# weather_time_format is unset by default: omit the key to follow the clock
 ```
 
 :::warning

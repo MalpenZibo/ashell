@@ -158,7 +158,6 @@ clock_format = "%a %d %b %R"
 # weather_location = "Current"
 weather_indicator = "IconAndTemperature"  # (default), "Icon", or "None"
 # wind_speed_unit = "Kmh"   # (default: None = derive from locale) "Kmh", "Mph", or "Ms"
-# weather_time_format = "%H:%M"  # (default: None = follow the clock's 12/24-hour format)
 
 # ── Notifications ─────────────────────────────────────────────────────────────
 

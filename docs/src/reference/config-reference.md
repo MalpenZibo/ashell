@@ -186,7 +186,6 @@ timezones = ["America/New_York", "Europe/London"]
 weather_location = { City = "Rome" }   # "Current", { City = "..." } or { Coordinates = [lat, lon] }; omit to disable weather
 weather_indicator = "IconAndTemperature"  # "IconAndTemperature", "Icon" or "None"
 wind_speed_unit = "Kmh"                # Optional: "Kmh", "Mph" or "Ms"; defaults from the unit system
-weather_time_format = "%H:%M"          # Optional: forecast and update times; defaults to the clock's 12/24-hour format
 ```
 
 ## Notifications Module

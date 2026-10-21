@@ -535,8 +535,6 @@ pub struct TempoModuleConfig {
     pub weather_indicator: WeatherIndicator,
     #[serde(default)]
     pub wind_speed_unit: Option<WindSpeedUnit>,
-    #[serde(default)]
-    pub weather_time_format: Option<String>,
 }
 
 impl TempoModuleConfig {
@@ -630,7 +628,6 @@ impl Default for TempoModuleConfig {
             weather_location: None,
             weather_indicator: WeatherIndicator::IconAndTemperature,
             wind_speed_unit: None,
-            weather_time_format: None,
         }
     }
 }
