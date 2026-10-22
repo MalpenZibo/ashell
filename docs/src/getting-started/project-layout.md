@@ -100,7 +100,7 @@ src/
 │   │   ├── mod.rs            # System tray service
 │   │   └── dbus.rs           # StatusNotifierItem D-Bus proxies
 │   ├── upower.rs            # iced glue for the ashell-services UPower service
-│   ├── privacy.rs           # Privacy monitoring (PipeWire)
+│   ├── privacy.rs           # iced glue for the ashell-services privacy service
 │   ├── idle_inhibitor.rs    # Idle/sleep prevention
 │   ├── logind.rs            # systemd-logind (sleep/wake detection)
 │   └── xdg_icons.rs         # XDG icon theme lookup and caching
