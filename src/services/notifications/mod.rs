@@ -81,7 +81,14 @@ fn try_icon_from_hints(hints: &HashMap<String, OwnedVariant>) -> Option<Notifica
         } else {
             None
         }
-        && bytes.len() == (hint_image_data.width * hint_image_data.height * 4) as usize
+        && hint_image_data.width > 0
+        && hint_image_data.height > 0
+        && let Some(expected_len) = hint_image_data
+            .width
+            .checked_mul(hint_image_data.height)
+            .and_then(|pixels| pixels.checked_mul(4))
+            .map(|len| len as usize)
+        && bytes.len() == expected_len
     {
         Some(NotificationIcon::Image(
             iced::advanced::image::Handle::from_rgba(

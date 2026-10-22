@@ -509,7 +509,13 @@ impl Notifications {
                     if let NotificationEvent::Received(notification) = &update_event
                         && self.is_blocklisted(&notification.app_name)
                     {
-                        return Action::None;
+                        // The UI never shows it, so nothing else would close it
+                        // and the daemon would keep its revision tracked for the
+                        // lifetime of the process. Dismiss it at the source.
+                        return Action::Task(evict_task(
+                            self.connection.clone(),
+                            vec![(notification.id, notification.revision)],
+                        ));
                     }
 
                     let suppress_toast = self.dnd
