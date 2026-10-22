@@ -2,6 +2,7 @@ mod animated_size;
 pub mod button;
 mod centerbox;
 pub mod collapsible;
+pub mod countdown_bar;
 mod format_indicator;
 pub mod icons;
 pub mod menu;

@@ -1,5 +1,6 @@
 use crate::{
     components::collapsible::{self, collapsible},
+    components::countdown_bar::{Countdown, countdown_bar},
     components::icons::{StaticIcon, icon, icon_button},
     components::scrollable,
     components::slide::{self, SlideDirection, slide},
@@ -191,6 +192,8 @@ impl Action {
     }
 }
 
+const COUNTDOWN_BAR_HEIGHT: f32 = 3.0;
+
 // Must match the widget durations so task delays align with animation end.
 const SLIDE_ANIMATION: Duration = slide::DEFAULT_DURATION;
 const COLLAPSE_ANIMATION: Duration = collapsible::DEFAULT_DURATION;
@@ -205,9 +208,12 @@ enum DismissPhase {
 enum ToastTimer {
     Running {
         deadline: Instant,
+        total: Duration,
     },
     Paused {
         remaining: Duration,
+        total: Duration,
+        /// Latest time an `ExpireToast` already in flight lands, if any.
         wakeup: Option<Instant>,
     },
 }
@@ -215,8 +221,19 @@ enum ToastTimer {
 impl ToastTimer {
     fn wakeup(self) -> Option<Instant> {
         match self {
-            Self::Running { deadline } => Some(deadline),
+            Self::Running { deadline, .. } => Some(deadline),
             Self::Paused { wakeup, .. } => wakeup,
+        }
+    }
+}
+
+impl From<ToastTimer> for Countdown {
+    fn from(timer: ToastTimer) -> Self {
+        match timer {
+            ToastTimer::Running { deadline, total } => Self::Running { deadline, total },
+            ToastTimer::Paused {
+                remaining, total, ..
+            } => Self::Paused { remaining, total },
         }
     }
 }
@@ -416,14 +433,20 @@ impl Notifications {
                             notification.id,
                             ToastTimer::Paused {
                                 remaining: timeout,
+                                total: timeout,
                                 wakeup: previous.and_then(ToastTimer::wakeup),
                             },
                         );
                         Task::none()
                     } else {
                         let deadline = Instant::now() + timeout;
-                        self.toast_timers
-                            .insert(notification.id, ToastTimer::Running { deadline });
+                        self.toast_timers.insert(
+                            notification.id,
+                            ToastTimer::Running {
+                                deadline,
+                                total: timeout,
+                            },
+                        );
                         if needs_wakeup(previous, deadline) {
                             delayed_toast_message(timeout, notification.id, Message::ExpireToast)
                         } else {
@@ -597,7 +620,7 @@ impl Notifications {
                     return Action::None;
                 };
                 let deadline = match timer {
-                    ToastTimer::Running { deadline } => *deadline,
+                    ToastTimer::Running { deadline, .. } => *deadline,
                     ToastTimer::Paused { wakeup, .. } => {
                         *wakeup = None;
                         return Action::None;
@@ -675,9 +698,10 @@ impl Notifications {
 
                 let now = Instant::now();
                 for timer in self.toast_timers.values_mut() {
-                    if let ToastTimer::Running { deadline } = *timer {
+                    if let ToastTimer::Running { deadline, total } = *timer {
                         *timer = ToastTimer::Paused {
                             remaining: deadline.saturating_duration_since(now),
+                            total,
                             wakeup: Some(deadline),
                         };
                     }
@@ -696,11 +720,14 @@ impl Notifications {
                     .iter_mut()
                     .filter_map(|(&id, timer)| {
                         let previous = *timer;
-                        let ToastTimer::Paused { remaining, .. } = previous else {
+                        let ToastTimer::Paused {
+                            remaining, total, ..
+                        } = previous
+                        else {
                             return None;
                         };
                         let deadline = now + remaining;
-                        *timer = ToastTimer::Running { deadline };
+                        *timer = ToastTimer::Running { deadline, total };
                         needs_wakeup(Some(previous), deadline)
                             .then(|| delayed_toast_message(remaining, id, Message::ExpireToast))
                     })
@@ -774,6 +801,14 @@ impl Notifications {
         }
     }
 
+    fn toast_countdown(&self, id: u32, toast: bool) -> Option<Countdown> {
+        if !toast || !self.config.toast_timeout_bar {
+            return None;
+        }
+
+        self.toast_timers.get(&id).copied().map(Countdown::from)
+    }
+
     fn notification_card<'a>(
         &'a self,
         notification: &'a Notification,
@@ -845,7 +880,17 @@ impl Notifications {
         let actions_row = Self::action_buttons(notification)
             .map(|row| row.padding(Padding::new(space.xs).top(0.)));
 
-        button(column!(card, actions_row))
+        let countdown = self
+            .toast_countdown(notification.id, toast)
+            .map(|countdown| {
+                countdown_bar(
+                    countdown,
+                    COUNTDOWN_BAR_HEIGHT,
+                    use_theme(|t| t.palette.primary),
+                )
+            });
+
+        button(column!(card, actions_row, countdown))
             .on_press(on_press)
             .width(Length::Fill)
             .padding(space.xxs)
@@ -1171,5 +1216,83 @@ impl Notifications {
 
     pub fn toast_position(&self) -> ToastPosition {
         self.config.toast_position
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Message, Notifications, ToastTimer};
+    use crate::{
+        config::NotificationsModuleConfig,
+        services::{
+            ServiceEvent,
+            notifications::dbus::{Notification, NotificationEvent, Urgency},
+        },
+    };
+    use std::time::{Duration, Instant, SystemTime};
+
+    fn notification(id: u32, expire_timeout: i32) -> Notification {
+        Notification {
+            id,
+            revision: 0,
+            app_name: "test".to_string(),
+            app_icon: String::new(),
+            summary: "summary".to_string(),
+            body: String::new(),
+            actions: vec![],
+            desktop_entry: None,
+            expire_timeout,
+            timestamp: SystemTime::now(),
+            urgency: Urgency::Normal,
+            sender: None,
+            icon: None,
+        }
+    }
+
+    fn receive(module: &mut Notifications, notification: Notification) {
+        let _ = module.update(Message::Event(ServiceEvent::Update(
+            NotificationEvent::Received(Box::new(notification)),
+        )));
+    }
+
+    #[test]
+    fn hover_pause_and_resume_keep_the_total() {
+        let mut module = Notifications::new(NotificationsModuleConfig::default(), false);
+        receive(&mut module, notification(1, 10_000));
+
+        let _ = module.update(Message::ToastsHovered);
+        let Some(&ToastTimer::Paused {
+            remaining, total, ..
+        }) = module.toast_timers.get(&1)
+        else {
+            panic!("hovering pauses the timer");
+        };
+        assert_eq!(total, Duration::from_secs(10));
+        assert!(remaining <= total);
+
+        let _ = module.update(Message::ToastsUnhovered);
+        let Some(&ToastTimer::Running { deadline, total }) = module.toast_timers.get(&1) else {
+            panic!("leaving resumes the timer");
+        };
+        assert_eq!(total, Duration::from_secs(10));
+        assert!(deadline.saturating_duration_since(Instant::now()) <= remaining);
+    }
+
+    #[test]
+    fn replace_while_hovered_takes_the_new_total() {
+        let mut module = Notifications::new(NotificationsModuleConfig::default(), false);
+        receive(&mut module, notification(1, 10_000));
+        let _ = module.update(Message::ToastsHovered);
+
+        receive(&mut module, notification(1, 2_000));
+
+        let Some(&ToastTimer::Paused {
+            remaining, total, ..
+        }) = module.toast_timers.get(&1)
+        else {
+            panic!("a replace while hovered starts paused");
+        };
+        assert_eq!(remaining, Duration::from_secs(2));
+        assert_eq!(total, Duration::from_secs(2));
     }
 }

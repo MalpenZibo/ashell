@@ -202,6 +202,7 @@ toast_timeout = 5000                   # Milliseconds
 toast_limit = 5
 toast_max_height = 150
 history_limit = 200                    # Notifications kept in the menu, 1..=1000
+toast_timeout_bar = false              # Shrinking countdown bar on toasts
 blocklist = ["^Spotify$"]              # Regexes matched against the app name
 ```
 
