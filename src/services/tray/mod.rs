@@ -72,7 +72,7 @@ fn pixmap_to_icon(icons: Vec<dbus::Icon>) -> Option<TrayIcon> {
 }
 
 async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Option<TrayIcon> {
-    if let Ok(icons) = dbus::icon_pixmap(item_proxy, "IconPixmap").await
+    if let Ok(icons) = item_proxy.icon_pixmap().await
         && let Some(icon) = pixmap_to_icon(icons)
     {
         return Some(icon);
@@ -89,7 +89,7 @@ async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Op
 async fn current_attention_icon_from_proxy(
     item_proxy: &StatusNotifierItemProxy<'_>,
 ) -> Option<TrayIcon> {
-    if let Ok(icons) = dbus::icon_pixmap(item_proxy, "AttentionIconPixmap").await
+    if let Ok(icons) = item_proxy.attention_icon_pixmap().await
         && let Some(icon) = pixmap_to_icon(icons)
     {
         return Some(icon);
@@ -148,19 +148,12 @@ impl StatusNotifierItem {
     pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
         let (dest, path) = dbus::split_service_name(&name);
 
-        // Keep property caching enabled: `receive_icon_name_changed` is a
-        // `PropertyStream` and yields nothing when the proxy has no property
-        // cache. Pixmaps stay out of it: zbus caches an `ay` as one `Value`
-        // per byte, 64 bytes each, so a 256x256 icon would hold ~17 MB.
+        // No cache: its `GetAll` would decode every pixmap the item has, and
+        // NewIcon, NewAttentionIcon and NewStatus come without a PropertiesChanged.
         let item_proxy = StatusNotifierItemProxy::builder(conn)
             .destination(dest.to_owned())
             .path(path.to_owned())
-            .uncached_properties(&[
-                "IconPixmap",
-                "AttentionIconPixmap",
-                "OverlayIconPixmap",
-                "ToolTip",
-            ])
+            .cache_properties(zbus::proxy::CacheProperties::No)
             .build()
             .await?;
 
@@ -286,8 +279,7 @@ impl TrayService {
             .boxed();
 
         let items = watcher.registered_status_notifier_items().await?;
-        let mut icon_pixel_change = Vec::with_capacity(items.len());
-        let mut icon_name_change = Vec::with_capacity(items.len());
+        let mut icon_change = Vec::with_capacity(items.len());
         let mut new_icon_change = Vec::with_capacity(items.len());
         let mut attention_icon_change = Vec::with_capacity(items.len());
         let mut menu_layout_change = Vec::with_capacity(items.len());
@@ -296,54 +288,29 @@ impl TrayService {
         for name in items {
             let item = StatusNotifierItem::new(conn, name.to_string()).await?;
 
-            let (dest, path) = dbus::split_service_name(&name);
-            let properties = zbus::fdo::PropertiesProxy::builder(conn)
-                .destination(dest.to_owned())
-                .path(path.to_owned())
-                .build()
-                .await?;
-            icon_pixel_change.push(
+            // Clients that update IconName or IconPixmap as properties. The signal
+            // only triggers a fresh read: an arg filter, or its args, would decode a
+            // pixmap it carries one `Variant` per byte.
+            let item_inner = item.item_proxy.inner();
+            let properties = zbus::fdo::PropertiesProxy::new(
+                conn,
+                item_inner.destination().to_owned(),
+                item_inner.path().to_owned(),
+            )
+            .await?;
+            icon_change.push(
                 properties
                     .receive_properties_changed()
                     .await?
                     .filter_map({
                         let name = name.clone();
                         let item_proxy = item.item_proxy.clone();
-                        move |changed| {
+                        move |_| {
                             let name = name.clone();
                             let item_proxy = item_proxy.clone();
                             async move {
-                                let args = changed.args().ok()?;
-                                if !args.changed_properties().contains_key("IconPixmap")
-                                    && !args.invalidated_properties().contains(&"IconPixmap")
-                                {
-                                    return None;
-                                }
-                                let icons =
-                                    dbus::icon_pixmap(&item_proxy, "IconPixmap").await.ok()?;
-                                pixmap_to_icon(icons)
-                                    .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
-                            }
-                        }
-                    })
-                    .boxed(),
-            );
-
-            icon_name_change.push(
-                item.item_proxy
-                    .receive_icon_name_changed()
-                    .await
-                    .filter_map({
-                        let name = name.clone();
-                        move |icon_name| {
-                            let name = name.clone();
-                            async move {
-                                icon_name
-                                    .get()
+                                current_icon_from_proxy(&item_proxy)
                                     .await
-                                    .ok()
-                                    .as_deref()
-                                    .and_then(xdg_icons::get_icon_from_name)
                                     .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
                             }
                         }
@@ -371,27 +338,18 @@ impl TrayService {
 
             let new_icon = item.item_proxy.receive_new_icon().await;
             if let Ok(new_icon) = new_icon {
-                let (dest, path) = dbus::split_service_name(&name);
-                // NewIcon has no matching PropertiesChanged, so a cached read would be stale;
-                let uncached_proxy = StatusNotifierItemProxy::builder(conn)
-                    .destination(dest.to_owned())
-                    .path(path.to_owned())
-                    .cache_properties(zbus::proxy::CacheProperties::No)
-                    .build()
-                    .await?;
-
                 new_icon_change.push(
                     new_icon
                         .filter_map({
                             let name = name.clone();
-                            let uncached_proxy = uncached_proxy;
+                            let item_proxy = item.item_proxy.clone();
 
                             move |_| {
                                 let name = name.clone();
-                                let uncached_proxy = uncached_proxy.clone();
+                                let item_proxy = item_proxy.clone();
 
                                 async move {
-                                    current_icon_from_proxy(&uncached_proxy)
+                                    current_icon_from_proxy(&item_proxy)
                                         .await
                                         .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
                                 }
@@ -403,30 +361,22 @@ impl TrayService {
 
             let new_attention_icon = item.item_proxy.receive_new_attention_icon().await;
             if let Ok(new_attention_icon) = new_attention_icon {
-                let (dest, path) = dbus::split_service_name(&name);
-                let uncached_proxy = StatusNotifierItemProxy::builder(conn)
-                    .destination(dest.to_owned())
-                    .path(path.to_owned())
-                    .cache_properties(zbus::proxy::CacheProperties::No)
-                    .build()
-                    .await?;
-
                 attention_icon_change.push(
                     new_attention_icon
                         .filter_map({
                             let name = name.clone();
-                            let uncached_proxy = uncached_proxy;
+                            let item_proxy = item.item_proxy.clone();
 
                             move |_| {
                                 let name = name.clone();
-                                let uncached_proxy = uncached_proxy.clone();
+                                let item_proxy = item_proxy.clone();
 
                                 async move {
-                                    current_attention_icon_from_proxy(&uncached_proxy)
-                                        .await
-                                        .map(|icon| {
+                                    current_attention_icon_from_proxy(&item_proxy).await.map(
+                                        |icon| {
                                             TrayEvent::AttentionIconChanged(name.to_owned(), icon)
-                                        })
+                                        },
+                                    )
                                 }
                             }
                         })
@@ -488,8 +438,7 @@ impl TrayService {
         Ok(stream_select!(
             registered,
             unregistered,
-            select_all(icon_pixel_change),
-            select_all(icon_name_change),
+            select_all(icon_change),
             select_all(new_icon_change),
             select_all(attention_icon_change),
             select_all(menu_layout_change),

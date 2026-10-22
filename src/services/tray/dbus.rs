@@ -333,26 +333,33 @@ pub struct Icon {
     pub bytes: Vec<u8>,
 }
 
-/// Reads a pixmap property straight into [`Icon`]s. The generated getter
-/// goes through a `Value` per byte, which for a 256x256 icon peaks at ~42 MB.
-pub async fn icon_pixmap(
-    item_proxy: &StatusNotifierItemProxy<'_>,
-    property: &str,
-) -> Result<Vec<Icon>> {
-    let proxy = item_proxy.inner();
-    let reply = proxy
-        .connection()
-        .call_method(
-            Some(proxy.destination()),
-            proxy.path(),
-            Some("org.freedesktop.DBus.Properties"),
-            "Get",
-            &(proxy.interface(), property),
-        )
-        .await?;
-    let body = reply.body();
-    let icons: zbus::zvariant::as_value::Deserialize<Vec<Icon>> = body.deserialize()?;
-    Ok(icons.0)
+// The generated getters decode an `ay` into one `Variant` per byte, 64 bytes
+// each: a 256x256 pixmap peaked at ~42 MB. These read it straight into `Icon`.
+impl StatusNotifierItemProxy<'_> {
+    pub async fn icon_pixmap(&self) -> Result<Vec<Icon>> {
+        self.pixmap("IconPixmap").await
+    }
+
+    pub async fn attention_icon_pixmap(&self) -> Result<Vec<Icon>> {
+        self.pixmap("AttentionIconPixmap").await
+    }
+
+    async fn pixmap(&self, property: &str) -> Result<Vec<Icon>> {
+        let proxy = self.inner();
+        let reply = proxy
+            .connection()
+            .call_method(
+                Some(proxy.destination()),
+                proxy.path(),
+                Some("org.freedesktop.DBus.Properties"),
+                "Get",
+                &(proxy.interface(), property),
+            )
+            .await?;
+        let body = reply.body();
+        let icons: zbus::as_variant::Deserialize<Vec<Icon>> = body.deserialize()?;
+        Ok(icons.0)
+    }
 }
 
 /// Service names are `<unique-sender>/<object-path>` for method-registered
