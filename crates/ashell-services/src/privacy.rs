@@ -118,6 +118,7 @@ impl Privacy {
 
             let mut pipewire = None;
             let mut next_attempt = Instant::now();
+            let mut connected_at = Instant::now();
             let mut unavailable = false;
 
             loop {
@@ -126,6 +127,7 @@ impl Privacy {
                         Ok(listener) => {
                             info!("Listening for privacy events");
                             unavailable = false;
+                            connected_at = Instant::now();
                             pipewire = Some(listener);
                         }
                         Err(err) => {
@@ -157,9 +159,15 @@ impl Privacy {
                         true
                     }
                     Step::PipewireGone => {
-                        warn!("Lost the connection to PipeWire, reconnecting");
+                        // At most one attempt per RETRY_DELAY: a socket that accepts and
+                        // then drops the session would otherwise reconnect in a busy loop
+                        if connected_at.elapsed() < RETRY_DELAY {
+                            debug!("Lost the connection to PipeWire again");
+                        } else {
+                            warn!("Lost the connection to PipeWire, reconnecting");
+                        }
                         pipewire = None;
-                        next_attempt = Instant::now();
+                        next_attempt = connected_at + RETRY_DELAY;
                         data.forget_streams()
                     }
                     Step::Retry => false,
@@ -283,7 +291,7 @@ async fn create_pipewire_listener() -> anyhow::Result<UnboundedReceiver<PrivacyE
         }
         mainloop.run();
 
-        warn!("Pipewire mainloop exited");
+        debug!("Pipewire mainloop exited");
     });
 
     match boot_rx.await {
