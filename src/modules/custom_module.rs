@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{DynamicIcon, StaticIcon, icon},
-    components::{ButtonUIRef, position_button},
+    components::{ButtonUIRef, PressHandler, position_button},
     config::CustomModuleDef,
     theme::{transparent_button_style, use_theme},
     utils::launcher::execute_command,
@@ -250,7 +250,9 @@ impl Custom {
                 .height(Length::Shrink)
                 .padding(0)
                 .style(transparent_button_style)
-                .on_hover_with_position(move |ui_ref| Message::TooltipHover(ui_ref, id))
+                .on_hover(PressHandler::with_position(move |ui_ref| {
+                    Message::TooltipHover(ui_ref, id)
+                }))
                 .on_unhover(Message::TooltipUnhover(id))
                 .into()
         } else {

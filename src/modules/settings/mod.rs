@@ -8,7 +8,7 @@ use tokio::time::timeout;
 
 use crate::{
     components::{
-        ButtonUIRef, MenuSize, collapsible,
+        ButtonUIRef, MenuSize, PressHandler, collapsible,
         icons::{DynamicIcon, Icon, StaticIcon, icon, icon_button},
         menu::MenuType,
         password_dialog, position_button, quick_setting_button, share_wifi_dialog,
@@ -912,9 +912,9 @@ impl Settings {
                                     .height(Length::Shrink)
                                     .padding(0)
                                     .style(transparent_button_style)
-                                    .on_hover_with_position(move |ui_ref| {
+                                    .on_hover(PressHandler::with_position(move |ui_ref| {
                                         Message::PeripheralBatteryTooltipHover(ui_ref, id, index)
-                                    })
+                                    }))
                                     .on_unhover(Message::TooltipUnhover(
                                         id,
                                         MenuType::PeripheralBatteryTooltip(index),
@@ -963,7 +963,9 @@ impl Settings {
                             .height(Length::Shrink)
                             .padding(0)
                             .style(transparent_button_style)
-                            .on_hover_with_position(move |ui_ref| hover_msg(ui_ref, id))
+                            .on_hover(PressHandler::with_position(move |ui_ref| {
+                                hover_msg(ui_ref, id)
+                            }))
                             .on_unhover(Message::TooltipUnhover(id, menu_type)),
                     );
                 } else {

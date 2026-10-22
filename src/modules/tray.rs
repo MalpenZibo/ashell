@@ -2,8 +2,8 @@ use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
     components::{
-        ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
-        styled_button,
+        ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, MouseButton,
+        PressHandler, position_button, styled_button,
     },
     components::{scrollable, toggler},
     config::{TrayClickAction, TrayModuleConfig},
@@ -340,13 +340,28 @@ impl TrayModule {
 
                                 let mut btn = position_button(icon_content);
                                 btn = match &self.right_click {
-                                    None => btn.on_press_with_position(toggle_menu.clone()),
+                                    None => btn.on(
+                                        MouseButton::Left,
+                                        PressHandler::with_position(toggle_menu.clone()),
+                                    ),
                                     Some(TrayClickAction::Open) => btn
-                                        .on_press_with_position(toggle_menu.clone())
-                                        .on_right_press(open_app.clone()),
+                                        .on(
+                                            MouseButton::Left,
+                                            PressHandler::with_position(toggle_menu.clone()),
+                                        )
+                                        .on(
+                                            MouseButton::Right,
+                                            PressHandler::message(open_app.clone()),
+                                        ),
                                     Some(TrayClickAction::Menu) => btn
-                                        .on_press(open_app.clone())
-                                        .on_right_press_with_position(toggle_menu.clone()),
+                                        .on(
+                                            MouseButton::Left,
+                                            PressHandler::message(open_app.clone()),
+                                        )
+                                        .on(
+                                            MouseButton::Right,
+                                            PressHandler::with_position(toggle_menu.clone()),
+                                        ),
                                 };
                                 btn.padding(space.xxs)
                                     .style(move |t, s| button_style(t, s))

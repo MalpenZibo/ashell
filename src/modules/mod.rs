@@ -2,11 +2,15 @@ use crate::{
     app::{App, Message},
     components::animated_size,
     components::menu::MenuType,
-    components::{MouseButton, PressHandler, module_group, module_item},
+    components::{MouseButton, module_group, module_item},
     config::{MediaPlayerButtonAction, MediaPlayerScrollAction, ModuleDef, ModuleName},
     theme::use_theme,
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
+
+mod interaction;
+
+use interaction::{ModuleAction, ModuleInteractions, ModuleView};
 
 pub mod custom_module;
 pub mod keyboard_layout;
@@ -21,82 +25,6 @@ pub mod tray;
 pub mod updates;
 pub mod window_title;
 pub mod workspaces;
-
-/// What one mouse button on a bar module does. Menu toggles are separate from
-/// plain messages because opening a menu needs the button's on-screen position.
-#[derive(Debug, Clone)]
-enum ModuleAction {
-    Message(Box<Message>),
-    ToggleMenu(MenuType),
-}
-
-impl ModuleAction {
-    fn message(message: Message) -> Self {
-        Self::Message(Box::new(message))
-    }
-
-    fn menu(menu_type: MenuType) -> Self {
-        Self::ToggleMenu(menu_type)
-    }
-
-    fn into_handler<'a>(self, id: SurfaceId) -> PressHandler<'a, Message> {
-        match self {
-            Self::Message(message) => PressHandler::Message(*message),
-            Self::ToggleMenu(menu_type) => {
-                PressHandler::WithPosition(Box::new(move |button_ui_ref| {
-                    Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
-                }))
-            }
-        }
-    }
-}
-
-/// The handlers a bar module binds to its mouse buttons.
-#[derive(Debug, Clone, Default)]
-struct ModulePress {
-    on_press: Option<ModuleAction>,
-    on_right_press: Option<ModuleAction>,
-    on_middle_press: Option<ModuleAction>,
-    on_scroll_up: Option<Box<Message>>,
-    on_scroll_down: Option<Box<Message>>,
-}
-
-impl ModulePress {
-    fn press(action: ModuleAction) -> Self {
-        Self {
-            on_press: Some(action),
-            ..Default::default()
-        }
-    }
-
-    fn menu(menu_type: MenuType) -> Self {
-        Self::press(ModuleAction::menu(menu_type))
-    }
-
-    fn message(message: Message) -> Self {
-        Self::press(ModuleAction::message(message))
-    }
-
-    fn right_message(mut self, message: Message) -> Self {
-        self.on_right_press = Some(ModuleAction::message(message));
-        self
-    }
-
-    fn middle_message(mut self, message: Message) -> Self {
-        self.on_middle_press = Some(ModuleAction::message(message));
-        self
-    }
-
-    fn scroll_up(mut self, message: Message) -> Self {
-        self.on_scroll_up = Some(Box::new(message));
-        self
-    }
-
-    fn scroll_down(mut self, message: Message) -> Self {
-        self.on_scroll_down = Some(Box::new(message));
-        self
-    }
-}
 
 impl App {
     pub fn modules_section<'a>(&'a self, id: SurfaceId) -> [Element<'a, Message>; 3] {
@@ -140,36 +68,19 @@ impl App {
             .collect()
     }
 
-    fn build_module_item<'a>(
-        id: SurfaceId,
-        content: Element<'a, Message>,
-        press: Option<ModulePress>,
-    ) -> Element<'a, Message> {
+    fn build_module_item<'a>(id: SurfaceId, module: ModuleView<'a>) -> Element<'a, Message> {
+        let (content, interactions) = module.into_parts();
+
         let content = if use_theme(|t| t.animations_enabled) {
             animated_size(content).into()
         } else {
             content
         };
-        let Some(press) = press else {
-            return module_item(content).into();
-        };
 
-        module_item(content)
-            .set_handler(
-                MouseButton::Press,
-                press.on_press.map(|action| action.into_handler(id)),
-            )
-            .set_handler(
-                MouseButton::RightPress,
-                press.on_right_press.map(|action| action.into_handler(id)),
-            )
-            .set_handler(
-                MouseButton::MiddlePress,
-                press.on_middle_press.map(|action| action.into_handler(id)),
-            )
-            .set_scroll_up(press.on_scroll_up.map(|message| *message))
-            .set_scroll_down(press.on_scroll_down.map(|message| *message))
-            .into()
+        match interactions {
+            Some(interactions) => interactions.into_item(id, content).into(),
+            None => module_item(content).into(),
+        }
     }
 
     fn single_module_wrapper<'a>(
@@ -178,7 +89,7 @@ impl App {
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
         self.get_module_view(id, module_name)
-            .map(|(content, action)| module_group(Self::build_module_item(id, content, action)))
+            .map(|module| module_group(Self::build_module_item(id, module)))
     }
 
     fn group_module_wrapper<'a>(
@@ -197,7 +108,7 @@ impl App {
             let items = Row::with_children(
                 modules
                     .into_iter()
-                    .map(|(content, action)| Self::build_module_item(id, content, action))
+                    .map(|module| Self::build_module_item(id, module))
                     .collect::<Vec<_>>(),
             );
             Some(module_group(items.into()))
@@ -208,101 +119,104 @@ impl App {
         &'a self,
         id: SurfaceId,
         module_name: &'a ModuleName,
-    ) -> Option<(Element<'a, Message>, Option<ModulePress>)> {
+    ) -> Option<ModuleView<'a>> {
         match module_name {
             ModuleName::Custom(name) => self.custom.get(name).map(|custom| {
-                let action = match custom.module_type() {
+                let content = custom
+                    .view(id)
+                    .map(|msg| Message::Custom(name.clone(), msg));
+                let interactions = match custom.module_type() {
                     crate::config::CustomModuleType::Text => None,
                     crate::config::CustomModuleType::Button => {
-                        let custom_message = |message| Message::Custom(name.clone(), message);
-                        let mut press = ModulePress::message(custom_message(
-                            custom_module::Message::LaunchCommand,
-                        ));
-                        if custom.config.on_right_click.is_some() {
-                            press = press.right_message(custom_message(
-                                custom_module::Message::LaunchRightClickCommand,
-                            ));
-                        }
-                        if custom.config.on_middle_click.is_some() {
-                            press = press.middle_message(custom_message(
-                                custom_module::Message::LaunchMiddleClickCommand,
-                            ));
-                        }
-                        if custom.config.on_scroll_up.is_some() {
-                            press = press.scroll_up(custom_message(
-                                custom_module::Message::LaunchScrollUpCommand,
-                            ));
-                        }
-                        if custom.config.on_scroll_down.is_some() {
-                            press = press.scroll_down(custom_message(
-                                custom_module::Message::LaunchScrollDownCommand,
-                            ));
-                        }
-                        Some(press)
+                        let name = name.clone();
+                        Some(
+                            ModuleInteractions::default()
+                                .button(
+                                    MouseButton::Left,
+                                    ModuleAction::message(Message::Custom(
+                                        name.clone(),
+                                        custom_module::Message::LaunchCommand,
+                                    )),
+                                )
+                                .button_opt(
+                                    MouseButton::Right,
+                                    custom.config.on_right_click.as_ref().map(|_| {
+                                        ModuleAction::message(Message::Custom(
+                                            name.clone(),
+                                            custom_module::Message::LaunchRightClickCommand,
+                                        ))
+                                    }),
+                                )
+                                .button_opt(
+                                    MouseButton::Middle,
+                                    custom.config.on_middle_click.as_ref().map(|_| {
+                                        ModuleAction::message(Message::Custom(
+                                            name.clone(),
+                                            custom_module::Message::LaunchMiddleClickCommand,
+                                        ))
+                                    }),
+                                )
+                                .scroll_up_opt(custom.config.on_scroll_up.as_ref().map(|_| {
+                                    Message::Custom(
+                                        name.clone(),
+                                        custom_module::Message::LaunchScrollUpCommand,
+                                    )
+                                }))
+                                .scroll_down_opt(custom.config.on_scroll_down.as_ref().map(|_| {
+                                    Message::Custom(
+                                        name,
+                                        custom_module::Message::LaunchScrollDownCommand,
+                                    )
+                                })),
+                        )
                     }
                 };
-                (
-                    custom
-                        .view(id)
-                        .map(|msg| Message::Custom(name.clone(), msg)),
-                    action,
-                )
+                ModuleView::new(content, interactions)
             }),
             ModuleName::Updates => self.updates.as_ref().map(|updates| {
-                (
-                    updates.view().map(Message::Updates),
-                    Some(ModulePress::menu(MenuType::Updates)),
-                )
+                ModuleView::menu(updates.view().map(Message::Updates), MenuType::Updates)
             }),
-            ModuleName::Workspaces => Some((
+            ModuleName::Workspaces => Some(ModuleView::plain(
                 self.workspaces
                     .view(id, &self.outputs)
                     .map(Message::Workspaces),
-                None,
             )),
             ModuleName::WindowTitle => self.window_title.get_value().map(|title| {
-                (
-                    self.window_title.view(title).map(Message::WindowTitle),
-                    None,
-                )
+                ModuleView::plain(self.window_title.view(title).map(Message::WindowTitle))
             }),
-            ModuleName::SystemInfo => Some((
+            ModuleName::SystemInfo => Some(ModuleView::menu(
                 self.system_info.view().map(Message::SystemInfo),
-                Some(ModulePress::menu(MenuType::SystemInfo)),
+                MenuType::SystemInfo,
             )),
             ModuleName::KeyboardLayout => self.keyboard_layout.view().map(|view| {
-                (
+                ModuleView::message(
                     view.map(Message::KeyboardLayout),
-                    Some(ModulePress::message(Message::KeyboardLayout(
-                        keyboard_layout::Message::ChangeLayout,
-                    ))),
+                    Message::KeyboardLayout(keyboard_layout::Message::ChangeLayout),
                 )
             }),
             ModuleName::KeyboardSubmap => self
                 .keyboard_submap
                 .view()
-                .map(|view| (view.map(Message::KeyboardSubmap), None)),
+                .map(|view| ModuleView::plain(view.map(Message::KeyboardSubmap))),
             ModuleName::Tray => self
                 .tray
                 .view(id)
-                .map(|view| (view.map(Message::Tray), None)),
-            ModuleName::Tempo => Some((
+                .map(|view| ModuleView::plain(view.map(Message::Tray))),
+            ModuleName::Tempo => Some(ModuleView::interactive(
                 self.tempo.view().map(Message::Tempo),
-                Some(
-                    ModulePress::menu(MenuType::Tempo)
-                        .right_message(Message::Tempo(tempo::Message::CycleFormat))
-                        .scroll_up(Message::Tempo(tempo::Message::CycleTimezone(
-                            tempo::TimezoneDirection::Forward,
-                        )))
-                        .scroll_down(Message::Tempo(tempo::Message::CycleTimezone(
-                            tempo::TimezoneDirection::Backward,
-                        ))),
-                ),
+                ModuleInteractions::menu(MenuType::Tempo)
+                    .right_message(Message::Tempo(tempo::Message::CycleFormat))
+                    .scroll_up(Message::Tempo(tempo::Message::CycleTimezone(
+                        tempo::TimezoneDirection::Forward,
+                    )))
+                    .scroll_down(Message::Tempo(tempo::Message::CycleTimezone(
+                        tempo::TimezoneDirection::Backward,
+                    ))),
             )),
             ModuleName::Privacy => self
                 .privacy
                 .view()
-                .map(|view| (view.map(Message::Privacy), None)),
+                .map(|view| ModuleView::plain(view.map(Message::Privacy))),
             ModuleName::MediaPlayer => {
                 let controls = self.media_player.indicator_controls();
                 let button = |action: MediaPlayerButtonAction| match action {
@@ -320,38 +234,30 @@ impl App {
                         Message::MediaPlayer(media_player::Message::ActiveNext),
                     )),
                 };
-                let (on_scroll_up, on_scroll_down) = match controls.scroll {
-                    MediaPlayerScrollAction::None => (None, None),
-                    MediaPlayerScrollAction::Volume => (
-                        Some(Box::new(Message::MediaPlayer(
-                            media_player::Message::ActiveVolumeUp,
-                        ))),
-                        Some(Box::new(Message::MediaPlayer(
+                let interactions = ModuleInteractions::default()
+                    .button_opt(MouseButton::Left, button(controls.left))
+                    .button_opt(MouseButton::Right, button(controls.right))
+                    .button_opt(MouseButton::Middle, button(controls.middle));
+                let interactions = match controls.scroll {
+                    MediaPlayerScrollAction::None => interactions,
+                    MediaPlayerScrollAction::Volume => interactions
+                        .scroll_up(Message::MediaPlayer(media_player::Message::ActiveVolumeUp))
+                        .scroll_down(Message::MediaPlayer(
                             media_player::Message::ActiveVolumeDown,
-                        ))),
-                    ),
+                        )),
                 };
-                let action = ModulePress {
-                    on_press: button(controls.left),
-                    on_right_press: button(controls.right),
-                    on_middle_press: button(controls.middle),
-                    on_scroll_up,
-                    on_scroll_down,
-                };
-                self.media_player
-                    .view()
-                    .map(|view| (view.map(Message::MediaPlayer), Some(action)))
+                self.media_player.view().map(|view| {
+                    ModuleView::interactive(view.map(Message::MediaPlayer), interactions)
+                })
             }
-            ModuleName::Settings => Some((
+            ModuleName::Settings => Some(ModuleView::menu(
                 self.settings.view(id).map(Message::Settings),
-                Some(ModulePress::menu(MenuType::Settings)),
+                MenuType::Settings,
             )),
-            ModuleName::Notifications => Some((
+            ModuleName::Notifications => Some(ModuleView::interactive(
                 self.notifications.view().map(Message::Notifications),
-                Some(
-                    ModulePress::menu(MenuType::Notifications)
-                        .right_message(Message::Notifications(notifications::Message::ToggleDnd)),
-                ),
+                ModuleInteractions::menu(MenuType::Notifications)
+                    .right_message(Message::Notifications(notifications::Message::ToggleDnd)),
             )),
         }
     }
@@ -399,27 +305,5 @@ impl App {
                     .map(Message::Notifications),
             ),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn builders_bind_the_expected_buttons() {
-        let press = ModulePress::menu(MenuType::Settings)
-            .right_message(Message::None)
-            .middle_message(Message::None);
-
-        assert!(matches!(press.on_press, Some(ModuleAction::ToggleMenu(_))));
-        assert!(matches!(
-            press.on_right_press,
-            Some(ModuleAction::Message(_))
-        ));
-        assert!(matches!(
-            press.on_middle_press,
-            Some(ModuleAction::Message(_))
-        ));
     }
 }
