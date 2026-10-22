@@ -133,7 +133,12 @@ impl PrivacyService {
                 })
                 .register();
 
-            boot_tx.send(Ok(())).unwrap();
+            // The receiver is gone when the subscription was cancelled before
+            // the handshake completed: stop this detached thread instead of
+            // leaving a live connection and registry listener running.
+            if boot_tx.send(Ok(())).is_err() {
+                return;
+            }
             mainloop.run();
 
             warn!("Pipewire mainloop exited");
