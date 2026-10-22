@@ -27,7 +27,7 @@ where
     Value: Copy + Send + 'static,
 {
     pub fn receive(&mut self, value: Value) {
-        self.received = value
+        self.received = value;
     }
 
     pub fn value(&self) -> Value {
@@ -60,7 +60,7 @@ where
             async {
                 sleep(Duration::from_secs(1)).await;
             },
-            |_| Message::<Value>::ShowReceived,
+            |()| Message::<Value>::ShowReceived,
         )
         .abortable();
         self.timeout = Some(handle);
@@ -83,8 +83,7 @@ pub enum Message<Value> {
 impl<Value: Copy> Message<Value> {
     pub fn value(&self) -> Option<Value> {
         match self {
-            Self::Request(value) => Some(*value),
-            Self::RequestAndTimeout(value) => Some(*value),
+            Self::Request(value) | Self::RequestAndTimeout(value) => Some(*value),
             _ => Option::None,
         }
     }

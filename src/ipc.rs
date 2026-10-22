@@ -77,7 +77,7 @@ pub enum IpcCommand {
 impl IpcCommand {
     pub fn no_osd(&self) -> bool {
         match self {
-            IpcCommand::ToggleVisibility => false,
+            IpcCommand::ToggleVisibility | IpcCommand::LoadConfig { .. } => false,
             IpcCommand::VolumeUp { no_osd }
             | IpcCommand::VolumeDown { no_osd }
             | IpcCommand::VolumeToggleMute { no_osd }
@@ -88,7 +88,6 @@ impl IpcCommand {
             | IpcCommand::BrightnessDown { no_osd }
             | IpcCommand::ToggleAirplaneMode { no_osd }
             | IpcCommand::ToggleIdleInhibitor { no_osd } => *no_osd,
-            IpcCommand::LoadConfig { .. } => false,
         }
     }
 }
