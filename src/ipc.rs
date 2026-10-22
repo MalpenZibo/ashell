@@ -339,7 +339,16 @@ pub fn subscription() -> Subscription<IpcCommand> {
                             write_response(&mut std_stream, "error permission denied");
                             None
                         }
-                        Ok(std_stream) => handle_connection(std_stream),
+                        Ok(std_stream) => {
+                            // `handle_connection` reads with a bounded timeout;
+                            // keep that blocking work off the async executor.
+                            tokio::task::spawn_blocking(move || handle_connection(std_stream))
+                                .await
+                                .unwrap_or_else(|e| {
+                                    log::error!("IPC connection task failed: {e}");
+                                    None
+                                })
+                        }
                         Err(e) => {
                             log::error!("IPC stream conversion error: {e}");
                             None
