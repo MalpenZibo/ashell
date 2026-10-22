@@ -48,7 +48,7 @@ static DESKTOP_ICON_INDEX: LazyLock<HashMap<String, String>> =
 // `get_icon_theme` can spawn `gsettings`, so resolve it once instead of per lookup.
 static ICON_THEME: LazyLock<Option<String>> = LazyLock::new(get_icon_theme);
 
-pub fn icon_theme() -> Option<&'static str> {
+fn icon_theme() -> Option<&'static str> {
     ICON_THEME.as_deref()
 }
 
@@ -59,6 +59,20 @@ pub enum XdgIcon {
     Image(PathBuf),
     /// An SVG file.
     Svg(PathBuf),
+}
+
+impl XdgIcon {
+    /// An SVG or a raster image, by the file's extension.
+    pub fn from_path(path: PathBuf) -> Self {
+        if path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
+        {
+            Self::Svg(path)
+        } else {
+            Self::Image(path)
+        }
+    }
 }
 
 fn warm_cache() {
@@ -120,64 +134,52 @@ pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
 }
 
 fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
-    if let Some(path) = theme_icon_path(icon_name) {
+    if let Some(path) = lookup_in_theme(icon_name) {
         debug!("icon '{icon_name}': direct match at {path:?}");
-        return icon_from_path(path);
+        return Some(XdgIcon::from_path(path));
     }
     debug!("icon '{icon_name}': no direct match");
 
     // An app's own .desktop file beats a guess from similar icon names
     if let Some(path) = find_desktop_icon(icon_name) {
         debug!("icon '{icon_name}': desktop index match at {path:?}");
-        return icon_from_path(path);
+        return Some(XdgIcon::from_path(path));
     }
     debug!("icon '{icon_name}': no desktop index match");
 
     if let Some(candidates) = find_similar_icon(icon_name) {
         for candidate in candidates {
             debug!("icon '{icon_name}': similar candidate '{candidate}'");
-            if let Some(path) = theme_icon_path(&candidate) {
-                return icon_from_path(path);
+            if let Some(path) = lookup_in_theme(&candidate) {
+                return Some(XdgIcon::from_path(path));
             }
         }
     }
     debug!("icon '{icon_name}': no similar match");
 
     if let Some(prefix_candidate) = prefix_match_icon(icon_name)
-        && let Some(path) = theme_icon_path(&prefix_candidate)
+        && let Some(path) = lookup_in_theme(&prefix_candidate)
     {
         debug!("icon '{icon_name}': prefix match '{prefix_candidate}' at {path:?}");
-        return icon_from_path(path);
+        return Some(XdgIcon::from_path(path));
     }
     debug!("icon '{icon_name}': no prefix match — unresolved");
 
     None
 }
 
-fn icon_from_path(path: PathBuf) -> Option<XdgIcon> {
-    if path.extension().is_some_and(|ext| ext == "svg") {
-        debug!("svg icon found. Path: {path:?}");
-
-        Some(XdgIcon::Svg(path))
-    } else {
-        debug!("raster icon found. Path: {path:?}");
-
-        Some(XdgIcon::Image(path))
-    }
-}
-
 /// The path of `icon_name` in the icon theme, without the fallbacks of
 /// [`get_icon_from_name`]: no fuzzy, `.desktop` or prefix matching.
-pub fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
+pub fn theme_icon_path(icon_name: &str) -> Option<PathBuf> {
     if !is_safe_icon_name(icon_name) {
         debug!("icon '{icon_name}': rejected as unsafe name");
         return None;
     }
 
-    theme_icon_path(icon_name)
+    lookup_in_theme(icon_name)
 }
 
-fn theme_icon_path(icon_name: &str) -> Option<PathBuf> {
+fn lookup_in_theme(icon_name: &str) -> Option<PathBuf> {
     let base_lookup = lookup(icon_name).with_cache();
 
     match icon_theme() {
@@ -293,7 +295,7 @@ fn find_desktop_icon(icon_name: &str) -> Option<PathBuf> {
             None
         }
     } else {
-        theme_icon_path(icon_value)
+        lookup_in_theme(icon_value)
     }
 }
 
@@ -460,8 +462,8 @@ fn icon_directories() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        find_icon_path, get_icon_from_name, is_safe_icon_name, normalize_icon_name,
-        strip_icon_separators,
+        get_icon_from_name, is_safe_icon_name, normalize_icon_name, strip_icon_separators,
+        theme_icon_path,
     };
 
     #[test]
@@ -508,10 +510,10 @@ mod tests {
     }
 
     #[test]
-    fn find_icon_path_rejects_unsafe_names() {
-        assert!(find_icon_path("../../etc/passwd").is_none());
-        assert!(find_icon_path("/etc/passwd").is_none());
-        assert!(find_icon_path("").is_none());
+    fn theme_icon_path_rejects_unsafe_names() {
+        assert!(theme_icon_path("../../etc/passwd").is_none());
+        assert!(theme_icon_path("/etc/passwd").is_none());
+        assert!(theme_icon_path("").is_none());
     }
 
     #[test]
