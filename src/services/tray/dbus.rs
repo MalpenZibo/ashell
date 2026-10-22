@@ -7,24 +7,48 @@ use zbus::{
     interface,
     message::Header,
     names::{BusName, UniqueName, WellKnownName},
-    object_server::SignalEmitter,
+    object_server::{InterfaceRef, SignalEmitter},
     proxy,
 };
 
 const NAME: WellKnownName =
     WellKnownName::from_static_str_unchecked("org.kde.StatusNotifierWatcher");
 const OBJECT_PATH: &str = "/StatusNotifierWatcher";
+const ITEM_OBJECT_PATH: &str = "/StatusNotifierItem";
 
 /// Clients grab their well-known name before exporting `/StatusNotifierItem`,
 /// so re-probe briefly to avoid registering an item we cannot read yet.
 const READY_PROBE_ATTEMPTS: usize = 6;
 const READY_PROBE_INTERVAL: Duration = Duration::from_secs(1);
 
+/// The spec's `org.kde.StatusNotifierItem-<pid>-<id>` form.
+fn is_item_name(name: &str) -> bool {
+    name.contains("StatusNotifierItem")
+}
+
+/// Only item names count: the app's own names reach the same object too.
+fn probe_alias<'a>(name: &'a BusName<'_>) -> Option<&'a str> {
+    match name {
+        BusName::WellKnown(name) if is_item_name(name) => Some(name.as_str()),
+        _ => None,
+    }
+}
+
+#[derive(Debug)]
+struct RegisteredItem {
+    sender: UniqueName<'static>,
+    path: String,
+    /// As first announced: hosts match `StatusNotifierItemUnregistered` on it.
+    service: String,
+    /// Well-known names whose release removes the item.
+    names: Vec<String>,
+}
+
 #[derive(Debug, Default)]
 pub struct StatusNotifierWatcher {
-    items: Vec<(UniqueName<'static>, String)>,
-    /// Tracked so `StatusNotifierHostRegistered` is emitted only once.
-    host_name: Option<UniqueName<'static>>,
+    /// Keyed by (sender, path).
+    items: Vec<RegisteredItem>,
+    hosts: Vec<UniqueName<'static>>,
 }
 
 impl StatusNotifierWatcher {
@@ -40,12 +64,14 @@ impl StatusNotifierWatcher {
         let dbus_proxy = DBusProxy::new(&connection).await?;
         let name_owner_changed_stream = dbus_proxy.receive_name_owner_changed().await?;
 
-        let flags = RequestNameFlags::ALLOW_REPLACEMENT | RequestNameFlags::REPLACE_EXISTING;
-        if dbus_proxy.request_name(NAME, flags).await? == RequestNameReply::InQueue {
-            warn!("Bus name '{NAME}' already owned");
+        // Never take the name from a running watcher; queue for it instead.
+        if dbus_proxy
+            .request_name(NAME, RequestNameFlags::ALLOW_REPLACEMENT)
+            .await?
+            == RequestNameReply::InQueue
+        {
+            info!("Another {NAME} is running, using it and waiting in line");
         }
-        let emitter = SignalEmitter::new(&connection, OBJECT_PATH)?;
-        Self::status_notifier_host_registered(&emitter).await?;
 
         let internal_connection = connection.clone();
         let internal_interface = interface.clone();
@@ -64,40 +90,43 @@ impl StatusNotifierWatcher {
                     if args.new_owner.as_ref() == unique_name.as_ref() {
                         info!("Acquired bus name: {NAME}");
                         have_bus_name = true;
+                        // Our own host lives on this connection; count it now.
+                        if let Some(unique_name) = internal_connection.unique_name() {
+                            let unique_name = unique_name.to_owned().into_inner();
+                            let mut interface = internal_interface.get_mut().await;
+                            if !interface.hosts.contains(&unique_name) {
+                                interface.hosts.push(unique_name);
+                            }
+                        }
+                        if let Ok(emitter) = SignalEmitter::new(&internal_connection, OBJECT_PATH) {
+                            let _ = Self::status_notifier_host_registered(&emitter).await;
+                        }
+                        // Finds items that do not re-register on their own.
+                        let conn = internal_connection.clone();
+                        let interface = internal_interface.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = Self::discover_items(&conn, &interface).await {
+                                info!("Failed tray item discovery: {e}");
+                            }
+                        });
                     } else if have_bus_name {
                         info!("Lost bus name: {NAME}");
                         have_bus_name = false;
-                    }
-                } else if args.new_owner.as_ref().is_none() {
-                    if let BusName::Unique(name) = &args.name {
                         let mut interface = internal_interface.get_mut().await;
-                        if let Some(idx) = interface
-                            .items
-                            .iter()
-                            .position(|(unique_name, _)| unique_name == name)
-                        {
-                            let emitter =
-                                match SignalEmitter::new(&internal_connection, OBJECT_PATH) {
-                                    Ok(e) => e,
-                                    Err(e) => {
-                                        warn!("Failed to create signal emitter: {e}");
-                                        continue;
-                                    }
-                                };
-                            let service = interface.items.remove(idx).1;
-                            if let Err(e) =
-                                StatusNotifierWatcher::status_notifier_item_unregistered(
-                                    &emitter, &service,
-                                )
-                                .await
-                            {
-                                warn!("Failed to emit item_unregistered signal: {e}");
-                            }
-                        }
+                        interface.items.clear();
+                        interface.hosts.clear();
                     }
-                } else {
-                    // Probe outside the loop so a slow owner cannot stall
-                    // signal handling; dedup on sender makes this race-safe.
+                    continue;
+                }
+                if !have_bus_name {
+                    continue;
+                }
+
+                if args.old_owner.is_some() {
+                    Self::remove_name(&internal_connection, &internal_interface, &args.name).await;
+                }
+                if args.new_owner.is_some() {
+                    // Probe outside the loop so a slow owner cannot stall it.
                     let conn = internal_connection.clone();
                     let interface = internal_interface.clone();
                     let name = args.name.to_string();
@@ -108,16 +137,38 @@ impl StatusNotifierWatcher {
             }
         });
 
-        if let Err(e) = Self::discover_items(&connection, &interface).await {
-            info!("Failed initial tray item discovery: {e}");
+        Ok(connection)
+    }
+
+    /// Removes what `name` owned (see `remove_owner`) and announces it.
+    async fn remove_name(
+        conn: &Connection,
+        interface: &InterfaceRef<StatusNotifierWatcher>,
+        name: &BusName<'_>,
+    ) {
+        // Emit after releasing the guard.
+        let removed = interface.get_mut().await.remove_owner(name);
+        if removed.is_empty() {
+            return;
         }
 
-        Ok(connection)
+        let emitter = match SignalEmitter::new(conn, OBJECT_PATH) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("Failed to create signal emitter: {e}");
+                return;
+            }
+        };
+        for service in removed {
+            if let Err(e) = Self::status_notifier_item_unregistered(&emitter, &service).await {
+                warn!("Failed to emit item_unregistered signal: {e}");
+            }
+        }
     }
 
     async fn discover_items(
         conn: &Connection,
-        interface: &zbus::object_server::InterfaceRef<StatusNotifierWatcher>,
+        interface: &InterfaceRef<StatusNotifierWatcher>,
     ) -> anyhow::Result<()> {
         let dbus_proxy = DBusProxy::new(conn).await?;
         let names = dbus_proxy.list_names().await?;
@@ -143,7 +194,7 @@ impl StatusNotifierWatcher {
 
     async fn probe_and_register_name(
         conn: &Connection,
-        interface: &zbus::object_server::InterfaceRef<StatusNotifierWatcher>,
+        interface: &InterfaceRef<StatusNotifierWatcher>,
         name: &str,
     ) {
         let dbus_proxy = match DBusProxy::new(conn).await {
@@ -154,45 +205,48 @@ impl StatusNotifierWatcher {
             Ok(n) => n,
             Err(_) => return,
         };
-        let sender = match dbus_proxy.get_name_owner(bus_name).await {
+        let sender = match dbus_proxy.get_name_owner(bus_name.clone()).await {
             Ok(owner) => owner,
             Err(_) => return,
         };
-        // Already tracked → do not re-emit `StatusNotifierItemRegistered`.
-        let tracked: std::collections::HashSet<String> = interface
-            .get()
-            .await
-            .items
-            .iter()
-            .map(|(s, _)| s.as_str().to_owned())
-            .collect();
-        if tracked.contains(sender.as_str()) {
-            return;
+        let alias = probe_alias(&bus_name);
+        // Already tracked: only remember the name.
+        {
+            let mut watcher = interface.get_mut().await;
+            if watcher.find(&sender, ITEM_OBJECT_PATH).is_some() {
+                watcher.add_item(ITEM_OBJECT_PATH, sender.into_inner(), alias);
+                return;
+            }
         }
         // Suffixed names are almost certainly SNI, but the object may not be
         // exported yet; retry only those to avoid a re-probe storm.
-        let attempts = if name.contains("StatusNotifierItem") {
+        let attempts = if is_item_name(name) {
             READY_PROBE_ATTEMPTS
         } else {
             1
         };
         for attempt in 0..attempts {
             if Self::is_status_notifier_item(conn, name).await {
-                let emitter = match SignalEmitter::new(conn, OBJECT_PATH) {
-                    Ok(e) => e,
-                    Err(e) => {
-                        warn!("Failed to create signal emitter: {e}");
-                        return;
+                // Changed hands during the retries: the new owner gets its own probe.
+                match dbus_proxy.get_name_owner(bus_name.clone()).await {
+                    Ok(owner) if owner == sender => {}
+                    _ => return,
+                }
+                let added = interface.get_mut().await.add_item(
+                    ITEM_OBJECT_PATH,
+                    sender.into_inner(),
+                    alias,
+                );
+                if let Some(service) = added {
+                    match SignalEmitter::new(conn, OBJECT_PATH) {
+                        Ok(emitter) => Self::status_notifier_item_registered(&emitter, &service)
+                            .await
+                            .unwrap_or_else(|e| {
+                                warn!("Failed to emit item_registered signal: {e}")
+                            }),
+                        Err(e) => warn!("Failed to create signal emitter: {e}"),
                     }
-                };
-                let mut watcher = interface.get_mut().await;
-                watcher
-                    .register_status_notifier_item_manual(
-                        "/StatusNotifierItem",
-                        sender.into_inner(),
-                        &emitter,
-                    )
-                    .await;
+                }
                 return;
             }
             if attempt + 1 < attempts {
@@ -209,7 +263,7 @@ impl StatusNotifierWatcher {
         // names that have not exported `/StatusNotifierItem` (yet).
         let builder = StatusNotifierItemProxy::builder(conn)
             .destination(name.to_owned())
-            .path("/StatusNotifierItem")
+            .path(ITEM_OBJECT_PATH)
             .cache_properties(zbus::proxy::CacheProperties::No);
         match builder.build().await {
             Ok(proxy) => tokio::time::timeout(Duration::from_millis(500), proxy.icon_name())
@@ -222,27 +276,64 @@ impl StatusNotifierWatcher {
 }
 
 impl StatusNotifierWatcher {
-    async fn register_status_notifier_item_manual(
+    fn find(&self, sender: &UniqueName<'_>, path: &str) -> Option<&RegisteredItem> {
+        self.items
+            .iter()
+            .find(|i| &i.sender == sender && i.path == path)
+    }
+
+    /// Returns the service to announce, or `None` if already tracked.
+    fn add_item(
         &mut self,
         service: &str,
         sender: UniqueName<'static>,
-        emitter: &SignalEmitter<'_>,
-    ) {
-        if self.items.iter().any(|(s, _)| s == &sender) {
-            return;
+        alias: Option<&str>,
+    ) -> Option<String> {
+        let (path, announced) = if service.starts_with('/') {
+            (service.to_owned(), format!("{sender}{service}"))
+        } else {
+            (ITEM_OBJECT_PATH.to_owned(), service.to_owned())
+        };
+        let well_known = (!service.starts_with('/') && !service.starts_with(':'))
+            .then_some(service)
+            .into_iter()
+            .chain(alias);
+
+        if let Some(item) = self
+            .items
+            .iter_mut()
+            .find(|i| i.sender == sender && i.path == path)
+        {
+            for name in well_known {
+                if !item.names.iter().any(|n| n == name) {
+                    item.names.push(name.to_owned());
+                }
+            }
+            return None;
         }
 
-        let service = if service.starts_with('/') {
-            format!("{sender}{service}")
-        } else {
-            service.to_string()
+        self.items.push(RegisteredItem {
+            sender,
+            path,
+            service: announced.clone(),
+            names: well_known.map(str::to_owned).collect(),
+        });
+        Some(announced)
+    }
+
+    /// Drops what `name` owned; returns the services to announce.
+    fn remove_owner(&mut self, name: &BusName<'_>) -> Vec<String> {
+        let removed: Vec<RegisteredItem> = match name {
+            BusName::Unique(name) => {
+                self.hosts.retain(|host| host != name);
+                self.items.extract_if(.., |i| &i.sender == name).collect()
+            }
+            BusName::WellKnown(name) => self
+                .items
+                .extract_if(.., |i| i.names.iter().any(|n| n == name.as_str()))
+                .collect(),
         };
-
-        Self::status_notifier_item_registered(emitter, &service)
-            .await
-            .unwrap_or_else(|e| warn!("Failed to emit item_registered signal: {e}"));
-
-        self.items.push((sender, service));
+        removed.into_iter().map(|i| i.service).collect()
     }
 }
 
@@ -267,8 +358,11 @@ impl StatusNotifierWatcher {
                 return;
             }
         };
-        self.register_status_notifier_item_manual(service, sender, &emitter)
-            .await;
+        if let Some(service) = self.add_item(service, sender, None) {
+            Self::status_notifier_item_registered(&emitter, &service)
+                .await
+                .unwrap_or_else(|e| warn!("Failed to emit item_registered signal: {e}"));
+        }
     }
 
     async fn register_status_notifier_host(
@@ -277,8 +371,7 @@ impl StatusNotifierWatcher {
         #[zbus(header)] header: Header<'_>,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) {
-        // Guard so `StatusNotifierHostRegistered` is emitted only once;
-        // emitting on every (re-)registration would loop.
+        // Once per host: emitting on every re-registration would loop.
         let sender = match header.sender() {
             Some(s) => s.to_owned(),
             None => {
@@ -286,20 +379,21 @@ impl StatusNotifierWatcher {
                 return;
             }
         };
-        if self.host_name.replace(sender).is_some() {
+        if self.hosts.contains(&sender) {
             return;
         }
+        self.hosts.push(sender);
         let _ = Self::status_notifier_host_registered(&emitter).await;
     }
 
     #[zbus(property)]
     fn registered_status_notifier_items(&self) -> Vec<String> {
-        self.items.iter().map(|(_, x)| x.clone()).collect()
+        self.items.iter().map(|i| i.service.clone()).collect()
     }
 
     #[zbus(property)]
     fn is_status_notifier_host_registered(&self) -> bool {
-        true
+        !self.hosts.is_empty()
     }
 
     #[zbus(property)]
@@ -461,7 +555,8 @@ pub trait DBusMenu {
 
 #[cfg(test)]
 mod tests {
-    use super::{StatusNotifierWatcher, split_service_name};
+    use super::{StatusNotifierWatcher, probe_alias, split_service_name};
+    use zbus::names::{BusName, UniqueName, WellKnownName};
 
     #[test]
     fn protocol_version_is_zero() {
@@ -470,9 +565,144 @@ mod tests {
     }
 
     #[test]
-    fn host_is_reported_registered() {
+    fn no_host_is_registered_initially() {
         let watcher = StatusNotifierWatcher::default();
+        assert!(!watcher.is_status_notifier_host_registered());
+    }
+
+    #[test]
+    fn host_is_registered_once_tracked() {
+        let mut watcher = StatusNotifierWatcher::default();
+        watcher
+            .hosts
+            .push(UniqueName::from_static_str_unchecked(":1.7"));
         assert!(watcher.is_status_notifier_host_registered());
+    }
+
+    fn unique(name: &'static str) -> UniqueName<'static> {
+        UniqueName::from_static_str_unchecked(name)
+    }
+
+    fn well_known(name: &'static str) -> BusName<'static> {
+        BusName::WellKnown(WellKnownName::from_static_str_unchecked(name))
+    }
+
+    #[test]
+    fn items_are_keyed_by_sender_and_path() {
+        let mut watcher = StatusNotifierWatcher::default();
+        assert_eq!(
+            watcher.add_item("/StatusNotifierItem", unique(":1.42"), None),
+            Some(":1.42/StatusNotifierItem".to_owned())
+        );
+        // Same connection, second object: a separate item.
+        assert_eq!(
+            watcher.add_item("/org/blueman/sni", unique(":1.42"), None),
+            Some(":1.42/org/blueman/sni".to_owned())
+        );
+        // Same item again by its well-known name: not announced twice.
+        assert_eq!(
+            watcher.add_item("org.kde.StatusNotifierItem-42-1", unique(":1.42"), None),
+            None
+        );
+        assert_eq!(
+            watcher.registered_status_notifier_items(),
+            vec![
+                ":1.42/StatusNotifierItem".to_owned(),
+                ":1.42/org/blueman/sni".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn closed_connection_removes_all_its_items_and_hosts() {
+        let mut watcher = StatusNotifierWatcher::default();
+        watcher.add_item("/StatusNotifierItem", unique(":1.42"), None);
+        watcher.add_item("/org/blueman/sni", unique(":1.42"), None);
+        watcher.add_item("/StatusNotifierItem", unique(":1.43"), None);
+        watcher.hosts.push(unique(":1.42"));
+
+        let removed = watcher.remove_owner(&BusName::Unique(unique(":1.42")));
+
+        assert_eq!(
+            removed,
+            vec![
+                ":1.42/StatusNotifierItem".to_owned(),
+                ":1.42/org/blueman/sni".to_owned(),
+            ]
+        );
+        assert_eq!(
+            watcher.registered_status_notifier_items(),
+            vec![":1.43/StatusNotifierItem".to_owned()]
+        );
+        assert!(!watcher.is_status_notifier_host_registered());
+    }
+
+    #[test]
+    fn released_well_known_name_removes_its_item() {
+        let mut watcher = StatusNotifierWatcher::default();
+        watcher.add_item("org.kde.StatusNotifierItem-42-1", unique(":1.42"), None);
+        watcher.add_item("/StatusNotifierItem", unique(":1.43"), None);
+
+        let removed = watcher.remove_owner(&well_known("org.kde.StatusNotifierItem-42-1"));
+
+        assert_eq!(removed, vec!["org.kde.StatusNotifierItem-42-1".to_owned()]);
+        assert_eq!(
+            watcher.registered_status_notifier_items(),
+            vec![":1.43/StatusNotifierItem".to_owned()]
+        );
+    }
+
+    #[test]
+    fn later_well_known_name_removes_item_but_keeps_announced_service() {
+        // Found by path, then registered by name.
+        let mut watcher = StatusNotifierWatcher::default();
+        watcher.add_item("/StatusNotifierItem", unique(":1.42"), None);
+        watcher.add_item("org.kde.StatusNotifierItem-42-1", unique(":1.42"), None);
+
+        let removed = watcher.remove_owner(&well_known("org.kde.StatusNotifierItem-42-1"));
+
+        assert_eq!(removed, vec![":1.42/StatusNotifierItem".to_owned()]);
+        assert!(watcher.registered_status_notifier_items().is_empty());
+    }
+
+    #[test]
+    fn probe_alias_removes_item_on_release() {
+        let mut watcher = StatusNotifierWatcher::default();
+        watcher.add_item(
+            "/StatusNotifierItem",
+            unique(":1.42"),
+            Some("org.kde.StatusNotifierItem-42-1"),
+        );
+
+        let removed = watcher.remove_owner(&well_known("org.kde.StatusNotifierItem-42-1"));
+
+        assert_eq!(removed, vec![":1.42/StatusNotifierItem".to_owned()]);
+    }
+
+    #[test]
+    fn only_item_names_become_probe_aliases() {
+        let item = well_known("org.kde.StatusNotifierItem-42-1");
+        assert_eq!(probe_alias(&item), Some("org.kde.StatusNotifierItem-42-1"));
+        assert_eq!(probe_alias(&well_known("org.example.App")), None);
+        assert_eq!(probe_alias(&BusName::Unique(unique(":1.42"))), None);
+    }
+
+    #[test]
+    fn unrelated_name_removes_nothing() {
+        let mut watcher = StatusNotifierWatcher::default();
+        watcher.add_item("/StatusNotifierItem", unique(":1.42"), None);
+
+        assert!(
+            watcher
+                .remove_owner(&well_known("org.example.Other"))
+                .is_empty()
+        );
+        assert!(
+            watcher
+                .remove_owner(&BusName::Unique(unique(":1.99")))
+                .is_empty()
+        );
+        assert_eq!(watcher.registered_status_notifier_items().len(), 1);
     }
 
     #[test]

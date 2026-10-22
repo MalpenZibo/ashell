@@ -9,14 +9,23 @@ use iced::{
     futures::{
         SinkExt, Stream, StreamExt,
         channel::mpsc::{self, Sender},
+        future::{Either, select},
         stream::{self, BoxStream, pending, select_all},
         stream_select,
     },
     stream::channel,
     widget::image,
 };
-use log::{debug, error, info, trace};
-use std::{any::TypeId, ops::Deref};
+use log::{debug, error, info, trace, warn};
+use std::{
+    any::TypeId,
+    ops::Deref,
+    sync::atomic::{AtomicU32, Ordering},
+};
+use zbus::{
+    fdo::{RequestNameFlags, RequestNameReply},
+    names::UniqueName,
+};
 
 pub mod dbus;
 
@@ -238,21 +247,65 @@ impl Deref for TrayService {
 
 enum State {
     Init,
-    Active(zbus::Connection),
+    Active {
+        conn: zbus::Connection,
+        /// Our `org.freedesktop.StatusNotifierHost-<pid>-<n>` name, if we got it.
+        host: Option<String>,
+        /// Kept across event-stream rebuilds so no change is missed.
+        watcher_owner: BoxStream<'static, Option<UniqueName<'static>>>,
+        /// Re-register the host and send a fresh `Init`.
+        reload: bool,
+    },
     Error,
 }
 
+static HOST_ID: AtomicU32 = AtomicU32::new(0);
+
+/// Uncached: a foreign watcher need not emit `PropertiesChanged`.
+async fn watcher_proxy(
+    conn: &zbus::Connection,
+) -> zbus::Result<StatusNotifierWatcherProxy<'static>> {
+    StatusNotifierWatcherProxy::builder(conn)
+        .cache_properties(zbus::proxy::CacheProperties::No)
+        .build()
+        .await
+}
+
 impl TrayService {
+    async fn request_host_name(conn: &zbus::Connection) -> Option<String> {
+        let host = format!(
+            "org.freedesktop.StatusNotifierHost-{}-{}",
+            std::process::id(),
+            HOST_ID.fetch_add(1, Ordering::Relaxed) + 1
+        );
+        match conn
+            .request_name_with_flags(host.as_str(), RequestNameFlags::DO_NOT_QUEUE)
+            .await
+        {
+            Ok(RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner) => Some(host),
+            Ok(reply) => {
+                warn!("Failed to own {host}: {reply:?}");
+                None
+            }
+            Err(err) => {
+                warn!("Failed to own {host}: {err}");
+                None
+            }
+        }
+    }
+
     async fn initialize_data(conn: &zbus::Connection) -> anyhow::Result<TrayData> {
         debug!("initializing tray data");
-        let proxy = StatusNotifierWatcherProxy::new(conn).await?;
+        let proxy = watcher_proxy(conn).await?;
 
         let items = proxy.registered_status_notifier_items().await?;
 
         let mut status_items = Vec::with_capacity(items.len());
-        for item in items {
-            let item = StatusNotifierItem::new(conn, item).await?;
-            status_items.push(item);
+        for name in items {
+            match StatusNotifierItem::new(conn, name.clone()).await {
+                Ok(item) => status_items.push(item),
+                Err(err) => warn!("Skipping tray item {name}: {err}"),
+            }
         }
 
         Ok(TrayData(status_items))
@@ -261,7 +314,7 @@ impl TrayService {
     async fn events(
         conn: &zbus::Connection,
     ) -> anyhow::Result<impl Stream<Item = TrayEvent> + use<>> {
-        let watcher = StatusNotifierWatcherProxy::new(conn).await?;
+        let watcher = watcher_proxy(conn).await?;
 
         let registered = watcher
             .receive_status_notifier_item_registered()
@@ -274,10 +327,14 @@ impl TrayService {
                         debug!("registered {e:?}");
                         match e.args() {
                             Ok(args) => {
-                                let item =
-                                    StatusNotifierItem::new(&conn, args.service.to_string()).await;
-
-                                item.map(|item| TrayEvent::Registered(Box::new(item))).ok()
+                                let name = args.service.to_string();
+                                match StatusNotifierItem::new(&conn, name.clone()).await {
+                                    Ok(item) => Some(TrayEvent::Registered(Box::new(item))),
+                                    Err(err) => {
+                                        warn!("Failed to load tray item {name}: {err}");
+                                        None
+                                    }
+                                }
                             }
                             _ => None,
                         }
@@ -305,7 +362,13 @@ impl TrayService {
         let mut status_change = Vec::with_capacity(items.len());
 
         for name in items {
-            let item = StatusNotifierItem::new(conn, name.to_string()).await?;
+            let item = match StatusNotifierItem::new(conn, name.clone()).await {
+                Ok(item) => item,
+                Err(err) => {
+                    debug!("Skipping signals of tray item {name}: {err}");
+                    continue;
+                }
+            };
 
             // Clients that update IconName or IconPixmap as properties, or send
             // NewIcon. A signal only triggers a fresh read: an arg filter, or its
@@ -414,23 +477,19 @@ impl TrayService {
         match state {
             State::Init => match StatusNotifierWatcher::start_server().await {
                 Ok(conn) => {
-                    let data = TrayService::initialize_data(&conn).await;
-
-                    match data {
-                        Ok(data) => {
-                            info!("Tray service initialized");
-
-                            let _ = output
-                                .send(ServiceEvent::Init(TrayService {
-                                    data,
-                                    _conn: conn.clone(),
-                                }))
-                                .await;
-
-                            State::Active(conn)
-                        }
+                    let watcher_owner = match watcher_proxy(&conn).await {
+                        Ok(watcher) => watcher.inner().receive_owner_changed().await,
+                        Err(err) => Err(err),
+                    };
+                    match watcher_owner {
+                        Ok(watcher_owner) => State::Active {
+                            host: TrayService::request_host_name(&conn).await,
+                            conn,
+                            watcher_owner: watcher_owner.boxed(),
+                            reload: true,
+                        },
                         Err(err) => {
-                            error!("Failed to initialize tray service: {err}");
+                            error!("Failed to watch the tray watcher: {err}");
 
                             State::Error
                         }
@@ -442,12 +501,82 @@ impl TrayService {
                     State::Error
                 }
             },
-            State::Active(conn) => {
+            State::Active {
+                conn,
+                host,
+                mut watcher_owner,
+                reload,
+            } => {
                 info!("Listening for tray events");
 
-                match TrayService::events(&conn).await {
-                    Ok(mut events) => {
-                        while let Some(event) = events.next().await {
+                if reload
+                    && let Some(host) = &host
+                    && let Err(err) = async {
+                        watcher_proxy(&conn)
+                            .await?
+                            .register_status_notifier_host(host)
+                            .await
+                    }
+                    .await
+                {
+                    debug!("Failed to register tray host {host}: {err}");
+                }
+
+                // Subscribe before reading the items, so none is missed.
+                let events = async {
+                    let events = TrayService::events(&conn).await?;
+                    let data = if reload {
+                        Some(TrayService::initialize_data(&conn).await?)
+                    } else {
+                        None
+                    };
+                    anyhow::Ok((events, data))
+                }
+                .await;
+                let mut events = match events {
+                    Ok((events, data)) => {
+                        if let Some(data) = data {
+                            info!("Tray service initialized");
+
+                            let _ = output
+                                .send(ServiceEvent::Init(TrayService {
+                                    data,
+                                    _conn: conn.clone(),
+                                }))
+                                .await;
+                        }
+                        events
+                    }
+                    Err(err) => {
+                        // Typically no watcher right now: wait for one.
+                        error!("Failed to listen for tray events: {err}");
+                        if reload {
+                            let _ = output
+                                .send(ServiceEvent::Init(TrayService {
+                                    data: TrayData::default(),
+                                    _conn: conn.clone(),
+                                }))
+                                .await;
+                        }
+                        return match watcher_owner.next().await {
+                            Some(_) => State::Active {
+                                conn,
+                                host,
+                                watcher_owner,
+                                reload: true,
+                            },
+                            None => State::Error,
+                        };
+                    }
+                };
+
+                loop {
+                    let next = match select(events.next(), watcher_owner.next()).await {
+                        Either::Left((event, _)) => Either::Left(event),
+                        Either::Right((owner, _)) => Either::Right(owner),
+                    };
+                    match next {
+                        Either::Left(Some(event)) => {
                             debug!("tray data {event:?}");
 
                             // Subscriptions are built only for items present at
@@ -458,15 +587,35 @@ impl TrayService {
                             let _ = output.send(ServiceEvent::Update(event)).await;
 
                             if reload_events {
-                                break;
+                                break State::Active {
+                                    conn,
+                                    host,
+                                    watcher_owner,
+                                    reload: false,
+                                };
                             }
                         }
-
-                        State::Active(conn)
-                    }
-                    Err(err) => {
-                        error!("Failed to listen for tray events: {err}");
-                        State::Error
+                        Either::Left(None) => {
+                            break State::Active {
+                                conn,
+                                host,
+                                watcher_owner,
+                                reload: false,
+                            };
+                        }
+                        Either::Right(Some(owner)) => {
+                            info!("Tray watcher owner changed to {owner:?}, reloading items");
+                            break State::Active {
+                                conn,
+                                host,
+                                watcher_owner,
+                                reload: true,
+                            };
+                        }
+                        Either::Right(None) => {
+                            error!("Tray watcher owner stream ended");
+                            break State::Error;
+                        }
                     }
                 }
             }

@@ -408,9 +408,17 @@ impl App {
                     task.map(Message::Tray),
                 ]),
                 modules::tray::Action::TrayMenuCommandKeepOpen(task) => task.map(Message::Tray),
-                modules::tray::Action::CloseTrayMenu(name) => self
-                    .outputs
-                    .close_all_menu_if(MenuType::Tray(name), self.general_config.enable_esc_key),
+                modules::tray::Action::CloseTrayMenus(names) => Task::batch(
+                    names
+                        .into_iter()
+                        .map(|name| {
+                            self.outputs.close_all_menu_if(
+                                MenuType::Tray(name),
+                                self.general_config.enable_esc_key,
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                ),
             },
             Message::Tempo(message) => match self.tempo.update(message) {
                 modules::tempo::Action::None => Task::none(),

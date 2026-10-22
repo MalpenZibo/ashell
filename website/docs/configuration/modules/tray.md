@@ -9,7 +9,10 @@ This module provides a system tray for displaying icons of running applications.
 Clicking on an icon will open the corresponding application or menu. The module only appears when applications have tray icons.
 
 The tray uses the StatusNotifierItem (SNI) protocol: ashell acts as the
-StatusNotifierWatcher and shows the items applications register there. This
+StatusNotifierWatcher and shows the items applications register there. If
+another status bar or desktop component already provides the watcher, ashell
+uses it instead of replacing it, and takes over when it exits, so several
+bars, or several ashell instances, show the same icons. This
 covers Qt applications, Electron/Chromium applications and GTK applications
 using libappindicator or libayatana-appindicator. Applications that only
 support the legacy X11 (XEmbed) tray, such as those using `GtkStatusIcon`,
