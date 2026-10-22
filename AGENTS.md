@@ -57,7 +57,7 @@ crates/
 ```
 
 The repo is a Cargo workspace: the root package is the `ashell` binary, the crates in `crates/` are library members.
-Each app brings its own catalogs: it passes them to `Localizer::resolve` and has an `i18n.toml` with `domain = "ashell"` pointing to them, since `t!()` validates keys at compile time against the `i18n.toml` of the calling crate.
+Each app brings its own catalogs: it passes them to `Localizer::resolve` and has an `i18n.toml` whose `assets_dir` points to them, since `t!()` validates keys at compile time against `{assets_dir}/en-US/{domain}.ftl` of the calling crate. The domain defaults to the crate name with `-` replaced by `_`; at runtime only the catalogs passed to `resolve` count.
 
 ## Key system dependencies
 

@@ -1,5 +1,4 @@
 fallback_language = "en-US"
 
 [fluent]
-domain = "ashell"
 assets_dir = "i18n"

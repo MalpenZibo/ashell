@@ -1,3 +1,9 @@
+//! Locale and unit system, Fluent catalog loading and `t!()`, for any
+//! frontend.
+//!
+//! The localizer is per thread: `t!()` translates only on a thread that called
+//! [`init_localizer`], elsewhere it finds no message.
+
 use std::borrow::Cow;
 use std::cell::RefCell;
 
@@ -10,7 +16,7 @@ use unic_langid::LanguageIdentifier;
 #[doc(hidden)]
 pub use i18n_embed_fl;
 
-/// An app's Fluent catalogs: `(language tag, ashell.ftl contents)`, with an
+/// An app's Fluent catalogs: `(language tag, catalog contents)`, with an
 /// `en-US` entry as the fallback. `t!()` checks its keys against the catalogs
 /// that the calling crate's `i18n.toml` points to, so these must be the same.
 pub type Catalogs = &'static [(&'static str, &'static str)];
@@ -69,10 +75,8 @@ pub struct Localizer {
 
 impl Default for Localizer {
     fn default() -> Self {
-        // Cheap fallback for the thread_local seed — no env reads, no bundle
-        // parse. `init_localizer` in `App::new` replaces it immediately with
-        // the resolved value; this just keeps `t!()` callable before that
-        // point and on any non-main thread that ever touches LOCALIZER.
+        // No env reads and no catalogs: `t!()` before `init_localizer`, or on
+        // another thread, finds no message.
         let loader = FluentLanguageLoader::new("ashell", en_us_langid());
         Self {
             chrono: FALLBACK_CHRONO,

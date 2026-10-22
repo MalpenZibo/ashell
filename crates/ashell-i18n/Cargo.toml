@@ -19,6 +19,5 @@ i18n-embed = { version = "0.16", default-features = false, features = [
 ] }
 i18n-embed-fl = "0.10"
 log.workspace = true
-rust-embed = "8"
 serde = { workspace = true, features = ["derive"] }
 unic-langid = "0.9"

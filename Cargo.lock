@@ -187,7 +187,6 @@ dependencies = [
  "i18n-embed",
  "i18n-embed-fl",
  "log",
- "rust-embed",
  "serde",
  "unic-langid",
 ]

@@ -31,7 +31,7 @@ crates/
 └── ashell-services/         # UI-agnostic backend services (no iced dependency)
 ```
 
-`ashell-i18n` has no catalogs of its own: each app passes its catalogs to `Localizer::resolve`. `t!()` checks message keys at compile time against the catalogs of the crate that calls it, so every crate using it needs an `i18n.toml` with `domain = "ashell"` and an `assets_dir` pointing to its own catalogs.
+`ashell-i18n` has no catalogs of its own: each app passes its catalogs to `Localizer::resolve`. `t!()` checks message keys at compile time against `{assets_dir}/{fallback_language}/{domain}.ftl` of the crate that calls it, as set in that crate's `i18n.toml`. The domain defaults to the crate name with `-` replaced by `_` (`my-app` uses `my_app.ftl`), and `fallback_language` must be `en-US`. At runtime only the catalogs passed to `Localizer::resolve` count. `t!()` translates only on a thread that called `init_localizer`.
 
 ## Source Tree
 
