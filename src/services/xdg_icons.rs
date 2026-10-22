@@ -7,15 +7,19 @@ pub use ashell_services::xdg_icons::warm_cache_async;
 #[derive(Debug, Clone)]
 pub enum XdgIcon {
     Image(image::Handle),
-    Svg(svg::Handle),
+    Svg { handle: svg::Handle, symbolic: bool },
     NerdFont(StaticIcon),
 }
 
 impl From<xdg_icons::IconFile> for XdgIcon {
     fn from(icon: xdg_icons::IconFile) -> Self {
+        let symbolic = icon.is_symbolic();
         match icon {
             xdg_icons::IconFile::Image(path) => Self::Image(image::Handle::from_path(path)),
-            xdg_icons::IconFile::Svg(path) => Self::Svg(svg::Handle::from_path(path)),
+            xdg_icons::IconFile::Svg(path) => Self::Svg {
+                handle: svg::Handle::from_path(path),
+                symbolic,
+            },
         }
     }
 }

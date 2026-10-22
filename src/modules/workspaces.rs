@@ -346,7 +346,7 @@ fn workspace_button<'a>(
             std::iter::once(text(name).size(font_size).into())
                 .chain(icons.into_iter().map(|i| {
                     match i {
-                        XdgIcon::Svg(handle) => Svg::new(handle)
+                        XdgIcon::Svg { handle, .. } => Svg::new(handle)
                             .height(Length::Fixed(icon_size))
                             .width(Length::Shrink)
                             .into(),
