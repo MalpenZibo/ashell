@@ -6,7 +6,7 @@ The service abstraction is defined in `src/services/mod.rs`. It provides a stand
 
 Services are being moved to the `ashell-services` workspace crate (`crates/ashell-services/`), which does not depend on iced or any other UI toolkit. The crate imposes no service trait: the traits on this page are iced glue and stay in ashell. Each crate service is a plain API built on `futures` types, typically:
 
-- plain data types (`PartialEq`, with a `Default` for the unavailable state) so reactive UIs can diff them;
+- plain data types (`PartialEq`, with a `Default` or a `None` in the stream for the unavailable state) so reactive UIs can diff them;
 - a cloneable **handle** holding the connection;
 - a **command** enum and an `execute(command)` method on the handle, which owns the command semantics (e.g. what toggling means, how long discovery lasts);
 - an **updates** stream that yields the current state as soon as it is subscribed, then a fresh snapshot on every change. It is the single source of truth: commands return only success or failure, and their effect arrives through the stream.
@@ -37,7 +37,7 @@ pub enum ServiceEvent<S: ReadOnlyService> {
 }
 ```
 
-- **`Init(S)`**: Sent once when the service starts. Contains the full initial state.
+- **`Init(S)`**: Sent when the service becomes available. Contains the full initial state. A service that can go away (e.g. brightness, when the backlight device is removed) sends an `Update` with its unavailable state, and `Init` again when it comes back.
 - **`Update(S::UpdateEvent)`**: Sent whenever the service state changes. Contains only the change delta.
 - **`Error(S::Error)`**: Sent when the service encounters an error.
 

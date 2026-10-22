@@ -48,22 +48,18 @@ impl Brightness {
 
         channel(100, |mut output| async move {
             let mut last = None;
+            let mut failing = false;
 
             loop {
-                let mut socket = match backlight_monitor_listener() {
-                    Ok(socket) => socket,
-                    Err(err) => {
-                        warn!("Failed to listen for brightness events: {err}");
-                        tokio::time::sleep(RETRY_DELAY).await;
-                        continue;
-                    }
-                };
-
                 // Enumerate once the monitor listens, so a device added in between is not missed
+                let monitor = backlight_monitor_listener();
                 let device = match find_backlight() {
                     Ok(device) => device,
                     Err(err) => {
-                        warn!("Failed to enumerate backlight devices: {err}");
+                        failed(
+                            &mut failing,
+                            format_args!("Failed to enumerate backlight devices: {err}"),
+                        );
                         tokio::time::sleep(RETRY_DELAY).await;
                         continue;
                     }
@@ -72,7 +68,31 @@ impl Brightness {
                     slot.clone_from(&device);
                 }
 
+                let mut socket = match monitor {
+                    Ok(socket) => socket,
+                    Err(err) => {
+                        failed(
+                            &mut failing,
+                            format_args!("Failed to listen for brightness events: {err}"),
+                        );
+                        // Without events the state is read again on every retry
+                        let data = match device.as_deref().map(initialize_data) {
+                            Some(Ok(data)) => Some(Some(data)),
+                            Some(Err(_)) => None,
+                            None => Some(None),
+                        };
+                        if let Some(data) = data
+                            && !send(&mut output, &mut last, data).await
+                        {
+                            return;
+                        }
+                        tokio::time::sleep(RETRY_DELAY).await;
+                        continue;
+                    }
+                };
+
                 let Some(device) = device else {
+                    failing = false;
                     if last != Some(None) {
                         info!("No backlight devices found, waiting for one");
                     }
@@ -86,11 +106,15 @@ impl Brightness {
                 let data = match initialize_data(&device) {
                     Ok(data) => data,
                     Err(err) => {
-                        warn!("Failed to read brightness data: {err}");
+                        failed(
+                            &mut failing,
+                            format_args!("Failed to read brightness data: {err}"),
+                        );
                         tokio::time::sleep(RETRY_DELAY).await;
                         continue;
                     }
                 };
+                failing = false;
                 if !send(&mut output, &mut last, Some(data)).await {
                     return;
                 }
@@ -133,6 +157,16 @@ impl Brightness {
 
     fn device_path(&self) -> Option<PathBuf> {
         self.device_path.lock().ok().and_then(|slot| slot.clone())
+    }
+}
+
+/// Warns about the first of a run of failures, and the retries after it only at
+/// debug level.
+fn failed(failing: &mut bool, message: std::fmt::Arguments) {
+    if std::mem::replace(failing, true) {
+        debug!("{message}");
+    } else {
+        warn!("{message}");
     }
 }
 
