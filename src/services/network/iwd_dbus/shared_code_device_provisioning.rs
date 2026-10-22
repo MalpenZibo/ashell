@@ -26,16 +26,16 @@ pub trait SharedCodeDeviceProvisioning {
     /// `ConfigureEnrollee` method
     fn configure_enrollee(
         &self,
-        args: std::collections::HashMap<&str, &zbus::Variant<'_>>,
+        args: std::collections::HashMap<&str, &zbus::zvariant::Value<'_>>,
     ) -> zbus::Result<()>;
 
     /// `StartConfigurator` method
-    fn start_configurator(&self, path: &zbus::ObjectPath<'_>) -> zbus::Result<()>;
+    fn start_configurator(&self, path: &zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
 
     /// `StartEnrollee` method
     fn start_enrollee(
         &self,
-        args: std::collections::HashMap<&str, &zbus::Variant<'_>>,
+        args: std::collections::HashMap<&str, &zbus::zvariant::Value<'_>>,
     ) -> zbus::Result<()>;
 
     /// Stop method

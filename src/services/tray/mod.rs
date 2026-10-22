@@ -1,5 +1,5 @@
 use super::xdg_icons;
-use super::{ReadOnlyService, Service, ServiceEvent};
+use super::{ReadOnlyService, RetryPolicy, Service, ServiceError, ServiceEvent, wait_for_retry};
 use dbus::{
     DBusMenuProxy, Layout, StatusNotifierItemProxy, StatusNotifierWatcher,
     StatusNotifierWatcherProxy,
@@ -7,10 +7,7 @@ use dbus::{
 use iced::{
     Subscription, Task,
     futures::{
-        SinkExt, Stream, StreamExt,
-        channel::mpsc::Sender,
-        stream::{pending, select_all},
-        stream_select,
+        SinkExt, Stream, StreamExt, channel::mpsc::Sender, stream::select_all, stream_select,
     },
     stream::channel,
     widget::image,
@@ -152,8 +149,8 @@ impl StatusNotifierItem {
         // `receive_icon_pixmap_changed` are `PropertyStream`s and yield
         // nothing when the proxy has no property cache.
         let item_proxy = StatusNotifierItemProxy::builder(conn)
-            .destination(dest.to_owned())
-            .path(path.to_owned())
+            .destination(dest.to_owned())?
+            .path(path.to_owned())?
             .build()
             .await?;
 
@@ -173,8 +170,8 @@ impl StatusNotifierItem {
 
         let menu_path = item_proxy.menu().await?;
         let menu_proxy = dbus::DBusMenuProxy::builder(conn)
-            .destination(dest.to_owned())
-            .path(menu_path.to_owned())
+            .destination(dest.to_owned())?
+            .path(menu_path.to_owned())?
             .build()
             .await?;
 
@@ -219,7 +216,7 @@ impl Deref for TrayService {
 enum State {
     Init,
     Active(zbus::Connection),
-    Error,
+    Error(ServiceError),
 }
 
 impl TrayService {
@@ -352,8 +349,8 @@ impl TrayService {
                 let (dest, path) = dbus::split_service_name(&name);
                 // NewIcon has no matching PropertiesChanged, so a cached read would be stale;
                 let uncached_proxy = StatusNotifierItemProxy::builder(conn)
-                    .destination(dest.to_owned())
-                    .path(path.to_owned())
+                    .destination(dest.to_owned())?
+                    .path(path.to_owned())?
                     .cache_properties(zbus::proxy::CacheProperties::No)
                     .build()
                     .await?;
@@ -383,8 +380,8 @@ impl TrayService {
             if let Ok(new_attention_icon) = new_attention_icon {
                 let (dest, path) = dbus::split_service_name(&name);
                 let uncached_proxy = StatusNotifierItemProxy::builder(conn)
-                    .destination(dest.to_owned())
-                    .path(path.to_owned())
+                    .destination(dest.to_owned())?
+                    .path(path.to_owned())?
                     .cache_properties(zbus::proxy::CacheProperties::No)
                     .build()
                     .await?;
@@ -498,14 +495,14 @@ impl TrayService {
                         Err(err) => {
                             error!("Failed to initialize tray service: {err}");
 
-                            State::Error
+                            State::Error(ServiceError::transient(err))
                         }
                     }
                 }
                 Err(err) => {
                     error!("Failed to connect to system bus: {err}");
 
-                    State::Error
+                    State::Error(ServiceError::transient(err))
                 }
             },
             State::Active(conn) => {
@@ -532,15 +529,23 @@ impl TrayService {
                     }
                     Err(err) => {
                         error!("Failed to listen for tray events: {err}");
-                        State::Error
+                        State::Error(ServiceError::transient(err))
                     }
                 }
             }
-            State::Error => {
-                error!("Tray service error");
+            State::Error(error) => {
+                match error.policy() {
+                    RetryPolicy::Transient => {
+                        error!("Tray service error, retrying in 5 seconds: {error}");
+                    }
+                    RetryPolicy::Permanent => {
+                        error!("Tray service unavailable, not retrying: {error}");
+                    }
+                }
 
-                let _ = pending::<u8>().next().await;
-                State::Error
+                wait_for_retry(&error).await;
+
+                State::Init
             }
         }
     }
@@ -549,7 +554,7 @@ impl TrayService {
         menu_proxy: &DBusMenuProxy<'_>,
         id: i32,
     ) -> anyhow::Result<Layout> {
-        let value = zbus::Variant::I32(32).try_to_owned()?;
+        let value = zbus::zvariant::Value::I32(32).try_to_owned()?;
         menu_proxy
             .event(
                 id,

@@ -15,7 +15,7 @@ inotify = { version = "0.11.1", default-features = false, features = [
 ] }
 log = { version = "0.4", features = [] }
 tokio = { version = "1", default-features = false }
-zbus = { version = "6", default-features = false, features = ["tokio", "proxy", "service"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
 
 [package]
 name = "ashell"
@@ -61,13 +61,7 @@ depends = [
 ]
 
 [dependencies]
-ashell-services = { path = "crates/ashell-services", features = [
-  "bluetooth",
-  "rfkill",
-  "serde",
-  "throttle",
-  "upower",
-] }
+ashell-services = { path = "crates/ashell-services", features = ["bluetooth"] }
 iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.6.1", features = [
   "tokio",
   "advanced",
@@ -84,9 +78,9 @@ chrono = { version = "0.4", default-features = false, features = [
   "unstable-locales",
 ] }
 hyprland = { git = "https://github.com/hyprland-community/hyprland-rs", branch = "master" }
-serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde = { version = "1.0", default-features = false, features = [] }
 sysinfo = { version = "0.39", features = ["linux-netdevs"] }
-tokio = { workspace = true, features = ["fs", "io-util", "net", "process"] }
+tokio = { workspace = true, features = ["net"] }
 zbus.workspace = true
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 log.workspace = true
@@ -116,6 +110,7 @@ clap = { version = "4.5", default-features = false, features = [
 ] }
 shellexpand = { version = "3", features = ["path"] }
 inotify.workspace = true
+pin-project-lite = "0.2.16"
 niri-ipc = "26.4"
 reqwest = { version = "0.13", default-features = false, features = [
   "json",

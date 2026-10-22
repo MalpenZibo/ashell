@@ -1,4 +1,4 @@
-use super::{ReadOnlyService, ServiceEvent};
+use super::{ReadOnlyService, RetryPolicy, ServiceError, ServiceEvent, wait_for_retry};
 use iced::{
     Subscription,
     futures::{
@@ -200,7 +200,7 @@ impl PrivacyService {
                     (Err(pipewire_error), Ok(_)) => {
                         error!("Failed to connect to pipewire: {pipewire_error}");
 
-                        State::Error
+                        State::Error(ServiceError::transient(pipewire_error))
                     }
                     (Ok(pipewire), Err(webcam_error)) => {
                         warn!("Failed to connect to webcam: {webcam_error}");
@@ -211,7 +211,7 @@ impl PrivacyService {
                         error!("Failed to connect to pipewire: {pipewire_error}");
                         error!("Failed to connect to webcam: {webcam_error}");
 
-                        State::Error
+                        State::Error(ServiceError::transient(pipewire_error))
                     }
                 }
             }
@@ -243,11 +243,19 @@ impl PrivacyService {
 
                 State::Active((pipewire, webcam))
             }
-            State::Error => {
-                error!("Privacy service error");
+            State::Error(error) => {
+                match error.policy() {
+                    RetryPolicy::Transient => {
+                        error!("Privacy service error, retrying in 5 seconds: {error}");
+                    }
+                    RetryPolicy::Permanent => {
+                        error!("Privacy service unavailable, not retrying: {error}");
+                    }
+                }
 
-                let _ = pending::<u8>().next().await;
-                State::Error
+                wait_for_retry(&error).await;
+
+                State::Init
             }
         }
     }
@@ -261,7 +269,7 @@ enum State {
             Box<dyn Stream<Item = PrivacyEvent> + Unpin + Send>,
         ),
     ),
-    Error,
+    Error(ServiceError),
 }
 
 #[derive(Debug, Clone)]

@@ -26,5 +26,5 @@ pub trait StationDiagnostic {
     /// `GetDiagnostics` method
     fn get_diagnostics(
         &self,
-    ) -> zbus::Result<std::collections::HashMap<String, zbus::OwnedVariant>>;
+    ) -> zbus::Result<std::collections::HashMap<String, zbus::zvariant::OwnedValue>>;
 }

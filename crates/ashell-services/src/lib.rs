@@ -1,12 +1,8 @@
 #[cfg(feature = "bluetooth")]
 pub mod bluetooth;
-#[cfg(any(feature = "bluetooth", feature = "upower"))]
+#[cfg(feature = "bluetooth")]
 mod bus;
 #[cfg(feature = "rfkill")]
 pub mod rfkill;
-#[cfg(any(feature = "bluetooth", feature = "upower"))]
+#[cfg(feature = "bluetooth")]
 mod stream;
-#[cfg(feature = "throttle")]
-pub mod throttle;
-#[cfg(feature = "upower")]
-pub mod upower;

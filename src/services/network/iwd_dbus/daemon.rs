@@ -21,5 +21,7 @@ use zbus::proxy;
 #[proxy(interface = "net.connman.iwd.Daemon", assume_defaults = true)]
 pub trait Daemon {
     /// `GetInfo` method
-    fn get_info(&self) -> zbus::Result<std::collections::HashMap<String, zbus::OwnedVariant>>;
+    fn get_info(
+        &self,
+    ) -> zbus::Result<std::collections::HashMap<String, zbus::zvariant::OwnedValue>>;
 }

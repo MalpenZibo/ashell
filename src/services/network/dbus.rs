@@ -8,7 +8,10 @@ use iced::futures::{Stream, StreamExt, stream::select_all};
 use itertools::Itertools;
 use log::{debug, warn};
 use std::{collections::HashMap, ops::Deref};
-use zbus::{ObjectPath, OwnedObjectPath, OwnedVariant, Result, Variant, proxy};
+use zbus::{
+    Result, proxy,
+    zvariant::{self, ObjectPath, OwnedObjectPath, OwnedValue, Value},
+};
 
 pub struct NetworkDbus<'a>(NetworkManagerProxy<'a>);
 
@@ -85,13 +88,13 @@ impl super::NetworkBackend for NetworkDbus<'_> {
         if let Some(connection) = connection.as_ref() {
             if let Some(password) = password {
                 let connection = ConnectionSettingsProxy::builder(self.0.inner().connection())
-                    .path(connection)
+                    .path(connection)?
                     .build()
                     .await?;
 
                 let mut s = connection.get_settings().await?;
                 if let Some(wifi_settings) = s.get_mut("802-11-wireless-security") {
-                    let new_password = zbus::Variant::from(password.clone()).try_to_owned()?;
+                    let new_password = zvariant::Value::from(password.clone()).try_to_owned()?;
                     wifi_settings.insert("psk".to_string(), new_password);
                 }
 
@@ -108,16 +111,16 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             let name = access_point.ssid.clone();
             debug!("Create new wifi connection: {name}");
 
-            let mut conn_settings: HashMap<&str, HashMap<&str, zbus::Variant>> = HashMap::from([
+            let mut conn_settings: HashMap<&str, HashMap<&str, zvariant::Value>> = HashMap::from([
                 (
                     "802-11-wireless",
-                    HashMap::from([("ssid", Variant::Array(name.as_bytes().into()))]),
+                    HashMap::from([("ssid", Value::Array(name.as_bytes().into()))]),
                 ),
                 (
                     "connection",
                     HashMap::from([
-                        ("id", Variant::Str(name.into())),
-                        ("type", Variant::Str("802-11-wireless".into())),
+                        ("id", Value::Str(name.into())),
+                        ("type", Value::Str("802-11-wireless".into())),
                     ]),
                 ),
             ]);
@@ -125,7 +128,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             if let Some(pass) = password {
                 conn_settings.insert(
                     "802-11-wireless-security",
-                    HashMap::from([("psk", Variant::Str(pass.into()))]),
+                    HashMap::from([("psk", Value::Str(pass.into()))]),
                 );
             }
 
@@ -137,7 +140,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
                 conn_settings,
                 &access_point.device_path,
                 &access_point.path,
-                HashMap::from([("persist", Variant::Str(persist.into()))]),
+                HashMap::from([("persist", Value::Str(persist.into()))]),
             )
             .await?;
         }
@@ -201,7 +204,7 @@ impl NetworkDbus<'_> {
         };
 
         let connection = ConnectionSettingsProxy::builder(self.0.inner().connection())
-            .path(connection_path)
+            .path(connection_path)?
             .build()
             .await?;
 
@@ -209,7 +212,7 @@ impl NetworkDbus<'_> {
             .get("802-11-wireless")
             .and_then(|w| w.get("hidden"))
             .and_then(|v| match v.deref() {
-                Variant::Bool(b) => Some(*b),
+                Value::Bool(b) => Some(*b),
                 _ => None,
             })
             .unwrap_or(false);
@@ -222,7 +225,7 @@ impl NetworkDbus<'_> {
         let key_mgmt = security_settings
             .get("key-mgmt")
             .and_then(|v| match v.deref() {
-                Variant::Str(s) => Some(s.to_string()),
+                Value::Str(s) => Some(s.to_string()),
                 _ => None,
             });
 
@@ -242,7 +245,7 @@ impl NetworkDbus<'_> {
             .get("802-11-wireless-security")
             .and_then(|sec| sec.get("psk"))
             .and_then(|v| match v.deref() {
-                Variant::Str(v) => Some(v.to_string()),
+                Value::Str(v) => Some(v.to_string()),
                 _ => None,
             });
 
@@ -268,7 +271,7 @@ impl NetworkDbus<'_> {
     ) -> anyhow::Result<Option<(OwnedObjectPath, ConnectionSettingsMap)>> {
         for active_path in self.active_connections().await? {
             let active = ActiveConnectionProxy::builder(self.0.inner().connection())
-                .path(active_path)
+                .path(active_path)?
                 .build()
                 .await?;
 
@@ -281,7 +284,7 @@ impl NetworkDbus<'_> {
             };
 
             let profile = ConnectionSettingsProxy::builder(self.0.inner().connection())
-                .path(profile_path.clone())
+                .path(profile_path.clone())?
                 .build()
                 .await?;
 
@@ -305,7 +308,7 @@ impl NetworkDbus<'_> {
         for device_path in device_paths {
             let device_path_str = device_path.to_string();
             let device = WirelessDeviceProxy::builder(self.0.inner().connection())
-                .path(device_path.clone())
+                .path(device_path.clone())?
                 .build()
                 .await?;
 
@@ -417,7 +420,7 @@ impl NetworkDbus<'_> {
         let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
         for ac in wireless_ac.iter() {
             let dp = DeviceProxy::builder(conn)
-                .path(ac.device_path.clone())
+                .path(ac.device_path.clone())?
                 .build()
                 .await?;
 
@@ -447,7 +450,7 @@ impl NetworkDbus<'_> {
         let mut ac_changes = Vec::with_capacity(devices.len());
         for device_path in devices.iter() {
             let dp = WirelessDeviceProxy::builder(conn)
-                .path(device_path.clone())
+                .path(device_path.clone())?
                 .build()
                 .await?;
 
@@ -485,7 +488,7 @@ impl NetworkDbus<'_> {
             let ssid = ap.ssid.clone();
             let path = ap.path.clone();
             let app = AccessPointProxy::builder(conn)
-                .path(ap.path.clone())
+                .path(ap.path.clone())?
                 .build()
                 .await?;
 
@@ -512,7 +515,7 @@ impl NetworkDbus<'_> {
         let mut last_scan_changes = Vec::with_capacity(devices.len());
         for device_path in devices.iter() {
             let dp = WirelessDeviceProxy::builder(conn)
-                .path(device_path.clone())
+                .path(device_path.clone())?
                 .build()
                 .await?;
 
@@ -576,7 +579,7 @@ impl NetworkDbus<'_> {
         let devices = self.devices().await?;
         for d in devices {
             let device = DeviceProxy::builder(self.0.inner().connection())
-                .path(d)
+                .path(d)?
                 .build()
                 .await?;
 
@@ -603,7 +606,7 @@ impl NetworkDbus<'_> {
             Vec::with_capacity(active_connections.len());
         for active_connection in &active_connections {
             let active_connection = ActiveConnectionProxy::builder(self.0.inner().connection())
-                .path(active_connection)
+                .path(active_connection)?
                 .build()
                 .await?;
             ac_proxies.push(active_connection);
@@ -620,7 +623,7 @@ impl NetworkDbus<'_> {
             }
             for device in connection.devices().await.unwrap_or_default() {
                 let device = DeviceProxy::builder(self.0.inner().connection())
-                    .path(device)
+                    .path(device)?
                     .build()
                     .await?;
 
@@ -633,14 +636,14 @@ impl NetworkDbus<'_> {
                     Some(DeviceType::Wifi) => {
                         let wireless_device =
                             WirelessDeviceProxy::builder(self.0.inner().connection())
-                                .path(device.0.path())
+                                .path(device.0.path())?
                                 .build()
                                 .await?;
 
                         if let Ok(access_point) = wireless_device.active_access_point().await {
                             let access_point =
                                 AccessPointProxy::builder(self.0.inner().connection())
-                                    .path(access_point)
+                                    .path(access_point)?
                                     .build()
                                     .await?;
 
@@ -679,14 +682,14 @@ impl NetworkDbus<'_> {
     }
 }
 
-type ConnectionSettingsMap = HashMap<String, HashMap<String, OwnedVariant>>;
+type ConnectionSettingsMap = HashMap<String, HashMap<String, OwnedValue>>;
 
 fn connection_ssid(settings: &ConnectionSettingsMap) -> Option<String> {
     let bytes: Vec<u8> = match settings.get("802-11-wireless")?.get("ssid")?.deref() {
-        Variant::Array(bytes) => bytes
+        Value::Array(bytes) => bytes
             .iter()
             .map(|b| match b {
-                Variant::U8(b) => Some(*b),
+                Value::U8(b) => Some(*b),
                 _ => None,
             })
             .collect::<Option<Vec<u8>>>()?,
@@ -696,12 +699,12 @@ fn connection_ssid(settings: &ConnectionSettingsMap) -> Option<String> {
     Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-fn connection_id(settings: &HashMap<String, HashMap<String, OwnedVariant>>) -> Option<String> {
+fn connection_id(settings: &HashMap<String, HashMap<String, OwnedValue>>) -> Option<String> {
     settings
         .get("connection")?
         .get("id")
         .and_then(|v| match v.deref() {
-            Variant::Str(v) => Some(v.to_string()),
+            Value::Str(v) => Some(v.to_string()),
             _ => None,
         })
 }
@@ -719,7 +722,7 @@ impl NetworkDbus<'_> {
         let mut known_vpn = Vec::new();
         for c in known_connections {
             let cs = ConnectionSettingsProxy::builder(self.0.inner().connection())
-                .path(c.clone())
+                .path(c.clone())?
                 .build()
                 .await?;
             let Ok(s) = cs.get_settings().await else {
@@ -759,7 +762,7 @@ impl NetworkDbus<'_> {
         let mut wireless_devices = Vec::new();
         for d in devices {
             let device = DeviceProxy::builder(self.0.inner().connection())
-                .path(&d)
+                .path(&d)?
                 .build()
                 .await?;
 
@@ -780,11 +783,11 @@ impl NetworkDbus<'_> {
             .into_iter()
             .map(|path| async move {
                 let device = DeviceProxy::builder(self.0.inner().connection())
-                    .path(&path)
+                    .path(&path)?
                     .build()
                     .await?;
                 let wireless_device = WirelessDeviceProxy::builder(self.0.inner().connection())
-                    .path(&path)
+                    .path(&path)?
                     .build()
                     .await?;
                 // disable scan for now for performance reason
@@ -805,7 +808,7 @@ impl NetworkDbus<'_> {
                 let mut aps = HashMap::<String, AccessPointData>::new();
                 for ap in access_points {
                     let ap = AccessPointProxy::builder(self.0.inner().connection())
-                        .path(ap)
+                        .path(ap)?
                         .build()
                         .await?;
 
@@ -913,7 +916,7 @@ impl NetworkSettingsDbus<'_> {
 
         for connection in connections {
             let connection = ConnectionSettingsProxy::builder(self.inner().connection())
-                .path(connection)
+                .path(connection)?
                 .build()
                 .await?;
 
@@ -1080,14 +1083,14 @@ pub trait NetworkManager {
     #[zbus(name = "AddAndActivateConnection2")]
     fn add_and_activate_connection2(
         &self,
-        connection: HashMap<&str, HashMap<&str, Variant<'_>>>,
+        connection: HashMap<&str, HashMap<&str, Value<'_>>>,
         device: &ObjectPath<'_>,
         specific_object: &ObjectPath<'_>,
-        options: HashMap<&str, Variant<'_>>,
+        options: HashMap<&str, Value<'_>>,
     ) -> Result<(
         OwnedObjectPath,
         OwnedObjectPath,
-        HashMap<String, OwnedVariant>,
+        HashMap<String, OwnedValue>,
     )>;
 
     fn deactivate_connection(&self, connection: OwnedObjectPath) -> Result<()>;
@@ -1162,7 +1165,7 @@ pub trait Device {
 )]
 pub trait WirelessDevice {
     /// `GetAccessPoints` method
-    fn get_access_points(&self) -> zbus::Result<Vec<zbus::OwnedObjectPath>>;
+    fn get_access_points(&self) -> zbus::Result<Vec<zbus::zvariant::OwnedObjectPath>>;
 
     #[zbus(property)]
     fn active_access_point(&self) -> Result<OwnedObjectPath>;
@@ -1173,7 +1176,7 @@ pub trait WirelessDevice {
     #[zbus(property)]
     fn last_scan(&self) -> zbus::Result<i64>;
 
-    fn request_scan(&self, options: HashMap<String, OwnedVariant>) -> Result<()>;
+    fn request_scan(&self, options: HashMap<String, OwnedValue>) -> Result<()>;
 }
 
 #[proxy(
@@ -1206,7 +1209,7 @@ pub trait AccessPoint {
 pub trait Settings {
     fn add_connection(
         &self,
-        connection: HashMap<String, HashMap<String, OwnedVariant>>,
+        connection: HashMap<String, HashMap<String, OwnedValue>>,
     ) -> Result<OwnedObjectPath>;
 
     #[zbus(property)]
@@ -1223,13 +1226,13 @@ pub trait Settings {
     interface = "org.freedesktop.NetworkManager.Settings.Connection"
 )]
 trait ConnectionSettings {
-    fn update(&self, settings: HashMap<String, HashMap<String, OwnedVariant>>) -> Result<()>;
+    fn update(&self, settings: HashMap<String, HashMap<String, OwnedValue>>) -> Result<()>;
 
-    fn get_settings(&self) -> Result<HashMap<String, HashMap<String, OwnedVariant>>>;
+    fn get_settings(&self) -> Result<HashMap<String, HashMap<String, OwnedValue>>>;
 
     /// Gated by polkit rather than `*-flags`, so it returns secrets even when `psk-flags` is set.
     fn get_secrets(
         &self,
         setting_name: &str,
-    ) -> Result<HashMap<String, HashMap<String, OwnedVariant>>>;
+    ) -> Result<HashMap<String, HashMap<String, OwnedValue>>>;
 }
