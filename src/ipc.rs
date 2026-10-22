@@ -72,6 +72,8 @@ pub enum IpcCommand {
         #[arg(value_parser = config::resolve_config_arg)]
         file: PathBuf,
     },
+    /// Restart ashell, reloading the configuration from disk
+    Restart,
 }
 
 impl IpcCommand {
@@ -89,6 +91,7 @@ impl IpcCommand {
             | IpcCommand::ToggleAirplaneMode { no_osd }
             | IpcCommand::ToggleIdleInhibitor { no_osd } => *no_osd,
             IpcCommand::LoadConfig { .. } => false,
+            IpcCommand::Restart => false,
         }
     }
 }
@@ -110,6 +113,7 @@ impl fmt::Display for IpcCommand {
             IpcCommand::ToggleAirplaneMode { .. } => "toggle-airplane-mode",
             IpcCommand::ToggleIdleInhibitor { .. } => "toggle-idle-inhibitor",
             IpcCommand::LoadConfig { .. } => "load-config",
+            IpcCommand::Restart => "restart",
         };
         write!(f, "{base}")?;
         if let IpcCommand::LoadConfig { file } = self {
@@ -160,6 +164,7 @@ impl FromStr for IpcCommand {
                     .map_err(|e| anyhow!("invalid config {}: {e}", file.display()))?;
                 Ok(IpcCommand::LoadConfig { file })
             }
+            "restart" => Ok(IpcCommand::Restart),
             _ => Err(anyhow!("unknown IPC command: {s:?}")),
         }
     }
@@ -169,6 +174,25 @@ impl FromStr for IpcCommand {
 /// per-user dir in the temp dir so other users can't squat or spoof it.
 fn socket_path(create_dir: bool) -> Result<PathBuf> {
     Ok(xdg::private_dir(create_dir)?.join("ashell.sock"))
+}
+
+/// Remove the IPC socket, so a process replacing this one can bind a fresh
+/// listener.
+///
+/// `create_listener` treats a missing socket as "no primary is serving" and
+/// binds a new one, which is what a self-replacing process needs: the outgoing
+/// process may still hold the old listener open across `exec`.
+pub fn clear_socket() -> Result<()> {
+    let path = socket_path(false)?;
+
+    match std::fs::remove_file(&path) {
+        Ok(()) => {
+            log::debug!("Removed IPC socket {}", path.display());
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(anyhow::Error::new(e).context(format!("remove {}", path.display()))),
+    }
 }
 
 // ---------------------------------------------------------------------------
