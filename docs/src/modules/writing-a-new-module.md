@@ -118,11 +118,12 @@ In `src/modules/mod.rs`:
 ### get_module_view
 
 ```rust
-ModuleName::MyModule => Some((
+ModuleName::MyModule => Some(ModuleView::plain(
     self.my_module.view().map(Message::MyModule),
-    None,  // Or Some(ModulePress::menu(MenuType::MyModule)) if you have a menu
 )),
 ```
+
+If the module has a menu, use `ModuleView::menu(content, MenuType::MyModule)` instead; for a single left-click message, use `ModuleView::message(content, message)`.
 
 ### get_module_subscription
 
@@ -182,7 +183,7 @@ pub enum MenuType {
 
 2. Add a `menu_view()` method to your module.
 
-3. Change `get_module_view` to return `Some(ModulePress::menu(MenuType::MyModule))`.
+3. Change `get_module_view` to return `ModuleView::menu(content, MenuType::MyModule)`.
 
 4. Handle the menu rendering in `App::view()` / `App::menu_wrapper()`.
 

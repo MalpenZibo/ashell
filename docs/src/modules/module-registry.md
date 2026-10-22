@@ -4,46 +4,48 @@ The module registry in `src/modules/mod.rs` connects module names to their imple
 
 ## get_module_view
 
-This method maps a `ModuleName` to its rendered view and interaction type:
+This method maps a `ModuleName` to a `ModuleView`:
 
 ```rust
 fn get_module_view<'a>(
     &'a self,
     id: SurfaceId,
     module_name: &'a ModuleName,
-) -> Option<(Element<'a, Message>, Option<ModulePress>)> {
+) -> Option<ModuleView<'a>> {
     match module_name {
         ModuleName::Privacy => self
             .privacy
             .view()
-            .map(|view| (view.map(Message::Privacy), None)), // No interaction
-        ModuleName::Settings => Some((
+            .map(|view| ModuleView::plain(view.map(Message::Privacy))),
+        ModuleName::Settings => Some(ModuleView::menu(
             self.settings.view(id).map(Message::Settings),
-            Some(ModulePress::menu(MenuType::Settings)),
+            MenuType::Settings,
         )),
         // ... one arm per module
     }
 }
 ```
 
-The return type is `Option<(Element, Option<ModulePress>)>`:
-- `None` means the module has nothing to display (e.g., privacy module when no indicators are active)
-- `Some((view, None))` renders the module without interaction
-- `Some((view, Some(press)))` wraps the module in an interactive button
+`None` means the module has nothing to display (for example, the privacy module when no indicators are active). `ModuleView::plain` renders content without interaction; `ModuleView::menu` / `ModuleView::message` attach an interaction.
 
-## ModulePress
+## ModuleView and ModuleInteractions
 
-Describes what happens when a user clicks or scrolls on a module. Every button
-handler is a `ModuleAction` — either a plain message or a menu toggle (opening a
-menu needs the button's on-screen position, so it is a separate variant):
+`ModuleView` keeps the rendered content and its optional interactions together, instead of passing a tuple around:
 
 ```rust
-struct ModulePress {
-    on_press: Option<ModuleAction>,
-    on_right_press: Option<ModuleAction>,
-    on_middle_press: Option<ModuleAction>,
-    on_scroll_up: Option<Box<Message>>,
-    on_scroll_down: Option<Box<Message>>,
+struct ModuleView<'a> {
+    content: Element<'a, Message>,
+    interactions: Option<ModuleInteractions>,
+}
+```
+
+`ModuleInteractions` stores one action per mouse button plus the two scroll directions:
+
+```rust
+struct ModuleInteractions {
+    buttons: [Option<ModuleAction>; 3],
+    scroll_up: Option<Box<Message>>,
+    scroll_down: Option<Box<Message>>,
 }
 
 enum ModuleAction {
@@ -52,17 +54,19 @@ enum ModuleAction {
 }
 ```
 
-Build one with a chain of helpers instead of filling every field:
+`ModuleAction`, `ModuleInteractions` and `ModuleView` live in `src/modules/interaction.rs`. `MouseButton` lives in `src/components/position_button.rs`, next to the widget that consumes it.
+
+Build interactions with a chain of helpers instead of filling every field:
 
 ```rust
 // Left-click only.
-ModulePress::message(Message::KeyboardLayout(keyboard_layout::Message::ChangeLayout))
+ModuleInteractions::message(Message::KeyboardLayout(keyboard_layout::Message::ChangeLayout))
 
 // Left-click opens a menu.
-ModulePress::menu(MenuType::Settings)
+ModuleInteractions::menu(MenuType::Settings)
 
 // Menu on left-click plus extra handlers (e.g. Tempo).
-ModulePress::menu(MenuType::Tempo)
+ModuleInteractions::menu(MenuType::Tempo)
     .right_message(Message::Tempo(tempo::Message::CycleFormat))
     .scroll_up(Message::Tempo(tempo::Message::CycleTimezone(
         tempo::TimezoneDirection::Forward,
@@ -72,18 +76,32 @@ ModulePress::menu(MenuType::Tempo)
     )))
 ```
 
-For modules that need independent left/right/middle actions (custom modules of
-type `Button` and MediaPlayer), build the `ModulePress` struct directly; each
-button takes an `Option<ModuleAction>`.
+For config-driven handlers, use `button` / `button_opt`:
 
-### Usage Notes
+```rust
+ModuleInteractions::default()
+    .button(
+        MouseButton::Left,
+        ModuleAction::message(Message::Custom(name.clone(), LaunchCommand)),
+    )
+    .button_opt(
+        MouseButton::Right,
+        config.on_right_click.as_ref().map(|_| {
+            ModuleAction::message(Message::Custom(name.clone(), LaunchRightClickCommand))
+        }),
+    )
+    .scroll_up_opt(config.on_scroll_up.as_ref().map(|_| scroll_up_message))
+```
 
-- **`ModulePress::message`**: Simple handler, no menu.
-- **`ModulePress::menu`**: Opens/closes a popup menu on left-click.
-- **`.right_message` / `.middle_message` / `.scroll_up` / `.scroll_down`**: Add
-  extra handlers on top of the left-click one. The two message helpers only take
-  a plain message; to toggle a menu from another button, build the `ModulePress`
-  struct directly and pass `ModuleAction::menu(..)` for that button.
+`button_opt(..., None)` clears a handler, which is useful when rebuilding interactions from config.
+
+### PressHandler layering
+
+- `ModuleAction` is app-level: a plain `Message` or a menu toggle.
+- `PressHandler` is widget-level (`src/components/position_button.rs`): a plain message or a closure that receives the button's on-screen position.
+- `ModuleAction::into_handler` is the single conversion point. `PositionButton` does not know about menus or `MenuType`.
+
+Opening a menu needs the button position, so it becomes `PressHandler::WithPosition`; everything else stays `PressHandler::Message`.
 
 ## get_module_subscription
 
@@ -127,10 +145,11 @@ pub fn modules_section<'a>(&'a self, id: SurfaceId) -> [Element<'a, Message>; 3]
 
 ### build_module_item
 
-Wraps one module's view using the `module_item` builder (`src/components/module_item.rs`):
-- If the module has a `ModulePress`, each button handler is attached with `set_handler` (`Button::Press`, `Button::RightPress`, `Button::MiddlePress`) and scroll handlers with `set_scroll_up` / `set_scroll_down`
-- Otherwise, it's wrapped in a plain `container`
-- When animations are enabled, the content is first wrapped in `animated_size`
+Wraps one module's `ModuleView` using the `module_item` builder (`src/components/module_item.rs`):
+- `ModuleView::into_parts()` gives the content and optional `ModuleInteractions`.
+- When animations are enabled, the content is first wrapped in `animated_size`.
+- `ModuleInteractions::into_item` maps each `MouseButton` to `set_handler` and sets `set_scroll_up` / `set_scroll_down`.
+- Without interactions, the content is wrapped in a plain `container`.
 
 ### single_module_wrapper
 

@@ -13,32 +13,38 @@ iced's built-in `Button` widget emits a message on press, but it doesn't include
 ## API
 
 ```rust
-pub fn position_button<'a, Message, Theme, Renderer>(
-    content: impl Into<Element<'a, Message, Theme, Renderer>>,
-) -> PositionButton<'a, Message, Theme, Renderer>;
+pub enum MouseButton {
+    Left,
+    Right,
+    Middle,
+}
+
+impl MouseButton {
+    pub const ALL: [Self; 3];
+    pub const fn index(self) -> usize;
+}
+
+pub enum PressHandler<'a, Message> {
+    Message(Message),
+    WithPosition(Box<dyn Fn(ButtonUIRef) -> Message + 'a>),
+}
+
+impl<'a, Message> PressHandler<'a, Message> {
+    pub fn message(message: Message) -> Self;
+    pub fn with_position(handler: impl Fn(ButtonUIRef) -> Message + 'a) -> Self;
+}
 
 impl PositionButton {
-    // Standard click: callback receives ButtonUIRef with position info
-    pub fn on_press_with_position(self, f: impl Fn(ButtonUIRef) -> Message) -> Self;
+    // One method for every mouse button. PressHandler::WithPosition receives the
+    // ButtonUIRef needed for menu placement.
+    pub fn on(self, button: MouseButton, handler: PressHandler<'a, Message>) -> Self;
 
-    // Standard click without position info
-    pub fn on_press(self, msg: Message) -> Self;
-
-    // Right-click handlers
-    pub fn on_right_press(self, msg: Message) -> Self;
-    pub fn on_right_press_with_position(self, f: impl Fn(ButtonUIRef) -> Message) -> Self;
-
-    // Middle-click handlers
-    pub fn on_middle_press(self, msg: Message) -> Self;
-    pub fn on_middle_press_with_position(self, f: impl Fn(ButtonUIRef) -> Message) -> Self;
-
-    // Scroll handlers (explicit up/down, not a generic scroll event)
+    // Scroll handlers are explicit up/down; there is no generic scroll event.
     pub fn on_scroll_up(self, msg: Message) -> Self;
     pub fn on_scroll_down(self, msg: Message) -> Self;
 
-    // Hover handlers (used for tooltip popups)
-    pub fn on_hover(self, msg: Message) -> Self;
-    pub fn on_hover_with_position(self, f: impl Fn(ButtonUIRef) -> Message) -> Self;
+    // Hover handlers (used for tooltip popups).
+    pub fn on_hover(self, handler: PressHandler<'a, Message>) -> Self;
     pub fn on_unhover(self, msg: Message) -> Self;
 
     // Layout and styling
@@ -50,11 +56,14 @@ impl PositionButton {
 }
 ```
 
+Internally the press handlers live in a `[Option<PressHandler>; 3]` array indexed by `MouseButton::index()`, and the pressed state is a `[bool; 3]`. Adding a mouse button means adding an enum variant and one array slot, rather than another parallel field and match arm.
+
 ## Notes
 
 - Scroll events are explicit: separate `on_scroll_up` and `on_scroll_down` handlers. There is no generic "scroll" event.
 - For custom modules, these handlers map directly to `on_scroll_up` / `on_scroll_down` config fields.
-- Middle-click (`on_middle_press`) is used by `ModulePress` for modules with independent per-button actions (custom modules of type `Button` and MediaPlayer). Any button — including middle-click — can emit a message or toggle a menu.
+- `PressHandler::WithPosition` builds a message from the button's on-screen position; `PressHandler::Message` is the plain-message case.
+- Any mouse button can emit a message or toggle a menu, not just left-click.
 
 ## ButtonUIRef
 
@@ -69,13 +78,13 @@ pub struct ButtonUIRef {
 ## Usage
 
 ```rust
-// In modules/mod.rs, build_module_item maps a ModulePress onto the item. A menu
-// toggle needs the button position, so it becomes PressHandler::WithPosition:
+// In modules/mod.rs, ModuleInteractions maps a ModuleAction onto a PressHandler.
+// A menu toggle needs the button position, so it becomes WithPosition:
 module_item(content).set_handler(
-    Button::Press,
-    Some(PressHandler::WithPosition(Box::new(move |button_ui_ref| {
+    MouseButton::Left,
+    Some(PressHandler::with_position(move |button_ui_ref| {
         Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
-    }))),
+    })),
 )
 ```
 

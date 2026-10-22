@@ -129,7 +129,7 @@ Each indicator maps to a dedicated `MenuType` variant:
 
 ### Hover Interaction
 
-Tooltips use the `PositionButton` hover events (`on_hover_with_position` / `on_unhover`). When the cursor enters an indicator, the module opens a tooltip menu positioned relative to the button. When the cursor leaves, the tooltip closes.
+Tooltips use the `PositionButton` hover events (`on_hover(PressHandler::with_position(...))` / `on_unhover`). When the cursor enters an indicator, the module opens a tooltip menu positioned relative to the button. When the cursor leaves, the tooltip closes.
 
 Tooltips are suppressed when a non-tooltip menu (e.g., the Settings panel) is already open, to avoid conflicting popups.
 
