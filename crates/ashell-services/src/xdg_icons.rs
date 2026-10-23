@@ -322,6 +322,31 @@ fn build_desktop_icon_index() -> HashMap<String, String> {
 
 const MAX_DESKTOP_FILE_SIZE: u64 = 64 * 1024;
 
+/// `Icon` and `StartupWMClass` of the `[Desktop Entry]` group: the
+/// `[Desktop Action ...]` groups have icons of their own.
+fn desktop_entry_keys(contents: &str) -> (Option<&str>, Option<&str>) {
+    let mut icon = None;
+    let mut wm_class = None;
+    let mut in_desktop_entry = false;
+
+    for line in contents.lines() {
+        if line.starts_with('[') {
+            in_desktop_entry = line.trim() == "[Desktop Entry]";
+            continue;
+        }
+        if !in_desktop_entry {
+            continue;
+        }
+        if let Some(val) = line.strip_prefix("Icon=") {
+            icon = Some(val.trim());
+        } else if let Some(val) = line.strip_prefix("StartupWMClass=") {
+            wm_class = Some(val.trim());
+        }
+    }
+
+    (icon, wm_class)
+}
+
 fn parse_desktop_file(path: &Path, map: &mut HashMap<String, String>) {
     let Ok(metadata) = fs::metadata(path) else {
         return;
@@ -341,23 +366,13 @@ fn parse_desktop_file(path: &Path, map: &mut HashMap<String, String>) {
         .and_then(|s| s.to_str())
         .unwrap_or_default();
 
-    let mut icon_value: Option<String> = None;
-    let mut wm_class: Option<String> = None;
-
-    for line in contents.lines() {
-        if let Some(val) = line.strip_prefix("Icon=") {
-            icon_value = Some(val.trim().to_string());
-        } else if let Some(val) = line.strip_prefix("StartupWMClass=") {
-            wm_class = Some(val.trim().to_string());
-        }
-    }
-
-    let Some(icon) = icon_value else {
+    let (Some(icon), wm_class) = desktop_entry_keys(&contents) else {
         return;
     };
+    let icon = icon.to_string();
 
     if let Some(wm) = wm_class {
-        let key = normalize_icon_name(&wm).into_owned();
+        let key = normalize_icon_name(wm).into_owned();
         map.entry(key).or_insert_with(|| icon.clone());
     }
     let parts: Vec<&str> = stem.split('.').collect();
@@ -462,9 +477,27 @@ fn icon_directories() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        get_icon_from_name, is_safe_icon_name, normalize_icon_name, strip_icon_separators,
-        theme_icon_path,
+        desktop_entry_keys, get_icon_from_name, is_safe_icon_name, normalize_icon_name,
+        strip_icon_separators, theme_icon_path,
     };
+
+    #[test]
+    fn desktop_entry_keys_skip_action_groups() {
+        let contents = "[Desktop Entry]\n\
+            Name=LibreOffice Writer\n\
+            Icon=libreoffice-writer\n\
+            StartupWMClass=libreoffice-writer\n\
+            \n\
+            [Desktop Action NewDocument]\n\
+            Name=New Document\n\
+            Icon=document-new\n\
+            StartupWMClass=other\n";
+
+        assert_eq!(
+            desktop_entry_keys(contents),
+            (Some("libreoffice-writer"), Some("libreoffice-writer"))
+        );
+    }
 
     #[test]
     fn accepts_ordinary_icon_names() {
