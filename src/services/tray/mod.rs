@@ -373,55 +373,30 @@ impl TrayService {
                 );
             }
 
-            let layout_updated = item.menu_proxy.receive_layout_updated().await;
-            if let Ok(layout_updated) = layout_updated {
-                menu_layout_change.push(
-                    layout_updated
-                        .filter_map({
-                            let name = name.clone();
-                            let menu_proxy = item.menu_proxy.clone();
-                            move |_| {
-                                debug!("layout update event name {}", name);
-
-                                let name = name.clone();
-                                let menu_proxy = menu_proxy.clone();
-                                async move {
-                                    menu_proxy.get_layout(0, -1, &[]).await.ok().map(
-                                        |(_, layout)| {
-                                            TrayEvent::MenuLayoutChanged(name.to_owned(), layout)
-                                        },
-                                    )
-                                }
-                            }
-                        })
-                        .boxed(),
-                );
+            let mut layout_triggers = Vec::with_capacity(2);
+            if let Ok(layout_updated) = item.menu_proxy.receive_layout_updated().await {
+                layout_triggers.push(layout_updated.map(|_| ()).boxed());
             }
-
-            let items_removed = item.menu_proxy.receive_items_removed().await;
-            if let Ok(items_removed) = items_removed {
-                menu_layout_change.push(
-                    items_removed
-                        .filter_map({
-                            let name = name.clone();
-                            let menu_proxy = item.menu_proxy.clone();
-                            move |_| {
-                                debug!("items removed event name {}", name);
-
-                                let name = name.clone();
-                                let menu_proxy = menu_proxy.clone();
-                                async move {
-                                    menu_proxy.get_layout(0, -1, &[]).await.ok().map(
-                                        |(_, layout)| {
-                                            TrayEvent::MenuLayoutChanged(name.to_owned(), layout)
-                                        },
-                                    )
-                                }
-                            }
-                        })
-                        .boxed(),
-                );
+            if let Ok(items_removed) = item.menu_proxy.receive_items_removed().await {
+                layout_triggers.push(items_removed.map(|_| ()).boxed());
             }
+            menu_layout_change.push(coalesced_reads(select_all(layout_triggers), {
+                let name = name.clone();
+                let menu_proxy = item.menu_proxy.clone();
+                move |()| {
+                    debug!("menu layout changed for {name}");
+
+                    let name = name.clone();
+                    let menu_proxy = menu_proxy.clone();
+                    async move {
+                        menu_proxy
+                            .get_layout(0, -1, &[])
+                            .await
+                            .ok()
+                            .map(|(_, layout)| TrayEvent::MenuLayoutChanged(name, layout))
+                    }
+                }
+            }));
         }
 
         Ok(stream_select!(
