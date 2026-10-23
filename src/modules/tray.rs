@@ -67,7 +67,7 @@ pub enum Action {
     ToggleMenu(String, SurfaceId, ButtonUIRef),
     TrayMenuCommand(Task<Message>),
     TrayMenuCommandKeepOpen(Task<Message>),
-    CloseTrayMenu(String),
+    CloseTrayMenus(Vec<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -104,12 +104,25 @@ impl TrayModule {
         match message {
             Message::Event(event) => match *event {
                 ServiceEvent::Init(service) => {
+                    // A reload (the watcher changed owner) may drop the item
+                    // whose menu is open.
+                    let gone = self
+                        .service
+                        .iter()
+                        .flat_map(|old| old.iter())
+                        .filter(|old| !service.iter().any(|item| item.name == old.name))
+                        .map(|old| old.name.clone())
+                        .collect::<Vec<_>>();
                     self.service = Some(service);
-                    Action::None
+                    if gone.is_empty() {
+                        Action::None
+                    } else {
+                        Action::CloseTrayMenus(gone)
+                    }
                 }
                 ServiceEvent::Update(data) => {
                     let action = if let TrayEvent::Unregistered(name) = &data {
-                        Action::CloseTrayMenu(name.clone())
+                        Action::CloseTrayMenus(vec![name.clone()])
                     } else {
                         Action::None
                     };

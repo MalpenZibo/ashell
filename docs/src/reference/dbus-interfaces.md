@@ -34,7 +34,7 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 |---------|-----------|------------|---------|-----------------|
 | MPRIS | `org.mpris.MediaPlayer2.*` bus names | `services/mpris/mod.rs` | Media player discovery (by bus name prefix) | MPRIS-compatible player |
 | MPRIS | `org.mpris.MediaPlayer2.Player` | `services/mpris/dbus.rs` | Playback control | MPRIS-compatible player |
-| StatusNotifier | `org.kde.StatusNotifierWatcher` (served by ashell) | `services/tray/dbus.rs` | System tray icon registration | — |
+| StatusNotifier | `org.kde.StatusNotifierWatcher` (served by ashell only when no other watcher runs) | `services/tray/dbus.rs` | System tray icon registration; ashell always registers as a host (`org.freedesktop.StatusNotifierHost-<pid>-<n>`) with the current owner and follows it when it changes | — |
 | StatusNotifier | `org.kde.StatusNotifierItem` | `services/tray/dbus.rs` | Individual tray icons | — |
 | DBusMenu | `com.canonical.dbusmenu` | `services/tray/dbus.rs` | Tray menu layout (SNI context menus) | — |
 | Notifications | `org.freedesktop.Notifications` (served by ashell) | `services/notifications/dbus.rs` | Notification daemon | — |
