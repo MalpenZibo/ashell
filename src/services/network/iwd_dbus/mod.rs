@@ -97,7 +97,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
         let nm = self;
 
         // airplane mode
-        let bluetooth_soft_blocked = rfkill::bluetooth_soft_blocked().await.unwrap_or_default();
+        let bluetooth_soft_blocked = rfkill::bluetooth_soft_blocked().await;
 
         let wifi_present = nm.wifi_device_present().await?;
 
@@ -299,7 +299,12 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     async fn set_airplane_mode(&self, airplane: bool) -> anyhow::Result<()> {
-        rfkill::set_bluetooth_soft_block(airplane).await?;
+        if let Err(e) = rfkill::set_bluetooth_soft_block(airplane).await {
+            warn!("Failed to set bluetooth rfkill: {e:#}");
+        } else {
+            debug!("Bluetooth rfkill set successfully");
+        }
+
         self.set_wifi_enabled(!airplane).await?;
         Ok(())
     }

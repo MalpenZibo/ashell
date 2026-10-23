@@ -12,7 +12,7 @@ publish = false
 [features]
 bluetooth = ["rfkill", "dep:zbus", "tokio/time"]
 privacy = ["dep:anyhow", "dep:inotify", "dep:log", "dep:pipewire", "dep:tokio", "tokio/sync", "tokio/time"]
-rfkill = ["dep:anyhow", "dep:inotify", "dep:log", "dep:tokio", "tokio/process"]
+rfkill = ["dep:anyhow", "dep:inotify", "dep:log", "dep:tokio", "tokio/fs", "tokio/io-util"]
 serde = ["dep:serde"]
 throttle = ["dep:pin-project-lite", "dep:tokio", "tokio/time"]
 upower = ["throttle", "dep:anyhow", "dep:log", "dep:tokio", "dep:zbus"]
