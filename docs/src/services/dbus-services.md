@@ -49,7 +49,7 @@ The `#[proxy]` macro generates an `AdapterProxy` struct with async methods for e
 | MPRIS | Session | `org.mpris.MediaPlayer2.*` | `services/mpris/dbus.rs` |
 | Tray | Session | `org.kde.StatusNotifierWatcher` | `services/tray/dbus.rs` |
 | Notifications | Session | `org.freedesktop.Notifications` | `services/notifications/dbus.rs` |
-| Brightness | System | `org.freedesktop.login1.Session` | `services/brightness.rs` |
+| Brightness | System | `org.freedesktop.login1.Session` | `crates/ashell-services/src/brightness/dbus.rs` |
 
 ## Common D-Bus Service Structure
 

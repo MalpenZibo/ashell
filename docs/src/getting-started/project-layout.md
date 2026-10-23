@@ -84,7 +84,7 @@ src/
 │   │   ├── mangowc.rs        # MangoWC integration (`mmsg` IPC)
 │   │   └── generic.rs        # Generic Wayland fallback (ext-workspace, foreign-toplevel)
 │   ├── audio.rs             # PulseAudio/PipeWire audio service
-│   ├── brightness.rs        # Display brightness via sysfs
+│   ├── brightness.rs        # iced glue for the ashell-services brightness service
 │   ├── bluetooth.rs         # iced glue for the ashell-services Bluetooth service
 │   ├── network/
 │   │   ├── mod.rs            # Network service logic
