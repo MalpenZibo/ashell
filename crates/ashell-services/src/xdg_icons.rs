@@ -197,6 +197,10 @@ fn find_similar_icon(icon_name: &str) -> Option<Vec<Cow<'static, str>>> {
     }
 
     let normalized = normalize_icon_name(icon_name);
+    // Every candidate contains the empty name
+    if normalized.is_empty() {
+        return None;
+    }
     let normalized_no_separators = strip_icon_separators(normalized.as_ref());
     let mut matches: Vec<Cow<'static, str>> = Vec::with_capacity(MAX_SIMILAR_ICON_CANDIDATES);
 
@@ -481,8 +485,8 @@ fn icon_directories() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        desktop_entry_keys, get_icon_from_name, is_safe_icon_name, normalize_icon_name,
-        strip_icon_separators, theme_icon_path,
+        desktop_entry_keys, find_similar_icon, get_icon_from_name, is_safe_icon_name,
+        normalize_icon_name, strip_icon_separators, theme_icon_path,
     };
 
     #[test]
@@ -510,6 +514,11 @@ mod tests {
 
         assert_eq!(desktop_entry_keys(hidden), (None, None));
         assert_eq!(desktop_entry_keys(no_display), (Some("foo"), None));
+    }
+
+    #[test]
+    fn find_similar_icon_ignores_names_that_normalize_to_nothing() {
+        assert!(find_similar_icon("日本語").is_none());
     }
 
     #[test]
