@@ -26,7 +26,7 @@ impl IconEntry {
     }
 }
 
-static ICON_CACHE: LazyLock<RwLock<HashMap<String, Option<XdgIcon>>>> =
+static ICON_CACHE: LazyLock<RwLock<HashMap<String, Option<IconFile>>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 static SYSTEM_ICON_ENTRIES: LazyLock<Vec<IconEntry>> = LazyLock::new(|| {
     load_system_icon_names()
@@ -54,14 +54,14 @@ fn icon_theme() -> Option<&'static str> {
 
 /// Where an icon's pixels come from. The UI turns it into an image of its own.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum XdgIcon {
+pub enum IconFile {
     /// A raster image file (PNG, XPM, ...).
     Image(PathBuf),
     /// An SVG file.
     Svg(PathBuf),
 }
 
-impl XdgIcon {
+impl IconFile {
     /// An SVG or a raster image, by the file's extension.
     pub fn from_path(path: PathBuf) -> Self {
         if path
@@ -98,7 +98,7 @@ fn is_safe_icon_name(icon_name: &str) -> bool {
         && !icon_name.contains("..")
 }
 
-pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
+pub fn get_icon_from_name(icon_name: &str) -> Option<IconFile> {
     if !is_safe_icon_name(icon_name) {
         debug!("icon '{icon_name}': rejected as unsafe name");
         return None;
@@ -133,17 +133,17 @@ pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
     result
 }
 
-fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
+fn lookup_icon(icon_name: &str) -> Option<IconFile> {
     if let Some(path) = lookup_in_theme(icon_name) {
         debug!("icon '{icon_name}': direct match at {path:?}");
-        return Some(XdgIcon::from_path(path));
+        return Some(IconFile::from_path(path));
     }
     debug!("icon '{icon_name}': no direct match");
 
     // An app's own .desktop file beats a guess from similar icon names
     if let Some(path) = find_desktop_icon(icon_name) {
         debug!("icon '{icon_name}': desktop index match at {path:?}");
-        return Some(XdgIcon::from_path(path));
+        return Some(IconFile::from_path(path));
     }
     debug!("icon '{icon_name}': no desktop index match");
 
@@ -151,7 +151,7 @@ fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
         for candidate in candidates {
             debug!("icon '{icon_name}': similar candidate '{candidate}'");
             if let Some(path) = lookup_in_theme(&candidate) {
-                return Some(XdgIcon::from_path(path));
+                return Some(IconFile::from_path(path));
             }
         }
     }
@@ -161,7 +161,7 @@ fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
         && let Some(path) = lookup_in_theme(&prefix_candidate)
     {
         debug!("icon '{icon_name}': prefix match '{prefix_candidate}' at {path:?}");
-        return Some(XdgIcon::from_path(path));
+        return Some(IconFile::from_path(path));
     }
     debug!("icon '{icon_name}': no prefix match — unresolved");
 

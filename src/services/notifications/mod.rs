@@ -1,5 +1,5 @@
 use crate::services::{ReadOnlyService, ServiceEvent};
-use ashell_services::xdg_icons::{self, XdgIcon};
+use ashell_services::xdg_icons::{self, IconFile};
 use iced::Subscription;
 use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
 use iced::stream::channel;
@@ -37,9 +37,9 @@ impl NotificationIcon {
     }
 
     fn from_path(path: PathBuf) -> Self {
-        match XdgIcon::from_path(path) {
-            XdgIcon::Svg(path) => Self::Svg(svg::Handle::from_path(path)),
-            XdgIcon::Image(path) => Self::Image(image::Handle::from_path(path)),
+        match IconFile::from_path(path) {
+            IconFile::Svg(path) => Self::Svg(svg::Handle::from_path(path)),
+            IconFile::Image(path) => Self::Image(image::Handle::from_path(path)),
         }
     }
 }

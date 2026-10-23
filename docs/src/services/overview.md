@@ -30,8 +30,9 @@ file via the XDG icon theme, then a `.desktop` index (by `StartupWMClass` and
 file name), then a fuzzy/prefix match against the installed icon set.
 Notifications use only the theme lookup, `theme_icon_path`.
 
-The glue in `services/xdg_icons.rs` turns the path into an `XdgIcon` (`Image`,
-`Svg`, or a `NerdFont` glyph fallback).
+It returns an `IconFile`, the path tagged as `Image` or `Svg`. The glue in
+`services/xdg_icons.rs` turns it into an `XdgIcon` (`Image`, `Svg`, or a
+`NerdFont` glyph fallback).
 
 Each consumer keeps its own concern on top of this core: the tray handles raw
 D-Bus pixmaps, while the workspaces module lowercases the window class before

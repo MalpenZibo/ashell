@@ -11,11 +11,11 @@ pub enum XdgIcon {
     NerdFont(StaticIcon),
 }
 
-impl From<xdg_icons::XdgIcon> for XdgIcon {
-    fn from(icon: xdg_icons::XdgIcon) -> Self {
+impl From<xdg_icons::IconFile> for XdgIcon {
+    fn from(icon: xdg_icons::IconFile) -> Self {
         match icon {
-            xdg_icons::XdgIcon::Image(path) => Self::Image(image::Handle::from_path(path)),
-            xdg_icons::XdgIcon::Svg(path) => Self::Svg(svg::Handle::from_path(path)),
+            xdg_icons::IconFile::Image(path) => Self::Image(image::Handle::from_path(path)),
+            xdg_icons::IconFile::Svg(path) => Self::Svg(svg::Handle::from_path(path)),
         }
     }
 }
