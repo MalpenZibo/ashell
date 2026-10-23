@@ -41,7 +41,31 @@ const SECOND_SPECIFIERS: [&str; 15] = [
     "%.3f", "%.6f", "%.9f", // the left aligned fractional variants
 ];
 
+/// Specifiers that only appear in a 12-hour clock format.
+const TWELVE_HOUR_SPECIFIERS: [&str; 5] = [
+    "%I", // hour 01-12
+    "%l", // hour 1-12, space padded
+    "%p", // AM/PM
+    "%P", // am/pm
+    "%r", // 12-hour clock time
+];
+
+/// Weather times in the menu, picked to match
+/// the clock's hour cycle. Hourly forecast entries always fall on the hour,
+/// so the 12-hour variant drops the minutes there.
+const WEATHER_TIME_FORMAT_12H: &str = "%-I:%M %p";
+const WEATHER_HOUR_FORMAT_12H: &str = "%-I %p";
+const WEATHER_TIME_FORMAT_24H: &str = "%H:%M";
+
 fn shows_seconds(format: &str) -> bool {
+    contains_specifier(format, &SECOND_SPECIFIERS)
+}
+
+fn uses_twelve_hour(format: &str) -> bool {
+    contains_specifier(format, &TWELVE_HOUR_SPECIFIERS)
+}
+
+fn contains_specifier(format: &str, specifiers: &[&str]) -> bool {
     let mut rest = format;
 
     while let Some(percent) = rest.find('%') {
@@ -56,7 +80,7 @@ fn shows_seconds(format: &str) -> bool {
         // skip padding flags
         let specifier = after.trim_start_matches(['-', '_', '0']);
 
-        if SECOND_SPECIFIERS
+        if specifiers
             .iter()
             .any(|candidate| specifier.starts_with(&candidate[1..]))
         {
@@ -131,6 +155,22 @@ impl Tempo {
                 .unwrap_or(&self.config.clock_format)
         } else {
             &self.config.clock_format
+        }
+    }
+
+    fn weather_time_format(&self) -> &str {
+        self.weather_format(WEATHER_TIME_FORMAT_12H)
+    }
+
+    fn weather_hour_format(&self) -> &str {
+        self.weather_format(WEATHER_HOUR_FORMAT_12H)
+    }
+
+    fn weather_format(&self, twelve_hour: &'static str) -> &str {
+        if uses_twelve_hour(self.current_format()) {
+            twelve_hour
+        } else {
+            WEATHER_TIME_FORMAT_24H
         }
     }
 
