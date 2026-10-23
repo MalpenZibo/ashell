@@ -14,10 +14,10 @@ use crate::{
             PeripheralExt, PowerProfile, UPowerCommand, UPowerService,
         },
     },
-    t,
     theme::use_theme,
     utils::{self, IndicatorState, format_duration, remote_value},
 };
+use ashell_i18n::t;
 use iced::{
     Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
     alignment::Vertical,

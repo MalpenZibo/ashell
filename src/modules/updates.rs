@@ -5,9 +5,9 @@ use crate::{
     components::spinning_icon::spinning_icon,
     components::{IconPosition, MenuSize, styled_button},
     config::UpdatesModuleConfig,
-    t,
     theme::use_theme,
 };
+use ashell_i18n::t;
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
     alignment::Horizontal,

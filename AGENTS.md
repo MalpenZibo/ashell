@@ -34,7 +34,7 @@ src/
 ├── app.rs               # App state, Elm update/view cycle
 ├── app/                 # top-level Message enum + OSD display info
 ├── config.rs            # configuration types (TOML deserialization)
-├── i18n.rs              # Fluent localization setup
+├── i18n.rs              # ashell's translation catalogs (CATALOGS)
 ├── ipc.rs               # Unix socket IPC (client + server + subscription)
 ├── osd.rs               # on-screen display overlay (volume, brightness, ...)
 ├── outputs.rs           # multi-monitor output management
@@ -52,10 +52,12 @@ src/
 │   └── ...              # audio, bluetooth, brightness, privacy, idle_inhibitor, logind, throttle, upower, xdg_icons
 └── utils/
 crates/
+├── ashell-i18n/         # localization: locale/unit system, catalog loading, t!() macro
 └── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth, brightness, privacy, upower
 ```
 
-The repo is a Cargo workspace: the root package is the `ashell` binary, `crates/ashell-services` is a library member.
+The repo is a Cargo workspace: the root package is the `ashell` binary, the crates in `crates/` are library members.
+Each app brings its own catalogs: it passes them to `Localizer::resolve` and has an `i18n.toml` whose `assets_dir` points to them, since `t!()` validates keys at compile time against `{assets_dir}/en-US/{domain}.ftl` of the calling crate. The domain defaults to the crate name with `-` replaced by `_`; at runtime only the catalogs passed to `resolve` count.
 
 ## Key system dependencies
 

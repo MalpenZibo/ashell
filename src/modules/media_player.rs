@@ -14,7 +14,6 @@ use crate::{
             PlaybackStatus, PlayerCommand,
         },
     },
-    t,
     theme::use_theme,
     utils::{
         remote_value::{self, Remote},
@@ -22,6 +21,7 @@ use crate::{
     },
     xdg,
 };
+use ashell_i18n::t;
 use iced::{
     Color, Element, Length, Subscription, Task,
     alignment::Vertical,

@@ -1,0 +1,23 @@
+[package]
+name = "ashell-i18n"
+description = "Localization for ashell: locale, unit system and Fluent catalog loading"
+version = "0.11.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+chrono = { workspace = true, features = ["unstable-locales"] }
+# i18n-embed 0.16 does not build without `rust-embed`, even though the
+# catalogs are embedded with `include_str!`.
+i18n-embed = { version = "0.16", default-features = false, features = [
+  "fluent-system",
+  "rust-embed",
+] }
+i18n-embed-fl = "0.10"
+log.workspace = true
+serde = { workspace = true, features = ["derive"] }
+unic-langid = "0.9"
