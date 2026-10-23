@@ -323,7 +323,9 @@ fn build_desktop_icon_index() -> HashMap<String, String> {
 const MAX_DESKTOP_FILE_SIZE: u64 = 64 * 1024;
 
 /// `Icon` and `StartupWMClass` of the `[Desktop Entry]` group: the
-/// `[Desktop Action ...]` groups have icons of their own.
+/// `[Desktop Action ...]` groups have icons of their own. Nothing for an
+/// entry with `Hidden=true`, which counts as deleted; `NoDisplay` apps still
+/// open windows, so they stay.
 fn desktop_entry_keys(contents: &str) -> (Option<&str>, Option<&str>) {
     let mut icon = None;
     let mut wm_class = None;
@@ -341,6 +343,8 @@ fn desktop_entry_keys(contents: &str) -> (Option<&str>, Option<&str>) {
             icon = Some(val.trim());
         } else if let Some(val) = line.strip_prefix("StartupWMClass=") {
             wm_class = Some(val.trim());
+        } else if line.strip_prefix("Hidden=").map(str::trim) == Some("true") {
+            return (None, None);
         }
     }
 
@@ -497,6 +501,15 @@ mod tests {
             desktop_entry_keys(contents),
             (Some("libreoffice-writer"), Some("libreoffice-writer"))
         );
+    }
+
+    #[test]
+    fn desktop_entry_keys_skip_hidden_entries_only() {
+        let hidden = "[Desktop Entry]\nIcon=foo\nHidden=true\n";
+        let no_display = "[Desktop Entry]\nIcon=foo\nNoDisplay=true\n";
+
+        assert_eq!(desktop_entry_keys(hidden), (None, None));
+        assert_eq!(desktop_entry_keys(no_display), (Some("foo"), None));
     }
 
     #[test]
