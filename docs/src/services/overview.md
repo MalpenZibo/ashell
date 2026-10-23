@@ -17,7 +17,7 @@ Services are the backend layer of ashell. They manage communication with system 
 | Notifications | `services/notifications/` | Notification server | D-Bus | — |
 | Privacy | `crates/ashell-services/src/privacy.rs` (iced glue in `services/privacy.rs`) | PipeWire + `/dev/video0` | PipeWire registry + inotify | `pipewire` |
 | Idle Inhibitor | `crates/ashell-services/src/idle_inhibitor.rs` (iced glue in `services/idle_inhibitor.rs`) | Wayland `idle-inhibit-unstable-v1` | Wayland protocol | — |
-| Logind | `services/logind.rs` | systemd-logind | D-Bus | systemd-logind |
+| Logind | `crates/ashell-services/src/logind.rs` (iced glue in `services/logind.rs`) | systemd-logind | D-Bus | systemd-logind |
 | Throttle | `crates/ashell-services/src/throttle.rs` | (utility) | Stream adapter | — |
 | XDG Icons | `crates/ashell-services/src/xdg_icons.rs` (iced glue in `services/xdg_icons.rs`) | (utility) | XDG icon theme | — |
 

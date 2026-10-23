@@ -13,6 +13,7 @@ publish = false
 bluetooth = ["rfkill", "dep:zbus", "tokio/time"]
 brightness = ["dep:anyhow", "dep:log", "dep:tokio", "dep:udev", "dep:zbus", "tokio/net", "tokio/time"]
 idle_inhibitor = ["dep:anyhow", "dep:libc", "dep:log", "dep:wayland-client", "dep:wayland-protocols", "dep:wayland-protocols-wlr"]
+logind = ["dep:anyhow", "dep:log", "dep:tokio", "dep:zbus", "tokio/time"]
 privacy = ["dep:anyhow", "dep:inotify", "dep:log", "dep:pipewire", "dep:tokio", "tokio/sync", "tokio/time"]
 rfkill = ["dep:anyhow", "dep:inotify", "dep:log", "dep:tokio", "tokio/fs", "tokio/io-util"]
 serde = ["dep:serde"]

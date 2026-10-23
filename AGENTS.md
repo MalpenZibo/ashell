@@ -53,7 +53,7 @@ src/
 └── utils/
 crates/
 ├── ashell-i18n/         # localization: locale/unit system, catalog loading, t!() macro
-└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth, brightness, idle_inhibitor, privacy, upower
+└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth, brightness, idle_inhibitor, logind, privacy, upower
 ```
 
 The repo is a Cargo workspace: the root package is the `ashell` binary, the crates in `crates/` are library members.
