@@ -78,7 +78,13 @@ impl Brightness {
                         // Without events the state is read again on every retry
                         let data = match device.as_deref().map(initialize_data) {
                             Some(Ok(data)) => Some(Some(data)),
-                            Some(Err(_)) => None,
+                            Some(Err(err)) => {
+                                failed(
+                                    &mut failing,
+                                    format_args!("Failed to read brightness data: {err}"),
+                                );
+                                None
+                            }
                             None => Some(None),
                         };
                         if let Some(data) = data
@@ -127,6 +133,8 @@ impl Brightness {
         })
     }
 
+    /// Fails with "No backlight device" until [`updates`](Self::updates) has
+    /// found one.
     pub async fn execute(&self, command: BrightnessCommand) -> anyhow::Result<()> {
         let device_path = self
             .device_path()
@@ -146,7 +154,7 @@ impl Brightness {
     }
 
     /// Reads the current value straight from the device, to resync outside of
-    /// [`updates`](Self::updates).
+    /// [`updates`](Self::updates). Fails until that has found a device.
     pub fn brightness(&self) -> anyhow::Result<u32> {
         let device_path = self
             .device_path()
