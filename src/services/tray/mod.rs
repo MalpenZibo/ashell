@@ -8,8 +8,8 @@ use iced::{
     Subscription, Task,
     futures::{
         SinkExt, Stream, StreamExt,
-        channel::mpsc::Sender,
-        stream::{pending, select_all},
+        channel::mpsc::{self, Sender},
+        stream::{self, BoxStream, pending, select_all},
         stream_select,
     },
     stream::channel,
@@ -103,6 +103,26 @@ async fn current_attention_icon_from_proxy(
     None
 }
 
+/// Runs `read` once per burst of `triggers`, and keeps draining them meanwhile:
+/// zbus stops reading the socket, method replies included, while a signal stream
+/// holds 64 unread messages.
+fn coalesced_reads<T, Fut>(
+    triggers: impl Stream<Item = ()> + Send + 'static,
+    read: impl FnMut(()) -> Fut + Send + 'static,
+) -> BoxStream<'static, T>
+where
+    T: Send + 'static,
+    Fut: Future<Output = Option<T>> + Send + 'static,
+{
+    let (mut pending_read, reads) = mpsc::channel(0);
+    let drain = triggers.filter_map(move |()| {
+        // A full channel means a read is already queued.
+        let _ = pending_read.try_send(());
+        std::future::ready(None)
+    });
+    stream::select(drain, reads.filter_map(read)).boxed()
+}
+
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Registered(Box<StatusNotifierItem>),
@@ -148,12 +168,12 @@ impl StatusNotifierItem {
     pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
         let (dest, path) = dbus::split_service_name(&name);
 
-        // Keep property caching enabled: `receive_icon_name_changed` and
-        // `receive_icon_pixmap_changed` are `PropertyStream`s and yield
-        // nothing when the proxy has no property cache.
+        // No cache: its `GetAll` would decode every pixmap the item has, and
+        // NewIcon, NewAttentionIcon and NewStatus come without a PropertiesChanged.
         let item_proxy = StatusNotifierItemProxy::builder(conn)
             .destination(dest.to_owned())
             .path(path.to_owned())
+            .cache_properties(zbus::proxy::CacheProperties::No)
             .build()
             .await?;
 
@@ -279,9 +299,7 @@ impl TrayService {
             .boxed();
 
         let items = watcher.registered_status_notifier_items().await?;
-        let mut icon_pixel_change = Vec::with_capacity(items.len());
-        let mut icon_name_change = Vec::with_capacity(items.len());
-        let mut new_icon_change = Vec::with_capacity(items.len());
+        let mut icon_change = Vec::with_capacity(items.len());
         let mut attention_icon_change = Vec::with_capacity(items.len());
         let mut menu_layout_change = Vec::with_capacity(items.len());
         let mut status_change = Vec::with_capacity(items.len());
@@ -289,45 +307,53 @@ impl TrayService {
         for name in items {
             let item = StatusNotifierItem::new(conn, name.to_string()).await?;
 
-            icon_pixel_change.push(
-                item.item_proxy
-                    .receive_icon_pixmap_changed()
-                    .await
-                    .filter_map({
-                        let name = name.clone();
-                        move |icon| {
-                            let name = name.clone();
-                            async move {
-                                let icons = icon.get().await.ok()?;
-                                pixmap_to_icon(icons)
-                                    .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
-                            }
-                        }
-                    })
-                    .boxed(),
-            );
+            // Clients that update IconName or IconPixmap as properties, or send
+            // NewIcon. A signal only triggers a fresh read: an arg filter, or its
+            // args, would decode a pixmap it carries one `Variant` per byte.
+            let item_inner = item.item_proxy.inner();
+            let mut icon_triggers = Vec::with_capacity(2);
+            if let Ok(properties) = zbus::fdo::PropertiesProxy::new(
+                conn,
+                item_inner.destination().to_owned(),
+                item_inner.path().to_owned(),
+            )
+            .await
+                && let Ok(properties_changed) = properties.receive_properties_changed().await
+            {
+                icon_triggers.push(properties_changed.map(|_| ()).boxed());
+            }
+            if let Ok(new_icon) = item.item_proxy.receive_new_icon().await {
+                icon_triggers.push(new_icon.map(|_| ()).boxed());
+            }
+            icon_change.push(coalesced_reads(select_all(icon_triggers), {
+                let name = name.clone();
+                let item_proxy = item.item_proxy.clone();
+                move |()| {
+                    let name = name.clone();
+                    let item_proxy = item_proxy.clone();
+                    async move {
+                        current_icon_from_proxy(&item_proxy)
+                            .await
+                            .map(|icon| TrayEvent::IconChanged(name, icon))
+                    }
+                }
+            }));
 
-            icon_name_change.push(
-                item.item_proxy
-                    .receive_icon_name_changed()
-                    .await
-                    .filter_map({
+            if let Ok(new_attention_icon) = item.item_proxy.receive_new_attention_icon().await {
+                attention_icon_change.push(coalesced_reads(new_attention_icon.map(|_| ()), {
+                    let name = name.clone();
+                    let item_proxy = item.item_proxy.clone();
+                    move |()| {
                         let name = name.clone();
-                        move |icon_name| {
-                            let name = name.clone();
-                            async move {
-                                icon_name
-                                    .get()
-                                    .await
-                                    .ok()
-                                    .as_deref()
-                                    .and_then(xdg_icons::get_icon_from_name)
-                                    .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
-                            }
+                        let item_proxy = item_proxy.clone();
+                        async move {
+                            current_attention_icon_from_proxy(&item_proxy)
+                                .await
+                                .map(|icon| TrayEvent::AttentionIconChanged(name, icon))
                         }
-                    })
-                    .boxed(),
-            );
+                    }
+                }));
+            }
 
             let new_status = item.item_proxy.receive_new_status().await;
             if let Ok(new_status) = new_status {
@@ -347,128 +373,36 @@ impl TrayService {
                 );
             }
 
-            let new_icon = item.item_proxy.receive_new_icon().await;
-            if let Ok(new_icon) = new_icon {
-                let (dest, path) = dbus::split_service_name(&name);
-                // NewIcon has no matching PropertiesChanged, so a cached read would be stale;
-                let uncached_proxy = StatusNotifierItemProxy::builder(conn)
-                    .destination(dest.to_owned())
-                    .path(path.to_owned())
-                    .cache_properties(zbus::proxy::CacheProperties::No)
-                    .build()
-                    .await?;
-
-                new_icon_change.push(
-                    new_icon
-                        .filter_map({
-                            let name = name.clone();
-                            let uncached_proxy = uncached_proxy;
-
-                            move |_| {
-                                let name = name.clone();
-                                let uncached_proxy = uncached_proxy.clone();
-
-                                async move {
-                                    current_icon_from_proxy(&uncached_proxy)
-                                        .await
-                                        .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
-                                }
-                            }
-                        })
-                        .boxed(),
-                );
+            let mut layout_triggers = Vec::with_capacity(2);
+            if let Ok(layout_updated) = item.menu_proxy.receive_layout_updated().await {
+                layout_triggers.push(layout_updated.map(|_| ()).boxed());
             }
-
-            let new_attention_icon = item.item_proxy.receive_new_attention_icon().await;
-            if let Ok(new_attention_icon) = new_attention_icon {
-                let (dest, path) = dbus::split_service_name(&name);
-                let uncached_proxy = StatusNotifierItemProxy::builder(conn)
-                    .destination(dest.to_owned())
-                    .path(path.to_owned())
-                    .cache_properties(zbus::proxy::CacheProperties::No)
-                    .build()
-                    .await?;
-
-                attention_icon_change.push(
-                    new_attention_icon
-                        .filter_map({
-                            let name = name.clone();
-                            let uncached_proxy = uncached_proxy;
-
-                            move |_| {
-                                let name = name.clone();
-                                let uncached_proxy = uncached_proxy.clone();
-
-                                async move {
-                                    current_attention_icon_from_proxy(&uncached_proxy)
-                                        .await
-                                        .map(|icon| {
-                                            TrayEvent::AttentionIconChanged(name.to_owned(), icon)
-                                        })
-                                }
-                            }
-                        })
-                        .boxed(),
-                );
+            if let Ok(items_removed) = item.menu_proxy.receive_items_removed().await {
+                layout_triggers.push(items_removed.map(|_| ()).boxed());
             }
+            menu_layout_change.push(coalesced_reads(select_all(layout_triggers), {
+                let name = name.clone();
+                let menu_proxy = item.menu_proxy.clone();
+                move |()| {
+                    debug!("menu layout changed for {name}");
 
-            let layout_updated = item.menu_proxy.receive_layout_updated().await;
-            if let Ok(layout_updated) = layout_updated {
-                menu_layout_change.push(
-                    layout_updated
-                        .filter_map({
-                            let name = name.clone();
-                            let menu_proxy = item.menu_proxy.clone();
-                            move |_| {
-                                debug!("layout update event name {}", name);
-
-                                let name = name.clone();
-                                let menu_proxy = menu_proxy.clone();
-                                async move {
-                                    menu_proxy.get_layout(0, -1, &[]).await.ok().map(
-                                        |(_, layout)| {
-                                            TrayEvent::MenuLayoutChanged(name.to_owned(), layout)
-                                        },
-                                    )
-                                }
-                            }
-                        })
-                        .boxed(),
-                );
-            }
-
-            let items_removed = item.menu_proxy.receive_items_removed().await;
-            if let Ok(items_removed) = items_removed {
-                menu_layout_change.push(
-                    items_removed
-                        .filter_map({
-                            let name = name.clone();
-                            let menu_proxy = item.menu_proxy.clone();
-                            move |_| {
-                                debug!("items removed event name {}", name);
-
-                                let name = name.clone();
-                                let menu_proxy = menu_proxy.clone();
-                                async move {
-                                    menu_proxy.get_layout(0, -1, &[]).await.ok().map(
-                                        |(_, layout)| {
-                                            TrayEvent::MenuLayoutChanged(name.to_owned(), layout)
-                                        },
-                                    )
-                                }
-                            }
-                        })
-                        .boxed(),
-                );
-            }
+                    let name = name.clone();
+                    let menu_proxy = menu_proxy.clone();
+                    async move {
+                        menu_proxy
+                            .get_layout(0, -1, &[])
+                            .await
+                            .ok()
+                            .map(|(_, layout)| TrayEvent::MenuLayoutChanged(name, layout))
+                    }
+                }
+            }));
         }
 
         Ok(stream_select!(
             registered,
             unregistered,
-            select_all(icon_pixel_change),
-            select_all(icon_name_change),
-            select_all(new_icon_change),
+            select_all(icon_change),
             select_all(attention_icon_change),
             select_all(menu_layout_change),
             select_all(status_change)
