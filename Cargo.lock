@@ -198,6 +198,7 @@ dependencies = [
  "anyhow",
  "freedesktop-icons",
  "futures",
+ "image",
  "inotify",
  "libc",
  "linicon-theme",

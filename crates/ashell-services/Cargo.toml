@@ -19,12 +19,13 @@ rfkill = ["dep:anyhow", "dep:inotify", "dep:log", "dep:tokio", "tokio/fs", "toki
 serde = ["dep:serde"]
 throttle = ["dep:pin-project-lite", "dep:tokio", "tokio/time"]
 upower = ["throttle", "dep:anyhow", "dep:log", "dep:tokio", "dep:zbus"]
-xdg_icons = ["dep:freedesktop-icons", "dep:linicon-theme", "dep:log", "dep:tokio", "tokio/rt"]
+xdg_icons = ["dep:freedesktop-icons", "dep:image", "dep:linicon-theme", "dep:log", "dep:tokio", "tokio/rt"]
 
 [dependencies]
 futures = "0.3"
 anyhow = { workspace = true, optional = true }
 freedesktop-icons = { version = "0.4", optional = true }
+image = { version = "0.25", optional = true, default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 inotify = { workspace = true, optional = true }
 libc = { version = "0.2.182", optional = true }
 linicon-theme = { version = "1.2.0", optional = true }

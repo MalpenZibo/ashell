@@ -196,6 +196,60 @@ pub fn theme_icon_path(icon_name: &str) -> Option<PathBuf> {
     lookup_in_theme(icon_name)
 }
 
+/// RGBA pixels, row by row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RgbaImage {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
+}
+
+/// Widest and tallest image [`decode_raster`] decodes, which bounds what a huge
+/// icon file costs.
+const MAX_RASTER_SIZE: u32 = 1024;
+/// Widest and tallest image [`decode_raster`] returns. iced_wgpu 0.14.0
+/// uploads RGBA under `MAX_SYNC_SIZE` (2 MiB) in the frame that draws it,
+/// larger ones on a worker whose redraw request the layer shell drops. 256 px
+/// is ~6x the default tray slot (14 px) at 3x scale; pre-shrinking also avoids
+/// minification aliasing (linear filtering, no mipmaps).
+const MAX_ICON_SIZE: u32 = 256;
+
+/// Decodes a PNG, JPEG, GIF or WebP file, up to [`MAX_RASTER_SIZE`] pixels a
+/// side, and scales it down to fit [`MAX_ICON_SIZE`]. The size is checked from
+/// the header, before decoding.
+pub fn decode_raster(path: &Path) -> Option<RgbaImage> {
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_RASTER_SIZE);
+    limits.max_image_height = Some(MAX_RASTER_SIZE);
+
+    let decoded = image::ImageReader::open(path)
+        .and_then(|reader| reader.with_guessed_format())
+        .map_err(image::ImageError::IoError)
+        .and_then(|mut reader| {
+            reader.limits(limits);
+            reader.decode()
+        });
+
+    match decoded {
+        Ok(mut decoded) => {
+            if decoded.width() > MAX_ICON_SIZE || decoded.height() > MAX_ICON_SIZE {
+                decoded = decoded.thumbnail(MAX_ICON_SIZE, MAX_ICON_SIZE);
+            }
+            let rgba = decoded.into_rgba8();
+            let (width, height) = rgba.dimensions();
+            Some(RgbaImage {
+                width,
+                height,
+                pixels: rgba.into_raw(),
+            })
+        }
+        Err(err) => {
+            debug!("raster icon {path:?}: not decoded: {err}");
+            None
+        }
+    }
+}
+
 fn lookup_in_theme(icon_name: &str) -> Option<PathBuf> {
     let base_lookup = lookup(icon_name).with_cache();
 
@@ -572,6 +626,72 @@ mod tests {
         assert!(!is_safe_icon_name("/home/u/Documents/x"));
         assert!(!is_safe_icon_name("icon\0.png"));
         assert!(!is_safe_icon_name("sub/dir/icon"));
+    }
+
+    #[test]
+    fn decode_raster_reads_png_as_rgba() {
+        let root = std::env::temp_dir().join(format!("ashell-raster-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("tray.png");
+        image::RgbaImage::from_pixel(3, 2, image::Rgba([1, 2, 3, 4]))
+            .save(&path)
+            .unwrap();
+
+        assert_eq!(
+            super::decode_raster(&path),
+            Some(super::RgbaImage {
+                width: 3,
+                height: 2,
+                pixels: [1, 2, 3, 4].repeat(6),
+            })
+        );
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn decode_raster_rejects_undecodable_files() {
+        let root = std::env::temp_dir().join(format!("ashell-raster-bad-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("tray.xpm");
+        std::fs::write(&path, "/* XPM */\nstatic char *icon[] = {};\n").unwrap();
+
+        assert_eq!(super::decode_raster(&path), None);
+        assert_eq!(super::decode_raster(&root.join("missing.png")), None);
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn decode_raster_bounds_image_size() {
+        let root = std::env::temp_dir().join(format!("ashell-raster-big-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let max = super::MAX_RASTER_SIZE;
+        for (name, width, height) in [("wide.png", max + 1, 1), ("tall.png", 1, max + 1)] {
+            image::GrayImage::new(width, height)
+                .save(root.join(name))
+                .unwrap();
+            assert_eq!(super::decode_raster(&root.join(name)), None, "{name}");
+        }
+        image::GrayImage::new(max, max / 4)
+            .save(root.join("max.png"))
+            .unwrap();
+        let scaled = super::decode_raster(&root.join("max.png")).unwrap();
+        assert_eq!(
+            (scaled.width, scaled.height),
+            (super::MAX_ICON_SIZE, super::MAX_ICON_SIZE / 4)
+        );
+
+        image::GrayImage::new(max / 4, max)
+            .save(root.join("tall-max.png"))
+            .unwrap();
+        let scaled = super::decode_raster(&root.join("tall-max.png")).unwrap();
+        assert_eq!(
+            (scaled.width, scaled.height),
+            (super::MAX_ICON_SIZE / 4, super::MAX_ICON_SIZE)
+        );
+
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

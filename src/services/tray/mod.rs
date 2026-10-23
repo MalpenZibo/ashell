@@ -1,5 +1,5 @@
-use super::xdg_icons;
 use super::{ReadOnlyService, Service, ServiceEvent};
+use ashell_services::xdg_icons::{self, IconFile};
 use dbus::{
     DBusMenuProxy, Layout, StatusNotifierItemProxy, StatusNotifierWatcher,
     StatusNotifierWatcherProxy,
@@ -71,6 +71,23 @@ fn pixmap_to_icon(icons: Vec<dbus::Icon>) -> Option<TrayIcon> {
         })
 }
 
+/// Decodes raster files up front: iced lays a path handle out at zero width
+/// until its worker decodes it, and never re-lays it out.
+fn icon_from_name(name: &str) -> Option<TrayIcon> {
+    let file = xdg_icons::get_icon_from_name(name)?;
+    if let IconFile::Image(path) = &file
+        && let Some(rgba) = xdg_icons::decode_raster(path)
+    {
+        return Some(TrayIcon::Image(image::Handle::from_rgba(
+            rgba.width,
+            rgba.height,
+            rgba.pixels,
+        )));
+    }
+
+    Some(file.into())
+}
+
 async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Option<TrayIcon> {
     if let Ok(icons) = item_proxy.icon_pixmap().await
         && let Some(icon) = pixmap_to_icon(icons)
@@ -79,7 +96,7 @@ async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Op
     }
     if let Some(name) = item_proxy.icon_name().await.ok()
         && !name.is_empty()
-        && let Some(icon) = xdg_icons::get_icon_from_name(&name)
+        && let Some(icon) = icon_from_name(&name)
     {
         return Some(icon);
     }
@@ -96,7 +113,7 @@ async fn current_attention_icon_from_proxy(
     }
     if let Some(name) = item_proxy.attention_icon_name().await.ok()
         && !name.is_empty()
-        && let Some(icon) = xdg_icons::get_icon_from_name(&name)
+        && let Some(icon) = icon_from_name(&name)
     {
         return Some(icon);
     }
