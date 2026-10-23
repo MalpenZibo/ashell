@@ -199,6 +199,7 @@ dependencies = [
  "freedesktop-icons",
  "futures",
  "inotify",
+ "libc",
  "linicon-theme",
  "log",
  "pin-project-lite",
@@ -206,6 +207,9 @@ dependencies = [
  "serde",
  "tokio",
  "udev",
+ "wayland-client",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
  "zbus",
 ]
 

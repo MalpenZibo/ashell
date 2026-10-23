@@ -101,7 +101,7 @@ tooltip = "Toggle VPN"
 
 ## Idle Inhibitor
 
-The Settings panel includes an idle inhibitor toggle that prevents the system from going to sleep. This uses the `IdleInhibitorManager` service (`src/services/idle_inhibitor.rs`), which uses the Wayland `zwp_idle_inhibit_manager_v1` protocol.
+The Settings panel includes an idle inhibitor toggle that prevents the system from going to sleep. This uses `IdleInhibitor` from `ashell-services` (`crates/ashell-services/src/idle_inhibitor.rs`), which uses the Wayland `zwp_idle_inhibit_manager_v1` protocol.
 
 ## Status Indicator Tooltips
 

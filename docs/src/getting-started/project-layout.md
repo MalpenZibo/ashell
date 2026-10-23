@@ -112,7 +112,7 @@ src/
 │   │   └── dbus.rs           # StatusNotifierItem D-Bus proxies
 │   ├── upower.rs            # iced glue for the ashell-services UPower service
 │   ├── privacy.rs           # iced glue for the ashell-services privacy service
-│   ├── idle_inhibitor.rs    # Idle/sleep prevention
+│   ├── idle_inhibitor.rs    # iced glue for the ashell-services idle inhibitor
 │   ├── logind.rs            # systemd-logind (sleep/wake detection)
 │   └── xdg_icons.rs         # iced glue for the ashell-services icon lookup
 │
