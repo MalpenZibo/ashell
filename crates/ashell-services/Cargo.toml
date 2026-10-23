@@ -17,11 +17,14 @@ rfkill = ["dep:anyhow", "dep:inotify", "dep:log", "dep:tokio", "tokio/fs", "toki
 serde = ["dep:serde"]
 throttle = ["dep:pin-project-lite", "dep:tokio", "tokio/time"]
 upower = ["throttle", "dep:anyhow", "dep:log", "dep:tokio", "dep:zbus"]
+xdg_icons = ["dep:freedesktop-icons", "dep:linicon-theme", "dep:log", "dep:tokio", "tokio/rt"]
 
 [dependencies]
 futures = "0.3"
 anyhow = { workspace = true, optional = true }
+freedesktop-icons = { version = "0.4", optional = true }
 inotify = { workspace = true, optional = true }
+linicon-theme = { version = "1.2.0", optional = true }
 log = { workspace = true, optional = true }
 pin-project-lite = { version = "0.2.16", optional = true }
 pipewire = { version = "0.10", optional = true }

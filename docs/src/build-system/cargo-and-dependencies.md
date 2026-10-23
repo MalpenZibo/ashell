@@ -69,8 +69,6 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 | `signal-hook` | 0.4.3 | Unix signal handling (SIGUSR1) |
 | `reqwest` | 0.13 | HTTP client (weather data, media artwork) |
 | `url` | 2.5.7 | URL parsing |
-| `freedesktop-icons` | 0.4 | XDG icon lookup |
-| `linicon-theme` | 1.2.0 | Icon theme resolution |
 | `shellexpand` | 3 | Tilde/env var expansion in paths |
 | `libc` | 0.2.182 | System call interfaces |
 

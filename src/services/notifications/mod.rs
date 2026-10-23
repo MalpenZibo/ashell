@@ -1,4 +1,5 @@
-use crate::services::{ReadOnlyService, ServiceEvent, xdg_icons};
+use crate::services::{ReadOnlyService, ServiceEvent};
+use ashell_services::xdg_icons::{self, IconFile};
 use iced::Subscription;
 use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
 use iced::stream::channel;
@@ -36,14 +37,9 @@ impl NotificationIcon {
     }
 
     fn from_path(path: PathBuf) -> Self {
-        let is_svg = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| e.eq_ignore_ascii_case("svg"));
-        if is_svg {
-            Self::Svg(svg::Handle::from_path(path))
-        } else {
-            Self::Image(image::Handle::from_path(path))
+        match IconFile::from_path(path) {
+            IconFile::Svg(path) => Self::Svg(svg::Handle::from_path(path)),
+            IconFile::Image(path) => Self::Image(image::Handle::from_path(path)),
         }
     }
 }
@@ -160,18 +156,7 @@ fn resolve_candidate(candidate: String) -> Option<PathBuf> {
     }
 
     let name = candidate.strip_suffix(".desktop").unwrap_or(&candidate);
-    freedesktop_lookup(name)
-}
-
-fn freedesktop_lookup(name: &str) -> Option<PathBuf> {
-    let base = freedesktop_icons::lookup(name).with_cache();
-    match xdg_icons::icon_theme() {
-        Some(theme) => base
-            .with_theme(theme)
-            .find()
-            .or_else(|| freedesktop_icons::lookup(name).with_cache().find()),
-        None => base.find(),
-    }
+    xdg_icons::theme_icon_path(name)
 }
 
 #[derive(Debug, Clone)]
