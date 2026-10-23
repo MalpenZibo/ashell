@@ -52,8 +52,8 @@ osd-airplane-toggle =
     }
 osd-idle-inhibitor-toggle =
     { $state ->
-        [on] Inhibiteur de veille activé
-       *[off] Inhibiteur de veille désactivé
+        [on] Blocage de la veille activé
+       *[off] Blocage de la veille désactivé
     }
 
 ## Paramètres — communs
@@ -74,7 +74,7 @@ settings-network-nearby-wifi = Wi-Fi à proximité
 ## Paramètres — Bluetooth
 settings-bluetooth = Bluetooth
 settings-bluetooth-devices = Appareils Bluetooth
-settings-bluetooth-known-devices = Appareils connus
+settings-bluetooth-known-devices = Appareils appairés
 settings-bluetooth-available = Disponibles
 settings-bluetooth-pair = Appairer
 settings-bluetooth-no-devices = Aucun appareil trouvé
@@ -110,7 +110,7 @@ settings-power-charge-cycles =
     }
 
 ## Paramètres — inhibiteur de veille
-settings-idle-inhibitor = Inhibiteur de veille
+settings-idle-inhibitor = Blocage de la veille
 
 ## Paramètres — ne pas déranger
 settings-dnd = Ne pas déranger
@@ -148,7 +148,7 @@ weather-rain-freezing-heavy = Pluie verglaçante forte
 weather-snow-slight = Chute de neige faible
 weather-snow-moderate = Chute de neige modérée
 weather-snow-heavy = Chute de neige forte
-weather-snow-grains = Grésil
+weather-snow-grains = Neige en grains
 weather-rain-showers-slight = Averses de pluie faibles
 weather-rain-showers-moderate = Averses de pluie modérées
 weather-rain-showers-violent = Averses de pluie violentes
@@ -162,13 +162,17 @@ weather-unknown = Condition météo inconnue
 ## Module notifications
 notifications-heading = Notifications
 notifications-empty = Aucune notification
-notifications-group-count = { $count } nouvelle(s)
+notifications-group-count =
+    { $count ->
+        [one] { $count } nouvelle
+       *[other] { $count } nouvelles
+    }
 
 ## Module informations système
 system-info-heading = Infos système
-system-info-cpu-usage = Utilisation CPU
-system-info-memory-usage = Utilisation mémoire
-system-info-swap-memory-usage = Utilisation mémoire swap
+system-info-cpu-usage = Utilisation du processeur
+system-info-memory-usage = Utilisation de la mémoire
+system-info-swap-memory-usage = Utilisation de la mémoire d’échange
 system-info-swap-indicator-prefix = swap
 system-info-temperature = Température
 system-info-disk-usage = Utilisation disque { $mount }
