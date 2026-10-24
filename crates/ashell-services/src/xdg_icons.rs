@@ -73,6 +73,23 @@ impl IconFile {
             Self::Image(path)
         }
     }
+
+    /// A GNOME/freedesktop symbolic icon: an SVG whose file stem ends in
+    /// `-symbolic`, `-symbolic-ltr` or `-symbolic-rtl`. These are monochrome
+    /// masks the host is expected to recolor; it is the SVG part of the file-name
+    /// rule GTK uses (`icon_uri_is_symbolic`). GTK's `.symbolic.png` variant is
+    /// not covered: it is a raster image and stays as-is.
+    pub fn is_symbolic(&self) -> bool {
+        match self {
+            Self::Svg(path) => path.file_stem().is_some_and(|stem| {
+                let stem = stem.to_string_lossy();
+                ["-symbolic", "-symbolic-ltr", "-symbolic-rtl"]
+                    .iter()
+                    .any(|suffix| stem.ends_with(suffix))
+            }),
+            Self::Image(_) => false,
+        }
+    }
 }
 
 fn warm_cache() {
@@ -485,7 +502,7 @@ fn icon_directories() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        desktop_entry_keys, find_similar_icon, get_icon_from_name, is_safe_icon_name,
+        IconFile, desktop_entry_keys, find_similar_icon, get_icon_from_name, is_safe_icon_name,
         normalize_icon_name, strip_icon_separators, theme_icon_path,
     };
 
@@ -624,5 +641,25 @@ mod tests {
         let normalized = normalize_icon_name("telegram");
         let stripped = strip_icon_separators(normalized.as_ref());
         assert_eq!(normalized, stripped);
+    }
+
+    #[test]
+    fn icon_file_is_symbolic_only_for_symbolic_svg_names() {
+        let file = |p: &str| IconFile::from_path(p.into());
+        assert!(
+            file("/usr/share/icons/Adwaita/symbolic/status/bluetooth-active-symbolic.svg")
+                .is_symbolic()
+        );
+        assert!(
+            file("/usr/share/icons/Adwaita/symbolic/actions/go-next-symbolic-rtl.svg")
+                .is_symbolic()
+        );
+        assert!(
+            file("/usr/share/icons/Adwaita/symbolic/actions/go-next-symbolic-ltr.svg")
+                .is_symbolic()
+        );
+        assert!(!file("/usr/share/icons/hicolor/scalable/apps/slack.svg").is_symbolic());
+        assert!(!file("/tmp/symbolic/icon.svg").is_symbolic());
+        assert!(!file("/usr/share/icons/hicolor/48x48/status/foo-symbolic.png").is_symbolic());
     }
 }
