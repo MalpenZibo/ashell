@@ -31,6 +31,10 @@ impl Logind {
                 let mut signals = match prepare_for_sleep(&conn).await {
                     Ok(signals) => signals,
                     Err(err) => {
+                        if conn.is_closed() {
+                            warn!("Lost the system bus, no longer watching for resume: {err}");
+                            return;
+                        }
                         warn!("Failed to subscribe to logind's PrepareForSleep: {err}");
                         tokio::time::sleep(RETRY_DELAY).await;
                         continue;
