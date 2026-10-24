@@ -254,6 +254,23 @@ surface = "transparent"  # (default) or "solid"
 # radius = "none"          # (default) none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
 # margin = "none"          # (default) none|xxs|xs|sm|md|lg|xl|xxl|number(pixels), CSS margin shorthand
 # padding = "xxs"         # (default) same values as margin, applied inside the bar
+# border = { width = 0, color = "background.strong" }  # (default) color is hex or a palette reference
+
+# Module islands: `default` for every island, `group` for module groups,
+# then one table per module (section name, or custom.<name>)
+[appearance.modules.default]
+# radius = "lg"            # (default) same values as bar.radius
+# padding = "none"         # (default) same values as bar.padding
+# border = { width = 0, color = "background.strong" }  # (default)
+# background = "background"  # (default) hex or palette reference
+
+[appearance.modules.group]
+# radius, padding, border, background: fall back to [appearance.modules.default]
+# spacing = "none"         # (default) space between the modules of the group
+
+# [appearance.modules.system_info]
+# radius, padding, border, background: fall back to [appearance.modules.default]
+# text_color = "primary"   # text color of the module, also inside a group
 
 [appearance.menu]
 # backdrop = 0.0   # (default) darkening drawn behind an open menu
