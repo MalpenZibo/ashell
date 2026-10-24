@@ -1334,19 +1334,6 @@ impl Border {
     }
 }
 
-/// How a module's elements are wrapped in islands.
-#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum Grouping {
-    /// One island around all of the module's elements.
-    #[default]
-    Combined,
-    /// One island per element.
-    Individual,
-    /// No island.
-    None,
-}
-
 #[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum FontSizeScale {
@@ -1366,7 +1353,6 @@ pub struct ModuleDefaultStyle {
     pub padding: Option<BarPadding>,
     pub border: Option<Border>,
     pub background: Option<ColorRef>,
-    pub grouping: Option<Grouping>,
 }
 
 /// `appearance.modules.group`: the style of the islands of module groups.
@@ -1386,7 +1372,6 @@ pub struct ModuleStyle {
     pub padding: Option<BarPadding>,
     pub border: Option<Border>,
     pub background: Option<ColorRef>,
-    pub grouping: Option<Grouping>,
     pub spacing: Option<MarginSize>,
     pub text_color: Option<ColorRef>,
     pub font_size: Option<FontSizeScale>,
@@ -2388,7 +2373,6 @@ mod tests {
             padding = "none"
             border = { width = 1, color = "background.strong" }
             background = "background"
-            grouping = "combined"
 
             [appearance.modules.group]
             radius = "md"
@@ -2398,7 +2382,6 @@ mod tests {
             spacing = "xs"
 
             [appearance.modules.system_info]
-            grouping = "individual"
             spacing = "xs"
             radius = "md"
             border = { width = 1, color = "#414868" }
@@ -2415,7 +2398,6 @@ mod tests {
         .appearance
         .modules;
 
-        assert_eq!(modules.default.grouping, Some(Grouping::Combined));
         assert_eq!(
             modules.default.background,
             Some(ColorRef::Palette(PaletteColor::Background(None)))
@@ -2430,7 +2412,6 @@ mod tests {
         );
 
         let system_info = modules.overrides[&ModuleName::SystemInfo];
-        assert_eq!(system_info.grouping, Some(Grouping::Individual));
         assert_eq!(
             system_info.border.unwrap().color,
             ColorRef::Hex(HexColor::rgb(0x41, 0x48, 0x68))
@@ -2518,8 +2499,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unknown_grouping_and_font_size() {
-        assert!(parse("[appearance.modules.default]\ngrouping = \"all\"").is_err());
+    fn rejects_unknown_font_size() {
         assert!(parse("[appearance.modules.tray]\nfont_size = \"huge\"").is_err());
     }
 
@@ -2574,9 +2554,6 @@ mod tests {
             [appearance.modules.default]
             font_size = "sm"
             spacing = "xs"
-
-            [appearance.modules.group]
-            grouping = "none"
             "#,
         );
         assert_eq!(
@@ -2584,7 +2561,6 @@ mod tests {
             [
                 "appearance.modules.default.font_size",
                 "appearance.modules.default.spacing",
-                "appearance.modules.group.grouping",
             ]
         );
     }
