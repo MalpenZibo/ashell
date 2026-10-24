@@ -12,6 +12,7 @@ publish = false
 [features]
 bluetooth = ["rfkill", "dep:zbus", "tokio/time"]
 brightness = ["dep:anyhow", "dep:log", "dep:tokio", "dep:udev", "dep:zbus", "tokio/net", "tokio/time"]
+idle_inhibitor = ["dep:anyhow", "dep:libc", "dep:log", "dep:wayland-client", "dep:wayland-protocols", "dep:wayland-protocols-wlr"]
 privacy = ["dep:anyhow", "dep:inotify", "dep:log", "dep:pipewire", "dep:tokio", "tokio/sync", "tokio/time"]
 rfkill = ["dep:anyhow", "dep:inotify", "dep:log", "dep:tokio", "tokio/fs", "tokio/io-util"]
 serde = ["dep:serde"]
@@ -24,6 +25,7 @@ futures = "0.3"
 anyhow = { workspace = true, optional = true }
 freedesktop-icons = { version = "0.4", optional = true }
 inotify = { workspace = true, optional = true }
+libc = { version = "0.2.182", optional = true }
 linicon-theme = { version = "1.2.0", optional = true }
 log = { workspace = true, optional = true }
 pin-project-lite = { version = "0.2.16", optional = true }
@@ -31,4 +33,7 @@ pipewire = { version = "0.10", optional = true }
 serde = { version = "1", default-features = false, features = ["derive"], optional = true }
 tokio = { workspace = true, optional = true }
 udev = { version = "0.9", features = ["send", "sync"], optional = true }
+wayland-client = { version = "0.31", optional = true }
+wayland-protocols = { version = "0.32", features = ["client", "unstable"], optional = true }
+wayland-protocols-wlr = { version = "0.3", features = ["client"], optional = true }
 zbus = { workspace = true, optional = true }

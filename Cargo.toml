@@ -67,6 +67,7 @@ ashell-i18n = { path = "crates/ashell-i18n" }
 ashell-services = { path = "crates/ashell-services", features = [
   "bluetooth",
   "brightness",
+  "idle_inhibitor",
   "privacy",
   "rfkill",
   "serde",

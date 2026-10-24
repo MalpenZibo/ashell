@@ -4,6 +4,8 @@ pub mod bluetooth;
 pub mod brightness;
 #[cfg(any(feature = "bluetooth", feature = "upower"))]
 mod bus;
+#[cfg(feature = "idle_inhibitor")]
+pub mod idle_inhibitor;
 #[cfg(feature = "privacy")]
 pub mod privacy;
 #[cfg(feature = "rfkill")]
