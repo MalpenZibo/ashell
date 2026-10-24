@@ -273,6 +273,16 @@ impl StatusNotifierWatcher {
             Err(_) => false,
         }
     }
+
+    /// Unique owner of the bus name in `service`, or `None` for a bare path
+    /// or a name without an owner.
+    async fn service_owner(conn: &Connection, service: &str) -> Option<UniqueName<'static>> {
+        let (name, _) = split_service_name(service);
+        let bus_name = BusName::try_from(name).ok()?;
+        let dbus_proxy = DBusProxy::new(conn).await.ok()?;
+        let owner = dbus_proxy.get_name_owner(bus_name).await.ok()?;
+        Some(owner.into_inner())
+    }
 }
 
 impl StatusNotifierWatcher {
@@ -349,6 +359,7 @@ impl StatusNotifierWatcher {
         &mut self,
         service: &str,
         #[zbus(header)] header: Header<'_>,
+        #[zbus(connection)] conn: &Connection,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) {
         let sender = match header.sender() {
@@ -358,7 +369,11 @@ impl StatusNotifierWatcher {
                 return;
             }
         };
-        if let Some(service) = self.add_item(service, sender, None) {
+        // Key the item by the owner of the named service, not the sender:
+        // Qt may register from another of its connections, which would
+        // duplicate the item found by `discover_items` under the owner.
+        let owner = Self::service_owner(conn, service).await.unwrap_or(sender);
+        if let Some(service) = self.add_item(service, owner, None) {
             Self::status_notifier_item_registered(&emitter, &service)
                 .await
                 .unwrap_or_else(|e| warn!("Failed to emit item_registered signal: {e}"));
