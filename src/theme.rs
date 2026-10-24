@@ -3,8 +3,9 @@ use std::cell::RefCell;
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
-        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarPadding,
-        BarRadius, BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize, Surface,
+        self, Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarPadding,
+        BarRadius, BarSurface, ColorRef, MenuAppearance, ModuleName, ModulesAppearance, Position,
+        RadiusSize, SpaceSize, Surface,
     },
 };
 use iced::{
@@ -169,6 +170,15 @@ impl Default for FontSize {
     }
 }
 
+/// The style of a module island, resolved from `appearance.modules`
+#[derive(Debug, Clone, Copy)]
+pub struct IslandStyle {
+    pub radius: border::Radius,
+    pub padding: iced::Padding,
+    pub border: Option<config::Border>,
+    pub background: Option<ColorRef>,
+}
+
 /// Everything that varies from one surface to the next.
 #[derive(Debug, Clone)]
 pub struct SurfaceTheme {
@@ -192,6 +202,8 @@ pub struct AshellTheme {
     pub bar_radius: BarRadius,
     pub bar_margin: BarMargin,
     pub bar_padding: BarPadding,
+    pub bar_border: config::Border,
+    pub modules: ModulesAppearance,
     pub menu: MenuAppearance,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
@@ -537,6 +549,8 @@ fn base_theme_from_appearance(
         bar_radius: appearance.bar.radius,
         bar_margin: appearance.bar.margin,
         bar_padding: appearance.bar.padding,
+        bar_border: appearance.bar.border,
+        modules: appearance.modules.clone(),
         menu: appearance.menu,
         workspace_colors: appearance.workspace_colors.clone(),
         special_workspace_colors: appearance.special_workspace_colors.clone(),
@@ -577,6 +591,63 @@ impl AshellTheme {
             top_right: self.radius.resolve(self.bar_radius.top_right),
             bottom_right: self.radius.resolve(self.bar_radius.bottom_right),
             bottom_left: self.radius.resolve(self.bar_radius.bottom_left),
+        }
+    }
+
+    /// Island of a module on its own: its override, then `default`.
+    pub fn module_island_style(&self, name: &ModuleName) -> IslandStyle {
+        let default = &self.modules.default;
+        let module = self.modules.overrides.get(name);
+
+        self.island_style(
+            module.and_then(|m| m.radius).or(default.radius),
+            module.and_then(|m| m.padding).or(default.padding),
+            module.and_then(|m| m.border).or(default.border),
+            module.and_then(|m| m.background).or(default.background),
+        )
+    }
+
+    pub fn module_text_color(&self, name: &ModuleName) -> Option<ColorRef> {
+        self.modules.overrides.get(name).and_then(|m| m.text_color)
+    }
+
+    pub fn group_spacing(&self) -> f32 {
+        self.modules.group.spacing.map_or(0.0, Into::into)
+    }
+
+    pub fn group_island_style(&self) -> IslandStyle {
+        let (group, default) = (&self.modules.group, &self.modules.default);
+
+        self.island_style(
+            group.radius.or(default.radius),
+            group.padding.or(default.padding),
+            group.border.or(default.border),
+            group.background.or(default.background),
+        )
+    }
+
+    fn island_style(
+        &self,
+        radius: Option<BarRadius>,
+        padding: Option<BarPadding>,
+        border: Option<config::Border>,
+        background: Option<ColorRef>,
+    ) -> IslandStyle {
+        IslandStyle {
+            radius: radius.map_or(self.radius.lg.into(), |radius| border::Radius {
+                top_left: self.radius.resolve(radius.top_left),
+                top_right: self.radius.resolve(radius.top_right),
+                bottom_right: self.radius.resolve(radius.bottom_right),
+                bottom_left: self.radius.resolve(radius.bottom_left),
+            }),
+            padding: padding.map_or(iced::Padding::ZERO, |padding| iced::Padding {
+                top: padding.top.into(),
+                right: padding.right.into(),
+                bottom: padding.bottom.into(),
+                left: padding.left.into(),
+            }),
+            border,
+            background,
         }
     }
 
@@ -974,14 +1045,16 @@ impl AshellTheme {
 
     /// Module button style: transparent base with hover highlight.
     /// The module-group background is handled by `module_group`, not the button.
-    pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style + use<> {
-        let radius_lg = self.radius.lg;
+    pub fn module_button_style(
+        &self,
+        island_style: IslandStyle,
+    ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         move |theme, status| {
             let mut base = button::Style {
                 background: None,
                 border: Border {
                     width: 0.0,
-                    radius: radius_lg.into(),
+                    radius: island_style.radius,
                     color: Color::TRANSPARENT,
                 },
                 text_color: theme.palette().text,
