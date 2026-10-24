@@ -1293,6 +1293,56 @@ pub enum ColorRef {
     Palette(PaletteColor),
 }
 
+impl ColorRef {
+    pub fn color(&self, theme: &iced::Theme) -> Color {
+        let palette = theme.extended_palette();
+        let pick =
+            |shade: &Shade, base: palette::Pair, weak: palette::Pair, strong: palette::Pair| {
+                match shade {
+                    Shade::Base => base.color,
+                    Shade::Weak => weak.color,
+                    Shade::Strong => strong.color,
+                }
+            };
+
+        match self {
+            ColorRef::Hex(hex) => hex_to_color(*hex),
+            ColorRef::Palette(color) => match color {
+                PaletteColor::Background(level) => {
+                    let background = &palette.background;
+                    match level {
+                        None => background.base.color,
+                        Some(BackgroundLevel::Weakest) => background.weakest.color,
+                        Some(BackgroundLevel::Weaker) => background.weaker.color,
+                        Some(BackgroundLevel::Weak) => background.weak.color,
+                        Some(BackgroundLevel::Neutral) => background.neutral.color,
+                        Some(BackgroundLevel::Strong) => background.strong.color,
+                        Some(BackgroundLevel::Stronger) => background.stronger.color,
+                        Some(BackgroundLevel::Strongest) => background.strongest.color,
+                    }
+                }
+                PaletteColor::Primary(shade) => {
+                    let p = &palette.primary;
+                    pick(shade, p.base, p.weak, p.strong)
+                }
+                PaletteColor::Success(shade) => {
+                    let p = &palette.success;
+                    pick(shade, p.base, p.weak, p.strong)
+                }
+                PaletteColor::Warning(shade) => {
+                    let p = &palette.warning;
+                    pick(shade, p.base, p.weak, p.strong)
+                }
+                PaletteColor::Danger(shade) => {
+                    let p = &palette.danger;
+                    pick(shade, p.base, p.weak, p.strong)
+                }
+                PaletteColor::Text => theme.palette().text,
+            },
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for ColorRef {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = String::deserialize(deserializer)?;
