@@ -1,11 +1,13 @@
+use crate::components::motion::{EASE_OUT, INSTANT};
 use iced::{
-    Background, Color, Length, Padding, Point, Rectangle, Size, Vector,
+    Animation, Background, Color, Length, Padding, Point, Rectangle, Size, Vector,
     core::{
         Clipboard, Layout, Shell, Widget, event, keyboard, layout, mouse, overlay, renderer, touch,
         widget::{Operation, Tree, tree},
     },
     widget::button::{Catalog, Status, Style, StyleFn},
 };
+use std::time::Instant;
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
@@ -189,6 +191,35 @@ struct State {
     is_focused: bool,
 }
 
+/// `0.0` at rest to `1.0` hovered, so the highlight follows the pointer instead
+/// of appearing in one frame.
+struct Highlight(Animation<f32>);
+
+impl Highlight {
+    fn new() -> Self {
+        Self(Animation::new(0.0).duration(INSTANT).easing(EASE_OUT))
+    }
+}
+
+/// Blends two button styles. Theme styles only paint solid backgrounds, so a
+/// gradient falls back to the target style.
+fn fade_style(from: Style, to: Style, t: f32) -> Style {
+    let lerp = crate::theme::lerp_color;
+    Style {
+        background: match (from.background, to.background) {
+            (Some(Background::Color(a)), Some(Background::Color(b))) => {
+                Some(Background::Color(lerp(a, b, t)))
+            }
+            (None, Some(Background::Color(b))) => Some(Background::Color(b.scale_alpha(t))),
+            (_, to) => to,
+        },
+        text_color: lerp(from.text_color, to.text_color, t),
+        border: to.border,
+        shadow: to.shadow,
+        snap: to.snap,
+    }
+}
+
 fn pressed_button(event: &event::Event) -> Option<MouseButton> {
     match event {
         event::Event::Mouse(mouse::Event::ButtonPressed(button)) => match *button {
@@ -223,11 +254,11 @@ where
     Theme: Catalog,
 {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State>()
+        tree::Tag::of::<(State, Highlight)>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(State::default())
+        tree::State::new((State::default(), Highlight::new()))
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -307,8 +338,10 @@ where
         if let Some(button) = pressed_button(event) {
             let index = button.index();
             if self.handlers[index].is_some() && is_over {
-                let state = tree.state.downcast_mut::<State>();
+                let (state, highlight) = tree.state.downcast_mut::<(State, Highlight)>();
                 state.pressed[index] = true;
+                highlight.0.go_mut(1.0, Instant::now());
+                shell.request_redraw();
                 shell.capture_event();
                 return;
             }
@@ -320,6 +353,7 @@ where
                 let state = tree.state.downcast_mut::<State>();
                 if state.pressed[index] {
                     state.pressed[index] = false;
+                    shell.request_redraw();
                     if is_over {
                         Self::publish_handler(handler, layout, viewport, shell);
                     }
@@ -394,12 +428,22 @@ where
             _ => {}
         }
 
-        // Reactive rendering: track hover state and request redraw on change
-        let state = tree.state.downcast_mut::<State>();
-        let is_hovered =
-            (self.handlers.iter().any(Option::is_some) || self.on_hover.is_some()) && is_over;
-        if is_hovered != state.is_hovered {
-            state.is_hovered = is_hovered;
+        let actionable = self.handlers.iter().any(Option::is_some) || self.on_hover.is_some();
+        let is_hovered = actionable && is_over;
+        let (state, highlight) = tree.state.downcast_mut::<(State, Highlight)>();
+        let was_hovered = state.is_hovered;
+        state.is_hovered = is_hovered;
+
+        if is_hovered != was_hovered {
+            highlight
+                .0
+                .go_mut(if is_hovered { 1.0 } else { 0.0 }, Instant::now());
+            shell.request_redraw();
+        }
+
+        if let event::Event::Window(iced::core::window::Event::RedrawRequested(now)) = event
+            && highlight.0.is_animating(*now)
+        {
             shell.request_redraw();
         }
     }
@@ -416,11 +460,11 @@ where
     ) {
         let bounds = layout.bounds();
         let content_layout = layout.children().next().unwrap();
-        let state = tree.state.downcast_ref::<State>();
+        let (state, highlight) = tree.state.downcast_ref::<(State, Highlight)>();
+        let highlight = highlight.0.interpolate_with(|v| v, Instant::now());
 
-        let status = if !self.handlers.iter().any(Option::is_some) && self.on_hover.is_none() {
-            Status::Disabled
-        } else if state.is_hovered {
+        let disabled = !self.handlers.iter().any(Option::is_some) && self.on_hover.is_none();
+        let resting = if state.is_hovered {
             if state.pressed[MouseButton::Left.index()] {
                 Status::Pressed
             } else {
@@ -430,7 +474,17 @@ where
             Status::Active
         };
 
-        let style = theme.style(&self.class, status);
+        let style = if disabled {
+            theme.style(&self.class, Status::Disabled)
+        } else if highlight <= 0.001 || resting == Status::Active {
+            theme.style(&self.class, Status::Active)
+        } else {
+            fade_style(
+                theme.style(&self.class, Status::Active),
+                theme.style(&self.class, resting),
+                highlight,
+            )
+        };
 
         if style.background.is_some() || style.border.width > 0.0 || style.shadow.color.a > 0.0 {
             renderer.fill_quad(
