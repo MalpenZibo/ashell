@@ -1,5 +1,6 @@
 use crate::{
     components::collapsible::{self, collapsible},
+    components::countdown_bar::{Countdown, countdown_bar},
     components::icons::{StaticIcon, icon, icon_button},
     components::scrollable,
     components::slide::{self, SlideDirection, slide},
@@ -12,13 +13,16 @@ use crate::{
             dbus::{CloseGuard, DEFAULT_ACTION_KEY, NotificationDaemon, NotificationEvent},
         },
     },
-    t,
     theme::{Paint, surface_border, use_theme},
 };
+use ashell_i18n::t;
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
-    widget::{Container, Space, blur, button, column, container, image, row, sensor, svg, text},
+    widget::{
+        Container, Space, blur, button, column, container, image, mouse_area, row, sensor, svg,
+        text,
+    },
 };
 use itertools::Itertools;
 use log::{debug, error};
@@ -151,6 +155,8 @@ pub enum Message {
     StartCollapse(u32),
     DismissAnimationComplete(u32),
     ToastResized(Size),
+    ToastsHovered,
+    ToastsUnhovered,
 }
 
 #[derive(Debug, PartialEq)]
@@ -186,6 +192,8 @@ impl Action {
     }
 }
 
+const COUNTDOWN_BAR_HEIGHT: f32 = 3.0;
+
 // Must match the widget durations so task delays align with animation end.
 const SLIDE_ANIMATION: Duration = slide::DEFAULT_DURATION;
 const COLLAPSE_ANIMATION: Duration = collapsible::DEFAULT_DURATION;
@@ -196,6 +204,46 @@ enum DismissPhase {
     Collapsing,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ToastTimer {
+    Running {
+        deadline: Instant,
+        total: Duration,
+    },
+    Paused {
+        remaining: Duration,
+        total: Duration,
+        /// Latest time an `ExpireToast` already in flight lands, if any.
+        wakeup: Option<Instant>,
+    },
+}
+
+impl ToastTimer {
+    fn wakeup(self) -> Option<Instant> {
+        match self {
+            Self::Running { deadline, .. } => Some(deadline),
+            Self::Paused { wakeup, .. } => wakeup,
+        }
+    }
+}
+
+impl From<ToastTimer> for Countdown {
+    fn from(timer: ToastTimer) -> Self {
+        match timer {
+            ToastTimer::Running { deadline, total } => Self::Running { deadline, total },
+            ToastTimer::Paused {
+                remaining, total, ..
+            } => Self::Paused { remaining, total },
+        }
+    }
+}
+
+fn needs_wakeup(previous: Option<ToastTimer>, deadline: Instant) -> bool {
+    previous
+        .and_then(ToastTimer::wakeup)
+        .is_none_or(|wakeup| deadline < wakeup)
+}
+
 pub struct Notifications {
     config: NotificationsModuleConfig,
     connection: Option<Connection>,
@@ -204,7 +252,8 @@ pub struct Notifications {
     blocklist: Vec<crate::config::RegexCfg>,
     toasts: VecDeque<u32>,
     dismiss_phases: HashMap<u32, DismissPhase>,
-    toast_timers: HashMap<u32, Instant>,
+    toast_timers: HashMap<u32, ToastTimer>,
+    toasts_hovered: bool,
     animations_enabled: bool,
     dnd: bool,
 }
@@ -221,6 +270,7 @@ impl Notifications {
             toasts: VecDeque::new(),
             dismiss_phases: HashMap::new(),
             toast_timers: HashMap::new(),
+            toasts_hovered: false,
             animations_enabled,
             dnd: false,
         }
@@ -297,6 +347,7 @@ impl Notifications {
         self.toasts.clear();
         self.dismiss_phases.clear();
         self.toast_timers.clear();
+        self.toasts_hovered = false;
         had_toasts
     }
 
@@ -323,16 +374,18 @@ impl Notifications {
             .collect()
     }
 
-    fn hide_toasts_if_empty(&self, had_toasts: bool) -> Action {
+    fn hide_toasts_if_empty(&mut self, had_toasts: bool) -> Action {
         if had_toasts && self.toasts.is_empty() {
+            self.toasts_hovered = false;
             Action::Hide(Task::none())
         } else {
             Action::None
         }
     }
 
-    fn hide_toasts_if_empty_with_task(&self, had_toasts: bool, task: Task<Message>) -> Action {
+    fn hide_toasts_if_empty_with_task(&mut self, had_toasts: bool, task: Task<Message>) -> Action {
         if had_toasts && self.toasts.is_empty() {
+            self.toasts_hovered = false;
             Action::Hide(task)
         } else {
             Action::Task(task)
@@ -374,16 +427,31 @@ impl Notifications {
                 };
 
                 let task = if let Some(timeout) = timeout {
-                    let deadline = Instant::now() + timeout;
-                    let previous = self.toast_timers.insert(notification.id, deadline);
-                    // Every wakeup either expires the toast, dropping the
-                    // deadline, or reschedules itself, so a stored deadline always
-                    // has a sleep in flight: one is only needed when there was no
-                    // deadline, or when the new one lands before the pending wakeup.
-                    if previous.is_none_or(|previous| deadline < previous) {
-                        delayed_toast_message(timeout, notification.id, Message::ExpireToast)
-                    } else {
+                    let previous = self.toast_timers.get(&notification.id).copied();
+                    if self.toasts_hovered {
+                        self.toast_timers.insert(
+                            notification.id,
+                            ToastTimer::Paused {
+                                remaining: timeout,
+                                total: timeout,
+                                wakeup: previous.and_then(ToastTimer::wakeup),
+                            },
+                        );
                         Task::none()
+                    } else {
+                        let deadline = Instant::now() + timeout;
+                        self.toast_timers.insert(
+                            notification.id,
+                            ToastTimer::Running {
+                                deadline,
+                                total: timeout,
+                            },
+                        );
+                        if needs_wakeup(previous, deadline) {
+                            delayed_toast_message(timeout, notification.id, Message::ExpireToast)
+                        } else {
+                            Task::none()
+                        }
                     }
                 } else {
                     self.toast_timers.remove(&notification.id);
@@ -464,7 +532,13 @@ impl Notifications {
                     if let NotificationEvent::Received(notification) = &update_event
                         && self.is_blocklisted(&notification.app_name)
                     {
-                        return Action::None;
+                        // The UI never shows it, so nothing else would close it
+                        // and the daemon would keep its revision tracked for the
+                        // lifetime of the process. Dismiss it at the source.
+                        return Action::Task(evict_task(
+                            self.connection.clone(),
+                            vec![(notification.id, notification.revision)],
+                        ));
                     }
 
                     let suppress_toast = self.dnd
@@ -542,8 +616,15 @@ impl Notifications {
                 Action::None
             }
             Message::ExpireToast(id) => {
-                let Some(&deadline) = self.toast_timers.get(&id) else {
+                let Some(timer) = self.toast_timers.get_mut(&id) else {
                     return Action::None;
+                };
+                let deadline = match timer {
+                    ToastTimer::Running { deadline, .. } => *deadline,
+                    ToastTimer::Paused { wakeup, .. } => {
+                        *wakeup = None;
+                        return Action::None;
+                    }
                 };
                 let now = Instant::now();
                 if now < deadline {
@@ -609,6 +690,55 @@ impl Notifications {
                 self.hide_toasts_if_empty(had_toasts)
             }
             Message::ToastResized(size) => Action::UpdateToastInputRegion(size),
+            Message::ToastsHovered => {
+                if self.toasts_hovered {
+                    return Action::None;
+                }
+                self.toasts_hovered = true;
+
+                let now = Instant::now();
+                for timer in self.toast_timers.values_mut() {
+                    if let ToastTimer::Running { deadline, total } = *timer {
+                        *timer = ToastTimer::Paused {
+                            remaining: deadline.saturating_duration_since(now),
+                            total,
+                            wakeup: Some(deadline),
+                        };
+                    }
+                }
+                Action::None
+            }
+            Message::ToastsUnhovered => {
+                if !self.toasts_hovered {
+                    return Action::None;
+                }
+                self.toasts_hovered = false;
+
+                let now = Instant::now();
+                let tasks = self
+                    .toast_timers
+                    .iter_mut()
+                    .filter_map(|(&id, timer)| {
+                        let previous = *timer;
+                        let ToastTimer::Paused {
+                            remaining, total, ..
+                        } = previous
+                        else {
+                            return None;
+                        };
+                        let deadline = now + remaining;
+                        *timer = ToastTimer::Running { deadline, total };
+                        needs_wakeup(Some(previous), deadline)
+                            .then(|| delayed_toast_message(remaining, id, Message::ExpireToast))
+                    })
+                    .collect::<Vec<_>>();
+
+                if tasks.is_empty() {
+                    Action::None
+                } else {
+                    Action::Task(Task::batch(tasks))
+                }
+            }
         }
     }
 
@@ -669,6 +799,14 @@ impl Notifications {
             );
             button_style
         }
+    }
+
+    fn toast_countdown(&self, id: u32, toast: bool) -> Option<Countdown> {
+        if !toast || !self.config.toast_timeout_bar {
+            return None;
+        }
+
+        self.toast_timers.get(&id).copied().map(Countdown::from)
     }
 
     fn notification_card<'a>(
@@ -742,7 +880,17 @@ impl Notifications {
         let actions_row = Self::action_buttons(notification)
             .map(|row| row.padding(Padding::new(space.xs).top(0.)));
 
-        button(column!(card, actions_row))
+        let countdown = self
+            .toast_countdown(notification.id, toast)
+            .map(|countdown| {
+                countdown_bar(
+                    countdown,
+                    COUNTDOWN_BAR_HEIGHT,
+                    use_theme(|t| t.palette.primary),
+                )
+            });
+
+        button(column!(card, actions_row, countdown))
             .on_press(on_press)
             .width(Length::Fill)
             .padding(space.xxs)
@@ -937,6 +1085,10 @@ impl Notifications {
         )
         .on_resize(Message::ToastResized);
 
+        let toast_content = mouse_area(toast_content)
+            .on_enter(Message::ToastsHovered)
+            .on_exit(Message::ToastsUnhovered);
+
         container(toast_content)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -1064,5 +1216,83 @@ impl Notifications {
 
     pub fn toast_position(&self) -> ToastPosition {
         self.config.toast_position
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Message, Notifications, ToastTimer};
+    use crate::{
+        config::NotificationsModuleConfig,
+        services::{
+            ServiceEvent,
+            notifications::dbus::{Notification, NotificationEvent, Urgency},
+        },
+    };
+    use std::time::{Duration, Instant, SystemTime};
+
+    fn notification(id: u32, expire_timeout: i32) -> Notification {
+        Notification {
+            id,
+            revision: 0,
+            app_name: "test".to_string(),
+            app_icon: String::new(),
+            summary: "summary".to_string(),
+            body: String::new(),
+            actions: vec![],
+            desktop_entry: None,
+            expire_timeout,
+            timestamp: SystemTime::now(),
+            urgency: Urgency::Normal,
+            sender: None,
+            icon: None,
+        }
+    }
+
+    fn receive(module: &mut Notifications, notification: Notification) {
+        let _ = module.update(Message::Event(ServiceEvent::Update(
+            NotificationEvent::Received(Box::new(notification)),
+        )));
+    }
+
+    #[test]
+    fn hover_pause_and_resume_keep_the_total() {
+        let mut module = Notifications::new(NotificationsModuleConfig::default(), false);
+        receive(&mut module, notification(1, 10_000));
+
+        let _ = module.update(Message::ToastsHovered);
+        let Some(&ToastTimer::Paused {
+            remaining, total, ..
+        }) = module.toast_timers.get(&1)
+        else {
+            panic!("hovering pauses the timer");
+        };
+        assert_eq!(total, Duration::from_secs(10));
+        assert!(remaining <= total);
+
+        let _ = module.update(Message::ToastsUnhovered);
+        let Some(&ToastTimer::Running { deadline, total }) = module.toast_timers.get(&1) else {
+            panic!("leaving resumes the timer");
+        };
+        assert_eq!(total, Duration::from_secs(10));
+        assert!(deadline.saturating_duration_since(Instant::now()) <= remaining);
+    }
+
+    #[test]
+    fn replace_while_hovered_takes_the_new_total() {
+        let mut module = Notifications::new(NotificationsModuleConfig::default(), false);
+        receive(&mut module, notification(1, 10_000));
+        let _ = module.update(Message::ToastsHovered);
+
+        receive(&mut module, notification(1, 2_000));
+
+        let Some(&ToastTimer::Paused {
+            remaining, total, ..
+        }) = module.toast_timers.get(&1)
+        else {
+            panic!("a replace while hovered starts paused");
+        };
+        assert_eq!(remaining, Duration::from_secs(2));
+        assert_eq!(total, Duration::from_secs(2));
     }
 }

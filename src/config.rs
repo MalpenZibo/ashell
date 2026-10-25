@@ -1,7 +1,7 @@
 use crate::app::Message;
-use crate::i18n::{TemperatureUnit, UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
 use crate::theme::Space;
+use ashell_i18n::{TemperatureUnit, UnitSystem, unit_system};
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -476,6 +476,7 @@ pub struct NotificationsModuleConfig {
     pub toast_limit: usize,
     pub toast_max_height: u32,
     pub history_limit: usize,
+    pub toast_timeout_bar: bool,
     pub blocklist: Vec<RegexCfg>,
 }
 impl Default for NotificationsModuleConfig {
@@ -491,6 +492,7 @@ impl Default for NotificationsModuleConfig {
             toast_limit: 5,
             toast_max_height: 150,
             history_limit: 200,
+            toast_timeout_bar: false,
             blocklist: vec![],
         }
     }
@@ -2121,9 +2123,11 @@ pub fn read_logging_config(path: Option<&PathBuf>) -> LoggingConfig {
 
     match toml::from_str::<LoggingConfigWrapper>(&content) {
         Ok(wrapper) => wrapper.logging,
-        Err(e) => {
+        Err(_) => {
+            // read_config reports the full parse error; this is only a hint,
+            // and a syntax error in the file also lands here.
             eprintln!(
-                "ashell: warning: cannot read the [logging] section of {}, using the default logging setup:\n{e}",
+                "ashell: warning: cannot read the logging configuration from {}, using the default logging setup",
                 config_path.display()
             );
             LoggingConfig::default()
@@ -2191,30 +2195,32 @@ pub fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
 
     info!("Decoding config file {path:?}");
 
-    let de =
-        toml::Deserializer::parse(&content).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
-    let mut unknown_fields = Vec::new();
-    let res = serde_ignored::deserialize(de, |path| {
-        unknown_fields.push(path.to_string());
-    });
+    parse_config(&content).map_err(|e| {
+        // Both syntax and type/value errors end up here, so report them in one
+        // place instead of only covering the serde_ignored match.
+        let msg = format!("Failed to parse config file {}: {e}", path.display());
+        warn!("{msg}");
+        eprintln!("ashell: error: {msg}");
+        Box::new(e) as Box<dyn Error + Send>
+    })
+}
 
-    match res {
-        Ok(config) => {
-            for field in &unknown_fields {
-                let msg = format!("Unknown configuration field ignored: {field}");
-                warn!("{msg}");
-                eprintln!("ashell: warning: {msg}");
-            }
-            info!("Config file loaded successfully");
-            let mut config: Config = config;
-            config.validate();
-            Ok(config)
-        }
-        Err(e) => {
-            warn!("Failed to parse config file: {e}");
-            Err(Box::new(e))
-        }
+fn parse_config(content: &str) -> Result<Config, toml::de::Error> {
+    let de = toml::Deserializer::parse(content)?;
+    let mut unknown_fields = Vec::new();
+    let mut config: Config = serde_ignored::deserialize(de, |path| {
+        unknown_fields.push(path.to_string());
+    })?;
+
+    for field in &unknown_fields {
+        let msg = format!("Unknown configuration field ignored: {field}");
+        warn!("{msg}");
+        eprintln!("ashell: warning: {msg}");
     }
+
+    info!("Config file loaded successfully");
+    config.validate();
+    Ok(config)
 }
 
 enum Event {
@@ -2251,7 +2257,10 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                         debug!("Starting config file watch loop");
 
                         loop {
-                            let events = stream.next().await.unwrap_or(vec![]);
+                            let Some(events) = stream.next().await else {
+                                error!("inotify event stream ended, config hot-reload disabled");
+                                return;
+                            };
 
                             debug!("Received inotify events: {events:?}");
 
@@ -2578,5 +2587,12 @@ mod tests {
                 "appearance.modules.group.grouping",
             ]
         );
+    }
+
+    #[test]
+    fn syntax_error_is_a_parse_error() {
+        assert!(parse_config("position = \"unterminated").is_err());
+        assert!(parse_config("[bar").is_err());
+        assert!(parse_config("position = 5").is_err());
     }
 }

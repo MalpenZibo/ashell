@@ -8,26 +8,31 @@ Services are the backend layer of ashell. They manage communication with system 
 |---------|----------|---------|----------|-----------------|
 | Compositor | `services/compositor/` | Hyprland / Niri / MangoWC / generic Wayland | IPC socket / `mmsg` / Wayland protocols | Hyprland, Niri, MangoWC, or any Wayland compositor (generic fallback) |
 | Audio | `services/audio.rs` | PulseAudio | libpulse C library | PulseAudio or PipeWire-Pulse |
-| Brightness | `services/brightness.rs` | sysfs + logind | File I/O + D-Bus | systemd-logind |
+| Brightness | `crates/ashell-services/src/brightness/` (iced glue in `services/brightness.rs`) | sysfs + logind | File I/O + D-Bus | systemd-logind |
 | Bluetooth | `crates/ashell-services/src/bluetooth/` (iced glue in `services/bluetooth.rs`) | BlueZ | D-Bus | `bluez` |
 | Network | `services/network/` | NetworkManager / IWD | D-Bus | `networkmanager` or `iwd` |
 | MPRIS | `services/mpris/` | Media players | D-Bus | MPRIS-compatible player |
 | Tray | `services/tray/` | StatusNotifierItem | D-Bus | — |
-| UPower | `services/upower/` | UPower daemon | D-Bus | `upower` |
+| UPower | `crates/ashell-services/src/upower/` (iced glue in `services/upower.rs`) | UPower daemon | D-Bus | `upower` |
 | Notifications | `services/notifications/` | Notification server | D-Bus | — |
-| Privacy | `services/privacy.rs` | PipeWire + `/dev/video0` | PipeWire registry + inotify | `pipewire` |
-| Idle Inhibitor | `services/idle_inhibitor.rs` | Wayland `idle-inhibit-unstable-v1` | Wayland protocol | — |
-| Logind | `services/logind.rs` | systemd-logind | D-Bus | systemd-logind |
-| Throttle | `services/throttle.rs` | (utility) | Stream adapter | — |
-| XDG Icons | `services/xdg_icons.rs` | (utility) | XDG icon theme | — |
+| Privacy | `crates/ashell-services/src/privacy.rs` (iced glue in `services/privacy.rs`) | PipeWire + `/dev/video0` | PipeWire registry + inotify | `pipewire` |
+| Idle Inhibitor | `crates/ashell-services/src/idle_inhibitor.rs` (iced glue in `services/idle_inhibitor.rs`) | Wayland `idle-inhibit-unstable-v1` | Wayland protocol | — |
+| Logind | `crates/ashell-services/src/logind.rs` (iced glue in `services/logind.rs`) | systemd-logind | D-Bus | systemd-logind |
+| Throttle | `crates/ashell-services/src/throttle.rs` | (utility) | Stream adapter | — |
+| XDG Icons | `crates/ashell-services/src/xdg_icons.rs` (iced glue in `services/xdg_icons.rs`) | (utility) | XDG icon theme | — |
 
 ## Shared Icon Resolution
 
-`services/xdg_icons.rs` is a shared helper (not an event-producing service) used
-by both the tray and the workspaces module to turn an identifier into a
-displayable icon. Given a name it resolves an `XdgIcon` (`Image`, `Svg`, or a
-`NerdFont` glyph fallback) via the XDG icon theme, a fuzzy/prefix match against
-the installed icon set, and a `.desktop` `StartupWMClass` index.
+`xdg_icons` is a shared helper (not an event-producing service) used by the
+tray and the workspaces module to turn an identifier into a displayable icon.
+Given a name, the `ashell-services` crate resolves the path of an image or SVG
+file via the XDG icon theme, then a `.desktop` index (by `StartupWMClass` and
+file name), then a fuzzy/prefix match against the installed icon set.
+Notifications use only the theme lookup, `theme_icon_path`.
+
+It returns an `IconFile`, the path tagged as `Image` or `Svg`. The glue in
+`services/xdg_icons.rs` turns it into an `XdgIcon` (`Image`, `Svg`, or a
+`NerdFont` glyph fallback).
 
 Each consumer keeps its own concern on top of this core: the tray handles raw
 D-Bus pixmaps, while the workspaces module lowercases the window class before

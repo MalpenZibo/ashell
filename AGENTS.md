@@ -3,7 +3,7 @@
 ## Quick reference
 
 ```bash
-make check    # cargo fmt (rewrites files) + cargo check + clippy -D warnings on the whole workspace (run before pushing)
+make check    # fmt + cargo check + clippy -D warnings + tests across the workspace (run before pushing)
 make build    # cargo build --release
 make fmt      # cargo fmt
 make start    # run ./target/release/ashell
@@ -22,9 +22,9 @@ It follows the Elm architecture (model → update → view) with a modular desig
 
 ## Code quality
 
-- **Clippy is strict:** CI runs `cargo clippy --all-features -- -D warnings`. Zero warnings allowed.
+- **Clippy is strict:** CI runs `cargo clippy --workspace --all-features -- -D warnings`. Zero warnings allowed.
 - **Formatting:** `cargo fmt --all -- --check` enforced in CI.
-- No test suite — quality is enforced through clippy, formatting, and build checks.
+- **Tests:** unit tests live in the root crate (`src/`) and in `crates/ashell-services`. Run them with `cargo test --workspace` (use `-p ashell-services` for just the library crate).
 
 ## Project structure
 
@@ -32,27 +32,32 @@ It follows the Elm architecture (model → update → view) with a modular desig
 src/
 ├── main.rs              # entry point, font embedding, CLI dispatch
 ├── app.rs               # App state, Elm update/view cycle
+├── app/                 # top-level Message enum + OSD display info
 ├── config.rs            # configuration types (TOML deserialization)
+├── i18n.rs              # ashell's translation catalogs (CATALOGS)
 ├── ipc.rs               # Unix socket IPC (client + server + subscription)
-├── theme.rs             # theming (transparent/solid bar surface, radius, margin)
-├── menu.rs              # menu UI
+├── osd.rs               # on-screen display overlay (volume, brightness, ...)
 ├── outputs.rs           # multi-monitor output management
-├── components/          # shared UI components, icons
+├── theme.rs             # theming (transparent/solid bar surface, radius, margin)
+├── xdg.rs               # XDG runtime directory lookup
+├── components/          # shared UI components, icons, menus and custom iced widgets
 ├── modules/             # UI modules (clock, workspaces, settings, tray, etc.)
 │   └── settings/        # settings sub-panels (audio, network, bluetooth, power, brightness)
 ├── services/            # iced glue (ReadOnlyService/Service) + services not yet migrated to ashell-services
 │   ├── compositor/      # Hyprland/Niri/generic Wayland abstraction
 │   ├── network/         # NetworkManager + IWD backends
+│   ├── notifications/   # notification daemon
 │   ├── mpris/           # media player control
-│   ├── tray/
-│   └── upower/          # battery/power
-├── widgets/             # custom iced widgets (centerbox, position_button, menu_wrapper)
+│   ├── tray/            # system tray
+│   └── ...              # audio, bluetooth, brightness, privacy, idle_inhibitor, logind, throttle, upower, xdg_icons
 └── utils/
 crates/
-└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth
+├── ashell-i18n/         # localization: locale/unit system, catalog loading, t!() macro
+└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth, brightness, idle_inhibitor, logind, privacy, upower
 ```
 
-The repo is a Cargo workspace: the root package is the `ashell` binary, `crates/ashell-services` is a library member.
+The repo is a Cargo workspace: the root package is the `ashell` binary, the crates in `crates/` are library members.
+Each app brings its own catalogs: it passes them to `Localizer::resolve` and has an `i18n.toml` whose `assets_dir` points to them, since `t!()` validates keys at compile time against `{assets_dir}/en-US/{domain}.ftl` of the calling crate. The domain defaults to the crate name with `-` replaced by `_`; at runtime only the catalogs passed to `resolve` count.
 
 ## Key system dependencies
 

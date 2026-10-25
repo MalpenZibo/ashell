@@ -13,10 +13,9 @@ use serde::{Deserialize, Deserializer};
 use crate::{
     components::scrollable,
     config::WeatherLocation,
-    i18n::{UnitSystem, chrono_locale, unit_system},
-    t,
     theme::{Paint, use_theme},
 };
+use ashell_i18n::{UnitSystem, chrono_locale, t, unit_system};
 
 use super::{Message, Tempo};
 

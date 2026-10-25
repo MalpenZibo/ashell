@@ -16,7 +16,7 @@ pub trait AccessPoint {
     /// `GetOrderedNetworks` method
     fn get_ordered_networks(
         &self,
-    ) -> zbus::Result<std::collections::HashMap<String, zbus::zvariant::OwnedValue>>;
+    ) -> zbus::Result<std::collections::HashMap<String, zbus::OwnedVariant>>;
 
     /// `Scan` method
     fn scan(&self) -> zbus::Result<()>;

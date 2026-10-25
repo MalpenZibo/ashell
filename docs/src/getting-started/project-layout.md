@@ -4,7 +4,8 @@
 
 ```
 ashell/
-├── src/                     # Rust source code
+├── src/                     # Rust source code (the ashell binary)
+├── crates/                  # Workspace library crates (see below)
 ├── assets/                  # Fonts and icons
 ├── .github/workflows/       # CI/CD pipelines
 ├── website/                 # User-facing Docusaurus website
@@ -22,6 +23,16 @@ ashell/
 └── LICENSE                  # GPL-3.0-or-later License
 ```
 
+## Workspace Crates
+
+```
+crates/
+├── ashell-i18n/             # Localization: locale and unit system, catalog loading, t!() macro
+└── ashell-services/         # UI-agnostic backend services (no iced dependency)
+```
+
+`ashell-i18n` has no catalogs of its own: each app passes its catalogs to `Localizer::resolve`. `t!()` checks message keys at compile time against `{assets_dir}/{fallback_language}/{domain}.ftl` of the crate that calls it, as set in that crate's `i18n.toml`. The domain defaults to the crate name with `-` replaced by `_` (`my-app` uses `my_app.ftl`), and `fallback_language` must be `en-US`. At runtime only the catalogs passed to `Localizer::resolve` count. `t!()` translates only on a thread that called `init_localizer`.
+
 ## Source Tree
 
 ```
@@ -36,7 +47,7 @@ src/
 ├── theme.rs                 # Theme system: colors, spacing, fonts, bar styles
 ├── osd.rs                   # On-screen display overlay (volume, brightness, ...)
 ├── ipc.rs                   # IPC socket server and `ashell msg` client
-├── i18n.rs                  # Localization (Fluent catalogs)
+├── i18n.rs                  # Translation catalogs (Fluent)
 ├── xdg.rs                   # XDG runtime directory lookup
 │
 ├── components/              # Shared UI building blocks and custom iced widgets
@@ -84,7 +95,7 @@ src/
 │   │   ├── mangowc.rs        # MangoWC integration (`mmsg` IPC)
 │   │   └── generic.rs        # Generic Wayland fallback (ext-workspace, foreign-toplevel)
 │   ├── audio.rs             # PulseAudio/PipeWire audio service
-│   ├── brightness.rs        # Display brightness via sysfs
+│   ├── brightness.rs        # iced glue for the ashell-services brightness service
 │   ├── bluetooth.rs         # iced glue for the ashell-services Bluetooth service
 │   ├── network/
 │   │   ├── mod.rs            # Network service logic
@@ -99,14 +110,11 @@ src/
 │   ├── tray/
 │   │   ├── mod.rs            # System tray service
 │   │   └── dbus.rs           # StatusNotifierItem D-Bus proxies
-│   ├── upower/
-│   │   ├── mod.rs            # Battery/power service
-│   │   └── dbus.rs           # UPower D-Bus proxies
-│   ├── privacy.rs           # Privacy monitoring (PipeWire)
-│   ├── idle_inhibitor.rs    # Idle/sleep prevention
-│   ├── logind.rs            # systemd-logind (sleep/wake detection)
-│   ├── throttle.rs          # Stream rate-limiting utility
-│   └── xdg_icons.rs         # XDG icon theme lookup and caching
+│   ├── upower.rs            # iced glue for the ashell-services UPower service
+│   ├── privacy.rs           # iced glue for the ashell-services privacy service
+│   ├── idle_inhibitor.rs    # iced glue for the ashell-services idle inhibitor
+│   ├── logind.rs            # iced glue for the ashell-services logind service
+│   └── xdg_icons.rs         # iced glue for the ashell-services icon lookup
 │
 └── utils/
     ├── mod.rs               # Utility module exports and helpers

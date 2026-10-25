@@ -22,10 +22,10 @@ use crate::{
         network::{NetworkSettings, NetworkSettingsConfig},
         power::{PowerSettings, PowerSettingsConfig},
     },
-    services::idle_inhibitor::IdleInhibitorManager,
-    t,
+    services::idle_inhibitor::{self, IdleInhibitor},
     theme::{transparent_button_style, use_theme},
 };
+use ashell_i18n::t;
 use iced::{
     Element, Length, Subscription, SurfaceId, Task, Theme,
     widget::{Column, Row, Space, container, image, row, space},
@@ -47,7 +47,7 @@ pub struct Settings {
     brightness: BrightnessSettings,
     network: NetworkSettings,
     bluetooth: BluetoothSettings,
-    idle_inhibitor: Option<IdleInhibitorManager>,
+    idle_inhibitor: Option<IdleInhibitor>,
     remove_dnd_btn: bool,
     sub_menu: Option<SubMenu>,
     network_dialog: Option<NetworkDialogState>,
@@ -142,7 +142,7 @@ impl Settings {
         &self.network
     }
 
-    pub fn idle_inhibitor(&self) -> &Option<IdleInhibitorManager> {
+    pub fn idle_inhibitor(&self) -> &Option<IdleInhibitor> {
         &self.idle_inhibitor
     }
 
@@ -179,15 +179,18 @@ impl Settings {
 
     pub fn toggle_airplane(&mut self) -> Action {
         match self.network.update(network::Message::ToggleAirplaneMode) {
-            network::Action::CloseSubMenu(task) => Action::Command(task.map(Message::Network)),
-            network::Action::Command(task) => Action::Command(task.map(Message::Network)),
+            network::Action::CloseSubMenu(task) | network::Action::Command(task) => {
+                Action::Command(task.map(Message::Network))
+            }
             _ => Action::None,
         }
     }
 
     pub fn toggle_idle_inhibitor(&mut self) -> Action {
-        if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
-            idle_inhibitor.toggle();
+        if let Some(idle_inhibitor) = &mut self.idle_inhibitor
+            && let Err(err) = idle_inhibitor.toggle()
+        {
+            warn!("Failed to toggle idle inhibitor: {err}");
         }
         Action::None
     }
@@ -233,7 +236,7 @@ impl Settings {
             idle_inhibitor: if config.remove_idle_btn {
                 None
             } else {
-                IdleInhibitorManager::new()
+                idle_inhibitor::connect()
             },
             remove_dnd_btn: config.remove_dnd_btn,
             sub_menu: None,
@@ -380,12 +383,7 @@ impl Settings {
                     Action::None
                 }
             }
-            Message::ToggleInhibitIdle => {
-                if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
-                    idle_inhibitor.toggle();
-                }
-                Action::None
-            }
+            Message::ToggleInhibitIdle => self.toggle_idle_inhibitor(),
             Message::ToggleDnd => Action::ToggleDnd,
             Message::Lock(id) => {
                 if let Some(lock_cmd) = &self.lock_cmd {
@@ -471,7 +469,7 @@ impl Settings {
                 Action::None
             }
             Message::CustomButtonsStatus(statuses) => {
-                for (name, status) in statuses.into_iter() {
+                for (name, status) in statuses {
                     self.custom_buttons_status.insert(name, status);
                 }
                 Action::None
@@ -590,7 +588,7 @@ impl Settings {
                 if config.remove_idle_btn {
                     self.idle_inhibitor = None;
                 } else if self.idle_inhibitor.is_none() {
-                    self.idle_inhibitor = IdleInhibitorManager::new();
+                    self.idle_inhibitor = idle_inhibitor::connect();
                 }
                 self.remove_dnd_btn = config.remove_dnd_btn;
                 self.indicators = config.indicators;
@@ -722,9 +720,7 @@ impl Settings {
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
-                                IdleInhibitorManager::idle_inhibitor_icon(
-                                    idle_inhibitor.is_inhibited(),
-                                ),
+                                idle_inhibitor::icon(idle_inhibitor.is_inhibited()),
                                 t!("settings-idle-inhibitor"),
                                 None,
                                 idle_inhibitor.is_inhibited(),
@@ -872,7 +868,7 @@ impl Settings {
                     .as_ref()
                     .filter(|i| i.is_inhibited())
                     .map(|_| {
-                        container(icon(IdleInhibitorManager::idle_inhibitor_icon(true)))
+                        container(icon(idle_inhibitor::icon(true)))
                             .style(|theme: &Theme| container::Style {
                                 text_color: Some(theme.palette().danger),
                                 ..Default::default()
@@ -1022,7 +1018,7 @@ impl Settings {
                             if let Some(bat) = battery {
                                 row![
                                     iced::widget::text(name),
-                                    iced::widget::text(format!("{}%", bat))
+                                    iced::widget::text(format!("{bat}%"))
                                 ]
                                 .spacing(space.xs)
                                 .into()

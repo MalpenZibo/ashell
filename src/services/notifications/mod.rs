@@ -1,4 +1,5 @@
-use crate::services::{ReadOnlyService, ServiceEvent, xdg_icons};
+use crate::services::{ReadOnlyService, ServiceEvent};
+use ashell_services::xdg_icons::{self, IconFile};
 use iced::Subscription;
 use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
 use iced::stream::channel;
@@ -9,8 +10,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
-use zbus::zvariant::OwnedValue;
-use zbus::{Connection, zvariant};
+use zbus::{Connection, OwnedVariant};
 
 pub mod dbus;
 
@@ -27,7 +27,7 @@ impl NotificationIcon {
     pub fn resolve(
         app_name: &str,
         app_icon: &str,
-        hints: &HashMap<String, OwnedValue>,
+        hints: &HashMap<String, OwnedVariant>,
     ) -> Option<Self> {
         try_icon_from_hints(hints).or_else(|| {
             icon_candidates(app_name, app_icon, hints)
@@ -37,20 +37,15 @@ impl NotificationIcon {
     }
 
     fn from_path(path: PathBuf) -> Self {
-        let is_svg = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| e.eq_ignore_ascii_case("svg"));
-        if is_svg {
-            Self::Svg(svg::Handle::from_path(path))
-        } else {
-            Self::Image(image::Handle::from_path(path))
+        match IconFile::from_path(path) {
+            IconFile::Svg(path) => Self::Svg(svg::Handle::from_path(path)),
+            IconFile::Image(path) => Self::Image(image::Handle::from_path(path)),
         }
     }
 }
 
 // freedesktop notification hint image data type
-#[derive(zvariant::OwnedValue, Debug)]
+#[derive(zbus::OwnedVariant, Debug)]
 struct HintImageData {
     width: i32,
     height: i32,
@@ -61,28 +56,54 @@ struct HintImageData {
     image_bytes: Vec<u8>,
 }
 
-fn try_icon_from_hints(hints: &HashMap<String, OwnedValue>) -> Option<NotificationIcon> {
+impl HintImageData {
+    /// Repacks the rows into the tight RGBA buffer iced expects. The hint is
+    /// GdkPixbuf's memory layout: rows start `rowstride` bytes apart, aligned
+    /// to 4 bytes (so RGB rows are padded unless the width is a multiple of 4),
+    /// and the last row is unpadded.
+    fn to_rgba(&self) -> Option<Vec<u8>> {
+        let channels = match (self.has_alpha, self.channels) {
+            (true, 4) => 4,
+            (false, 3) => 3,
+            _ => return None,
+        };
+        let width = usize::try_from(self.width).ok()?;
+        let height = usize::try_from(self.height).ok()?;
+        let rowstride = usize::try_from(self.rowstride).ok()?;
+        let row_len = width.checked_mul(channels)?;
+        if self.bits_per_sample != 8 || width == 0 || height == 0 || rowstride < row_len {
+            return None;
+        }
+        let needed = rowstride.checked_mul(height - 1)?.checked_add(row_len)?;
+        if self.image_bytes.len() < needed {
+            return None;
+        }
+
+        let mut rgba = Vec::with_capacity(width.checked_mul(height)?.checked_mul(4)?);
+        for row in self.image_bytes.chunks(rowstride).take(height) {
+            let row = &row[..row_len];
+            if channels == 4 {
+                rgba.extend_from_slice(row);
+            } else {
+                rgba.extend(
+                    row.as_chunks::<3>()
+                        .0
+                        .iter()
+                        .flat_map(|[r, g, b]| [*r, *g, *b, 255_u8]),
+                );
+            }
+        }
+        Some(rgba)
+    }
+}
+
+fn try_icon_from_hints(hints: &HashMap<String, OwnedVariant>) -> Option<NotificationIcon> {
     if let Some(image_data) = hints
         .get("image-data")
         .or(hints.get("image_data"))
         .or(hints.get("icon_data"))
         && let Ok(hint_image_data) = HintImageData::try_from(image_data.clone())
-        && let Some(bytes) = if hint_image_data.has_alpha && hint_image_data.channels == 4 {
-            Some(hint_image_data.image_bytes)
-        } else if !hint_image_data.has_alpha && hint_image_data.channels == 3 {
-            Some(
-                hint_image_data
-                    .image_bytes
-                    .as_chunks::<3>()
-                    .0
-                    .iter()
-                    .flat_map(|[r, g, b]| [*r, *g, *b, 255_u8])
-                    .collect(),
-            )
-        } else {
-            None
-        }
-        && bytes.len() == (hint_image_data.width * hint_image_data.height * 4) as usize
+        && let Some(bytes) = hint_image_data.to_rgba()
     {
         Some(NotificationIcon::Image(
             iced::advanced::image::Handle::from_rgba(
@@ -107,7 +128,7 @@ const HINT_KEYS: &[&str] = &[
 fn icon_candidates<'a>(
     app_name: &'a str,
     app_icon: &'a str,
-    hints: &'a HashMap<String, OwnedValue>,
+    hints: &'a HashMap<String, OwnedVariant>,
 ) -> impl Iterator<Item = String> + 'a {
     std::iter::once(app_icon.to_string())
         .chain(
@@ -135,18 +156,7 @@ fn resolve_candidate(candidate: String) -> Option<PathBuf> {
     }
 
     let name = candidate.strip_suffix(".desktop").unwrap_or(&candidate);
-    freedesktop_lookup(name)
-}
-
-fn freedesktop_lookup(name: &str) -> Option<PathBuf> {
-    let base = freedesktop_icons::lookup(name).with_cache();
-    match xdg_icons::icon_theme() {
-        Some(theme) => base
-            .with_theme(theme)
-            .find()
-            .or_else(|| freedesktop_icons::lookup(name).with_cache().find()),
-        None => base.find(),
-    }
+    xdg_icons::theme_icon_path(name)
 }
 
 #[derive(Debug, Clone)]
@@ -225,5 +235,63 @@ impl ReadOnlyService for NotificationsService {
                 }
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hint(
+        width: i32,
+        height: i32,
+        rowstride: i32,
+        channels: i32,
+        bytes: Vec<u8>,
+    ) -> HintImageData {
+        HintImageData {
+            width,
+            height,
+            rowstride,
+            has_alpha: channels == 4,
+            bits_per_sample: 8,
+            channels,
+            image_bytes: bytes,
+        }
+    }
+
+    #[test]
+    fn rgb_rows_skip_padding_and_last_row_may_be_unpadded() {
+        // 3x2 RGB, rows padded from 9 to 12 bytes, last row unpadded.
+        let mut bytes: Vec<u8> = (1..=9).collect();
+        bytes.extend([0, 0, 0]);
+        bytes.extend(10..=18);
+        let rgba = hint(3, 2, 12, 3, bytes).to_rgba().unwrap();
+        assert_eq!(
+            rgba,
+            [
+                1, 2, 3, 255, 4, 5, 6, 255, 7, 8, 9, 255, 10, 11, 12, 255, 13, 14, 15, 255, 16, 17,
+                18, 255
+            ]
+        );
+    }
+
+    #[test]
+    fn rgba_tight_rows_pass_through() {
+        let bytes: Vec<u8> = (0..16).collect();
+        assert_eq!(hint(2, 2, 8, 4, bytes.clone()).to_rgba().unwrap(), bytes);
+    }
+
+    #[test]
+    fn rejects_empty_short_or_inconsistent_images() {
+        assert!(hint(0, 0, 0, 4, vec![]).to_rgba().is_none());
+        assert!(hint(2, 2, 8, 4, vec![0; 15]).to_rgba().is_none());
+        assert!(hint(2, 2, 7, 4, vec![0; 16]).to_rgba().is_none());
+        assert!(hint(-1, 2, 8, 4, vec![0; 16]).to_rgba().is_none());
+        assert!(
+            hint(i32::MAX, i32::MAX, i32::MAX, 4, vec![0; 16])
+                .to_rgba()
+                .is_none()
+        );
     }
 }

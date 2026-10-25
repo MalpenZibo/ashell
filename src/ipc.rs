@@ -77,7 +77,7 @@ pub enum IpcCommand {
 impl IpcCommand {
     pub fn no_osd(&self) -> bool {
         match self {
-            IpcCommand::ToggleVisibility => false,
+            IpcCommand::ToggleVisibility | IpcCommand::LoadConfig { .. } => false,
             IpcCommand::VolumeUp { no_osd }
             | IpcCommand::VolumeDown { no_osd }
             | IpcCommand::VolumeToggleMute { no_osd }
@@ -88,7 +88,6 @@ impl IpcCommand {
             | IpcCommand::BrightnessDown { no_osd }
             | IpcCommand::ToggleAirplaneMode { no_osd }
             | IpcCommand::ToggleIdleInhibitor { no_osd } => *no_osd,
-            IpcCommand::LoadConfig { .. } => false,
         }
     }
 }
@@ -339,7 +338,16 @@ pub fn subscription() -> Subscription<IpcCommand> {
                             write_response(&mut std_stream, "error permission denied");
                             None
                         }
-                        Ok(std_stream) => handle_connection(std_stream),
+                        Ok(std_stream) => {
+                            // `handle_connection` reads with a bounded timeout;
+                            // keep that blocking work off the async executor.
+                            tokio::task::spawn_blocking(move || handle_connection(std_stream))
+                                .await
+                                .unwrap_or_else(|e| {
+                                    log::error!("IPC connection task failed: {e}");
+                                    None
+                                })
+                        }
                         Err(e) => {
                             log::error!("IPC stream conversion error: {e}");
                             None

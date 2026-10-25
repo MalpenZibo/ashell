@@ -11,10 +11,10 @@ use crate::{
     config::{OsdConfig, Surface},
     modules::settings::audio::AudioSettings,
     modules::settings::network::NetworkSettings,
-    services::idle_inhibitor::IdleInhibitorManager,
-    t,
+    services::idle_inhibitor,
     theme::{surface_border, use_theme},
 };
+use ashell_i18n::t;
 
 pub struct Osd {
     config: OsdConfig,
@@ -135,7 +135,7 @@ impl Osd {
             OsdKind::Microphone => AudioSettings::microphone_icon(state.muted),
             OsdKind::Brightness => StaticIcon::Brightness,
             OsdKind::Airplane => NetworkSettings::airplane_mode_icon(state.muted),
-            OsdKind::IdleInhibitor => IdleInhibitorManager::idle_inhibitor_icon(state.muted),
+            OsdKind::IdleInhibitor => idle_inhibitor::icon(state.muted),
         };
 
         let show_percentage = match state.kind {
@@ -192,8 +192,7 @@ impl Osd {
             background: Some(t.palette().background.into()),
             border: surface_border(t, radius.xl),
             text_color: Some(match (state.kind, state.muted) {
-                (OsdKind::IdleInhibitor, true) => t.palette().danger,
-                (OsdKind::Airplane, true) => t.palette().danger,
+                (OsdKind::IdleInhibitor | OsdKind::Airplane, true) => t.palette().danger,
                 _ => t.palette().text,
             }),
             ..Default::default()

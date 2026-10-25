@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/ashell-services"]
+members = ["crates/ashell-i18n", "crates/ashell-services"]
 
 [workspace.package]
 repository = "https://github.com/MalpenZibo/ashell"
@@ -10,12 +10,14 @@ rust-version = "1.89"
 
 [workspace.dependencies]
 anyhow = "1"
+chrono = { version = "0.4", default-features = false }
 inotify = { version = "0.11.1", default-features = false, features = [
   "stream",
 ] }
 log = { version = "0.4", features = [] }
+serde = { version = "1.0", default-features = false }
 tokio = { version = "1", default-features = false }
-zbus = { version = "5", default-features = false, features = ["tokio"] }
+zbus = { version = "6", default-features = false, features = ["tokio", "proxy", "service"] }
 
 [package]
 name = "ashell"
@@ -61,7 +63,19 @@ depends = [
 ]
 
 [dependencies]
-ashell-services = { path = "crates/ashell-services", features = ["bluetooth"] }
+ashell-i18n = { path = "crates/ashell-i18n" }
+ashell-services = { path = "crates/ashell-services", features = [
+  "bluetooth",
+  "brightness",
+  "idle_inhibitor",
+  "logind",
+  "privacy",
+  "rfkill",
+  "serde",
+  "throttle",
+  "upower",
+  "xdg_icons",
+] }
 iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.6.1", features = [
   "tokio",
   "advanced",
@@ -72,29 +86,25 @@ iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_
   "canvas",
 ] }
 iced_anim = "0.3"
-chrono = { version = "0.4", default-features = false, features = [
+chrono = { workspace = true, features = [
   "clock",
   "serde",
   "unstable-locales",
 ] }
 hyprland = { git = "https://github.com/hyprland-community/hyprland-rs", branch = "master" }
-serde = { version = "1.0", default-features = false, features = [] }
+serde = { workspace = true, features = ["derive"] }
 sysinfo = { version = "0.39", features = ["linux-netdevs"] }
-tokio = { workspace = true, features = ["net"] }
+tokio = { workspace = true, features = ["fs", "io-util", "net", "process"] }
 zbus.workspace = true
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 log.workspace = true
 flexi_logger = "0.31"
-pipewire = "0.10"
 itertools = "0.15"
 unicode-segmentation = "1.13.2"
 hex_color = { version = "3", features = ["serde"] }
 anyhow.workspace = true
-udev = { version = "0.9", features = ["send", "sync"] }
 toml = "1"
 serde_ignored = "0.1"
-freedesktop-icons = "0.4"
-linicon-theme = "1.2.0"
 serde_json = "1"
 regex = "1.12.2"
 serde_with = { version = "3.12", default-features = false, features = [
@@ -110,7 +120,6 @@ clap = { version = "4.5", default-features = false, features = [
 ] }
 shellexpand = { version = "3", features = ["path"] }
 inotify.workspace = true
-pin-project-lite = "0.2.16"
 niri-ipc = "26.4"
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
@@ -126,13 +135,6 @@ chrono-tz = "0.10.4"
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
-i18n-embed = { version = "0.16", default-features = false, features = [
-  "fluent-system",
-  "rust-embed",
-] }
-i18n-embed-fl = "0.10"
-rust-embed = "8"
-unic-langid = "0.9"
 qrcode = { version = "0.14", default-features = false }
 
 [patch.crates-io]

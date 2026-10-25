@@ -33,8 +33,8 @@ use log::{debug, info, warn};
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
+use zbus::OwnedObjectPath;
 use zbus::fdo::ObjectManagerProxy;
-use zbus::zvariant::OwnedObjectPath;
 
 use access_point::AccessPointProxy;
 use adapter::AdapterProxy;
@@ -97,7 +97,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
         let nm = self;
 
         // airplane mode
-        let bluetooth_soft_blocked = rfkill::bluetooth_soft_blocked().await.unwrap_or_default();
+        let bluetooth_soft_blocked = rfkill::bluetooth_soft_blocked().await;
 
         let wifi_present = nm.wifi_device_present().await?;
 
@@ -278,8 +278,8 @@ impl super::NetworkBackend for IwdDbus<'_> {
         }
 
         let net = NetworkProxy::builder(self.inner().connection())
-            .destination("net.connman.iwd")?
-            .path(ap.path.clone())?
+            .destination("net.connman.iwd")
+            .path(ap.path.clone())
             .build()
             .await?;
         net.connect().await?;
@@ -299,7 +299,12 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     async fn set_airplane_mode(&self, airplane: bool) -> anyhow::Result<()> {
-        rfkill::set_bluetooth_soft_block(airplane).await?;
+        if let Err(e) = rfkill::set_bluetooth_soft_block(airplane).await {
+            warn!("Failed to set bluetooth rfkill: {e:#}");
+        } else {
+            debug!("Bluetooth rfkill set successfully");
+        }
+
         self.set_wifi_enabled(!airplane).await?;
         Ok(())
     }
@@ -315,8 +320,8 @@ macro_rules! list_proxies {
                 if ifs.contains_key($interface) {
                     proxies.push(
                         <$proxy_type>::builder($manager.inner().connection())
-                            .destination("net.connman.iwd")?
-                            .path(path.clone())?
+                            .destination("net.connman.iwd")
+                            .path(path.clone())
                             .build()
                             .await?,
                     );
@@ -383,13 +388,12 @@ async fn cleanup_signal_agent(
     station_path: OwnedObjectPath,
     agent_path: OwnedObjectPath,
 ) {
-    let station = match StationProxy::builder(&conn)
+    let station = StationProxy::builder(&conn)
         .destination("net.connman.iwd")
-        .and_then(|b| b.path(station_path))
-    {
-        Ok(builder) => builder.build().await.ok(),
-        Err(_) => None,
-    };
+        .path(station_path)
+        .build()
+        .await
+        .ok();
 
     if let Some(station) = station {
         let _ = station.unregister_signal_level_agent(&agent_path).await;
@@ -459,8 +463,8 @@ impl IwdDbus<'_> {
     /// Connect to the system bus and the IWD service.
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
         let manager = ObjectManagerProxy::builder(conn)
-            .destination("net.connman.iwd")?
-            .path("/")?
+            .destination("net.connman.iwd")
+            .path("/")
             .build()
             .await?;
 
@@ -526,8 +530,8 @@ impl IwdDbus<'_> {
             let networks_proxies = station.get_ordered_networks().await?;
             for (path, strength) in networks_proxies {
                 let network = NetworkProxy::builder(self.inner().connection())
-                    .destination("net.connman.iwd")?
-                    .path(path.clone())?
+                    .destination("net.connman.iwd")
+                    .path(path.clone())
                     .build()
                     .await?;
                 networks.push((network, strength));
@@ -691,9 +695,7 @@ impl IwdDbus<'_> {
                             let connected_network_path = station.connected_network().await.ok()?;
                             let connected_network = NetworkProxy::builder(iwd.inner().connection())
                                 .destination("net.connman.iwd")
-                                .ok()?
                                 .path(connected_network_path.clone())
-                                .ok()?
                                 .build()
                                 .await
                                 .ok()?;
@@ -754,7 +756,7 @@ impl IwdDbus<'_> {
         //let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
         //for ac in wireless_ac.iter() {
         //    let dp = DeviceProxy::builder(conn)
-        //        .path(ac.device_path.clone())?
+        //        .path(ac.device_path.clone())
         //        .build()
         //        .await?;
 

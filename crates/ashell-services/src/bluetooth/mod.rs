@@ -8,9 +8,7 @@ use futures::{
 };
 use log::{debug, error, warn};
 use std::{pin::pin, time::Duration};
-use zbus::{
-    MatchRule, MessageStream, fdo::PropertiesChanged, message::Type, zvariant::OwnedObjectPath,
-};
+use zbus::{MatchRule, MessageStream, OwnedObjectPath, fdo::PropertiesChanged, message::Type};
 
 mod dbus;
 
@@ -190,7 +188,7 @@ impl Bluetooth {
         let state = match snapshot.adapter {
             None => BluetoothState::Unavailable,
             Some(adapter) if !adapter.powered => BluetoothState::Inactive,
-            Some(_) if rfkill::bluetooth_soft_blocked().await? => BluetoothState::Inactive,
+            Some(_) if rfkill::bluetooth_soft_blocked().await => BluetoothState::Inactive,
             Some(_) => BluetoothState::Active,
         };
 
@@ -216,11 +214,11 @@ impl Bluetooth {
         // One rule for every bluez object instead of a stream per device
         let rule = MatchRule::builder()
             .msg_type(Type::Signal)
-            .sender(BLUEZ)?
-            .interface("org.freedesktop.DBus.Properties")?
-            .member("PropertiesChanged")?
-            .path_namespace("/org/bluez")?
-            .build();
+            .sender(BLUEZ)
+            .interface("org.freedesktop.DBus.Properties")
+            .member("PropertiesChanged")
+            .path_namespace("/org/bluez")
+            .build()?;
         let properties = MessageStream::for_match_rule(rule, conn, None)
             .await?
             .filter_map(|message| ready(message.ok().filter(shows_change).map(|_| {})));

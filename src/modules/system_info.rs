@@ -6,10 +6,10 @@ use crate::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         TemperatureSensor, TemperatureSensorType,
     },
-    t,
     theme::{lerp_color, use_theme},
     utils,
 };
+use ashell_i18n::t;
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
     futures::channel::mpsc,
@@ -184,12 +184,19 @@ fn get_system_info(
     components: &mut Components,
     (networks, last_check): (&mut Networks, Option<Instant>),
     sensor: &TemperatureSensor,
-    cached_sensor_label: &mut Option<String>,
+    (cached_sensor_label, last_reading): (&mut Option<String>, &mut Option<i32>),
 ) -> SystemInfoData {
     system.refresh_memory();
     system.refresh_cpu_all();
 
-    components.refresh(true);
+    // Only the sensor in use: reading every hwmon sensor takes tens of ms.
+    match cached_sensor_label.as_deref() {
+        Some(label) => components
+            .iter_mut()
+            .filter(|c| c.label() == label)
+            .for_each(|c| c.refresh()),
+        None => components.refresh(true),
+    }
     networks.refresh(true);
 
     let cpus = system.cpus();
@@ -239,26 +246,34 @@ fn get_system_info(
             *cached_sensor_label = get_temperature_sensor_label(sensor, components);
         }
 
-        let mut reading = cached_sensor_label.as_ref().and_then(|label| {
+        let read = |components: &Components, label: &str| {
             components
                 .iter()
                 .find(|c| c.label() == label)
                 .and_then(|c| c.temperature().map(|t| t.round() as i32))
-        });
+        };
+        let mut reading = cached_sensor_label
+            .as_deref()
+            .and_then(|label| read(components, label));
 
-        if reading.is_none() {
-            if let Some(label) = (*cached_sensor_label).take() {
+        if reading.is_none()
+            && let Some(label) = cached_sensor_label.clone()
+        {
+            // A sensor that refuses a read (amdgpu while the dGPU is suspended)
+            // is still listed after a full refresh: it keeps its last value.
+            components.refresh(true);
+            if components.iter().any(|c| c.label() == label) {
+                reading = read(components, &label).or(*last_reading);
+            } else {
                 warn!("Cached sensor '{}' invalid; re-detecting", label);
+                *cached_sensor_label = get_temperature_sensor_label(sensor, components);
+                reading = cached_sensor_label
+                    .as_deref()
+                    .and_then(|label| read(components, label));
             }
-            *cached_sensor_label = get_temperature_sensor_label(sensor, components);
-            reading = cached_sensor_label.as_ref().and_then(|label| {
-                components
-                    .iter()
-                    .find(|c| c.label() == label)
-                    .and_then(|c| c.temperature().map(|t| t.round() as i32))
-            });
         }
 
+        *last_reading = reading;
         reading
     };
 
@@ -399,6 +414,7 @@ fn stats_sampler((interval, sensor): &(u64, TemperatureSensor)) -> mpsc::Receive
         let mut components = Components::new_with_refreshed_list();
         let mut networks = Networks::new_with_refreshed_list();
         let mut cached_sensor_label = None;
+        let mut last_reading = None;
         let mut last_check = None;
         let mut logged_sensor = false;
 
@@ -408,7 +424,7 @@ fn stats_sampler((interval, sensor): &(u64, TemperatureSensor)) -> mpsc::Receive
                 &mut components,
                 (&mut networks, last_check),
                 &sensor,
-                &mut cached_sensor_label,
+                (&mut cached_sensor_label, &mut last_reading),
             );
             last_check = data.network.as_ref().map(|n| n.last_check);
 

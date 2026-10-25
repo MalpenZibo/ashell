@@ -1,6 +1,6 @@
 # D-Bus Services Pattern
 
-Most of ashell's services communicate with system daemons over D-Bus using the [zbus](https://docs.rs/zbus) crate (version 5).
+Most of ashell's services communicate with system daemons over D-Bus using the [zbus](https://docs.rs/zbus) crate (version 6).
 
 ## D-Bus Overview
 
@@ -31,7 +31,7 @@ pub trait Adapter {
     #[zbus(property)]
     fn discovering(&self) -> zbus::Result<bool>;
 
-    fn remove_device(&self, device: zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
+    fn remove_device(&self, device: zbus::ObjectPath<'_>) -> zbus::Result<()>;
 }
 ```
 
@@ -44,12 +44,12 @@ The `#[proxy]` macro generates an `AdapterProxy` struct with async methods for e
 | Bluetooth | System | `org.bluez` | `crates/ashell-services/src/bluetooth/dbus.rs` |
 | Network (NM) | System | `org.freedesktop.NetworkManager` | `services/network/dbus.rs` |
 | Network (IWD) | System | `net.connman.iwd` | `services/network/iwd_dbus/` |
-| UPower | System | `org.freedesktop.UPower` | `services/upower/dbus.rs` |
-| Logind | System | `org.freedesktop.login1` | `services/logind.rs` |
+| UPower | System | `org.freedesktop.UPower` | `crates/ashell-services/src/upower/dbus.rs` |
+| Logind | System | `org.freedesktop.login1` | `crates/ashell-services/src/logind.rs` |
 | MPRIS | Session | `org.mpris.MediaPlayer2.*` | `services/mpris/dbus.rs` |
 | Tray | Session | `org.kde.StatusNotifierWatcher` | `services/tray/dbus.rs` |
 | Notifications | Session | `org.freedesktop.Notifications` | `services/notifications/dbus.rs` |
-| Brightness | System | `org.freedesktop.login1.Session` | `services/brightness.rs` |
+| Brightness | System | `org.freedesktop.login1.Session` | `crates/ashell-services/src/brightness/dbus.rs` |
 
 ## Common D-Bus Service Structure
 

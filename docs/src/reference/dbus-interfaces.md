@@ -21,12 +21,12 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 | IWD | `net.connman.iwd.KnownNetwork` | `services/network/iwd_dbus/` | Saved networks | `iwd` |
 | IWD | `net.connman.iwd.Device` | `services/network/iwd_dbus/` | Wireless device | `iwd` |
 | IWD | `net.connman.iwd.Agent` (served by ashell) | `services/network/iwd_dbus/` | Passphrase agent for connecting to secured networks | `iwd` |
-| UPower | `org.freedesktop.UPower` | `services/upower/dbus.rs` | Power daemon | `upower` |
-| UPower | `org.freedesktop.UPower.Device` | `services/upower/dbus.rs` | Battery/device info | `upower` |
-| UPower | `org.freedesktop.UPower.PowerProfiles` | `services/upower/dbus.rs` | Power profile switching | `power-profiles-daemon` |
-| UPower | `org.freedesktop.UPower.KbdBacklight` | `services/upower/dbus.rs` | Keyboard backlight brightness | `upower` |
-| logind | `org.freedesktop.login1.Manager` | `services/logind.rs` | Sleep/wake detection, power actions | systemd-logind |
-| logind | `org.freedesktop.login1.Session` | `services/brightness.rs` | Brightness control via SetBrightness | systemd-logind |
+| UPower | `org.freedesktop.UPower` | `crates/ashell-services/src/upower/dbus.rs` | Power daemon | `upower` |
+| UPower | `org.freedesktop.UPower.Device` | `crates/ashell-services/src/upower/dbus.rs` | Battery/device info | `upower` |
+| UPower | `org.freedesktop.UPower.PowerProfiles` | `crates/ashell-services/src/upower/dbus.rs` | Power profile switching | `power-profiles-daemon` |
+| UPower | `org.freedesktop.UPower.KbdBacklight` | `crates/ashell-services/src/upower/dbus.rs` | Keyboard backlight brightness | `upower` |
+| logind | `org.freedesktop.login1.Manager` | `crates/ashell-services/src/logind.rs` | Sleep/wake detection | systemd-logind |
+| logind | `org.freedesktop.login1.Session` | `crates/ashell-services/src/brightness/dbus.rs` | Brightness control via SetBrightness | systemd-logind |
 
 ## Session Bus
 
@@ -38,7 +38,6 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 | StatusNotifier | `org.kde.StatusNotifierItem` | `services/tray/dbus.rs` | Individual tray icons | — |
 | DBusMenu | `com.canonical.dbusmenu` | `services/tray/dbus.rs` | Tray menu layout (SNI context menus) | — |
 | Notifications | `org.freedesktop.Notifications` (served by ashell) | `services/notifications/dbus.rs` | Notification daemon | — |
-| Portal | `org.freedesktop.portal.Desktop` | `services/privacy.rs` | Privacy indicators (mic/camera) | `pipewire` |
 
 ## Checking D-Bus Availability
 
@@ -49,7 +48,7 @@ You can verify that D-Bus services are running:
 busctl --system list | grep -E "bluez|NetworkManager|UPower|login1|connman"
 
 # Session bus
-busctl --user list | grep -E "mpris|StatusNotifier|Notifications|portal"
+busctl --user list | grep -E "mpris|StatusNotifier|Notifications"
 ```
 
 If a module is not working (e.g., battery info is missing), check that the corresponding service is active:

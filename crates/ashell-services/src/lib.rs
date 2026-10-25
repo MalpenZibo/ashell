@@ -1,8 +1,28 @@
 #[cfg(feature = "bluetooth")]
 pub mod bluetooth;
-#[cfg(feature = "bluetooth")]
+#[cfg(feature = "brightness")]
+pub mod brightness;
+#[cfg(any(feature = "bluetooth", feature = "upower"))]
 mod bus;
+#[cfg(feature = "idle_inhibitor")]
+pub mod idle_inhibitor;
+#[cfg(feature = "logind")]
+pub mod logind;
+#[cfg(feature = "privacy")]
+pub mod privacy;
 #[cfg(feature = "rfkill")]
 pub mod rfkill;
-#[cfg(feature = "bluetooth")]
+#[cfg(any(
+    feature = "bluetooth",
+    feature = "brightness",
+    feature = "logind",
+    feature = "privacy",
+    feature = "upower"
+))]
 mod stream;
+#[cfg(feature = "throttle")]
+pub mod throttle;
+#[cfg(feature = "upower")]
+pub mod upower;
+#[cfg(feature = "xdg_icons")]
+pub mod xdg_icons;

@@ -61,4 +61,4 @@ The audio service implements the `Service` trait with these commands:
 
 Most modern Linux distributions use PipeWire, which provides a PulseAudio-compatible API. ashell's audio service works transparently with both PulseAudio and PipeWire — no code changes needed.
 
-The `privacy.rs` service separately watches the PipeWire registry (and `/dev/video0`) for detecting active microphone/camera/screenshare sessions.
+The privacy service (`crates/ashell-services/src/privacy.rs`) separately watches the PipeWire registry (and `/dev/video0`) for detecting active microphone/camera/screenshare sessions.

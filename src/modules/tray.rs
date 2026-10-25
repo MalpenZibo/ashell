@@ -18,7 +18,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
-    widget::{Column, Image, Row, Svg, container, text},
+    widget::{Column, Image, Row, Svg, container, svg, text},
 };
 use log::debug;
 
@@ -304,11 +304,22 @@ impl TrayModule {
                                     Some(TrayIcon::Image(handle)) => Image::new(handle.clone())
                                         .height(Length::Fixed(font_size.md - 2.0))
                                         .into(),
-                                    Some(TrayIcon::Svg(handle)) => Svg::new(handle.clone())
-                                        .height(Length::Fixed(font_size.md + 2.))
-                                        .width(Length::Fixed(font_size.md + 2.))
-                                        .content_fit(iced::ContentFit::Cover)
-                                        .into(),
+                                    Some(TrayIcon::Svg { handle, symbolic }) => {
+                                        let svg = Svg::new(handle.clone())
+                                            .height(Length::Fixed(font_size.md + 2.))
+                                            .width(Length::Fixed(font_size.md + 2.))
+                                            .content_fit(iced::ContentFit::Cover);
+                                        // Symbolic icons ship a fixed dark fill and
+                                        // expect the host to recolor them.
+                                        if *symbolic {
+                                            svg.style(|t: &iced::Theme, _| svg::Style {
+                                                color: Some(t.palette().text),
+                                            })
+                                            .into()
+                                        } else {
+                                            svg.into()
+                                        }
+                                    }
                                     _ => icon(StaticIcon::Point).into(),
                                 };
                                 let open_app = Message::Activate(name.clone());

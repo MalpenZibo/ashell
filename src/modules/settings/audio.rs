@@ -10,11 +10,11 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioEvent, AudioService, ChannelVolumesExt, DevicePortType, Port},
     },
-    t,
     theme::use_theme,
     utils::IndicatorState,
     utils::remote_value::{self, Remote},
 };
+use ashell_i18n::t;
 use iced::{
     Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
     mouse::ScrollDelta,
@@ -277,7 +277,7 @@ impl AudioSettings {
                     }
                     Action::None
                 }
-                ServiceEvent::Error(_) => Action::None,
+                ServiceEvent::Error(()) => Action::None,
             },
             Message::ToggleSinkMute => {
                 if let Some(service) = self.service.as_mut() {
@@ -619,10 +619,7 @@ impl AudioSettings {
         F: Fn(remote_value::Message<u32>) -> Message,
     {
         move |delta| {
-            let y = match delta {
-                ScrollDelta::Lines { y, .. } => y,
-                ScrollDelta::Pixels { y, .. } => y,
-            };
+            let y = crate::utils::scroll_delta_y(delta);
             let new_volume = if y > 0.0 {
                 (cur_volume + step).min(max)
             } else {

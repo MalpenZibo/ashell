@@ -20,9 +20,9 @@ use self::weather::{Location, WeatherData, fetch_location, fetch_weather_data};
 use crate::{
     components::MenuSize,
     config::{TempoModuleConfig, WeatherIndicator},
-    i18n::{chrono_locale, language_subtag, unit_system},
     theme::use_theme,
 };
+use ashell_i18n::{chrono_locale, language_subtag, unit_system};
 
 pub use self::weather::weather_icon;
 

@@ -12,7 +12,7 @@ use iwd_dbus::IwdDbus;
 use log::{debug, error, info, warn};
 use std::{any::TypeId, ops::Deref, time::Duration};
 use tokio::time::sleep;
-use zbus::zvariant::OwnedObjectPath;
+use zbus::OwnedObjectPath;
 
 pub mod dbus;
 pub mod iwd_dbus;
@@ -206,9 +206,9 @@ pub enum ActiveConnectionInfo {
 impl ActiveConnectionInfo {
     pub fn name(&self) -> String {
         match &self {
-            Self::Wired { name, .. } => name.clone(),
-            Self::WiFi { name, .. } => name.clone(),
-            Self::Vpn { name, .. } => name.clone(),
+            Self::Wired { name, .. } | Self::WiFi { name, .. } | Self::Vpn { name, .. } => {
+                name.clone()
+            }
         }
     }
 }

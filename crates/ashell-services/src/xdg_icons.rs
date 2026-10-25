@@ -1,0 +1,665 @@
+use freedesktop_icons::lookup;
+use linicon_theme::get_icon_theme;
+use log::debug;
+use std::{
+    borrow::Cow,
+    collections::{BTreeSet, HashMap},
+    env,
+    ffi::OsString,
+    fs,
+    path::{Path, PathBuf},
+    sync::LazyLock,
+};
+
+use std::sync::RwLock;
+
+const MAX_SIMILAR_ICON_CANDIDATES: usize = 5;
+
+struct IconEntry {
+    name: Box<str>,
+    normalized: Option<Box<str>>,
+}
+
+impl IconEntry {
+    fn normalized(&self) -> &str {
+        self.normalized.as_deref().unwrap_or(&self.name)
+    }
+}
+
+static ICON_CACHE: LazyLock<RwLock<HashMap<String, Option<IconFile>>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+static SYSTEM_ICON_ENTRIES: LazyLock<Vec<IconEntry>> = LazyLock::new(|| {
+    load_system_icon_names()
+        .iter()
+        .filter_map(|name| {
+            let name_str = name.to_str()?;
+            Some(IconEntry {
+                name: name_str.into(),
+                normalized: match normalize_icon_name(name_str) {
+                    Cow::Borrowed(_) => None,
+                    Cow::Owned(normalized) => Some(normalized.into_boxed_str()),
+                },
+            })
+        })
+        .collect()
+});
+static DESKTOP_ICON_INDEX: LazyLock<HashMap<String, String>> =
+    LazyLock::new(build_desktop_icon_index);
+// `get_icon_theme` can spawn `gsettings`, so resolve it once instead of per lookup.
+static ICON_THEME: LazyLock<Option<String>> = LazyLock::new(get_icon_theme);
+
+fn icon_theme() -> Option<&'static str> {
+    ICON_THEME.as_deref()
+}
+
+/// Where an icon's pixels come from. The UI turns it into an image of its own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IconFile {
+    /// A raster image file (PNG, XPM, ...).
+    Image(PathBuf),
+    /// An SVG file.
+    Svg(PathBuf),
+}
+
+impl IconFile {
+    /// An SVG or a raster image, by the file's extension.
+    pub fn from_path(path: PathBuf) -> Self {
+        if path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
+        {
+            Self::Svg(path)
+        } else {
+            Self::Image(path)
+        }
+    }
+
+    /// A GNOME/freedesktop symbolic icon: an SVG whose file stem ends in
+    /// `-symbolic`, `-symbolic-ltr` or `-symbolic-rtl`. These are monochrome
+    /// masks the host is expected to recolor; it is the SVG part of the file-name
+    /// rule GTK uses (`icon_uri_is_symbolic`). GTK's `.symbolic.png` variant is
+    /// not covered: it is a raster image and stays as-is.
+    pub fn is_symbolic(&self) -> bool {
+        match self {
+            Self::Svg(path) => path.file_stem().is_some_and(|stem| {
+                let stem = stem.to_string_lossy();
+                ["-symbolic", "-symbolic-ltr", "-symbolic-rtl"]
+                    .iter()
+                    .any(|suffix| stem.ends_with(suffix))
+            }),
+            Self::Image(_) => false,
+        }
+    }
+}
+
+fn warm_cache() {
+    LazyLock::force(&SYSTEM_ICON_ENTRIES);
+    LazyLock::force(&DESKTOP_ICON_INDEX);
+    LazyLock::force(&ICON_THEME);
+}
+
+// Build the indexes on a blocking worker: they scan every icon dir and parse
+// every .desktop file, which would otherwise stall the caller's thread.
+pub async fn warm_cache_async() {
+    let _ = tokio::task::spawn_blocking(warm_cache).await;
+}
+
+// Names come from untrusted sources (SNI `IconName`, window classes) and reach
+// `freedesktop_icons`, which joins them onto a base path — absolute names
+// discard that base, `..` resolves at `open()`. Single dots are legitimate
+// (reverse-DNS names), so only `..` is rejected.
+fn is_safe_icon_name(icon_name: &str) -> bool {
+    !icon_name.is_empty()
+        && !icon_name.contains('/')
+        && !icon_name.contains('\0')
+        && !icon_name.contains("..")
+}
+
+pub fn get_icon_from_name(icon_name: &str) -> Option<IconFile> {
+    if !is_safe_icon_name(icon_name) {
+        debug!("icon '{icon_name}': rejected as unsafe name");
+        return None;
+    }
+
+    let cache = match ICON_CACHE.read() {
+        Ok(c) => c,
+        Err(_) => {
+            return lookup_icon(icon_name);
+        }
+    };
+
+    if let Some(cached) = cache.get(icon_name) {
+        return cached.clone();
+    }
+    drop(cache); // Release read lock before write
+
+    let mut cache = match ICON_CACHE.write() {
+        Ok(c) => c,
+        Err(_) => {
+            return lookup_icon(icon_name);
+        }
+    };
+
+    // Double-check after acquiring write lock (another thread may have populated it)
+    if let Some(cached) = cache.get(icon_name) {
+        return cached.clone();
+    }
+
+    let result = lookup_icon(icon_name);
+    cache.insert(icon_name.to_string(), result.clone());
+    result
+}
+
+fn lookup_icon(icon_name: &str) -> Option<IconFile> {
+    if let Some(path) = lookup_in_theme(icon_name) {
+        debug!("icon '{icon_name}': direct match at {path:?}");
+        return Some(IconFile::from_path(path));
+    }
+    debug!("icon '{icon_name}': no direct match");
+
+    // An app's own .desktop file beats a guess from similar icon names
+    if let Some(path) = find_desktop_icon(icon_name) {
+        debug!("icon '{icon_name}': desktop index match at {path:?}");
+        return Some(IconFile::from_path(path));
+    }
+    debug!("icon '{icon_name}': no desktop index match");
+
+    if let Some(candidates) = find_similar_icon(icon_name) {
+        for candidate in candidates {
+            debug!("icon '{icon_name}': similar candidate '{candidate}'");
+            if let Some(path) = lookup_in_theme(&candidate) {
+                return Some(IconFile::from_path(path));
+            }
+        }
+    }
+    debug!("icon '{icon_name}': no similar match");
+
+    if let Some(prefix_candidate) = prefix_match_icon(icon_name)
+        && let Some(path) = lookup_in_theme(&prefix_candidate)
+    {
+        debug!("icon '{icon_name}': prefix match '{prefix_candidate}' at {path:?}");
+        return Some(IconFile::from_path(path));
+    }
+    debug!("icon '{icon_name}': no prefix match — unresolved");
+
+    None
+}
+
+/// The path of `icon_name` in the icon theme, without the fallbacks of
+/// [`get_icon_from_name`]: no fuzzy, `.desktop` or prefix matching.
+pub fn theme_icon_path(icon_name: &str) -> Option<PathBuf> {
+    if !is_safe_icon_name(icon_name) {
+        debug!("icon '{icon_name}': rejected as unsafe name");
+        return None;
+    }
+
+    lookup_in_theme(icon_name)
+}
+
+fn lookup_in_theme(icon_name: &str) -> Option<PathBuf> {
+    let base_lookup = lookup(icon_name).with_cache();
+
+    match icon_theme() {
+        Some(theme) => base_lookup.with_theme(theme).find().or_else(|| {
+            let fallback_lookup = lookup(icon_name).with_cache();
+            fallback_lookup.find()
+        }),
+        None => base_lookup.find(),
+    }
+}
+
+fn find_similar_icon(icon_name: &str) -> Option<Vec<Cow<'static, str>>> {
+    if SYSTEM_ICON_ENTRIES.is_empty() {
+        return None;
+    }
+
+    let normalized = normalize_icon_name(icon_name);
+    // Every candidate contains the empty name
+    if normalized.is_empty() {
+        return None;
+    }
+    let normalized_no_separators = strip_icon_separators(normalized.as_ref());
+    let mut matches: Vec<Cow<'static, str>> = Vec::with_capacity(MAX_SIMILAR_ICON_CANDIDATES);
+
+    for candidate in SYSTEM_ICON_ENTRIES.iter() {
+        let candidate_normalized = candidate.normalized();
+        if candidate_normalized == normalized.as_ref() {
+            continue;
+        }
+
+        if candidate_normalized.contains(normalized.as_ref())
+            || normalized.as_ref().contains(candidate_normalized)
+            || candidate_normalized.contains(normalized_no_separators.as_ref())
+        {
+            matches.push(Cow::Borrowed(&candidate.name));
+            if matches.len() >= MAX_SIMILAR_ICON_CANDIDATES {
+                break;
+            }
+        }
+    }
+
+    if matches.is_empty() {
+        None
+    } else {
+        Some(matches)
+    }
+}
+
+fn normalize_icon_name(name: &str) -> Cow<'_, str> {
+    if name
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+    {
+        return Cow::Borrowed(name);
+    }
+
+    Cow::Owned(
+        name.to_lowercase()
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .collect(),
+    )
+}
+
+fn strip_icon_separators(name: &str) -> Cow<'_, str> {
+    if name.bytes().all(|byte| byte != b'-' && byte != b'_') {
+        return Cow::Borrowed(name);
+    }
+
+    Cow::Owned(name.chars().filter(|ch| *ch != '-' && *ch != '_').collect())
+}
+
+fn prefix_match_icon(icon_name: &str) -> Option<Cow<'static, str>> {
+    if SYSTEM_ICON_ENTRIES.is_empty() {
+        return None;
+    }
+
+    let normalized = normalize_icon_name(icon_name);
+
+    if let Some(exact) = SYSTEM_ICON_ENTRIES
+        .iter()
+        .find(|entry| entry.normalized() == normalized.as_ref())
+    {
+        return Some(Cow::Borrowed(&exact.name));
+    }
+
+    let mut candidates: Vec<_> = SYSTEM_ICON_ENTRIES.iter().collect();
+    for (idx, ch) in normalized.chars().enumerate() {
+        candidates.retain(|entry| entry.normalized().chars().nth(idx) == Some(ch));
+
+        if candidates.len() == 1 {
+            return Some(Cow::Borrowed(&candidates[0].name));
+        }
+
+        if candidates.is_empty() {
+            break;
+        }
+    }
+
+    candidates.first().map(|entry| Cow::Borrowed(&*entry.name))
+}
+
+fn find_desktop_icon(icon_name: &str) -> Option<PathBuf> {
+    let normalized = normalize_icon_name(icon_name);
+    let Some(icon_value) = DESKTOP_ICON_INDEX.get(normalized.as_ref()) else {
+        debug!("icon '{icon_name}': normalized '{normalized}' not in desktop index");
+        return None;
+    };
+    debug!("icon '{icon_name}': desktop index '{normalized}' → '{icon_value}'");
+
+    if icon_value.starts_with('/') {
+        let path = PathBuf::from(icon_value);
+        if path.exists() {
+            Some(path)
+        } else {
+            debug!("icon '{icon_name}': absolute path '{icon_value}' does not exist");
+            None
+        }
+    } else {
+        lookup_in_theme(icon_value)
+    }
+}
+
+fn build_desktop_icon_index() -> HashMap<String, String> {
+    let mut map = HashMap::new();
+
+    for dir in desktop_application_dirs() {
+        if !dir.is_dir() {
+            continue;
+        }
+        if let Ok(entries) = fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("desktop") {
+                    continue;
+                }
+                parse_desktop_file(&path, &mut map);
+            }
+        }
+    }
+
+    map
+}
+
+const MAX_DESKTOP_FILE_SIZE: u64 = 64 * 1024;
+
+/// `Icon` and `StartupWMClass` of the `[Desktop Entry]` group: the
+/// `[Desktop Action ...]` groups have icons of their own. Nothing for an
+/// entry with `Hidden=true`, which counts as deleted; `NoDisplay` apps still
+/// open windows, so they stay.
+fn desktop_entry_keys(contents: &str) -> (Option<&str>, Option<&str>) {
+    let mut icon = None;
+    let mut wm_class = None;
+    let mut in_desktop_entry = false;
+
+    for line in contents.lines() {
+        if line.starts_with('[') {
+            in_desktop_entry = line.trim() == "[Desktop Entry]";
+            continue;
+        }
+        if !in_desktop_entry {
+            continue;
+        }
+        if let Some(val) = line.strip_prefix("Icon=") {
+            icon = Some(val.trim());
+        } else if let Some(val) = line.strip_prefix("StartupWMClass=") {
+            wm_class = Some(val.trim());
+        } else if line.strip_prefix("Hidden=").map(str::trim) == Some("true") {
+            return (None, None);
+        }
+    }
+
+    (icon, wm_class)
+}
+
+fn parse_desktop_file(path: &Path, map: &mut HashMap<String, String>) {
+    let Ok(metadata) = fs::metadata(path) else {
+        return;
+    };
+
+    if metadata.len() > MAX_DESKTOP_FILE_SIZE {
+        debug!("desktop file too large: {}", path.display());
+        return;
+    }
+
+    let Ok(contents) = fs::read_to_string(path) else {
+        return;
+    };
+
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+
+    let (Some(icon), wm_class) = desktop_entry_keys(&contents) else {
+        return;
+    };
+    let icon = icon.to_string();
+
+    if let Some(wm) = wm_class {
+        let key = normalize_icon_name(wm).into_owned();
+        map.entry(key).or_insert_with(|| icon.clone());
+    }
+    let parts: Vec<&str> = stem.split('.').collect();
+    for start in 0..parts.len() {
+        let key = normalize_icon_name(&parts[start..].join(".")).into_owned();
+        map.entry(key).or_insert_with(|| icon.clone());
+    }
+}
+
+fn desktop_application_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    if let Ok(data_home) = env::var("XDG_DATA_HOME") {
+        dirs.push(PathBuf::from(data_home).join("applications"));
+    }
+
+    if let Ok(home) = env::var("HOME") {
+        dirs.push(PathBuf::from(home).join(".local/share/applications"));
+    }
+
+    let data_dirs =
+        env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
+    for dir in data_dirs.split(':') {
+        if !dir.is_empty() {
+            dirs.push(PathBuf::from(dir).join("applications"));
+        }
+    }
+
+    dirs.push(PathBuf::from("/usr/local/share/applications"));
+    dirs.push(PathBuf::from("/usr/share/applications"));
+
+    dirs.sort();
+    dirs.dedup();
+    dirs
+}
+
+fn load_system_icon_names() -> BTreeSet<OsString> {
+    let mut names = BTreeSet::new();
+
+    for dir in icon_directories() {
+        if !dir.is_dir() {
+            continue;
+        }
+
+        collect_icon_names_recursive(&dir, &mut names);
+    }
+
+    names
+}
+
+fn collect_icon_names_recursive(dir: &Path, names: &mut BTreeSet<OsString>) {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_dir() {
+                    collect_icon_names_recursive(&path, names);
+                } else if file_type.is_file()
+                    && let Some(stem) = path.file_stem()
+                {
+                    names.insert(stem.to_os_string());
+                }
+            }
+        }
+    }
+}
+
+fn icon_directories() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    if let Ok(data_home) = env::var("XDG_DATA_HOME") {
+        let base = PathBuf::from(data_home);
+        dirs.push(base.join("icons"));
+        dirs.push(base.join("pixmaps"));
+    }
+
+    if let Ok(home) = env::var("HOME") {
+        let base = PathBuf::from(home);
+        dirs.push(base.join(".local/share/icons"));
+        dirs.push(base.join(".local/share/pixmaps"));
+    }
+
+    let data_dirs =
+        env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
+    for dir in data_dirs.split(':') {
+        if dir.is_empty() {
+            continue;
+        }
+        let base = PathBuf::from(dir);
+        dirs.push(base.join("icons"));
+        dirs.push(base.join("pixmaps"));
+    }
+
+    dirs.push(PathBuf::from("/usr/share/icons"));
+    dirs.push(PathBuf::from("/usr/share/pixmaps"));
+
+    dirs.sort();
+    dirs.dedup();
+    dirs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        IconFile, desktop_entry_keys, find_similar_icon, get_icon_from_name, is_safe_icon_name,
+        normalize_icon_name, strip_icon_separators, theme_icon_path,
+    };
+
+    #[test]
+    fn desktop_entry_keys_skip_action_groups() {
+        let contents = "[Desktop Entry]\n\
+            Name=LibreOffice Writer\n\
+            Icon=libreoffice-writer\n\
+            StartupWMClass=libreoffice-writer\n\
+            \n\
+            [Desktop Action NewDocument]\n\
+            Name=New Document\n\
+            Icon=document-new\n\
+            StartupWMClass=other\n";
+
+        assert_eq!(
+            desktop_entry_keys(contents),
+            (Some("libreoffice-writer"), Some("libreoffice-writer"))
+        );
+    }
+
+    #[test]
+    fn desktop_entry_keys_skip_hidden_entries_only() {
+        let hidden = "[Desktop Entry]\nIcon=foo\nHidden=true\n";
+        let no_display = "[Desktop Entry]\nIcon=foo\nNoDisplay=true\n";
+
+        assert_eq!(desktop_entry_keys(hidden), (None, None));
+        assert_eq!(desktop_entry_keys(no_display), (Some("foo"), None));
+    }
+
+    #[test]
+    fn find_similar_icon_ignores_names_that_normalize_to_nothing() {
+        assert!(find_similar_icon("日本語").is_none());
+    }
+
+    #[test]
+    fn accepts_ordinary_icon_names() {
+        for name in [
+            "telegram",
+            "firefox",
+            "org.blueman",
+            "com.system76.CosmicAppletTiling.Off",
+            "ca.desrt.dconf-editor",
+            "audio-volume-high-symbolic",
+        ] {
+            assert!(is_safe_icon_name(name), "{name} should be accepted");
+        }
+    }
+
+    #[test]
+    fn rejects_path_traversal_components() {
+        for name in [
+            "../../etc/passwd",
+            "..",
+            "../..",
+            "foo/../../bar",
+            "org.blueman/../../../etc/shadow",
+            "a..b",
+        ] {
+            assert!(!is_safe_icon_name(name), "{name} should be rejected");
+        }
+    }
+
+    #[test]
+    fn rejects_separators_and_nul() {
+        assert!(!is_safe_icon_name(""));
+        assert!(!is_safe_icon_name("/home/u/Documents/x"));
+        assert!(!is_safe_icon_name("icon\0.png"));
+        assert!(!is_safe_icon_name("sub/dir/icon"));
+    }
+
+    #[test]
+    fn get_icon_from_name_rejects_unsafe_names() {
+        assert!(get_icon_from_name("../../etc/passwd").is_none());
+        assert!(get_icon_from_name("/etc/passwd").is_none());
+        assert!(get_icon_from_name("").is_none());
+    }
+
+    #[test]
+    fn theme_icon_path_rejects_unsafe_names() {
+        assert!(theme_icon_path("../../etc/passwd").is_none());
+        assert!(theme_icon_path("/etc/passwd").is_none());
+        assert!(theme_icon_path("").is_none());
+    }
+
+    #[test]
+    fn normalize_icon_name_keeps_lowercase_alphanumeric_unchanged() {
+        assert_eq!(normalize_icon_name("telegram"), "telegram");
+        assert_eq!(normalize_icon_name("blueman"), "blueman");
+    }
+
+    #[test]
+    fn normalize_icon_name_strips_separators_in_mixed_names() {
+        assert_eq!(normalize_icon_name("org.blueman"), "orgblueman");
+        assert_eq!(
+            normalize_icon_name("org.telegram.desktop"),
+            "orgtelegramdesktop"
+        );
+    }
+
+    #[test]
+    fn normalize_icon_name_lowercases_and_strips_non_alphanumeric() {
+        assert_eq!(normalize_icon_name("Telegram"), "telegram");
+        assert_eq!(
+            normalize_icon_name("org.telegram.desktop"),
+            "orgtelegramdesktop"
+        );
+        assert_eq!(normalize_icon_name("BlueMan!"), "blueman");
+        assert_eq!(normalize_icon_name("123"), "123");
+    }
+
+    #[test]
+    fn normalize_icon_name_strips_unicode_non_ascii() {
+        assert_eq!(normalize_icon_name("naïve"), "nave");
+        assert_eq!(normalize_icon_name("app-1.0"), "app10");
+    }
+
+    #[test]
+    fn strip_icon_separators_removes_dashes_and_underscores() {
+        assert_eq!(strip_icon_separators("org.telegram"), "org.telegram");
+        assert_eq!(
+            strip_icon_separators("org-telegram-desktop"),
+            "orgtelegramdesktop"
+        );
+        assert_eq!(strip_icon_separators("foo_bar-baz"), "foobarbaz");
+    }
+
+    #[test]
+    fn strip_icon_separators_no_separators_is_borrowed() {
+        assert_eq!(strip_icon_separators("telegram"), "telegram");
+        assert_eq!(strip_icon_separators("org.telegram"), "org.telegram");
+    }
+
+    #[test]
+    fn normalize_then_strip_is_idempotent_for_clean_names() {
+        let normalized = normalize_icon_name("telegram");
+        let stripped = strip_icon_separators(normalized.as_ref());
+        assert_eq!(normalized, stripped);
+    }
+
+    #[test]
+    fn icon_file_is_symbolic_only_for_symbolic_svg_names() {
+        let file = |p: &str| IconFile::from_path(p.into());
+        assert!(
+            file("/usr/share/icons/Adwaita/symbolic/status/bluetooth-active-symbolic.svg")
+                .is_symbolic()
+        );
+        assert!(
+            file("/usr/share/icons/Adwaita/symbolic/actions/go-next-symbolic-rtl.svg")
+                .is_symbolic()
+        );
+        assert!(
+            file("/usr/share/icons/Adwaita/symbolic/actions/go-next-symbolic-ltr.svg")
+                .is_symbolic()
+        );
+        assert!(!file("/usr/share/icons/hicolor/scalable/apps/slack.svg").is_symbolic());
+        assert!(!file("/tmp/symbolic/icon.svg").is_symbolic());
+        assert!(!file("/usr/share/icons/hicolor/48x48/status/foo-symbolic.png").is_symbolic());
+    }
+}
