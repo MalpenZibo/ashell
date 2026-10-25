@@ -3,7 +3,10 @@ pub mod weather;
 
 use std::time::Duration;
 
-use chrono::{DateTime, Local, NaiveDate};
+use chrono::{
+    DateTime, Local, Locale, NaiveDate,
+    format::{Fixed, Item, Numeric, StrftimeItems},
+};
 use iced::{
     Element, Length, Row, Subscription,
     alignment::Vertical,
@@ -17,7 +20,7 @@ use self::weather::{Location, WeatherData, fetch_location, fetch_weather_data};
 use crate::{
     components::MenuSize,
     config::{TempoModuleConfig, WeatherIndicator},
-    i18n::{language_subtag, unit_system},
+    i18n::{chrono_locale, language_subtag, unit_system},
     theme::use_theme,
 };
 
@@ -41,15 +44,6 @@ const SECOND_SPECIFIERS: [&str; 15] = [
     "%.3f", "%.6f", "%.9f", // the left aligned fractional variants
 ];
 
-/// Specifiers that only appear in a 12-hour clock format.
-const TWELVE_HOUR_SPECIFIERS: [&str; 5] = [
-    "%I", // hour 01-12
-    "%l", // hour 1-12, space padded
-    "%p", // AM/PM
-    "%P", // am/pm
-    "%r", // 12-hour clock time
-];
-
 /// Weather times in the menu, picked to match
 /// the clock's hour cycle. Hourly forecast entries always fall on the hour,
 /// so the 12-hour variant drops the minutes there.
@@ -57,15 +51,20 @@ const WEATHER_TIME_FORMAT_12H: &str = "%-I:%M %p";
 const WEATHER_HOUR_FORMAT_12H: &str = "%-I %p";
 const WEATHER_TIME_FORMAT_24H: &str = "%H:%M";
 
+/// Whether `format` renders a 12-hour time in `locale`. Parsing with the
+/// locale expands `%r`, `%X` and `%c`, which are 12-hour in some locales only.
+fn uses_twelve_hour(format: &str, locale: Locale) -> bool {
+    StrftimeItems::new_with_locale(format, locale).any(|item| {
+        matches!(
+            item,
+            Item::Numeric(Numeric::Hour12, _)
+                | Item::Fixed(Fixed::UpperAmPm)
+                | Item::Fixed(Fixed::LowerAmPm)
+        )
+    })
+}
+
 fn shows_seconds(format: &str) -> bool {
-    contains_specifier(format, &SECOND_SPECIFIERS)
-}
-
-fn uses_twelve_hour(format: &str) -> bool {
-    contains_specifier(format, &TWELVE_HOUR_SPECIFIERS)
-}
-
-fn contains_specifier(format: &str, specifiers: &[&str]) -> bool {
     let mut rest = format;
 
     while let Some(percent) = rest.find('%') {
@@ -80,7 +79,7 @@ fn contains_specifier(format: &str, specifiers: &[&str]) -> bool {
         // skip padding flags
         let specifier = after.trim_start_matches(['-', '_', '0']);
 
-        if specifiers
+        if SECOND_SPECIFIERS
             .iter()
             .any(|candidate| specifier.starts_with(&candidate[1..]))
         {
@@ -167,7 +166,7 @@ impl Tempo {
     }
 
     fn weather_format(&self, twelve_hour: &'static str) -> &str {
-        if uses_twelve_hour(self.current_format()) {
+        if uses_twelve_hour(self.current_format(), chrono_locale()) {
             twelve_hour
         } else {
             WEATHER_TIME_FORMAT_24H

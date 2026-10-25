@@ -29,9 +29,9 @@ forecast, and a seven-day outlook.
 | `weather_indicator` | `enum`   | `IconAndTemperature` | Determines what information about the weather is shown in the bar, valid options are `None`, `Icon`, and `IconAndTemperature`.                                                                                                                   |
 | `wind_speed_unit`   | `string` | *unset*              | Override wind speed unit for both display and API requests. Options: `"Kmh"`, `"Mph"`, `"Ms"`. When omitted, derives from locale (Metric → `Kmh`, Imperial → `Mph`). Temperature unit is not affected.                                           |
 
-The weather times in the menu follow the clock's 12/24-hour format. When the active clock format uses a 12-hour specifier
-(`%I`, `%l`, `%p`, `%P` or `%r`), the hourly forecast shows `9 PM` and the update time `9:15 PM`. Otherwise both use
-`%H:%M`.
+The weather times in the menu follow the clock's 12/24-hour format. When the active clock format renders a 12-hour time
+in your locale, the hourly forecast shows `9 PM` and the update time `9:15 PM`. Otherwise both use `%H:%M`. Locale
+formats like `%r`, `%X` and `%c` count as 12-hour only where the locale renders them that way.
 
 ### City-based weather
 
