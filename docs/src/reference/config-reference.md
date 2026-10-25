@@ -16,7 +16,7 @@ Complete reference for all configuration options in `~/.config/ashell/config.tom
 | `osd.timeout` | u64 | `1500` | OSD auto-hide delay in milliseconds |
 | `osd.show_volume_percentage` | bool | `false` | Show the percentage in the volume/microphone OSD |
 | `osd.show_brightness_percentage` | bool | `false` | Show the percentage in the brightness OSD |
-| `animations.enabled` | bool | `false` | Master toggle for UI animations (bar widths, menu open/close, toast slides, etc.) |
+| `animations.enabled` | bool | `false` | Master toggle for UI animations (bar widths, menu open/close, toast slides, hover feedback, OSD fade, etc.) |
 | `logging.level` | String | `"warn"` | Log level ([env_logger syntax](https://docs.rs/env_logger)) |
 | `logging.target` | `"file"` \| `"stdout"` \| `"stderr"` | `"file"` | Where logs are written |
 | `logging.directory` | Option\<PathBuf\> | `$XDG_RUNTIME_DIR` (fallback `$TMPDIR/ashell-<uid>`) | Log directory, only used when `logging.target = "file"`. Supports `~` and `$VAR` |

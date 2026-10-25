@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::icon,
+    components::{icons::icon, motion::FAST},
     config::{
         AppearanceColor, InvertScrollDirection, WorkspaceIndicatorFormat, WorkspaceVisibilityMode,
         WorkspacesModuleConfig,
@@ -679,7 +679,7 @@ impl Workspaces {
                                             })
                                         })
                                         .animates_layout(true)
-                                        .animation(Easing::EASE.very_quick())
+                                        .animation(Easing::EASE.with_duration(FAST))
                                         .into()
                                     } else {
                                         workspace_button(
@@ -729,7 +729,7 @@ impl Workspaces {
                                             })
                                         })
                                         .animates_layout(true)
-                                        .animation(Easing::EASE.very_quick())
+                                        .animation(Easing::EASE.with_duration(FAST))
                                         .into()
                                     } else {
                                         workspace_button(
