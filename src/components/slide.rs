@@ -1,6 +1,6 @@
+use crate::components::motion::{BASE, EASE_IN, EASE_OUT};
 use iced::{
     Animation, Length, Rectangle, Size, Vector,
-    animation::Easing,
     core::{
         Clipboard, Layout, Shell, Widget, event, layout, mouse, overlay, renderer,
         widget::{Operation, Tree, tree},
@@ -25,7 +25,7 @@ struct State {
     key: u64,
 }
 
-pub const DEFAULT_DURATION: Duration = Duration::from_millis(100);
+pub const DEFAULT_DURATION: Duration = BASE;
 
 pub struct Slide<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
@@ -137,7 +137,7 @@ where
         } else if !state.initialized {
             state.offset_anim = Animation::new(off_screen)
                 .duration(self.duration)
-                .easing(Easing::EaseOutCubic);
+                .easing(EASE_OUT);
             state.last_visible = self.visible;
             state.initialized = true;
             if self.visible {
@@ -146,6 +146,12 @@ where
         } else if self.visible != state.last_visible {
             state.last_visible = self.visible;
             let target = if self.visible { 0.0 } else { off_screen };
+            // Carry on from wherever the toast is now so a toast dismissed
+            // mid-entry slides back out instead of snapping to its origin.
+            let current = state.offset_anim.interpolate_with(|v| v, now);
+            state.offset_anim = Animation::new(current)
+                .duration(self.duration)
+                .easing(if self.visible { EASE_OUT } else { EASE_IN });
             state.offset_anim.go_mut(target, now);
         }
 

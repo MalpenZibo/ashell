@@ -9,6 +9,7 @@ pub mod menu;
 mod menu_wrapper;
 mod module_group;
 mod module_item;
+pub mod motion;
 pub mod password_dialog;
 mod position_button;
 mod quick_setting_button;

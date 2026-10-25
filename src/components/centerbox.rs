@@ -1,13 +1,13 @@
 //! Distribute content horizontally.
+use crate::components::motion::{EASE_OUT, FAST};
 use iced::Animation;
 use iced::advanced::layout::{self, Layout, Limits, Node};
 use iced::advanced::overlay;
 use iced::advanced::renderer;
 use iced::advanced::widget::{Operation, Tree, tree};
 use iced::advanced::{Clipboard, Shell, Widget, mouse};
-use iced::animation::Easing;
 use iced::{Alignment, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
@@ -217,8 +217,8 @@ where
             target_center_x
         } else if !state.initialized {
             state.center_x_anim = Animation::new(target_center_x)
-                .duration(Duration::from_millis(100))
-                .easing(Easing::EaseOutCubic);
+                .duration(FAST)
+                .easing(EASE_OUT);
             state.last_center_x = target_center_x;
             state.initialized = true;
             target_center_x
