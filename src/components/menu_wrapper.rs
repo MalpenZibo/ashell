@@ -1,23 +1,117 @@
+use crate::components::motion::{BASE, EASE_IN, EASE_IN_OUT, EASE_OUT, FAST};
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::{Operation, Tree};
 use iced::advanced::{Clipboard, Shell, Widget, mouse};
-use iced::animation::Easing;
 use iced::core::widget::tree;
 use iced::{
     Animation, Background, Border, Color, Length, Padding, Point, Rectangle, Shadow, Size, Vector,
     alignment, event, overlay, touch,
 };
-use std::time::Instant;
-
-use crate::components::menu::ANIMATION_DURATION;
+use std::time::{Duration, Instant};
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
+/// Below this the tween counts as settled, so it cannot leave a sliver of
+/// menu on screen or keep a redraw loop alive.
+const SETTLED_EPSILON: f32 = 0.001;
+
+/// How far the content travels while opening. Small values read as the menu
+/// landing rather than flying in from the bar.
+const REVEAL_DISTANCE: f32 = 8.0;
+
 struct State {
+    /// Horizontal position of the menu, in window coordinates.
+    x_anim: Animation<f32>,
+    /// Open amount, `0.0` closed through `1.0` open.
     progress_anim: Animation<f32>,
     last_open: bool,
+    last_x: f32,
     initialized: bool,
+}
+
+impl State {
+    fn new(x: f32) -> Self {
+        Self {
+            x_anim: Animation::new(x),
+            progress_anim: Animation::new(0.0),
+            last_open: false,
+            last_x: x,
+            initialized: false,
+        }
+    }
+
+    /// How open the menu currently is, in `0.0..=1.0`.
+    fn progress(&self, open: bool, now: Instant) -> f32 {
+        let target = if open { 1.0 } else { 0.0 };
+        let progress = self.progress_anim.interpolate_with(|v| v, now);
+
+        // Snap once within `SETTLED_EPSILON` so no resampling error can leave a
+        // sliver of a closed menu, or a hairline gap under an open one.
+        if (progress - target).abs() < SETTLED_EPSILON {
+            target
+        } else {
+            progress
+        }
+    }
+
+    /// Advances both tweens to this build's targets and returns the x position
+    /// to draw at. Retargeting from the current value keeps a reversal smooth.
+    fn animate(
+        &mut self,
+        x: f32,
+        open: bool,
+        duration: Duration,
+        animated: bool,
+        now: Instant,
+    ) -> f32 {
+        if !animated {
+            self.x_anim = Animation::new(x);
+            self.progress_anim = Animation::new(if open { 1.0 } else { 0.0 });
+            self.last_x = x;
+            self.last_open = open;
+            self.initialized = true;
+            return x;
+        }
+
+        if !self.initialized {
+            self.initialized = true;
+            self.x_anim = Animation::new(x);
+            self.last_x = x;
+            self.progress_anim = Animation::new(if open { 0.0 } else { 1.0 })
+                .duration(duration)
+                .easing(EASE_OUT);
+            self.last_open = open;
+            if open {
+                self.progress_anim.go_mut(1.0, now);
+            }
+            return x;
+        }
+
+        if open != self.last_open {
+            self.last_open = open;
+            let current = self.progress(open, now);
+            self.progress_anim = Animation::new(current).duration(duration).easing(if open {
+                EASE_OUT
+            } else {
+                EASE_IN
+            });
+            self.progress_anim.go_mut(if open { 1.0 } else { 0.0 }, now);
+        }
+
+        if (x - self.last_x).abs() > 0.5 {
+            self.last_x = x;
+            // Travelling between buttons covers more ground than a reveal, so
+            // it gets slightly more time.
+            let current = self.x_anim.interpolate_with(|v| v, now);
+            self.x_anim = Animation::new(current)
+                .duration(duration + FAST)
+                .easing(EASE_IN_OUT);
+            self.x_anim.go_mut(x, now);
+        }
+
+        self.x_anim.interpolate_with(|v| v, now)
+    }
 }
 
 #[allow(missing_debug_implementations)]
@@ -30,6 +124,7 @@ pub struct MenuWrapper<'a, Message, Theme = iced::Theme, Renderer = iced::Render
     backdrop: Option<Color>,
     open: bool,
     animated: bool,
+    duration: Duration,
 }
 
 impl<'a, Message, Theme, Renderer> MenuWrapper<'a, Message, Theme, Renderer>
@@ -46,6 +141,7 @@ where
             backdrop: None,
             open: true,
             animated: true,
+            duration: BASE,
         }
     }
 
@@ -79,8 +175,29 @@ where
         self
     }
 
+    /// Sets the open/close tween duration.
+    pub fn duration(mut self, duration: Duration) -> Self {
+        self.duration = duration;
+        self
+    }
+
     fn slide_from_top(&self) -> bool {
         matches!(self.vertical_alignment, alignment::Vertical::Top)
+    }
+
+    /// Direction the content travels from while opening: down from the top
+    /// bar, up from the bottom bar.
+    fn slide_axis(&self) -> f32 {
+        if self.slide_from_top() { 1.0 } else { -1.0 }
+    }
+
+    /// How far the content has yet to travel, in pixels.
+    ///
+    /// `layout` offsets the content by this and `draw` shifts the mask by the
+    /// same amount, so the visible edge stays pinned to the bar while the menu
+    /// settles underneath.
+    fn reveal_offset(&self, progress: f32) -> f32 {
+        -self.slide_axis() * REVEAL_DISTANCE * (1.0 - progress)
     }
 }
 
@@ -95,11 +212,7 @@ where
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(State {
-            progress_anim: Animation::new(0.0),
-            last_open: false,
-            initialized: false,
-        })
+        tree::State::new(State::new(self.x))
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -123,6 +236,11 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        let state = tree.state.downcast_mut::<State>();
+        let now = Instant::now();
+
+        let display_x = state.animate(self.x, self.open, self.duration, self.animated, now);
+
         let node = layout::positioned(
             limits,
             Length::Fill,
@@ -136,7 +254,7 @@ where
             |node, size| {
                 let content_size = node.size();
                 let x = f32::min(
-                    f32::max(self.x - content_size.width / 2.0, 8.),
+                    f32::max(display_x - content_size.width / 2.0, 8.),
                     size.width - content_size.width - 8.,
                 );
                 let node = node.align(
@@ -149,31 +267,16 @@ where
             },
         );
 
-        let state = tree.state.downcast_mut::<State>();
-        let now = Instant::now();
-
-        if !self.animated {
-            let target = if self.open { 1.0 } else { 0.0 };
-            state.progress_anim = Animation::new(target);
-            state.last_open = self.open;
-            state.initialized = true;
-        } else if !state.initialized {
-            let initial = if self.open { 0.0 } else { 1.0 };
-            state.progress_anim = Animation::new(initial)
-                .duration(ANIMATION_DURATION)
-                .easing(Easing::EaseOutCubic);
-            state.last_open = self.open;
-            state.initialized = true;
-            if self.open {
-                state.progress_anim.go_mut(1.0, now);
-            }
-        } else if self.open != state.last_open {
-            state.last_open = self.open;
-            let target = if self.open { 1.0 } else { 0.0 };
-            state.progress_anim.go_mut(target, now);
+        // While opening, the content travels a few pixels into place behind the
+        // clip. `draw` shifts its mask by the same amount, so the visible edge
+        // stays pinned to the bar.
+        let progress_value = state.progress(self.open, now);
+        let slide = self.reveal_offset(progress_value);
+        if slide.abs() > 0.01 {
+            node.translate(Vector::new(0.0, slide))
+        } else {
+            node
         }
-
-        node
     }
 
     fn operate(
@@ -218,7 +321,7 @@ where
 
         if let event::Event::Window(iced::core::window::Event::RedrawRequested(now)) = event {
             let state = tree.state.downcast_mut::<State>();
-            if state.progress_anim.is_animating(*now) {
+            if state.progress_anim.is_animating(*now) || state.x_anim.is_animating(*now) {
                 shell.request_redraw();
                 shell.invalidate_layout();
             }
@@ -265,16 +368,11 @@ where
     ) {
         let state = tree.state.downcast_ref::<State>();
         let now = Instant::now();
-        let progress = if state.progress_anim.is_animating(now) {
-            state.progress_anim.interpolate_with(|v| v, now)
-        } else if self.open {
-            1.0
-        } else {
-            0.0
-        };
+        let progress = state.progress(self.open, now);
 
         if let Some(backdrop) = self.backdrop {
             let mut backdrop = backdrop;
+            // The backdrop tracks the menu so the two read as one motion.
             backdrop.a *= progress;
             renderer.fill_quad(
                 renderer::Quad {
@@ -287,34 +385,34 @@ where
             );
         }
 
-        if progress < 0.01 {
+        if progress <= 0.0 {
             return;
         }
 
         let content_layout = layout.children().next().unwrap();
         let content_bounds = content_layout.bounds();
 
-        // Clip-reveal: content is drawn at full size, but a growing clip rect
-        // hides everything past `progress * height`. Anchored to the bar edge
-        // so the menu "rolls out" from there.
+        // The content is drawn at full size and revealed by a growing clip
+        // anchored to the bar, so the menu rolls out from there rather than
+        // sliding in as a block.
         let full_height = content_bounds.height;
         let visible_height = full_height * progress;
+        let edge = content_bounds.y + self.reveal_offset(1.0);
         let clip_bounds = if self.slide_from_top() {
             Rectangle {
                 x: content_bounds.x,
-                y: content_bounds.y,
+                y: edge,
                 width: content_bounds.width,
                 height: visible_height,
             }
         } else {
             Rectangle {
                 x: content_bounds.x,
-                y: content_bounds.y + full_height - visible_height,
+                y: edge + full_height - visible_height,
                 width: content_bounds.width,
                 height: visible_height,
             }
         };
-
         // The layer clip is invisible to children; `viewport` is what they read.
         let Some(child_viewport) = clip_bounds.intersection(viewport) else {
             return;

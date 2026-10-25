@@ -693,6 +693,16 @@ impl Outputs {
         })
     }
 
+    /// The menu currently open on surface `id`, if any.
+    pub fn menu_of_id(&self, id: SurfaceId) -> Option<&OpenMenu> {
+        self.entries.iter().find_map(|(_, shell_info, _)| {
+            shell_info
+                .as_ref()
+                .and_then(|si| si.menu.open.as_ref())
+                .filter(|open| open.id == id)
+        })
+    }
+
     pub fn set_animations_enabled(&mut self, enabled: bool) {
         self.animations_enabled = enabled;
         for (_, shell_info, _) in self.entries.iter_mut() {

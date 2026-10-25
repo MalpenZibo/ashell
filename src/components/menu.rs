@@ -1,4 +1,5 @@
 use crate::app::{self, App};
+use crate::components::motion::{BASE, FAST};
 use crate::components::{self, ButtonUIRef};
 use crate::config::{BarSurface, Position, Surface};
 use crate::theme::{backdrop_color, surface_border, use_theme};
@@ -11,8 +12,6 @@ use iced::{
     widget::{blur_container, container},
 };
 use std::time::Duration;
-
-pub const ANIMATION_DURATION: Duration = Duration::from_millis(100);
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum MenuType {
@@ -30,6 +29,29 @@ pub enum MenuType {
     BatteryTooltip,
     PeripheralBatteryTooltip(usize),
     CustomTooltip(String),
+}
+
+impl MenuType {
+    /// Whether this is a pointer-following tooltip rather than a menu opened
+    /// by a click.
+    pub fn is_tooltip(&self) -> bool {
+        matches!(
+            self,
+            MenuType::AudioTooltip
+                | MenuType::BluetoothTooltip
+                | MenuType::WifiTooltip
+                | MenuType::VpnTooltip
+                | MenuType::BatteryTooltip
+                | MenuType::PeripheralBatteryTooltip(_)
+                | MenuType::CustomTooltip(_)
+        )
+    }
+
+    /// Open/close tween duration. Tooltips follow the pointer, so they resolve
+    /// on the faster feedback clock.
+    pub fn animation_duration(&self) -> Duration {
+        if self.is_tooltip() { FAST } else { BASE }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -83,6 +105,13 @@ impl Menu {
 
     pub fn is_closing(&self) -> bool {
         self.closing
+    }
+
+    /// How long before a closing menu's surface can be destroyed.
+    fn close_animation_duration(&self) -> Duration {
+        self.open
+            .as_ref()
+            .map_or(BASE, |open| open.menu_type.animation_duration())
     }
 
     pub fn open(
@@ -139,9 +168,11 @@ impl Menu {
         if !self.animations_enabled {
             return Task::done(app::Message::FinishCloseMenu(id));
         }
+        // A little past the tween, so the final frame lands first.
+        let duration = self.close_animation_duration() + Duration::from_millis(24);
         Task::perform(
             async move {
-                tokio::time::sleep(ANIMATION_DURATION).await;
+                tokio::time::sleep(duration).await;
                 id
             },
             app::Message::FinishCloseMenu,
@@ -196,16 +227,7 @@ impl Menu {
             return Task::none();
         }
 
-        let menu_is_tooltip = matches!(
-            menu_type,
-            MenuType::AudioTooltip
-                | MenuType::BluetoothTooltip
-                | MenuType::WifiTooltip
-                | MenuType::VpnTooltip
-                | MenuType::BatteryTooltip
-                | MenuType::PeripheralBatteryTooltip(_)
-                | MenuType::CustomTooltip(_)
-        );
+        let menu_is_tooltip = menu_type.is_tooltip();
         match &mut self.open {
             None => self.open(menu_type, button_ui_ref, request_keyboard, output_id),
             Some(open) if open.menu_type == menu_type => {
@@ -216,20 +238,7 @@ impl Menu {
                     self.close()
                 }
             }
-            Some(open)
-                if !matches!(
-                    open.menu_type,
-                    MenuType::AudioTooltip
-                        | MenuType::BluetoothTooltip
-                        | MenuType::WifiTooltip
-                        | MenuType::VpnTooltip
-                        | MenuType::BatteryTooltip
-                        | MenuType::PeripheralBatteryTooltip(_)
-                        | MenuType::CustomTooltip(_)
-                ) && menu_is_tooltip =>
-            {
-                Task::none()
-            }
+            Some(open) if !open.menu_type.is_tooltip() && menu_is_tooltip => Task::none(),
             Some(open) => {
                 open.menu_type = menu_type;
                 open.button_ui_ref = button_ui_ref;
@@ -304,6 +313,10 @@ impl App {
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
+        let duration = self
+            .outputs
+            .menu_of_id(id)
+            .map_or(BASE, |menu| menu.menu_type.animation_duration());
         let (space, radius, bar_surface, bar_position, menu_backdrop, blur) = use_theme(|t| {
             (
                 t.space,
@@ -361,6 +374,97 @@ impl App {
             .on_click_outside(app::Message::CloseMenu(id))
             .open(!self.outputs.menu_is_closing(id))
             .animated(use_theme(|t| t.animations_enabled))
+            .duration(duration)
             .into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::motion::{BASE, FAST};
+
+    fn ui_ref() -> ButtonUIRef {
+        ButtonUIRef {
+            position: iced::Point::ORIGIN,
+            viewport: (1920.0, 1080.0),
+        }
+    }
+
+    #[test]
+    fn tooltips_use_the_feedback_clock() {
+        assert_eq!(MenuType::AudioTooltip.animation_duration(), FAST);
+        assert_eq!(
+            MenuType::CustomTooltip("net".into()).animation_duration(),
+            FAST
+        );
+        assert_eq!(
+            MenuType::PeripheralBatteryTooltip(1).animation_duration(),
+            FAST
+        );
+    }
+
+    #[test]
+    fn menus_use_the_container_clock() {
+        assert_eq!(MenuType::Settings.animation_duration(), BASE);
+        assert_eq!(MenuType::Notifications.animation_duration(), BASE);
+        assert_eq!(MenuType::Tray("spotify".into()).animation_duration(), BASE);
+    }
+
+    #[test]
+    fn tooltip_duration_is_faster_than_menus() {
+        // A tooltip that lags behind the pointer feels broken; a menu that
+        // snaps open feels cheap.
+        assert!(
+            MenuType::WifiTooltip.animation_duration() < MenuType::Settings.animation_duration()
+        );
+    }
+
+    #[test]
+    fn tooltip_classification_covers_every_variant() {
+        assert!(!MenuType::Updates.is_tooltip());
+        assert!(!MenuType::MediaPlayer.is_tooltip());
+        assert!(!MenuType::SystemInfo.is_tooltip());
+        assert!(!MenuType::Tempo.is_tooltip());
+        assert!(MenuType::BluetoothTooltip.is_tooltip());
+        assert!(MenuType::VpnTooltip.is_tooltip());
+        assert!(MenuType::BatteryTooltip.is_tooltip());
+    }
+
+    #[test]
+    fn toggling_a_tooltip_while_closing_cancels_the_close() {
+        let mut menu = Menu::with_animations(true);
+        // Simulate a menu mid-close, as `close()` would leave it before the
+        // teardown timer fires.
+        menu.open = Some(OpenMenu {
+            id: SurfaceId::unique(),
+            menu_type: MenuType::WifiTooltip,
+            button_ui_ref: ui_ref(),
+        });
+        menu.closing = true;
+
+        let task = menu.toggle(MenuType::WifiTooltip, ui_ref(), false, None);
+
+        assert!(!menu.is_closing(), "re-hovering must revive the tooltip");
+        assert!(menu.pending_open.is_none());
+        let _ = task; // cancelling must not schedule any surface work
+    }
+
+    #[test]
+    fn a_tooltip_never_replaces_an_open_menu() {
+        let mut menu = Menu::with_animations(true);
+        menu.open = Some(OpenMenu {
+            id: SurfaceId::unique(),
+            menu_type: MenuType::Settings,
+            button_ui_ref: ui_ref(),
+        });
+
+        menu.toggle(MenuType::BatteryTooltip, ui_ref(), false, None);
+
+        assert_eq!(
+            menu.open.as_ref().map(|o| &o.menu_type),
+            Some(&MenuType::Settings),
+            "hovering a module must not close the menu the user opened"
+        );
     }
 }
