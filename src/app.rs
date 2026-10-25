@@ -235,7 +235,10 @@ impl App {
         ));
         self.tray
             .update(modules::tray::Message::ConfigReloaded(config.tray));
-        self.osd.update(osd::Message::ConfigReloaded(config.osd));
+        self.osd.update(osd::Message::ConfigReloaded {
+            config: config.osd,
+            animations_enabled: config.animations.enabled,
+        });
 
         Task::batch([close_custom_tooltips, workspaces_task, notifications_task])
     }
@@ -614,6 +617,10 @@ impl App {
                         })
                     {
                         tasks.push(timer.map(Message::Osd));
+                        // `show_osd_layer` is a no-op when the surface is
+                        // already up, so a rapid repeat of the same OSD (e.g.
+                        // holding a volume key) revives it in place instead of
+                        // destroying and recreating it, which would flicker.
                         tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
                     }
                 }
