@@ -6,11 +6,22 @@ use iced::{
     },
     widget::canvas::{self, Frame, Path},
 };
-use std::{f32::consts::PI, time::Instant};
+use std::{
+    f32::consts::PI,
+    time::{Duration, Instant},
+};
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
 const SPIN_SPEED: f32 = PI * 2.0;
+
+/// Minimum spacing between redraws of the spinner.
+///
+/// The canvas is a couple of dozen pixels wide and one revolution takes a
+/// second, so a full-frame refresh adds nothing the eye can see while keeping
+/// the compositor busy on a surface that is otherwise idle. Capping here makes
+/// the spinner cost proportional to what it actually renders.
+const FRAME_INTERVAL: Duration = Duration::from_millis(1000 / 30);
 
 const DOTS: &[(f32, f32, f32)] = &[
     (12.0, 1.0, 0.9),
@@ -23,6 +34,7 @@ const DOTS: &[(f32, f32, f32)] = &[
     (4.8, 4.8, 2.3),
 ];
 
+/// Rotation origin, set by the canvas program.
 struct SpinnerState {
     start: Instant,
 }
@@ -31,6 +43,22 @@ impl Default for SpinnerState {
     fn default() -> Self {
         Self {
             start: Instant::now(),
+        }
+    }
+}
+
+/// Redraw throttle, set by the widget wrapping the canvas.
+struct Throttle {
+    last_frame: Instant,
+}
+
+impl Throttle {
+    fn frame_due(&mut self, now: Instant) -> bool {
+        if now.saturating_duration_since(self.last_frame) >= FRAME_INTERVAL {
+            self.last_frame = now;
+            true
+        } else {
+            false
         }
     }
 }
@@ -77,7 +105,8 @@ impl<Message> canvas::Program<Message> for SpinnerProgram {
     }
 }
 
-/// Drives continuous redraws so the inner canvas keeps spinning.
+/// Requests a redraw every [`FRAME_INTERVAL`] so the inner canvas keeps
+/// spinning without keeping the compositor busy on every frame.
 pub struct SpinningIconWidget<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Renderer: iced::core::Renderer,
@@ -91,6 +120,16 @@ where
     Theme: 'a,
     Renderer: iced::core::Renderer + 'a,
 {
+    fn tag(&self) -> iced::core::widget::tree::Tag {
+        iced::core::widget::tree::Tag::of::<Throttle>()
+    }
+
+    fn state(&self) -> iced::core::widget::tree::State {
+        iced::core::widget::tree::State::new(Throttle {
+            last_frame: Instant::now(),
+        })
+    }
+
     fn children(&self) -> Vec<Tree> {
         vec![Tree::new(&self.content)]
     }
@@ -136,7 +175,9 @@ where
             viewport,
         );
 
-        if let event::Event::Window(iced::core::window::Event::RedrawRequested(_)) = event {
+        if let event::Event::Window(iced::core::window::Event::RedrawRequested(now)) = event
+            && tree.state.downcast_mut::<Throttle>().frame_due(*now)
+        {
             shell.request_redraw();
         }
     }

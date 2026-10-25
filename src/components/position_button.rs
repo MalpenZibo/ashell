@@ -1,11 +1,13 @@
+use crate::components::motion::{EASE_OUT, INSTANT};
 use iced::{
-    Background, Color, Length, Padding, Point, Rectangle, Size, Vector,
+    Animation, Background, Color, Length, Padding, Point, Rectangle, Size, Vector,
     core::{
         Clipboard, Layout, Shell, Widget, event, keyboard, layout, mouse, overlay, renderer, touch,
         widget::{Operation, Tree, tree},
     },
     widget::button::{Catalog, Status, Style, StyleFn},
 };
+use std::time::Instant;
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
@@ -15,14 +17,42 @@ pub struct ButtonUIRef {
     pub viewport: (f32, f32),
 }
 
-enum OnPress<'a, Message> {
-    Message(Message),
-    MessageWithPosition(Box<dyn Fn(ButtonUIRef) -> Message + 'a>),
+/// Which mouse button a [`PressHandler`] is bound to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseButton {
+    Left,
+    Right,
+    Middle,
 }
 
-enum OnHover<'a, Message> {
+impl MouseButton {
+    pub const ALL: [Self; 3] = [Self::Left, Self::Right, Self::Middle];
+
+    pub const fn index(self) -> usize {
+        match self {
+            Self::Left => 0,
+            Self::Right => 1,
+            Self::Middle => 2,
+        }
+    }
+}
+
+/// What a [`PositionButton`] does for an input event: publish a plain message,
+/// or build one from the button's on-screen position (needed to place a popup
+/// under it).
+pub enum PressHandler<'a, Message> {
     Message(Message),
-    MessageWithPosition(Box<dyn Fn(ButtonUIRef) -> Message + 'a>),
+    WithPosition(Box<dyn Fn(ButtonUIRef) -> Message + 'a>),
+}
+
+impl<'a, Message> PressHandler<'a, Message> {
+    pub fn message(message: Message) -> Self {
+        Self::Message(message)
+    }
+
+    pub fn with_position(handler: impl Fn(ButtonUIRef) -> Message + 'a) -> Self {
+        Self::WithPosition(Box::new(handler))
+    }
 }
 
 pub struct PositionButton<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
@@ -31,13 +61,11 @@ where
     Theme: Catalog,
 {
     content: Element<'a, Message, Theme, Renderer>,
-    on_press: Option<OnPress<'a, Message>>,
-    on_right_press: Option<OnPress<'a, Message>>,
-    on_middle_press: Option<OnPress<'a, Message>>,
-    on_scroll_up: Option<OnPress<'a, Message>>,
-    on_scroll_down: Option<OnPress<'a, Message>>,
-    on_hover: Option<OnHover<'a, Message>>,
-    on_unhover: Option<Message>,
+    handlers: [Option<PressHandler<'a, Message>>; 3],
+    on_scroll_up: Option<PressHandler<'a, Message>>,
+    on_scroll_down: Option<PressHandler<'a, Message>>,
+    on_hover: Option<PressHandler<'a, Message>>,
+    on_unhover: Option<PressHandler<'a, Message>>,
     width: Length,
     height: Length,
     padding: Padding,
@@ -56,9 +84,7 @@ where
 
         PositionButton {
             content,
-            on_press: None,
-            on_right_press: None,
-            on_middle_press: None,
+            handlers: [None, None, None],
             on_scroll_up: None,
             on_scroll_down: None,
             on_hover: None,
@@ -89,73 +115,29 @@ where
         self
     }
 
-    /// Sets the message that will be produced when the [`Button`] is pressed.
-    ///
-    /// Unless `on_press` is called, the [`Button`] will be disabled.
-    pub fn on_press(mut self, on_press: Message) -> Self {
-        self.on_press = Some(OnPress::Message(on_press));
-        self
-    }
-
-    pub fn on_press_with_position(
-        mut self,
-        on_press: impl Fn(ButtonUIRef) -> Message + 'a,
-    ) -> Self {
-        self.on_press = Some(OnPress::MessageWithPosition(Box::new(on_press)));
-        self
-    }
-
-    pub fn on_right_press(mut self, on_right_press: Message) -> Self {
-        self.on_right_press = Some(OnPress::Message(on_right_press));
-        self
-    }
-
-    pub fn on_right_press_with_position(
-        mut self,
-        on_right_press: impl Fn(ButtonUIRef) -> Message + 'a,
-    ) -> Self {
-        self.on_right_press = Some(OnPress::MessageWithPosition(Box::new(on_right_press)));
-        self
-    }
-
-    pub fn on_middle_press(mut self, on_middle_press: Message) -> Self {
-        self.on_middle_press = Some(OnPress::Message(on_middle_press));
-        self
-    }
-
-    pub fn on_middle_press_with_position(
-        mut self,
-        on_middle_press: impl Fn(ButtonUIRef) -> Message + 'a,
-    ) -> Self {
-        self.on_middle_press = Some(OnPress::MessageWithPosition(Box::new(on_middle_press)));
+    /// Binds `handler` to `button`.
+    pub fn on(mut self, button: MouseButton, handler: PressHandler<'a, Message>) -> Self {
+        self.handlers[button.index()] = Some(handler);
         self
     }
 
     pub fn on_scroll_up(mut self, on_scroll_up: Message) -> Self {
-        self.on_scroll_up = Some(OnPress::Message(on_scroll_up));
+        self.on_scroll_up = Some(PressHandler::message(on_scroll_up));
         self
     }
 
     pub fn on_scroll_down(mut self, on_scroll_down: Message) -> Self {
-        self.on_scroll_down = Some(OnPress::Message(on_scroll_down));
+        self.on_scroll_down = Some(PressHandler::message(on_scroll_down));
         self
     }
 
-    pub fn on_hover(mut self, on_hover: Message) -> Self {
-        self.on_hover = Some(OnHover::Message(on_hover));
-        self
-    }
-
-    pub fn on_hover_with_position(
-        mut self,
-        on_hover: impl Fn(ButtonUIRef) -> Message + 'a,
-    ) -> Self {
-        self.on_hover = Some(OnHover::MessageWithPosition(Box::new(on_hover)));
+    pub fn on_hover(mut self, on_hover: PressHandler<'a, Message>) -> Self {
+        self.on_hover = Some(on_hover);
         self
     }
 
     pub fn on_unhover(mut self, on_unhover: Message) -> Self {
-        self.on_unhover = Some(on_unhover);
+        self.on_unhover = Some(PressHandler::message(on_unhover));
         self
     }
 
@@ -176,20 +158,19 @@ where
         self
     }
 
-    fn publish_on_press(
-        &self,
-        on_press: &OnPress<'a, Message>,
+    fn publish_handler(
+        handler: &PressHandler<'a, Message>,
         layout: Layout<'_>,
         viewport: &Rectangle,
         shell: &mut Shell<'_, Message>,
     ) where
         Message: Clone,
     {
-        match on_press {
-            OnPress::Message(message) => {
+        match handler {
+            PressHandler::Message(message) => {
                 shell.publish(message.clone());
             }
-            OnPress::MessageWithPosition(on_press_with_position) => {
+            PressHandler::WithPosition(handler) => {
                 let ui_data = ButtonUIRef {
                     position: Point::new(
                         layout.bounds().width / 2. + layout.position().x,
@@ -197,33 +178,7 @@ where
                     ),
                     viewport: (viewport.width, viewport.height),
                 };
-                shell.publish(on_press_with_position(ui_data));
-            }
-        }
-    }
-
-    fn publish_on_hover(
-        &self,
-        on_hover: &OnHover<'a, Message>,
-        layout: Layout<'_>,
-        viewport: &Rectangle,
-        shell: &mut Shell<'_, Message>,
-    ) where
-        Message: Clone,
-    {
-        match on_hover {
-            OnHover::Message(message) => {
-                shell.publish(message.clone());
-            }
-            OnHover::MessageWithPosition(on_hover_with_position) => {
-                let ui_data = ButtonUIRef {
-                    position: Point::new(
-                        layout.bounds().width / 2. + layout.position().x,
-                        layout.bounds().height / 2. + layout.position().y,
-                    ),
-                    viewport: (viewport.width, viewport.height),
-                };
-                shell.publish(on_hover_with_position(ui_data));
+                shell.publish(handler(ui_data));
             }
         }
     }
@@ -232,10 +187,63 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct State {
     is_hovered: bool,
-    is_pressed: bool,
-    is_right_pressed: bool,
-    is_middle_pressed: bool,
+    pressed: [bool; 3],
     is_focused: bool,
+}
+
+/// `0.0` at rest to `1.0` hovered, so the highlight follows the pointer instead
+/// of appearing in one frame.
+struct Highlight(Animation<f32>);
+
+impl Highlight {
+    fn new() -> Self {
+        Self(Animation::new(0.0).duration(INSTANT).easing(EASE_OUT))
+    }
+}
+
+/// Blends two button styles. Theme styles only paint solid backgrounds, so a
+/// gradient falls back to the target style.
+fn fade_style(from: Style, to: Style, t: f32) -> Style {
+    let lerp = crate::theme::lerp_color;
+    Style {
+        background: match (from.background, to.background) {
+            (Some(Background::Color(a)), Some(Background::Color(b))) => {
+                Some(Background::Color(lerp(a, b, t)))
+            }
+            (None, Some(Background::Color(b))) => Some(Background::Color(b.scale_alpha(t))),
+            (_, to) => to,
+        },
+        text_color: lerp(from.text_color, to.text_color, t),
+        border: to.border,
+        shadow: to.shadow,
+        snap: to.snap,
+    }
+}
+
+fn pressed_button(event: &event::Event) -> Option<MouseButton> {
+    match event {
+        event::Event::Mouse(mouse::Event::ButtonPressed(button)) => match *button {
+            mouse::Button::Left => Some(MouseButton::Left),
+            mouse::Button::Right => Some(MouseButton::Right),
+            mouse::Button::Middle => Some(MouseButton::Middle),
+            _ => None,
+        },
+        event::Event::Touch(touch::Event::FingerPressed { .. }) => Some(MouseButton::Left),
+        _ => None,
+    }
+}
+
+fn released_button(event: &event::Event) -> Option<MouseButton> {
+    match event {
+        event::Event::Mouse(mouse::Event::ButtonReleased(button)) => match *button {
+            mouse::Button::Left => Some(MouseButton::Left),
+            mouse::Button::Right => Some(MouseButton::Right),
+            mouse::Button::Middle => Some(MouseButton::Middle),
+            _ => None,
+        },
+        event::Event::Touch(touch::Event::FingerLifted { .. }) => Some(MouseButton::Left),
+        _ => None,
+    }
 }
 
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
@@ -246,11 +254,11 @@ where
     Theme: Catalog,
 {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State>()
+        tree::Tag::of::<(State, Highlight)>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(State::default())
+        tree::State::new((State::default(), Highlight::new()))
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -325,110 +333,43 @@ where
             return;
         }
 
+        let is_over = cursor.is_over(layout.bounds());
+
+        if let Some(button) = pressed_button(event) {
+            let index = button.index();
+            if self.handlers[index].is_some() && is_over {
+                let (state, highlight) = tree.state.downcast_mut::<(State, Highlight)>();
+                state.pressed[index] = true;
+                highlight.0.go_mut(1.0, Instant::now());
+                shell.request_redraw();
+                shell.capture_event();
+                return;
+            }
+        }
+
+        if let Some(button) = released_button(event) {
+            let index = button.index();
+            if let Some(handler) = self.handlers[index].as_ref() {
+                let state = tree.state.downcast_mut::<State>();
+                if state.pressed[index] {
+                    state.pressed[index] = false;
+                    shell.request_redraw();
+                    if is_over {
+                        Self::publish_handler(handler, layout, viewport, shell);
+                    }
+                    shell.capture_event();
+                    return;
+                }
+            }
+        }
+
         match event {
-            event::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
-            | event::Event::Touch(touch::Event::FingerPressed { .. })
-                if self.on_press.is_some() =>
-            {
-                let bounds = layout.bounds();
-
-                if cursor.is_over(bounds) {
-                    let state = tree.state.downcast_mut::<State>();
-
-                    state.is_pressed = true;
-
-                    shell.capture_event();
-                    return;
-                }
-            }
-            event::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right))
-                if self.on_right_press.is_some() =>
-            {
-                let bounds = layout.bounds();
-
-                if cursor.is_over(bounds) {
-                    let state = tree.state.downcast_mut::<State>();
-                    state.is_right_pressed = true;
-                    shell.capture_event();
-                    return;
-                }
-            }
-            event::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle))
-                if self.on_middle_press.is_some() =>
-            {
-                let bounds = layout.bounds();
-
-                if cursor.is_over(bounds) {
-                    let state = tree.state.downcast_mut::<State>();
-                    state.is_middle_pressed = true;
-                    shell.capture_event();
-                    return;
-                }
-            }
-            event::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
-            | event::Event::Touch(touch::Event::FingerLifted { .. }) => {
-                if let Some(on_press) = self.on_press.as_ref() {
-                    let state = tree.state.downcast_mut::<State>();
-
-                    if state.is_pressed {
-                        state.is_pressed = false;
-
-                        let bounds = layout.bounds();
-
-                        if cursor.is_over(bounds) {
-                            self.publish_on_press(on_press, layout, viewport, shell);
-                        }
-
-                        shell.capture_event();
-                        return;
-                    }
-                }
-            }
-            event::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) => {
-                if let Some(on_right_press) = self.on_right_press.as_ref() {
-                    let state = tree.state.downcast_mut::<State>();
-
-                    if state.is_right_pressed {
-                        state.is_right_pressed = false;
-
-                        let bounds = layout.bounds();
-
-                        if cursor.is_over(bounds) {
-                            self.publish_on_press(on_right_press, layout, viewport, shell);
-                        }
-
-                        shell.capture_event();
-                        return;
-                    }
-                }
-            }
-            event::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle)) => {
-                if let Some(on_middle_press) = self.on_middle_press.as_ref() {
-                    let state = tree.state.downcast_mut::<State>();
-
-                    if state.is_middle_pressed {
-                        state.is_middle_pressed = false;
-
-                        let bounds = layout.bounds();
-
-                        if cursor.is_over(bounds) {
-                            self.publish_on_press(on_middle_press, layout, viewport, shell);
-                        }
-
-                        shell.capture_event();
-                        return;
-                    }
-                }
-            }
             event::Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
-                let bounds = layout.bounds();
                 let y = match delta {
                     mouse::ScrollDelta::Lines { y, .. } => Some(*y),
                     mouse::ScrollDelta::Pixels { y, .. } => Some(*y),
                 };
-                if cursor.is_over(bounds)
-                    && let Some(y) = y
-                {
+                if is_over && let Some(y) = y {
                     let target = if y > 0.0 {
                         self.on_scroll_up.as_ref()
                     } else if y < 0.0 {
@@ -437,55 +378,39 @@ where
                         None
                     };
 
-                    if let Some(on_scroll) = target {
-                        self.publish_on_press(on_scroll, layout, viewport, shell);
+                    if let Some(handler) = target {
+                        Self::publish_handler(handler, layout, viewport, shell);
                         shell.capture_event();
                         return;
                     }
                 }
             }
             event::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
-                if let Some(on_press) = self.on_press.as_ref() {
+                if let Some(handler) = self.handlers[MouseButton::Left.index()].as_ref() {
                     let state = tree.state.downcast_mut::<State>();
                     if state.is_focused
                         && matches!(key, keyboard::Key::Named(keyboard::key::Named::Enter))
                     {
-                        state.is_pressed = true;
-                        match on_press {
-                            OnPress::Message(message) => {
-                                shell.publish(message.clone());
-                            }
-                            OnPress::MessageWithPosition(on_press) => {
-                                let ui_data = ButtonUIRef {
-                                    position: Point::new(
-                                        layout.bounds().width / 2. + layout.position().x,
-                                        layout.bounds().height / 2. + layout.position().y,
-                                    ),
-                                    viewport: (viewport.width, viewport.height),
-                                };
-                                shell.publish(on_press(ui_data));
-                            }
-                        }
+                        state.pressed[MouseButton::Left.index()] = true;
+                        Self::publish_handler(handler, layout, viewport, shell);
                         shell.capture_event();
                         return;
                     }
                 }
             }
             event::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                let bounds = layout.bounds();
-                let is_over = cursor.is_over(bounds);
                 let state = tree.state.downcast_mut::<State>();
                 if is_over {
                     if !state.is_hovered
                         && let Some(on_hover) = self.on_hover.as_ref()
                     {
                         state.is_hovered = true;
-                        self.publish_on_hover(on_hover, layout, viewport, shell);
+                        Self::publish_handler(on_hover, layout, viewport, shell);
                     }
                 } else if state.is_hovered {
                     state.is_hovered = false;
                     if let Some(on_unhover) = self.on_unhover.as_ref() {
-                        shell.publish(on_unhover.clone());
+                        Self::publish_handler(on_unhover, layout, viewport, shell);
                     }
                 }
             }
@@ -495,21 +420,30 @@ where
                 if state.is_hovered {
                     state.is_hovered = false;
                     if let Some(on_unhover) = self.on_unhover.as_ref() {
-                        shell.publish(on_unhover.clone());
+                        Self::publish_handler(on_unhover, layout, viewport, shell);
                     }
                 }
-                state.is_pressed = false;
-                state.is_middle_pressed = false;
+                state.pressed = [false; 3];
             }
             _ => {}
         }
 
-        // Reactive rendering: track hover state and request redraw on change
-        let state = tree.state.downcast_mut::<State>();
-        let is_hovered =
-            (self.on_press.is_some() || self.on_hover.is_some()) && cursor.is_over(layout.bounds());
-        if is_hovered != state.is_hovered {
-            state.is_hovered = is_hovered;
+        let actionable = self.handlers.iter().any(Option::is_some) || self.on_hover.is_some();
+        let is_hovered = actionable && is_over;
+        let (state, highlight) = tree.state.downcast_mut::<(State, Highlight)>();
+        let was_hovered = state.is_hovered;
+        state.is_hovered = is_hovered;
+
+        if is_hovered != was_hovered {
+            highlight
+                .0
+                .go_mut(if is_hovered { 1.0 } else { 0.0 }, Instant::now());
+            shell.request_redraw();
+        }
+
+        if let event::Event::Window(iced::core::window::Event::RedrawRequested(now)) = event
+            && highlight.0.is_animating(*now)
+        {
             shell.request_redraw();
         }
     }
@@ -526,12 +460,12 @@ where
     ) {
         let bounds = layout.bounds();
         let content_layout = layout.children().next().unwrap();
-        let state = tree.state.downcast_ref::<State>();
+        let (state, highlight) = tree.state.downcast_ref::<(State, Highlight)>();
+        let highlight = highlight.0.interpolate_with(|v| v, Instant::now());
 
-        let status = if self.on_press.is_none() && self.on_hover.is_none() {
-            Status::Disabled
-        } else if state.is_hovered {
-            if state.is_pressed {
+        let disabled = !self.handlers.iter().any(Option::is_some) && self.on_hover.is_none();
+        let resting = if state.is_hovered {
+            if state.pressed[MouseButton::Left.index()] {
                 Status::Pressed
             } else {
                 Status::Hovered
@@ -540,7 +474,17 @@ where
             Status::Active
         };
 
-        let style = theme.style(&self.class, status);
+        let style = if disabled {
+            theme.style(&self.class, Status::Disabled)
+        } else if highlight <= 0.001 || resting == Status::Active {
+            theme.style(&self.class, Status::Active)
+        } else {
+            fade_style(
+                theme.style(&self.class, Status::Active),
+                theme.style(&self.class, resting),
+                highlight,
+            )
+        };
 
         if style.background.is_some() || style.border.width > 0.0 || style.shadow.color.a > 0.0 {
             renderer.fill_quad(
@@ -585,7 +529,7 @@ where
     ) -> mouse::Interaction {
         let is_mouse_over = cursor.is_over(layout.bounds());
 
-        if is_mouse_over && (self.on_press.is_some() || self.on_middle_press.is_some()) {
+        if is_mouse_over && self.handlers.iter().any(Option::is_some) {
             mouse::Interaction::Pointer
         } else {
             mouse::Interaction::default()
