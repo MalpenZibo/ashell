@@ -301,3 +301,12 @@ you opt in:
 [animations]
 enabled = true
 ```
+
+All motion shares one timing scale, so everything settles at the same rhythm:
+
+- hover and press feedback resolves first, then small layout changes (bar
+  modules, workspace indicators), then containers (menus, sub-menus, toasts).
+- elements entering the screen decelerate into place; elements leaving
+  accelerate out of view.
+- tooltips follow the pointer on the faster feedback clock; menus, which are
+  containers, use the slower one.

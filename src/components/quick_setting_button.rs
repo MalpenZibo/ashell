@@ -2,6 +2,7 @@ use crate::{
     components::{
         ButtonSize,
         icons::{IconKind, StaticIcon, icon_button},
+        motion::FAST,
     },
     modules::settings::SubMenu,
     theme::use_theme,
@@ -104,7 +105,7 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
                 header_end.clone(),
             )
         })
-        .animation(Easing::EASE.quick())
+        .animation(Easing::EASE.with_duration(FAST))
         .into()
     } else {
         build_btn(
