@@ -78,14 +78,22 @@ exec-once = env WGPU_POWER_PREF=high ashell
 
 ## Missing Tray Icons
 
-**Problem:** Telegram doesn't appear in tray when ashell starts after Telegram.
+**Problem:** Tray icons from some applications are missing when those applications start before ashell.
 
-**Cause:** Telegram doesn't re-register with tray services if ashell starts afterward.
+**Cause:** An application registers its tray icon (a StatusNotifierItem) with the `org.kde.StatusNotifierWatcher` that is running at that moment. Some applications only create their tray icon if a watcher already exists, and never check again. If such an application starts before any bar is running, there is nothing for ashell to find until the application restarts. This is a bug in those applications, not in ashell.
+
+Restarting ashell while the application keeps running is a different case: the application's tray icon already exists, and ashell looks for existing icons when it starts.
+
+Known examples:
+
+- JetBrains Toolbox: if Toolbox starts before ashell, with no other bar running, its icon stays missing until Toolbox is restarted. See [TBX-14742](https://youtrack.jetbrains.com/issue/TBX-14742) (no tray icon on Arch with Plasma 6 on Wayland), [TBX-12665](https://youtrack.jetbrains.com/issue/TBX-12665) (Fedora 40 with GNOME, Toolbox has to be killed and restarted every time) and [TBX-14468](https://youtrack.jetbrains.com/issue/TBX-14468) (missing tray icon in awesomewm).
+- Telegram: it does not re-register with tray services if ashell starts afterward.
 
 **Solutions:**
 
-- Start Telegram after ashell
-- Restart Telegram after starting ashell
+- Start the affected application after ashell
+- Restart the affected application after ashell has started
+- Report the re-registration bug to the application's upstream tracker
 
 ## Debug Mode
 
