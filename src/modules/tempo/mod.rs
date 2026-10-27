@@ -3,7 +3,10 @@ pub mod weather;
 
 use std::time::Duration;
 
-use chrono::{DateTime, Local, NaiveDate};
+use chrono::{
+    DateTime, Local, Locale, NaiveDate,
+    format::{Fixed, Item, Numeric, StrftimeItems},
+};
 use iced::{
     Element, Length, Row, Subscription,
     alignment::Vertical,
@@ -19,7 +22,7 @@ use crate::{
     config::{TempoModuleConfig, WeatherIndicator},
     theme::use_theme,
 };
-use ashell_i18n::{language_subtag, unit_system};
+use ashell_i18n::{chrono_locale, language_subtag, unit_system};
 
 pub use self::weather::weather_icon;
 
@@ -40,6 +43,26 @@ const SECOND_SPECIFIERS: [&str; 15] = [
     "%9f", // nanoseconds
     "%.3f", "%.6f", "%.9f", // the left aligned fractional variants
 ];
+
+/// Weather times in the menu, picked to match
+/// the clock's hour cycle. Hourly forecast entries always fall on the hour,
+/// so the 12-hour variant drops the minutes there.
+const WEATHER_TIME_FORMAT_12H: &str = "%-I:%M %p";
+const WEATHER_HOUR_FORMAT_12H: &str = "%-I %p";
+const WEATHER_TIME_FORMAT_24H: &str = "%H:%M";
+
+/// Whether `format` renders a 12-hour time in `locale`. Parsing with the
+/// locale expands `%r`, `%X` and `%c`, which are 12-hour in some locales only.
+fn uses_twelve_hour(format: &str, locale: Locale) -> bool {
+    StrftimeItems::new_with_locale(format, locale).any(|item| {
+        matches!(
+            item,
+            Item::Numeric(Numeric::Hour12, _)
+                | Item::Fixed(Fixed::UpperAmPm)
+                | Item::Fixed(Fixed::LowerAmPm)
+        )
+    })
+}
 
 fn shows_seconds(format: &str) -> bool {
     let mut rest = format;
@@ -131,6 +154,22 @@ impl Tempo {
                 .unwrap_or(&self.config.clock_format)
         } else {
             &self.config.clock_format
+        }
+    }
+
+    fn weather_time_format(&self) -> &str {
+        self.weather_format(WEATHER_TIME_FORMAT_12H)
+    }
+
+    fn weather_hour_format(&self) -> &str {
+        self.weather_format(WEATHER_HOUR_FORMAT_12H)
+    }
+
+    fn weather_format(&self, twelve_hour: &'static str) -> &str {
+        if uses_twelve_hour(self.current_format(), chrono_locale()) {
+            twelve_hour
+        } else {
+            WEATHER_TIME_FORMAT_24H
         }
     }
 

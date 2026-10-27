@@ -32,8 +32,11 @@ impl Tempo {
             .zip(self.location.as_ref())
             .map(|(data, location)| {
                 let inner_element: Element<'a, Message> = if location_visible {
-                    let display_time =
-                        self.time_str("%R", self.current_timezone_index, Some(data.current.time));
+                    let display_time = self.time_str(
+                        self.weather_time_format(),
+                        self.current_timezone_index,
+                        Some(data.current.time),
+                    );
                     text(format!(
                         "{}{} - {}",
                         location.city,
@@ -175,8 +178,19 @@ impl Tempo {
                                     }),
                                 )
                                 .map(|(hour_time, weather_code, temp_value, is_day)| {
+                                    // Entries fall on the hour in UTC, so in a :30 or
+                                    // :45 zone they need the minutes.
+                                    let on_the_hour = self.time_str(
+                                        "%M",
+                                        self.current_timezone_index,
+                                        Some(*hour_time),
+                                    ) == "00";
                                     let display_time = self.time_str(
-                                        "%H:%M",
+                                        if on_the_hour {
+                                            self.weather_hour_format()
+                                        } else {
+                                            self.weather_time_format()
+                                        },
                                         self.current_timezone_index,
                                         Some(*hour_time),
                                     );
