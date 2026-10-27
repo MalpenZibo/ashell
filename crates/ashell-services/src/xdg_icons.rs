@@ -7,7 +7,7 @@ use std::{
     env,
     ffi::OsString,
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::LazyLock,
 };
 
@@ -183,6 +183,35 @@ fn lookup_icon(icon_name: &str) -> Option<IconFile> {
     debug!("icon '{icon_name}': no prefix match — unresolved");
 
     None
+}
+
+const THEME_PATH_MAX_DIRS: usize = 8;
+
+/// Looks `icon_name` up in the flat directories of an SNI `IconThemePath`
+/// (Chromium temp dirs, Spotify). Not cached: clients rewrite them.
+pub fn get_icon_from_theme_path(theme_path: &str, icon_name: &str) -> Option<IconFile> {
+    if theme_path.is_empty() {
+        return None;
+    }
+    if !is_safe_icon_name(icon_name) {
+        debug!("icon '{icon_name}': rejected as unsafe name");
+        return None;
+    }
+
+    let found = theme_path
+        .split(':')
+        .map(Path::new)
+        .filter(|dir| dir.is_absolute() && !dir.components().any(|c| c == Component::ParentDir))
+        .take(THEME_PATH_MAX_DIRS)
+        .find_map(|dir| {
+            ["svg", "png"].iter().find_map(|ext| {
+                let path = dir.join(format!("{icon_name}.{ext}"));
+                path.is_file().then_some(path)
+            })
+        });
+    debug!("icon '{icon_name}': in theme path {theme_path:?}: {found:?}");
+
+    found.map(IconFile::from_path)
 }
 
 /// The path of `icon_name` in the icon theme, without the fallbacks of
@@ -586,6 +615,50 @@ mod tests {
         assert!(theme_icon_path("../../etc/passwd").is_none());
         assert!(theme_icon_path("/etc/passwd").is_none());
         assert!(theme_icon_path("").is_none());
+    }
+
+    #[test]
+    fn theme_path_finds_flat_icons() {
+        let root = std::env::temp_dir().join(format!("ashell-theme-path-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("one")).unwrap();
+        std::fs::create_dir_all(root.join("two")).unwrap();
+        let one = root.join("one");
+        let two = root.join("two");
+        std::fs::write(one.join("status_icon_2.png"), b"").unwrap();
+        std::fs::write(one.join("tray.svg"), b"").unwrap();
+        std::fs::write(one.join("tray.png"), b"").unwrap();
+        std::fs::write(one.join("other.txt"), b"").unwrap();
+        std::fs::write(two.join("tray.png"), b"").unwrap();
+
+        let in_path = |theme_path: &str, name| {
+            super::get_icon_from_theme_path(theme_path, name).map(|icon| match icon {
+                super::IconFile::Image(path) | super::IconFile::Svg(path) => path,
+            })
+        };
+
+        assert_eq!(
+            in_path(one.to_str().unwrap(), "status_icon_2"),
+            Some(one.join("status_icon_2.png"))
+        );
+        assert_eq!(
+            in_path(one.to_str().unwrap(), "tray"),
+            Some(one.join("tray.svg"))
+        );
+        let list = format!("relative:/missing:{}:{}", two.display(), one.display());
+        assert_eq!(in_path(&list, "tray"), Some(two.join("tray.png")));
+        let list = format!("{}:{}", one.display(), two.display());
+        assert_eq!(in_path(&list, "tray"), Some(one.join("tray.svg")));
+
+        assert_eq!(in_path(one.to_str().unwrap(), "other"), None);
+        assert_eq!(in_path(one.to_str().unwrap(), "missing"), None);
+        assert_eq!(in_path(one.to_str().unwrap(), "../one/status_icon_2"), None);
+        assert_eq!(in_path("relative/one", "status_icon_2"), None);
+        let parent = format!("{}/../one", one.display());
+        assert_eq!(in_path(&parent, "status_icon_2"), None);
+        assert_eq!(in_path("", "status_icon_2"), None);
+
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

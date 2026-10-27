@@ -88,11 +88,22 @@ async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Op
     }
     if let Some(name) = item_proxy.icon_name().await.ok()
         && !name.is_empty()
-        && let Some(icon) = xdg_icons::get_icon_from_name(&name)
+        && let Some(icon) = icon_from_name(&name, &icon_theme_path(item_proxy).await)
     {
         return Some(icon);
     }
     None
+}
+
+/// Looks `name` up in the item's `IconThemePath` first, then the icon theme.
+fn icon_from_name(name: &str, theme_path: &str) -> Option<TrayIcon> {
+    xdg_icons::get_icon_from_theme_path(theme_path, name)
+        .or_else(|| xdg_icons::get_icon_from_name(name))
+}
+
+/// `IconThemePath` is a KDE extension; empty when absent.
+async fn icon_theme_path(item_proxy: &StatusNotifierItemProxy<'_>) -> String {
+    item_proxy.icon_theme_path().await.unwrap_or_default()
 }
 
 async fn current_attention_icon_from_proxy(
@@ -105,7 +116,7 @@ async fn current_attention_icon_from_proxy(
     }
     if let Some(name) = item_proxy.attention_icon_name().await.ok()
         && !name.is_empty()
-        && let Some(icon) = xdg_icons::get_icon_from_name(&name)
+        && let Some(icon) = icon_from_name(&name, &icon_theme_path(item_proxy).await)
     {
         return Some(icon);
     }
@@ -370,11 +381,10 @@ impl TrayService {
                 }
             };
 
-            // Clients that update IconName or IconPixmap as properties, or send
-            // NewIcon. A signal only triggers a fresh read: an arg filter, or its
-            // args, would decode a pixmap it carries one `Variant` per byte.
+            // A signal only triggers a fresh read: its args would decode a
+            // pixmap one `Variant` per byte.
             let item_inner = item.item_proxy.inner();
-            let mut icon_triggers = Vec::with_capacity(2);
+            let mut icon_triggers = Vec::with_capacity(3);
             if let Ok(properties) = zbus::fdo::PropertiesProxy::new(
                 conn,
                 item_inner.destination().to_owned(),
@@ -387,6 +397,9 @@ impl TrayService {
             }
             if let Ok(new_icon) = item.item_proxy.receive_new_icon().await {
                 icon_triggers.push(new_icon.map(|_| ()).boxed());
+            }
+            if let Ok(new_icon_theme_path) = item.item_proxy.receive_new_icon_theme_path().await {
+                icon_triggers.push(new_icon_theme_path.map(|_| ()).boxed());
             }
             icon_change.push(coalesced_reads(select_all(icon_triggers), {
                 let name = name.clone();
