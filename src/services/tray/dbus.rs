@@ -471,6 +471,9 @@ pub trait StatusNotifierItem {
     fn icon_name(&self) -> zbus::Result<String>;
 
     #[zbus(property)]
+    fn icon_theme_path(&self) -> zbus::Result<String>;
+
+    #[zbus(property)]
     fn menu(&self) -> zbus::Result<OwnedObjectPath>;
 
     #[zbus(property)]
@@ -484,6 +487,9 @@ pub trait StatusNotifierItem {
 
     #[zbus(signal)]
     async fn new_attention_icon(&self) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    async fn new_icon_theme_path(&self, icon_theme_path: &str) -> zbus::Result<()>;
 
     #[zbus(signal)]
     async fn new_status(&self, status: &str) -> zbus::Result<()>;
