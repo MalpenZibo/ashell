@@ -33,6 +33,12 @@ The weather times in the menu follow the clock's 12/24-hour format. When the act
 in your locale, the hourly forecast shows `9 PM` and the update time `9:15 PM`. Otherwise both use `%H:%M`. Locale
 formats like `%r`, `%X` and `%c` count as 12-hour only where the locale renders them that way.
 
+The dates in the menu follow the clock's day and month order. When the clock puts the month first, the forecast shows
+`Wed, Oct 28` and the calendar header `October 27, 2026`. A clock without a date uses the order of your locale's `%x`,
+and a date that starts with the year keeps the day first. Locales that write the date with words after the numbers,
+like `ja_JP`, `ko_KR` and `zh_CN`, use their own order, so the header reads `2026年10月27日`. The day and month keep
+the clock's padding, so `%-d` drops the leading zero.
+
 ### City-based weather
 
 ```toml
