@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use chrono::{
     DateTime, Local, Locale, NaiveDate,
-    format::{Fixed, Item, Numeric, StrftimeItems},
+    format::{Fixed, Item, Numeric, Pad, StrftimeItems},
 };
 use iced::{
     Element, Length, Row, Subscription,
@@ -97,6 +97,193 @@ fn local_minute(now: DateTime<Local>) -> i64 {
     now.naive_local().and_utc().timestamp().div_euclid(60)
 }
 
+/// Formats for the dates in the menu, the forecast days and the calendar header.
+#[derive(Debug, PartialEq, Eq)]
+struct DateFormats {
+    forecast: String,
+    header: String,
+}
+
+/// Date formats that follow the clock. Locales whose `%x` writes the year with
+/// a word after it, like `年` and `년`, keep that order. Otherwise the month goes
+/// first when the clock puts it before the day, or `%x` does for a clock with no
+/// date, and a date that starts with the year stays day-first. The day and month
+/// keep the clock's padding.
+fn date_formats(clock: &str, locale: Locale) -> DateFormats {
+    let clock: Vec<_> = StrftimeItems::new_with_locale(clock, locale).collect();
+    let day_pad = pad_of(&clock, Numeric::Day);
+    let month_pad = pad_of(&clock, Numeric::Month);
+
+    if let Some(formats) = unit_date_formats(locale, day_pad, month_pad) {
+        return formats;
+    }
+
+    let day = format!("%{}d", pad_flag(day_pad.unwrap_or(Pad::Zero)));
+    let month_first = if clock.iter().any(is_day) && clock.iter().any(is_month) {
+        month_first(&clock)
+    } else {
+        month_first(&StrftimeItems::new_with_locale("%x", locale).collect::<Vec<_>>())
+    };
+
+    if month_first {
+        DateFormats {
+            forecast: format!("%a, %b {day}"),
+            header: format!("%B {day}, %Y"),
+        }
+    } else {
+        DateFormats {
+            forecast: format!("%a, {day} %b"),
+            header: format!("{day} %B %Y"),
+        }
+    }
+}
+
+/// Formats from the locale's own `%x`, for locales that write the year, month
+/// and day with words after them. The weekday goes where the locale's `%x` or
+/// `%c` puts it, and in parentheses after the date where neither has one.
+fn unit_date_formats(
+    locale: Locale,
+    day_pad: Option<Pad>,
+    month_pad: Option<Pad>,
+) -> Option<DateFormats> {
+    let date: Vec<_> = StrftimeItems::new_with_locale("%x", locale).collect();
+    let year = date.iter().position(is_year)?;
+    let month = date.iter().position(is_month)?;
+    let end = date_end(&date)?;
+
+    if !(year < month && month < end && date.get(year + 1).is_some_and(is_word)) {
+        return None;
+    }
+
+    let spec = |item: &Item| match item {
+        Item::Numeric(Numeric::Day, pad) => {
+            Some(format!("%{}d", pad_flag(day_pad.unwrap_or(*pad))))
+        }
+        Item::Numeric(Numeric::Month, pad) => {
+            Some(format!("%{}m", pad_flag(month_pad.unwrap_or(*pad))))
+        }
+        item => spec(item),
+    };
+    let header = date[year..end]
+        .iter()
+        .map(spec)
+        .collect::<Option<String>>()?;
+    let month_day = date[month..end]
+        .iter()
+        .map(spec)
+        .collect::<Option<String>>()?;
+
+    let date_time: Vec<_> = StrftimeItems::new_with_locale("%c", locale).collect();
+    let weekday = weekday_after(&date[end..])
+        .or_else(|| weekday_after(&date_time[date_end(&date_time)?..]))
+        .unwrap_or_else(|| "(%a)".to_owned());
+
+    Some(DateFormats {
+        forecast: format!("{month_day}{weekday}"),
+        header,
+    })
+}
+
+/// The weekday right after a date, with the spaces and parentheses around it.
+fn weekday_after(items: &[Item]) -> Option<String> {
+    let weekday = items.iter().position(|item| {
+        matches!(
+            item,
+            Item::Fixed(Fixed::ShortWeekdayName | Fixed::LongWeekdayName)
+        )
+    })?;
+    let before_ok = items[..weekday].iter().all(|item| match item {
+        Item::Space(_) | Item::OwnedSpace(_) => true,
+        Item::Literal(text) => *text == "(",
+        Item::OwnedLiteral(text) => &**text == "(",
+        _ => false,
+    });
+    if !before_ok {
+        return None;
+    }
+
+    let close = match items.get(weekday + 1) {
+        Some(Item::Literal(")")) => 1,
+        Some(Item::OwnedLiteral(text)) if &**text == ")" => 1,
+        _ => 0,
+    };
+    items[..=weekday + close].iter().map(spec).collect()
+}
+
+/// The index after the day, and after the word that follows it, like `日`.
+fn date_end(items: &[Item]) -> Option<usize> {
+    let day = items.iter().position(is_day)?;
+    Some(day + 1 + usize::from(items.get(day + 1).is_some_and(is_word)))
+}
+
+fn month_first(items: &[Item]) -> bool {
+    let year = items.iter().position(is_year);
+    match (
+        items.iter().position(is_month),
+        items.iter().position(is_day),
+    ) {
+        (Some(month), Some(day)) => month < day && year.is_none_or(|year| year > month),
+        _ => false,
+    }
+}
+
+fn pad_of(items: &[Item], numeric: Numeric) -> Option<Pad> {
+    items.iter().find_map(|item| match item {
+        Item::Numeric(found, pad) if *found == numeric => Some(*pad),
+        _ => None,
+    })
+}
+
+fn pad_flag(pad: Pad) -> &'static str {
+    match pad {
+        Pad::Zero => "",
+        Pad::None => "-",
+        Pad::Space => "_",
+    }
+}
+
+fn is_day(item: &Item) -> bool {
+    matches!(item, Item::Numeric(Numeric::Day, _))
+}
+
+fn is_month(item: &Item) -> bool {
+    matches!(
+        item,
+        Item::Numeric(Numeric::Month, _)
+            | Item::Fixed(Fixed::ShortMonthName | Fixed::LongMonthName)
+    )
+}
+
+fn is_year(item: &Item) -> bool {
+    matches!(item, Item::Numeric(Numeric::Year | Numeric::YearMod100, _))
+}
+
+/// A literal made of letters, like `年` or `일`.
+fn is_word(item: &Item) -> bool {
+    let text = match item {
+        Item::Literal(text) => *text,
+        Item::OwnedLiteral(text) => text,
+        _ => return false,
+    };
+    text.chars().all(char::is_alphabetic)
+}
+
+/// Writes a date item back as strftime text.
+fn spec(item: &Item) -> Option<String> {
+    Some(match item {
+        Item::Literal(text) | Item::Space(text) => text.replace('%', "%%"),
+        Item::OwnedLiteral(text) | Item::OwnedSpace(text) => text.replace('%', "%%"),
+        Item::Numeric(Numeric::Year, pad) => format!("%{}Y", pad_flag(*pad)),
+        Item::Numeric(Numeric::Month, pad) => format!("%{}m", pad_flag(*pad)),
+        Item::Numeric(Numeric::Day, pad) => format!("%{}d", pad_flag(*pad)),
+        Item::Fixed(Fixed::ShortWeekdayName) => "%a".to_owned(),
+        Item::Fixed(Fixed::LongWeekdayName) => "%A".to_owned(),
+        Item::Fixed(Fixed::ShortMonthName) => "%b".to_owned(),
+        Item::Fixed(Fixed::LongMonthName) => "%B".to_owned(),
+        _ => return None,
+    })
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Update,
@@ -171,6 +358,10 @@ impl Tempo {
         } else {
             WEATHER_TIME_FORMAT_24H
         }
+    }
+
+    fn menu_date_formats(&self) -> DateFormats {
+        date_formats(self.current_format(), chrono_locale())
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -392,5 +583,77 @@ impl Tempo {
         } else {
             time_sub
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn render(clock: &str, locale: Locale) -> (String, String) {
+        let formats = date_formats(clock, locale);
+        let date = NaiveDate::from_ymd_opt(2026, 10, 28).expect("valid date");
+        (
+            date.format_localized(&formats.forecast, locale).to_string(),
+            date.format_localized(&formats.header, locale).to_string(),
+        )
+    }
+
+    fn rendered(forecast: &str, header: &str) -> (String, String) {
+        (forecast.to_owned(), header.to_owned())
+    }
+
+    #[test]
+    fn date_order_follows_the_clock() {
+        let day_first = rendered("Wed, 28 Oct", "28 October 2026");
+        let month_first = rendered("Wed, Oct 28", "October 28, 2026");
+
+        assert_eq!(render("%a %d %b %R", Locale::en_US), day_first);
+        assert_eq!(render("%a %b %d  %I:%M:%S %p", Locale::en_US), month_first);
+        assert_eq!(render("%Y-%m-%d %R", Locale::en_US), day_first);
+        assert_eq!(render("%a %b %-d", Locale::en_US).1, "October 28, 2026");
+    }
+
+    #[test]
+    fn date_order_falls_back_to_the_locale() {
+        assert_eq!(
+            render("%R", Locale::en_US),
+            rendered("Wed, Oct 28", "October 28, 2026")
+        );
+        assert_eq!(
+            render("%R", Locale::en_GB),
+            rendered("Wed, 28 Oct", "28 October 2026")
+        );
+        assert_eq!(
+            render("%R", Locale::sv_SE),
+            rendered("ons, 28 okt", "28 oktober 2026")
+        );
+    }
+
+    #[test]
+    fn unit_locales_keep_their_own_order() {
+        assert_eq!(
+            render("%R", Locale::ja_JP),
+            rendered("10月28日(水)", "2026年10月28日")
+        );
+        assert_eq!(
+            render("%R", Locale::ko_KR),
+            rendered("10월 28일 (수)", "2026년 10월 28일")
+        );
+        assert_eq!(
+            render("%R", Locale::zh_CN),
+            rendered("10月28日 星期三", "2026年10月28日")
+        );
+        assert_eq!(
+            render("%R", Locale::zh_TW),
+            rendered("10月28日 (週三)", "2026年10月28日")
+        );
+        assert_eq!(
+            date_formats("%-m月%-d日 %R", Locale::ja_JP),
+            DateFormats {
+                forecast: "%-m月%-d日(%a)".to_owned(),
+                header: "%Y年%-m月%-d日".to_owned(),
+            }
+        );
     }
 }

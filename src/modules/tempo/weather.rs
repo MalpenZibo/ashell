@@ -23,6 +23,7 @@ impl Tempo {
     pub(super) fn weather<'a>(&'a self) -> Option<Element<'a, Message>> {
         let (space, font_size, radius) = use_theme(|t| (t.space, t.font_size, t.radius));
         let locale = chrono_locale();
+        let date_format = self.menu_date_formats().forecast;
         let units = unit_system();
         let temp = units.temperature_symbol();
         let wind = self.config.resolved_wind_speed_unit().symbol();
@@ -243,7 +244,7 @@ impl Tempo {
                                 container(
                                     row!(
                                         text(
-                                            time.format_localized("%a, %d %b", locale).to_string()
+                                            time.format_localized(&date_format, locale).to_string()
                                         )
                                         .width(Length::FillPortion(5)),
                                         row!(
