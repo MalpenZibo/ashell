@@ -93,6 +93,23 @@ impl ActiveWindow {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompositorWindow {
+    pub id: u64,
+    pub workspace_id: Option<i32>,
+    pub is_focused: bool,
+    pub is_floating: bool,
+    pub is_urgent: bool,
+    /// Position in a tile grid (column, row), if the compositor lays this
+    /// window out in a grid. Only relative ordering is meaningful; the
+    /// origin index is compositor-defined.
+    pub tile_position: Option<(u32, u32)>,
+    /// Tile dimensions in logical pixels (including decorations), used
+    /// for proportional minimap sizing.
+    pub tile_width: f32,
+    pub tile_height: f32,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct CompositorState {
     pub workspaces: Vec<CompositorWorkspace>,
@@ -100,7 +117,14 @@ pub struct CompositorState {
     // Tag-based compositors (e.g. MangoWC) can have several active workspaces at
     // once; single-workspace compositors fill this with zero or one id.
     pub active_workspace_ids: Vec<i32>,
+    /// The workspace holding keyboard focus, when the compositor exposes a
+    /// global focus. `None` where it doesn't (e.g. ext-workspace); don't fall
+    /// back to `active_workspace_ids`, whose ordering is backend-defined.
+    pub focused_workspace_id: Option<i32>,
     pub active_window: Option<ActiveWindow>,
+    /// Per-window state. Only the Niri backend fills it; it's empty on the
+    /// other backends.
+    pub windows: Vec<CompositorWindow>,
     pub keyboard_layout: String,
     pub submap: Option<String>,
 }
@@ -115,7 +139,10 @@ pub enum CompositorChoice {
 
 #[derive(Debug, Clone)]
 pub struct CompositorService {
-    pub state: CompositorState,
+    /// State is boxed so `ServiceEvent<CompositorService>` stays small —
+    /// otherwise `Message` enums embedding it trip clippy's
+    /// `large_enum_variant` lint.
+    pub state: Box<CompositorState>,
     pub backend: CompositorChoice,
 }
 
