@@ -107,9 +107,9 @@ surface = "solid"
 
 ### Radius
 
-The `radius` field rounds the corners of the bar surface (it only has an effect
-with `surface = "solid"`). Values are steps of the radius scale: `none` (square),
-`sm`, `md`, `lg`, `xl`.
+The `radius` field rounds the corners of the solid bar surface and the bar
+border. It also applies to the border with `surface = "transparent"`. Values are
+steps of the radius scale: `none` (square), `sm`, `md`, `lg`, `xl`.
 
 It uses CSS `border-radius` shorthand: a single value applies to all corners, two
 values are `[top-left+bottom-right, top-right+bottom-left]`, and four values are
@@ -254,6 +254,12 @@ pill behind it with `surface = "transparent"`. Islands are styled under
 | `background` | ✓ | ✓ | ✓ | A [color](#colors). Defaults to `background` |
 | `spacing` | | ✓ | | Space between the modules of a group, same values as `bar.margin`. Defaults to `none` |
 | `text_color` | | | ✓ | Text color of the module, a [color](#colors). Also applies inside a group |
+
+For modules and groups, `border` falls back to `default.border` as a whole table.
+Setting a `border` table replaces that default: omitted `width` and `color` use
+`0` and `background.strong`, respectively. For example, `border = { width = 2 }`
+uses `background.strong` even if `default.border.color` is `primary`. Set both
+fields to retain a custom default color while changing the width.
 
 A module inside a group sits in the group's island, so its own `radius`,
 `padding`, `border` and `background` only apply when it is on its own.

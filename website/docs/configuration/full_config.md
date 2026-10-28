@@ -251,7 +251,8 @@ workspace_colors = [ "#7aa2f7", "#9ece6a" ]
 
 [appearance.bar]
 surface = "transparent"  # (default) or "solid"
-# radius = "none"          # (default) none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
+# radius = "none"          # (default) none|sm|md|lg|xl, CSS border-radius shorthand
+# radius rounds the solid surface and the border; the border also follows it with surface = "transparent"
 # margin = "none"          # (default) none|xxs|xs|sm|md|lg|xl|xxl|number(pixels), CSS margin shorthand
 # padding = "xxs"         # (default) same values as margin, applied inside the bar
 # border = { width = 0, color = "background.strong" }  # (default) color is hex or a palette reference
