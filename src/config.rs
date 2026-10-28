@@ -1293,6 +1293,56 @@ pub enum ColorRef {
     Palette(PaletteColor),
 }
 
+impl ColorRef {
+    pub fn color(&self, theme: &iced::Theme) -> Color {
+        let palette = theme.extended_palette();
+        let pick =
+            |shade: &Shade, base: palette::Pair, weak: palette::Pair, strong: palette::Pair| {
+                match shade {
+                    Shade::Base => base.color,
+                    Shade::Weak => weak.color,
+                    Shade::Strong => strong.color,
+                }
+            };
+
+        match self {
+            ColorRef::Hex(hex) => hex_to_color(*hex),
+            ColorRef::Palette(color) => match color {
+                PaletteColor::Background(level) => {
+                    let background = &palette.background;
+                    match level {
+                        None => background.base.color,
+                        Some(BackgroundLevel::Weakest) => background.weakest.color,
+                        Some(BackgroundLevel::Weaker) => background.weaker.color,
+                        Some(BackgroundLevel::Weak) => background.weak.color,
+                        Some(BackgroundLevel::Neutral) => background.neutral.color,
+                        Some(BackgroundLevel::Strong) => background.strong.color,
+                        Some(BackgroundLevel::Stronger) => background.stronger.color,
+                        Some(BackgroundLevel::Strongest) => background.strongest.color,
+                    }
+                }
+                PaletteColor::Primary(shade) => {
+                    let p = &palette.primary;
+                    pick(shade, p.base, p.weak, p.strong)
+                }
+                PaletteColor::Success(shade) => {
+                    let p = &palette.success;
+                    pick(shade, p.base, p.weak, p.strong)
+                }
+                PaletteColor::Warning(shade) => {
+                    let p = &palette.warning;
+                    pick(shade, p.base, p.weak, p.strong)
+                }
+                PaletteColor::Danger(shade) => {
+                    let p = &palette.danger;
+                    pick(shade, p.base, p.weak, p.strong)
+                }
+                PaletteColor::Text => theme.palette().text,
+            },
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for ColorRef {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = String::deserialize(deserializer)?;
@@ -1334,19 +1384,6 @@ impl Border {
     }
 }
 
-/// How a module's elements are wrapped in islands.
-#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum Grouping {
-    /// One island around all of the module's elements.
-    #[default]
-    Combined,
-    /// One island per element.
-    Individual,
-    /// No island.
-    None,
-}
-
 #[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum FontSizeScale {
@@ -1366,7 +1403,6 @@ pub struct ModuleDefaultStyle {
     pub padding: Option<BarPadding>,
     pub border: Option<Border>,
     pub background: Option<ColorRef>,
-    pub grouping: Option<Grouping>,
 }
 
 /// `appearance.modules.group`: the style of the islands of module groups.
@@ -1386,7 +1422,6 @@ pub struct ModuleStyle {
     pub padding: Option<BarPadding>,
     pub border: Option<Border>,
     pub background: Option<ColorRef>,
-    pub grouping: Option<Grouping>,
     pub spacing: Option<MarginSize>,
     pub text_color: Option<ColorRef>,
     pub font_size: Option<FontSizeScale>,
@@ -2388,7 +2423,6 @@ mod tests {
             padding = "none"
             border = { width = 1, color = "background.strong" }
             background = "background"
-            grouping = "combined"
 
             [appearance.modules.group]
             radius = "md"
@@ -2398,7 +2432,6 @@ mod tests {
             spacing = "xs"
 
             [appearance.modules.system_info]
-            grouping = "individual"
             spacing = "xs"
             radius = "md"
             border = { width = 1, color = "#414868" }
@@ -2415,7 +2448,6 @@ mod tests {
         .appearance
         .modules;
 
-        assert_eq!(modules.default.grouping, Some(Grouping::Combined));
         assert_eq!(
             modules.default.background,
             Some(ColorRef::Palette(PaletteColor::Background(None)))
@@ -2430,7 +2462,6 @@ mod tests {
         );
 
         let system_info = modules.overrides[&ModuleName::SystemInfo];
-        assert_eq!(system_info.grouping, Some(Grouping::Individual));
         assert_eq!(
             system_info.border.unwrap().color,
             ColorRef::Hex(HexColor::rgb(0x41, 0x48, 0x68))
@@ -2518,8 +2549,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unknown_grouping_and_font_size() {
-        assert!(parse("[appearance.modules.default]\ngrouping = \"all\"").is_err());
+    fn rejects_unknown_font_size() {
         assert!(parse("[appearance.modules.tray]\nfont_size = \"huge\"").is_err());
     }
 
@@ -2574,9 +2604,6 @@ mod tests {
             [appearance.modules.default]
             font_size = "sm"
             spacing = "xs"
-
-            [appearance.modules.group]
-            grouping = "none"
             "#,
         );
         assert_eq!(
@@ -2584,7 +2611,6 @@ mod tests {
             [
                 "appearance.modules.default.font_size",
                 "appearance.modules.default.spacing",
-                "appearance.modules.group.grouping",
             ]
         );
     }
