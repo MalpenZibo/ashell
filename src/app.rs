@@ -1,10 +1,5 @@
 use crate::{
-    HEIGHT,
-    components::{Centerbox, menu::MenuType},
-    config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
-    get_log_spec,
-    ipc::IpcCommand,
-    modules::{
+    HEIGHT, components::{Centerbox, menu::MenuType}, config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat}, get_log_spec, ipc::IpcCommand, modules::{
         self,
         custom_module::Custom,
         keyboard_layout::KeyboardLayout,
@@ -19,11 +14,7 @@ use crate::{
         updates::Updates,
         window_title::WindowTitle,
         workspaces::Workspaces,
-    },
-    osd::{self, Osd},
-    outputs::{HasOutput, Outputs},
-    services::{ReadOnlyService, xdg_icons},
-    theme::{AshellTheme, BarLayout, backdrop_color, darken_color, init_theme, use_theme},
+    }, osd::{self, Osd}, outputs::{HasOutput, Outputs}, services::{ReadOnlyService, xdg_icons}, theme::{AshellTheme, BarLayout, Paint, backdrop_color, darken_color, init_theme, use_theme},
 };
 use ashell_i18n::{Localizer, init_localizer};
 use flexi_logger::LoggerHandle;
@@ -707,7 +698,7 @@ impl App {
                     border: iced::Border {
                         radius: bar_radius,
                         width: bar_border.width,
-                        color: bar_border.color.color(t),
+                        color: Paint::surface(t, bar_border.color.color(t)).color(),
                     },
                     ..Default::default()
                 };

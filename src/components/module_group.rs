@@ -33,7 +33,7 @@ pub fn module_group<'a, Msg: 'static>(
                 .border
                 .map_or(Border::default(), |border| Border {
                     width: border.width,
-                    color: border.color.color(iced_theme),
+                    color: Paint::surface(iced_theme, border.color.color(iced_theme)).color(),
                     ..Border::default()
                 })
         },
