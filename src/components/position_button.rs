@@ -2,7 +2,7 @@ use crate::components::motion::{EASE_OUT, INSTANT};
 use iced::{
     Animation, Background, Color, Length, Padding, Point, Rectangle, Size, Vector,
     core::{
-        Clipboard, Layout, Shell, Widget, event, keyboard, layout, mouse, overlay, renderer, touch,
+        Clipboard, Layout, Shell, Widget, event, layout, mouse, overlay, renderer, touch,
         widget::{Operation, Tree, tree},
     },
     widget::button::{Catalog, Status, Style, StyleFn},
@@ -14,7 +14,6 @@ type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Th
 #[derive(Debug, Clone, Copy)]
 pub struct ButtonUIRef {
     pub position: Point,
-    pub viewport: (f32, f32),
 }
 
 /// Which mouse button a [`PressHandler`] is bound to.
@@ -69,7 +68,6 @@ where
     width: Length,
     height: Length,
     padding: Padding,
-    clip: bool,
     class: Theme::Class<'a>,
 }
 
@@ -92,24 +90,23 @@ where
             width: size.width.fluid(),
             height: size.height.fluid(),
             padding: DEFAULT_PADDING,
-            clip: false,
             class: Theme::default(),
         }
     }
 
-    /// Sets the width of the [`Button`].
+    /// Sets the width of the [`PositionButton`].
     pub fn width(mut self, width: impl Into<Length>) -> Self {
         self.width = width.into();
         self
     }
 
-    /// Sets the height of the [`Button`].
+    /// Sets the height of the [`PositionButton`].
     pub fn height(mut self, height: impl Into<Length>) -> Self {
         self.height = height.into();
         self
     }
 
-    /// Sets the [`Padding`] of the [`Button`].
+    /// Sets the [`Padding`] of the [`PositionButton`].
     pub fn padding<P: Into<Padding>>(mut self, padding: P) -> Self {
         self.padding = padding.into();
         self
@@ -141,14 +138,7 @@ where
         self
     }
 
-    /// Sets whether the contents of the [`Button`] should be clipped on
-    /// overflow.
-    pub fn clip(mut self, clip: bool) -> Self {
-        self.clip = clip;
-        self
-    }
-
-    /// Sets the style of the [`Button`].
+    /// Sets the style of the [`PositionButton`].
     #[must_use]
     pub fn style(mut self, style: impl Fn(&Theme, Status) -> Style + 'a) -> Self
     where
@@ -161,7 +151,6 @@ where
     fn publish_handler(
         handler: &PressHandler<'a, Message>,
         layout: Layout<'_>,
-        viewport: &Rectangle,
         shell: &mut Shell<'_, Message>,
     ) where
         Message: Clone,
@@ -176,7 +165,6 @@ where
                         layout.bounds().width / 2. + layout.position().x,
                         layout.bounds().height / 2. + layout.position().y,
                     ),
-                    viewport: (viewport.width, viewport.height),
                 };
                 shell.publish(handler(ui_data));
             }
@@ -188,7 +176,6 @@ where
 struct State {
     is_hovered: bool,
     pressed: [bool; 3],
-    is_focused: bool,
 }
 
 /// `0.0` at rest to `1.0` hovered, so the highlight follows the pointer instead
@@ -350,12 +337,12 @@ where
         if let Some(button) = released_button(event) {
             let index = button.index();
             if let Some(handler) = self.handlers[index].as_ref() {
-                let state = tree.state.downcast_mut::<State>();
+                let (state, _) = tree.state.downcast_mut::<(State, Highlight)>();
                 if state.pressed[index] {
                     state.pressed[index] = false;
                     shell.request_redraw();
                     if is_over {
-                        Self::publish_handler(handler, layout, viewport, shell);
+                        Self::publish_handler(handler, layout, shell);
                     }
                     shell.capture_event();
                     return;
@@ -379,48 +366,35 @@ where
                     };
 
                     if let Some(handler) = target {
-                        Self::publish_handler(handler, layout, viewport, shell);
-                        shell.capture_event();
-                        return;
-                    }
-                }
-            }
-            event::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
-                if let Some(handler) = self.handlers[MouseButton::Left.index()].as_ref() {
-                    let state = tree.state.downcast_mut::<State>();
-                    if state.is_focused
-                        && matches!(key, keyboard::Key::Named(keyboard::key::Named::Enter))
-                    {
-                        state.pressed[MouseButton::Left.index()] = true;
-                        Self::publish_handler(handler, layout, viewport, shell);
+                        Self::publish_handler(handler, layout, shell);
                         shell.capture_event();
                         return;
                     }
                 }
             }
             event::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                let state = tree.state.downcast_mut::<State>();
+                let (state, _) = tree.state.downcast_mut::<(State, Highlight)>();
                 if is_over {
                     if !state.is_hovered
                         && let Some(on_hover) = self.on_hover.as_ref()
                     {
                         state.is_hovered = true;
-                        Self::publish_handler(on_hover, layout, viewport, shell);
+                        Self::publish_handler(on_hover, layout, shell);
                     }
                 } else if state.is_hovered {
                     state.is_hovered = false;
                     if let Some(on_unhover) = self.on_unhover.as_ref() {
-                        Self::publish_handler(on_unhover, layout, viewport, shell);
+                        Self::publish_handler(on_unhover, layout, shell);
                     }
                 }
             }
             event::Event::Touch(touch::Event::FingerLost { .. })
             | event::Event::Mouse(mouse::Event::CursorLeft) => {
-                let state = tree.state.downcast_mut::<State>();
+                let (state, _) = tree.state.downcast_mut::<(State, Highlight)>();
                 if state.is_hovered {
                     state.is_hovered = false;
                     if let Some(on_unhover) = self.on_unhover.as_ref() {
-                        Self::publish_handler(on_unhover, layout, viewport, shell);
+                        Self::publish_handler(on_unhover, layout, shell);
                     }
                 }
                 state.pressed = [false; 3];
@@ -500,12 +474,6 @@ where
             );
         }
 
-        let viewport = if self.clip {
-            bounds.intersection(viewport).unwrap_or(*viewport)
-        } else {
-            *viewport
-        };
-
         self.content.as_widget().draw(
             &tree.children[0],
             renderer,
@@ -515,22 +483,28 @@ where
             },
             content_layout,
             cursor,
-            &viewport,
+            viewport,
         );
     }
 
     fn mouse_interaction(
         &self,
-        _tree: &Tree,
+        tree: &Tree,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
-        _viewport: &Rectangle,
-        _renderer: &Renderer,
+        viewport: &Rectangle,
+        renderer: &Renderer,
     ) -> mouse::Interaction {
-        let is_mouse_over = cursor.is_over(layout.bounds());
-
-        if is_mouse_over && self.handlers.iter().any(Option::is_some) {
-            mouse::Interaction::Pointer
+        // Only propagate the content's interaction, so text fields inside the
+        // button still get an I-beam. The bar itself keeps the default arrow.
+        if let Some(content_layout) = layout.children().next() {
+            self.content.as_widget().mouse_interaction(
+                &tree.children[0],
+                content_layout,
+                cursor,
+                viewport,
+                renderer,
+            )
         } else {
             mouse::Interaction::default()
         }
@@ -577,7 +551,7 @@ where
     PositionButton::new(content)
 }
 
-/// The default [`Padding`] of a [`Button`].
+/// The default [`Padding`] of a [`PositionButton`].
 pub(crate) const DEFAULT_PADDING: Padding = Padding {
     top: 5.0,
     bottom: 5.0,

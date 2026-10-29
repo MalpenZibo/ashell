@@ -268,8 +268,7 @@ where
         );
 
         // While opening, the content travels a few pixels into place behind the
-        // clip. `draw` shifts its mask by the same amount, so the visible edge
-        // stays pinned to the bar.
+        // clip.
         let progress_value = state.progress(self.open, now);
         let slide = self.reveal_offset(progress_value);
         if slide.abs() > 0.01 {
@@ -338,8 +337,8 @@ where
             | event::Event::Touch(touch::Event::FingerLifted { .. }) = event
         {
             let bounds = layout.children().next().unwrap().bounds();
-            let cursor_over_scrollable = cursor.is_over(bounds);
-            if !cursor_over_scrollable {
+            let cursor_over_content = cursor.is_over(bounds);
+            if !cursor_over_content {
                 shell.publish(on_click_outside.clone());
             }
         }
@@ -347,13 +346,28 @@ where
 
     fn mouse_interaction(
         &self,
-        _: &Tree,
-        _: Layout<'_>,
-        _: mouse::Cursor,
-        _: &Rectangle,
-        _: &Renderer,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &Renderer,
     ) -> mouse::Interaction {
-        mouse::Interaction::default()
+        // This wrapper is the root of the whole menu layer (backdrop included),
+        // so it has to delegate to the content: text fields inside a menu keep
+        // their I-beam cursor. While the menu is closing it is no longer
+        // interactive, so don't forward anything from a surface that is about
+        // to be destroyed.
+        if !self.open {
+            return mouse::Interaction::default();
+        }
+
+        self.content.as_widget().mouse_interaction(
+            &tree.children[0],
+            layout.children().next().unwrap(),
+            cursor,
+            viewport,
+            renderer,
+        )
     }
 
     fn draw(
@@ -392,12 +406,11 @@ where
         let content_layout = layout.children().next().unwrap();
         let content_bounds = content_layout.bounds();
 
-        // The content is drawn at full size and revealed by a growing clip
-        // anchored to the bar, so the menu rolls out from there rather than
-        // sliding in as a block.
+        // The content is drawn at full size and revealed by a growing clip,
+        // so the menu rolls out rather than sliding in as a block.
         let full_height = content_bounds.height;
         let visible_height = full_height * progress;
-        let edge = content_bounds.y + self.reveal_offset(1.0);
+        let edge = content_bounds.y;
         let clip_bounds = if self.slide_from_top() {
             Rectangle {
                 x: content_bounds.x,

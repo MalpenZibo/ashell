@@ -385,7 +385,6 @@ mod tests {
     fn ui_ref() -> ButtonUIRef {
         ButtonUIRef {
             position: iced::Point::ORIGIN,
-            viewport: (1920.0, 1080.0),
         }
     }
 
