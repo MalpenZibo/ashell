@@ -65,6 +65,7 @@ depends = [
 [dependencies]
 ashell-i18n = { path = "crates/ashell-i18n" }
 ashell-services = { path = "crates/ashell-services", features = [
+  "audio",
   "bluetooth",
   "brightness",
   "idle_inhibitor",
