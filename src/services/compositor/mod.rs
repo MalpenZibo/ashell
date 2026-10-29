@@ -117,8 +117,8 @@ impl ReadOnlyService for CompositorService {
             channel(10, async move |mut output| {
                 let mut rx = broadcaster_subscribe().await;
 
-                // Send an empty Init with the correct backend to new subscribers
-                // - assumes detect_backend is cheap
+                // Send an empty Init with the correct backend to new subscribers.
+                // `detect_backend` is cached, so this is a cheap lookup.
                 if let Some(backend) = detect_backend() {
                     let empty_init = CompositorService {
                         state: CompositorState::default(),

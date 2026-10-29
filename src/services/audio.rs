@@ -95,7 +95,7 @@ impl ChannelVolumesExt for ChannelVolumes {
     }
 
     fn scaled(&self, max: u32) -> Option<ChannelVolumes> {
-        let mut cv = *self; // Implicit copy
+        let mut cv = *self;
         if cv.scale(Volume(max)).is_some() {
             Some(cv)
         } else {
@@ -227,7 +227,7 @@ impl AudioService {
         }
     }
 
-    pub fn update_source_volume(&mut self) {
+    fn update_source_volume(&mut self) {
         let volume = self
             .active_source()
             .map(|source| {
@@ -241,7 +241,7 @@ impl AudioService {
         self.source_slider.receive(volume);
     }
 
-    pub fn update_sink_volume(&mut self) {
+    fn update_sink_volume(&mut self) {
         let volume = self
             .active_sink()
             .map(|sink| {
@@ -651,7 +651,6 @@ impl PulseAudioServer {
                             break;
                         }
 
-                        // Process any pending commands
                         while let Ok(cmd) = to_server_rx.try_recv() {
                             match cmd {
                                 PulseAudioCommand::SinkMute(name, mute) => {
@@ -766,7 +765,7 @@ impl PulseAudioServer {
     ) {
         match info {
             ListResult::Item(data) => {
-                trace!("Receved source data: {data:?}");
+                trace!("Received source data: {data:?}");
 
                 if data
                     .name

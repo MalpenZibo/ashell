@@ -274,7 +274,6 @@ impl Menu {
     }
 }
 
-#[allow(unused)]
 pub enum MenuSize {
     Small,
     Medium,
@@ -306,7 +305,6 @@ impl From<MenuSize> for Pixels {
 }
 
 impl App {
-    #[allow(clippy::too_many_arguments)]
     pub fn menu_wrapper<'a>(
         &'a self,
         id: SurfaceId,

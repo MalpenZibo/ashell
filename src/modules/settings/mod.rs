@@ -28,7 +28,7 @@ use crate::{
 use ashell_i18n::t;
 use iced::{
     Element, Length, Subscription, SurfaceId, Task, Theme,
-    widget::{Column, Row, Space, container, image, row, space},
+    widget::{Column, Row, Space, container, image, row, space, text},
 };
 
 pub(crate) mod audio;
@@ -462,7 +462,7 @@ impl Settings {
                 if let Some(button) = self.custom_buttons.iter().find(|b| b.name == name) {
                     crate::utils::launcher::execute_command(&button.command);
 
-                    let current_status = self.custom_buttons_status.get(&name).and_then(|v| *v);
+                    let current_status = self.custom_buttons_status.get(&name).copied().flatten();
                     self.custom_buttons_status
                         .insert(name, current_status.map(|s| !s));
                 }
@@ -989,7 +989,7 @@ impl Settings {
 
     pub fn tooltip_view<'a>(&'a self, menu_type: &MenuType) -> Element<'a, Message> {
         let (space, font_size) = use_theme(|t| (t.space, t.font_size));
-        let fallback = |label: String| -> Element<'a, Message> { iced::widget::text(label).into() };
+        let fallback = |label: String| -> Element<'a, Message> { text(label).into() };
         match menu_type {
             MenuType::AudioTooltip => {
                 let sink = self.audio.active_sink_label();
@@ -999,16 +999,12 @@ impl Settings {
                 }
                 let mut column = Column::new().spacing(space.xs);
                 if let Some(sink) = sink {
-                    column = column.push(
-                        row![StaticIcon::Speaker3.to_text(), iced::widget::text(sink)]
-                            .spacing(space.xs),
-                    );
+                    column = column
+                        .push(row![StaticIcon::Speaker3.to_text(), text(sink)].spacing(space.xs));
                 }
                 if let Some(source) = source {
-                    column = column.push(
-                        row![StaticIcon::Mic1.to_text(), iced::widget::text(source)]
-                            .spacing(space.xs),
-                    );
+                    column = column
+                        .push(row![StaticIcon::Mic1.to_text(), text(source)].spacing(space.xs));
                 }
                 column.into()
             }
@@ -1025,7 +1021,7 @@ impl Settings {
                                 .spacing(space.xs)
                                 .into()
                             } else {
-                                row![iced::widget::text(name)].spacing(space.xs).into()
+                                row![text(name)].spacing(space.xs).into()
                             }
                         }))
                         .spacing(space.xs)
@@ -1037,14 +1033,13 @@ impl Settings {
             MenuType::WifiTooltip => {
                 if let Some(label) = self.network.connected_wifi_label() {
                     let band = self.network.connected_wifi_band();
-                    let mut r = row![StaticIcon::Wifi4.to_text(), iced::widget::text(label)]
-                        .spacing(space.xs);
+                    let mut r = row![StaticIcon::Wifi4.to_text(), text(label)].spacing(space.xs);
                     if let Some(b) = band {
-                        r = r.push(iced::widget::text(b).size(font_size.xs).style(
-                            |theme: &Theme| iced::widget::text::Style {
+                        r = r.push(text(b).size(font_size.xs).style(|theme: &Theme| {
+                            iced::widget::text::Style {
                                 color: Some(theme.palette().primary),
-                            },
-                        ));
+                            }
+                        }));
                     }
                     r.into()
                 } else {
@@ -1053,7 +1048,7 @@ impl Settings {
             }
             MenuType::VpnTooltip => {
                 if let Some(label) = self.network.vpn_tooltip_label() {
-                    row![StaticIcon::Vpn.to_text(), iced::widget::text(label)]
+                    row![StaticIcon::Vpn.to_text(), text(label)]
                         .spacing(space.xs)
                         .into()
                 } else {
@@ -1070,16 +1065,16 @@ impl Settings {
                 {
                     let mut r = Row::new()
                         .push(StaticIcon::Battery4.to_text())
-                        .push(iced::widget::text(format!("{capacity}%")))
-                        .push(iced::widget::text(status_label))
+                        .push(text(format!("{capacity}%")))
+                        .push(text(status_label))
                         .spacing(space.xs);
                     if !details.is_empty() {
-                        r = r.push(iced::widget::text(details));
+                        r = r.push(text(details));
                     }
                     Column::new()
                         .push(r)
                         .extend(health_lines.into_iter().map(|(icon_kind, line)| {
-                            row![icon_kind.to_text(), iced::widget::text(line)]
+                            row![icon_kind.to_text(), text(line)]
                                 .spacing(space.xs)
                                 .into()
                         }))
@@ -1095,8 +1090,8 @@ impl Settings {
                 {
                     row![
                         device_icon.to_text(),
-                        iced::widget::text(name),
-                        iced::widget::text(format!("{capacity}%"))
+                        text(name),
+                        text(format!("{capacity}%"))
                     ]
                     .spacing(space.xs)
                     .into()

@@ -303,7 +303,7 @@ fn get_system_info(
                 let transmitted = data.transmitted();
 
                 (
-                    first_ip.or(ip),
+                    ip,
                     total_received + received,
                     total_transmitted + transmitted,
                 )
@@ -527,9 +527,6 @@ impl SystemInfo {
             return container(row!(icon(info_icon), text(label)).spacing(spacing)).into();
         };
 
-        // 0.0 = normal, 1.0 = warning, 2.0 = danger. Animating through the
-        // warning color on normal→danger transitions mirrors the discrete
-        // state machine users expect.
         let target: f32 = if value >= alert_threshold {
             2.0
         } else if value > warn_threshold {

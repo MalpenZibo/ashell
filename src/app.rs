@@ -213,8 +213,7 @@ impl App {
             .keyboard_layout
             .update(modules::keyboard_layout::Message::ConfigReloaded(
                 config.keyboard_layout,
-            ))
-            .map(Message::KeyboardLayout);
+            ));
 
         self.tempo
             .update(modules::tempo::Message::ConfigReloaded(config.tempo));
@@ -259,7 +258,7 @@ impl App {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::ConfigChanged(config) => {
-                info!("New config: {config:?}");
+                debug!("New config: {config:?}");
                 let mut tasks = Vec::new();
                 info!(
                     "Current outputs: {:?}, new outputs: {:?}",
@@ -423,9 +422,10 @@ impl App {
                         .collect::<Vec<_>>(),
                 ),
             },
-            Message::Tempo(message) => match self.tempo.update(message) {
-                modules::tempo::Action::None => Task::none(),
-            },
+            Message::Tempo(message) => {
+                self.tempo.update(message);
+                Task::none()
+            }
             Message::Privacy(msg) => {
                 self.privacy.update(msg);
                 Task::none()

@@ -23,24 +23,24 @@ use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum Displayed {
+enum Displayed {
     Active,
     Visible,
     Hidden,
 }
 
 #[derive(Debug, Clone)]
-pub struct UiWorkspace {
-    pub id: i32,
-    pub index: i32,
-    pub name: String,
-    pub monitor_id: Option<i128>,
-    pub monitor: String,
-    pub displayed: Displayed,
-    pub windows: u16,
-    pub has_urgent: bool,
-    pub is_special: bool,
-    pub icons: Option<Vec<XdgIcon>>,
+struct UiWorkspace {
+    id: i32,
+    index: i32,
+    name: String,
+    monitor_id: Option<i128>,
+    monitor: String,
+    displayed: Displayed,
+    windows: u16,
+    has_urgent: bool,
+    is_special: bool,
+    icons: Option<Vec<XdgIcon>>,
 }
 
 impl UiWorkspace {
@@ -62,10 +62,10 @@ impl UiWorkspace {
 
 #[derive(Debug, Clone)]
 struct VirtualDesktop {
-    pub active: bool,
-    pub windows: u16,
-    pub has_urgent: bool,
-    pub window_classes: Vec<String>,
+    active: bool,
+    windows: u16,
+    has_urgent: bool,
+    window_classes: Vec<String>,
 }
 
 fn resolve_workspace_icons(window_classes: &[String]) -> Vec<XdgIcon> {
@@ -229,12 +229,7 @@ fn calculate_ui_workspaces(
         for w in normal {
             let display_name = if w.id > 0 {
                 let idx = (w.id - 1) as usize;
-                config
-                    .workspace_names
-                    .get(idx)
-                    .cloned()
-                    .or(Some(w.name))
-                    .unwrap_or_else(|| w.id.to_string())
+                config.workspace_names.get(idx).cloned().unwrap_or(w.name)
             } else {
                 w.name
             };
@@ -280,16 +275,12 @@ fn calculate_ui_workspaces(
             .collect();
 
         for index in missing_indices {
-            let display_name = if index > 0 {
-                let name_idx = (index - 1) as usize;
-                config
-                    .workspace_names
-                    .get(name_idx)
-                    .cloned()
-                    .unwrap_or_else(|| index.to_string())
-            } else {
-                index.to_string()
-            };
+            let name_idx = (index - 1) as usize;
+            let display_name = config
+                .workspace_names
+                .get(name_idx)
+                .cloned()
+                .unwrap_or_else(|| index.to_string());
 
             result.push(UiWorkspace {
                 id: index,

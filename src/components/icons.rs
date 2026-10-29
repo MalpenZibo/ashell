@@ -1,5 +1,5 @@
 use crate::{
-    components::button::{ButtonHierarchy, ButtonKind, ButtonSize, OnPress},
+    components::button::{ButtonHierarchy, ButtonKind, ButtonSize},
     theme::use_theme,
 };
 use iced::{
@@ -18,7 +18,6 @@ pub trait Icon {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[allow(dead_code)]
 pub enum StaticIcon {
     #[default]
     None,
@@ -35,7 +34,6 @@ pub enum StaticIcon {
     Speaker2,
     Speaker3,
     SpeakerOverdrive,
-    Headphones0,
     Headphones1,
     Headset,
     Mic0,
@@ -158,7 +156,6 @@ impl StaticIcon {
             StaticIcon::Speaker2 => "\u{f0580}",
             StaticIcon::Speaker3 => "\u{f057e}",
             StaticIcon::SpeakerOverdrive => "\u{f075d}",
-            StaticIcon::Headphones0 => "\u{f07ce}",
             StaticIcon::Headphones1 => "\u{f02cb}",
             StaticIcon::Headset => "\u{f02ce}",
             StaticIcon::Mic0 => "\u{f036d}",
@@ -366,18 +363,11 @@ impl IconKind {
 
 impl Icon for IconKind {
     fn to_text<'a>(self) -> Text<'a> {
-        // Call the inherent method via explicit disambiguation
-        match self {
-            IconKind::Static(s) => s.to_text(),
-            IconKind::Dynamic(s) => DynamicIcon(s).to_text(),
-        }
+        IconKind::to_text(&self)
     }
 
     fn to_text_mono<'a>(self) -> Text<'a> {
-        match self {
-            IconKind::Static(s) => s.to_text_mono(),
-            IconKind::Dynamic(s) => DynamicIcon(s).to_text_mono(),
-        }
+        IconKind::to_text_mono(&self)
     }
 }
 
@@ -385,7 +375,7 @@ pub fn icon<'a>(icon: impl Icon) -> Text<'a> {
     icon.to_text()
 }
 
-pub fn icon_mono<'a>(icon: impl Icon) -> Text<'a> {
+pub(crate) fn icon_mono<'a>(icon: impl Icon) -> Text<'a> {
     icon.to_text_mono()
 }
 
@@ -393,7 +383,7 @@ pub type StyleFn<'a, Theme> = Box<dyn for<'b> Fn(&'b Theme, Status) -> Style + '
 
 pub struct IconButton<'a, I: Icon, Message> {
     icon: I,
-    on_press: Option<OnPress<'a, Message>>,
+    on_press: Option<Message>,
     kind: ButtonKind,
     hierarchy: ButtonHierarchy,
     style_override: Option<StyleFn<'a, Theme>>,
@@ -403,17 +393,12 @@ pub struct IconButton<'a, I: Icon, Message> {
 
 impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
     pub fn on_press(mut self, on_press: Message) -> Self {
-        self.on_press = Some(OnPress::Direct(on_press));
-        self
-    }
-
-    pub fn on_press_with(mut self, on_press: impl Fn() -> Message + 'a) -> Self {
-        self.on_press = Some(OnPress::Closure(Box::new(on_press)));
+        self.on_press = Some(on_press);
         self
     }
 
     pub fn on_press_maybe(mut self, on_press: Option<Message>) -> Self {
-        self.on_press = on_press.map(OnPress::Direct);
+        self.on_press = on_press;
         self
     }
 
@@ -433,12 +418,10 @@ impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
     }
 
     pub fn color(self, color: impl Into<Color>) -> Self {
-        self.color_maybe(Some(color))
+        self.color_maybe(Some(color.into()))
     }
 
-    pub fn color_maybe(mut self, color: Option<impl Into<Color>>) -> Self {
-        let color = color.map(Into::into);
-
+    pub fn color_maybe(mut self, color: Option<Color>) -> Self {
         self.color = color;
 
         self
@@ -489,10 +472,10 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
         .padding(0)
         .style(style);
 
-        let btn = match value.on_press {
-            Some(OnPress::Direct(message)) => btn.on_press(message),
-            Some(OnPress::Closure(closure)) => btn.on_press_with(closure),
-            None => btn,
+        let btn = if let Some(message) = value.on_press {
+            btn.on_press(message)
+        } else {
+            btn
         };
 
         btn.into()

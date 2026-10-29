@@ -15,7 +15,7 @@ pub enum Message {
 
 #[derive(Debug, Default, Clone)]
 pub struct Privacy {
-    pub service: Option<PrivacyService>,
+    service: Option<PrivacyService>,
 }
 
 impl Privacy {

@@ -76,9 +76,7 @@ fn event_loop(tx: broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<
 
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     match cmd {
-        CompositorCommand::FocusWorkspace(id) => {
-            activate_workspace(|handles| handles.iter().find(|h| h.numeric_id == id).cloned())
-        }
+        CompositorCommand::FocusWorkspace(id) => activate_workspace(id),
         other => Err(anyhow!(
             "{other:?} is not supported on the generic Wayland backend"
         )),
@@ -105,14 +103,17 @@ fn command_slot() -> &'static Mutex<Option<CommandState>> {
 }
 
 // `ext-workspace` stages requests, so `activate` is followed by `commit` + flush.
-fn activate_workspace(
-    pick: impl FnOnce(&[WorkspaceHandle]) -> Option<WorkspaceHandle>,
-) -> Result<()> {
+fn activate_workspace(id: i32) -> Result<()> {
     let guard = command_slot().lock().unwrap();
     let cmd = guard
         .as_ref()
         .ok_or_else(|| anyhow!("generic workspace control is unavailable on this compositor"))?;
-    let target = pick(&cmd.handles).ok_or_else(|| anyhow!("workspace not found"))?;
+    let target = cmd
+        .handles
+        .iter()
+        .find(|h| h.numeric_id == id)
+        .cloned()
+        .ok_or_else(|| anyhow!("workspace not found"))?;
     target.handle.activate();
     cmd.manager.commit();
     cmd.conn

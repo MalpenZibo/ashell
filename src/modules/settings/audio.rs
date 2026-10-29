@@ -103,15 +103,15 @@ pub struct AudioSettings {
     pending_source_switch: Option<(String, Instant)>,
 }
 
-pub struct SubmenuEntry {
-    pub name: String,
-    pub icon: StaticIcon,
-    pub active: bool,
-    pub msg: Message,
+struct SubmenuEntry {
+    name: String,
+    icon: StaticIcon,
+    active: bool,
+    msg: Message,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum SliderType {
+enum SliderType {
     Sink,
     Source,
 }

@@ -2000,7 +2000,7 @@ where
         .and_then(|value| (!value.trim().is_empty()).then_some(value)))
 }
 
-/// Newtype wrapper around `Regex`to be deserializable and usable as a hashmap key
+/// Newtype wrapper around `Regex` to make it deserializable and usable as a hashmap key
 #[serde_as]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(transparent)]
@@ -2066,7 +2066,6 @@ pub struct CustomModuleDef {
     /// command to run on scroll down
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub on_scroll_down: Option<String>,
-    // .. appearance etc
 }
 
 #[derive(Deserialize, Clone, Debug)]

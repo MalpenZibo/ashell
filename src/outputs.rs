@@ -315,10 +315,9 @@ impl Outputs {
 
     /// Strict canonical-name equality. Called by the workspace
     /// visibility filter with `w.monitor` (a compositor-canonical
-    /// output name), where the substring fuzz used by `name_in_config`
-    /// would re-introduce the very false-match bug this PR fixed
-    /// (e.g. an event for `DP-1` matching an output whose description
-    /// contains `"DP-1"` as a substring).
+    /// output name), where the substring matching used by
+    /// `name_in_config` would false-match (e.g. an event for `DP-1`
+    /// matching an output whose description contains `"DP-1"`).
     pub fn has_name(&self, name: &str) -> bool {
         self.entries
             .iter()
@@ -461,7 +460,7 @@ impl Outputs {
                     .iter()
                     .any(|(_, shell_info, _)| shell_info.is_some())
                 {
-                    Task::batch(vec![destroy_task])
+                    destroy_task
                 } else {
                     debug!("No outputs left, creating a fallback layer surface");
 

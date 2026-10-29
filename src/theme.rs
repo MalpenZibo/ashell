@@ -30,7 +30,6 @@ pub fn use_theme<R, F: FnOnce(&AshellTheme) -> R>(f: F) -> R {
     THEME.with_borrow(f)
 }
 
-#[allow(unused)]
 #[derive(Debug, Copy, Clone)]
 pub struct Space {
     pub xxs: f32,
@@ -71,7 +70,6 @@ impl Space {
     }
 }
 
-#[allow(unused)]
 #[derive(Debug, Clone, Copy)]
 pub struct Radius {
     pub sm: f32,
@@ -143,10 +141,8 @@ impl BarLayout {
     }
 }
 
-#[allow(unused)]
 #[derive(Debug, Copy, Clone)]
 pub struct FontSize {
-    pub xxs: f32,
     pub xs: f32,
     pub sm: f32,
     pub md: f32,
@@ -158,7 +154,6 @@ pub struct FontSize {
 impl Default for FontSize {
     fn default() -> Self {
         Self {
-            xxs: 8.0,
             xs: 10.0,
             sm: 12.0,
             md: 16.0,

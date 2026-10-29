@@ -19,7 +19,7 @@ use iced::Subscription;
 use iced::futures::StreamExt;
 
 /// Maximum bytes to read from a client connection.
-const MAX_REQUEST_LEN: u64 = 4096;
+const MAX_IPC_LINE_LEN: u64 = 4096;
 /// How long the server waits for a connected client to send its command.
 const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
@@ -186,7 +186,7 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
     stream.shutdown(std::net::Shutdown::Write)?;
 
     let mut response = String::new();
-    BufReader::new((&stream).take(MAX_REQUEST_LEN))
+    BufReader::new((&stream).take(MAX_IPC_LINE_LEN))
         .read_line(&mut response)
         .context("read response")?;
     let response = response.trim_end();
@@ -254,7 +254,7 @@ fn create_listener() -> std::result::Result<UnixListener, ListenerError> {
 /// Read a single command from an accepted client connection.
 fn read_request(stream: &UnixStream) -> Result<IpcCommand> {
     let mut line = String::new();
-    BufReader::new(stream.take(MAX_REQUEST_LEN))
+    BufReader::new(stream.take(MAX_IPC_LINE_LEN))
         .read_line(&mut line)
         .context("read IPC command")?;
     line.trim().parse()

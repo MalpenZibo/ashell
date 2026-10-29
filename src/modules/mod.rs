@@ -42,7 +42,6 @@ impl App {
 
             for module_def in modules_def {
                 row = row.push(match module_def {
-                    // life parsing of string to module
                     ModuleDef::Single(module) => self.single_module_wrapper(id, module),
                     ModuleDef::Group(group) => self.group_module_wrapper(id, group),
                 });

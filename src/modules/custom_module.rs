@@ -61,7 +61,6 @@ pub enum Action {
     CloseAllTooltipMenus,
 }
 
-// Define a struct for the canvas program
 #[derive(Debug, Clone, Copy, Default)]
 struct AlertIndicator;
 
@@ -78,8 +77,8 @@ impl<Message> Program<Message> for AlertIndicator {
     ) -> Vec<Geometry> {
         let geometry = cache.draw(renderer, bounds.size(), |frame| {
             let center = frame.center();
-            // Use a smaller radius so the circle doesn't touch the canvas edges
-            let radius = 2.0; // Creates a 4px diameter circle
+            // 4 px diameter, small enough not to touch the canvas edges.
+            let radius = 2.0;
             let circle = Path::circle(center, radius);
             frame.fill(&circle, theme.palette().danger);
         });
@@ -194,12 +193,11 @@ impl Custom {
                     for (re, icon_str) in icons_map {
                         if re.is_match(&self.data.alt) {
                             icon_element = icon(DynamicIcon(icon_str.clone()));
-                            break; // Use the first match
+                            break;
                         }
                     }
                 }
 
-                // Wrap the icon in a container to apply padding
                 let padded_icon_container = container(icon_element).padding([0, 1]);
 
                 let show_alert = self
@@ -210,22 +208,22 @@ impl Custom {
 
                 let icon_with_alert = if show_alert {
                     let alert_canvas = canvas(AlertIndicator)
-                        .width(Length::Fixed(space.xs)) // Size of the dot
+                        .width(Length::Fixed(space.xs))
                         .height(Length::Fixed(space.xs));
 
-                    // Container to position the dot at the top-right
+                    // Overlay the alert dot in the top-right corner.
                     let alert_indicator_container = container(alert_canvas)
-                        .width(Length::Fill) // Take full width of the stack item
-                        .height(Length::Fill) // Take full height
+                        .width(Length::Fill)
+                        .height(Length::Fill)
                         .align_x(iced::alignment::Horizontal::Right)
                         .align_y(iced::alignment::Vertical::Top);
 
                     Stack::new()
-                        .push(padded_icon_container) // Padded icon is the base layer
-                        .push(alert_indicator_container) // Dot container on top
+                        .push(padded_icon_container)
+                        .push(alert_indicator_container)
                         .into()
                 } else {
-                    padded_icon_container.into() // No alert, just the padded icon
+                    padded_icon_container.into()
                 };
 
                 let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {

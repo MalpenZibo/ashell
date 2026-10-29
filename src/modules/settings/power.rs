@@ -1,5 +1,3 @@
-use std::convert;
-
 use crate::{
     components::{
         ButtonKind, IconPosition, divider, format_indicator,
@@ -246,11 +244,9 @@ impl PowerSettings {
             }
             Message::KbdBacklightChanged(message) => {
                 if let Some(service) = self.service.as_mut() {
-                    // Send
                     if let Some(value) = message.value() {
                         let _ = service.command(UPowerCommand::SetKbdBacklight(value));
                     }
-                    // Drive UI updates
                     if let Some(kbd_backlight) = service.kbd_backlight.as_mut() {
                         return Action::Command(
                             kbd_backlight
@@ -379,9 +375,7 @@ impl PowerSettings {
             .map(|p| {
                 let state = p.data.get_indicator_state();
                 container(match self.config.peripheral_battery_format {
-                    SettingsFormat::Icon => {
-                        convert::Into::<Element<'a, Message>>::into(icon(p.get_icon_state()))
-                    }
+                    SettingsFormat::Icon => Element::from(icon(p.get_icon_state())),
                     SettingsFormat::Percentage => text(format!("{}%", p.data.capacity)).into(),
                     SettingsFormat::IconAndPercentage => row!(
                         icon(p.get_icon_state()),
@@ -621,7 +615,7 @@ impl PowerSettings {
             if !matches!(service.power_profile, PowerProfile::Unknown) {
                 Some((
                     quick_setting_button(
-                        convert::Into::<StaticIcon>::into(service.power_profile),
+                        StaticIcon::from(service.power_profile),
                         match service.power_profile {
                             PowerProfile::Balanced => t!("settings-power-profile-balanced"),
                             PowerProfile::Performance => t!("settings-power-profile-performance"),

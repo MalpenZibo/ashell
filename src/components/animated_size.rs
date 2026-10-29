@@ -1,81 +1,37 @@
 use crate::components::motion::{EASE_OUT, FAST};
 use iced::{
     Animation, Length, Rectangle, Size, Vector,
-    animation::Easing,
     core::{
         Clipboard, Layout, Shell, Widget, event, layout, mouse, overlay, renderer,
         widget::{Operation, Tree, tree},
     },
 };
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AnimationAxis {
-    Width,
-    Height,
-    Both,
-}
-
 struct State {
     width_anim: Animation<f32>,
-    height_anim: Animation<f32>,
     last_child_width: f32,
-    last_child_height: f32,
     initialized: bool,
 }
 
 impl State {
-    fn new(duration: Duration, easing: Easing) -> Self {
-        let anim = || Animation::new(0.0).duration(duration).easing(easing);
+    fn new() -> Self {
         Self {
-            width_anim: anim(),
-            height_anim: anim(),
+            width_anim: Animation::new(0.0),
             last_child_width: 0.0,
-            last_child_height: 0.0,
             initialized: false,
         }
     }
 }
 
-/// Smoothly animates size changes of its content along one or both axes.
-/// Defaults to width-only; configure with [`axis`](Self::axis).
+/// Smoothly animates width changes of its content.
 pub struct AnimatedSize<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Renderer: iced::core::Renderer,
 {
     content: Element<'a, Message, Theme, Renderer>,
-    duration: Duration,
-    easing: Easing,
-    axis: AnimationAxis,
-    animate_initial: bool,
-}
-
-impl<'a, Message, Theme, Renderer> AnimatedSize<'a, Message, Theme, Renderer>
-where
-    Renderer: iced::core::Renderer,
-{
-    pub fn duration(mut self, duration: Duration) -> Self {
-        self.duration = duration;
-        self
-    }
-
-    pub fn easing(mut self, easing: Easing) -> Self {
-        self.easing = easing;
-        self
-    }
-
-    pub fn axis(mut self, axis: AnimationAxis) -> Self {
-        self.axis = axis;
-        self
-    }
-
-    /// Animate from zero on the first layout (for appear/disappear elements).
-    pub fn animate_initial(mut self, animate: bool) -> Self {
-        self.animate_initial = animate;
-        self
-    }
 }
 
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
@@ -90,7 +46,7 @@ where
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(State::new(self.duration, self.easing))
+        tree::State::new(State::new())
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -120,61 +76,23 @@ where
 
         let state = tree.state.downcast_mut::<State>();
         let now = Instant::now();
-        let animate_width = matches!(self.axis, AnimationAxis::Width | AnimationAxis::Both);
-        let animate_height = matches!(self.axis, AnimationAxis::Height | AnimationAxis::Both);
 
         if !state.initialized {
-            let initial_width = if self.animate_initial {
-                0.0
-            } else {
-                child_width
-            };
-            let initial_height = if self.animate_initial {
-                0.0
-            } else {
-                child_height
-            };
-            state.width_anim = Animation::new(initial_width)
-                .duration(self.duration)
-                .easing(self.easing);
-            state.height_anim = Animation::new(initial_height)
-                .duration(self.duration)
-                .easing(self.easing);
+            state.width_anim = Animation::new(child_width).duration(FAST).easing(EASE_OUT);
             state.last_child_width = child_width;
-            state.last_child_height = child_height;
             state.initialized = true;
-            if self.animate_initial {
-                if animate_width {
-                    state.width_anim.go_mut(child_width, now);
-                }
-                if animate_height {
-                    state.height_anim.go_mut(child_height, now);
-                }
-            }
-        } else {
-            if animate_width && (child_width - state.last_child_width).abs() > 0.5 {
-                state.last_child_width = child_width;
-                state.width_anim.go_mut(child_width, now);
-            }
-            if animate_height && (child_height - state.last_child_height).abs() > 0.5 {
-                state.last_child_height = child_height;
-                state.height_anim.go_mut(child_height, now);
-            }
+        } else if (child_width - state.last_child_width).abs() > 0.5 {
+            state.last_child_width = child_width;
+            state.width_anim.go_mut(child_width, now);
         }
 
-        let display_width = if animate_width && state.width_anim.is_animating(now) {
+        let display_width = if state.width_anim.is_animating(now) {
             state.width_anim.interpolate_with(|v| v, now)
         } else {
             child_width
         };
 
-        let display_height = if animate_height && state.height_anim.is_animating(now) {
-            state.height_anim.interpolate_with(|v| v, now)
-        } else {
-            child_height
-        };
-
-        layout::Node::with_children(Size::new(display_width, display_height), vec![child_node])
+        layout::Node::with_children(Size::new(display_width, child_height), vec![child_node])
     }
 
     fn update(
@@ -201,7 +119,7 @@ where
 
         if let event::Event::Window(iced::core::window::Event::RedrawRequested(now)) = event {
             let state = tree.state.downcast_mut::<State>();
-            if state.width_anim.is_animating(*now) || state.height_anim.is_animating(*now) {
+            if state.width_anim.is_animating(*now) {
                 shell.request_redraw();
                 shell.invalidate_layout();
             }
@@ -301,8 +219,6 @@ where
     }
 }
 
-/// Wraps content in an [`AnimatedSize`] with default settings (width-only,
-/// [`FAST`]).
 pub fn animated_size<'a, Message, Theme, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
 ) -> AnimatedSize<'a, Message, Theme, Renderer>
@@ -311,9 +227,5 @@ where
 {
     AnimatedSize {
         content: content.into(),
-        duration: FAST,
-        easing: EASE_OUT,
-        axis: AnimationAxis::Width,
-        animate_initial: false,
     }
 }

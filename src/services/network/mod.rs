@@ -566,7 +566,8 @@ impl NetworkService {
             State::Active(conn, choice, refresh_data) => {
                 info!("Listening for network events");
 
-                // TODO: i dont know how to combine the opaque types.. rust streams
+                // Each backend exposes its own opaque event stream, so the
+                // branches cannot be unified behind a common type.
                 match choice {
                     BackendChoice::NetworkManager => {
                         let nm = match NetworkDbus::new(&conn).await {
@@ -634,9 +635,9 @@ impl NetworkService {
 
                                 while let Some(events) = event_s.next().await {
                                     for event in events {
-                                        // TODO: network manager leaves with device - we can also
-                                        // do that, but would need a different way to disable
-                                        // scanning
+                                        // NetworkManager drops the device when it disappears.
+                                        // Matching that here would need another way to stop
+                                        // the scan listener.
                                         let _ = output.send(ServiceEvent::Update(event)).await;
                                     }
                                 }

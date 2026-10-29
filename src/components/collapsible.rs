@@ -78,7 +78,6 @@ where
 {
     content: Element<'a, Message, Theme, Renderer>,
     expanded: bool,
-    duration: Duration,
     animated: bool,
     key: u64,
     open_padding_top: f32,
@@ -89,11 +88,6 @@ impl<'a, Message, Theme, Renderer> Collapsible<'a, Message, Theme, Renderer>
 where
     Renderer: iced::core::Renderer,
 {
-    pub fn duration(mut self, duration: Duration) -> Self {
-        self.duration = duration;
-        self
-    }
-
     /// When false, snap between expanded/collapsed without tweening.
     pub fn animated(mut self, animated: bool) -> Self {
         self.animated = animated;
@@ -191,21 +185,21 @@ where
             state.initialized = true;
         } else if !state.initialized {
             state.height_anim = Animation::new(target_height)
-                .duration(self.duration)
+                .duration(DEFAULT_DURATION)
                 .easing(EASE_OUT);
             state.last_expanded = self.expanded;
             state.initialized = true;
         } else if self.expanded != state.last_expanded {
             state.last_expanded = self.expanded;
             let easing = if self.expanded { EASE_OUT } else { EASE_IN };
-            state.retarget(target_height, now, self.duration, easing);
+            state.retarget(target_height, now, DEFAULT_DURATION, easing);
         } else if self.expanded
             && (expanded_height - state.height_anim.value()).abs() > 0.5
             && !state.height_anim.is_animating(now)
         {
             // Content height changed while expanded — snap to new height
             state.height_anim = Animation::new(expanded_height)
-                .duration(self.duration)
+                .duration(DEFAULT_DURATION)
                 .easing(EASE_OUT);
         }
 
@@ -376,7 +370,6 @@ where
     Collapsible {
         content: content.into(),
         expanded,
-        duration: DEFAULT_DURATION,
         animated: true,
         key: 0,
         open_padding_top: 0.0,

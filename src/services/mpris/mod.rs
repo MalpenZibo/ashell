@@ -284,10 +284,7 @@ impl MprisPlayerService {
         let proxies = Self::create_proxies(conn, names).await;
 
         join_all(proxies.into_iter().map(|(name, proxy)| async {
-            let metadata = proxy
-                .metadata()
-                .await
-                .map_or(None, |m| Some(MprisPlayerMetadata::from(m)));
+            let metadata = proxy.metadata().await.ok().map(MprisPlayerMetadata::from);
 
             let volume = proxy.volume().await.map(|v| v * 100.0).ok();
             let state = proxy
@@ -296,17 +293,16 @@ impl MprisPlayerService {
                 .map(PlaybackStatus::from)
                 .unwrap_or_default();
 
-            Some(MprisPlayerData {
+            MprisPlayerData {
                 service: name,
                 metadata,
                 volume,
                 state,
                 proxy,
-            })
+            }
         }))
         .await
         .into_iter()
-        .flatten()
         .filter(|player| player.state != PlaybackStatus::Stopped)
         .collect()
     }
@@ -426,7 +422,6 @@ impl MprisPlayerService {
                         chunk = chunks.next().fuse() => {
                             let Some(chunk) = chunk else {
                                 // D-Bus event stream ended, restart listening
-                                // TODO: Should we go to Error state instead?
                                 break;
                             };
                             debug!("MPRIS player service receive events: {chunk:?}");
@@ -573,53 +568,51 @@ impl Service for MprisPlayerService {
     type Command = MprisPlayerCommand;
 
     fn command(&mut self, command: Self::Command) -> iced::Task<ServiceEvent<Self>> {
-        {
-            let names: Vec<String> = self.data.iter().map(|d| d.service.clone()).collect();
-            let s = self.data.iter().find(|d| d.service == command.service_name);
+        let names: Vec<String> = self.data.iter().map(|d| d.service.clone()).collect();
+        let s = self.data.iter().find(|d| d.service == command.service_name);
 
-            if let Some(s) = s {
-                let mpris_player_proxy = s.proxy.clone();
-                let service_name = s.service.clone();
-                let title = s.metadata.as_ref().and_then(|m| m.title.clone());
-                let conn = self.conn.clone();
-                iced::Task::perform(
-                    async move {
-                        match command.command {
-                            PlayerCommand::Prev => {
-                                let _ = mpris_player_proxy
-                                    .previous()
-                                    .await
-                                    .inspect_err(|e| error!("Previous command error: {e}"));
-                            }
-                            PlayerCommand::PlayPause => {
-                                let _ = mpris_player_proxy
-                                    .play_pause()
-                                    .await
-                                    .inspect_err(|e| error!("Play/pause command error: {e}"));
-                            }
-                            PlayerCommand::Next => {
-                                let _ = mpris_player_proxy
-                                    .next()
-                                    .await
-                                    .inspect_err(|e| error!("Next command error: {e}"));
-                            }
-                            PlayerCommand::Volume(v) => {
-                                let _ = mpris_player_proxy
-                                    .set_volume(v / 100.0)
-                                    .await
-                                    .inspect_err(|e| error!("Set volume command error: {e}"));
-                            }
-                            PlayerCommand::Raise => {
-                                Self::focus_player(&conn, &service_name, title).await;
-                            }
+        if let Some(s) = s {
+            let mpris_player_proxy = s.proxy.clone();
+            let service_name = s.service.clone();
+            let title = s.metadata.as_ref().and_then(|m| m.title.clone());
+            let conn = self.conn.clone();
+            iced::Task::perform(
+                async move {
+                    match command.command {
+                        PlayerCommand::Prev => {
+                            let _ = mpris_player_proxy
+                                .previous()
+                                .await
+                                .inspect_err(|e| error!("Previous command error: {e}"));
                         }
-                        Event::MetadataChanged(Self::get_mpris_player_data(&conn, &names).await)
-                    },
-                    ServiceEvent::Update,
-                )
-            } else {
-                iced::Task::none()
-            }
+                        PlayerCommand::PlayPause => {
+                            let _ = mpris_player_proxy
+                                .play_pause()
+                                .await
+                                .inspect_err(|e| error!("Play/pause command error: {e}"));
+                        }
+                        PlayerCommand::Next => {
+                            let _ = mpris_player_proxy
+                                .next()
+                                .await
+                                .inspect_err(|e| error!("Next command error: {e}"));
+                        }
+                        PlayerCommand::Volume(v) => {
+                            let _ = mpris_player_proxy
+                                .set_volume(v / 100.0)
+                                .await
+                                .inspect_err(|e| error!("Set volume command error: {e}"));
+                        }
+                        PlayerCommand::Raise => {
+                            Self::focus_player(&conn, &service_name, title).await;
+                        }
+                    }
+                    Event::MetadataChanged(Self::get_mpris_player_data(&conn, &names).await)
+                },
+                ServiceEvent::Update,
+            )
+        } else {
+            iced::Task::none()
         }
     }
 }

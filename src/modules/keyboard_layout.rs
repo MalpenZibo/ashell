@@ -65,14 +65,11 @@ impl KeyboardLayout {
             return None;
         }
 
-        // Fallback to displaying the layout ID/Name if no label config exists
         let label = match self.config.labels.get(active_layout) {
             Some(value) => value.to_string(),
             None => active_layout.clone(),
         };
 
-        // Returns plain text matching original implementation style.
-        // (Assuming parent container or mouse area handles interactions if any)
         Some(text(label).into())
     }
 

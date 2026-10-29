@@ -199,7 +199,11 @@ impl TrayModule {
         }
     }
 
-    fn menu_voice<'a>(&'a self, name: &'a str, layout: &'a Layout) -> Element<'a, Message> {
+    fn mnemonic(label: &str) -> String {
+        label.replace('_', "")
+    }
+
+    fn menu_entry<'a>(&'a self, name: &'a str, layout: &'a Layout) -> Element<'a, Message> {
         let space = use_theme(|theme| theme.space);
         match &layout.1 {
             LayoutProps {
@@ -210,7 +214,7 @@ impl TrayModule {
                 ..
             } if toggle_type == "checkmark" => {
                 let content: Element<'a, Message> = toggler(*state > 0)
-                    .label(label.replace("_", "").to_owned())
+                    .label(Self::mnemonic(label).to_owned())
                     .on_toggle({
                         let name = name.to_owned();
                         let id = layout.0;
@@ -240,11 +244,11 @@ impl TrayModule {
 
                             move |_| Message::MenuToggled(name.to_owned(), id)
                         }))
-                        .push(text(label.replace("_", "")))
+                        .push(text(Self::mnemonic(label)))
                         .spacing(space.sm)
                         .align_y(Alignment::Center)
                         .into(),
-                    _ => text(label.replace("_", "")).into(),
+                    _ => text(Self::mnemonic(label)).into(),
                 };
                 Column::with_capacity(2)
                     .push(
@@ -264,7 +268,7 @@ impl TrayModule {
                         Some(
                             Column::with_children(
                                 renderable_children(&layout.2)
-                                    .map(|menu| self.menu_voice(name, menu)),
+                                    .map(|menu| self.menu_entry(name, menu)),
                             )
                             .padding(Padding::default().left(space.md))
                             .spacing(space.xxs),
@@ -276,7 +280,7 @@ impl TrayModule {
             }
             LayoutProps {
                 label: Some(label), ..
-            } if !label.is_empty() => styled_button(label.replace("_", ""))
+            } if !label.is_empty() => styled_button(Self::mnemonic(label))
                 .on_press(Message::MenuSelected(name.to_owned(), layout.0))
                 .width(Length::Fill)
                 .into(),
@@ -383,7 +387,7 @@ impl TrayModule {
             .and_then(|service| service.data.iter().find(|item| item.name == name))
         {
             Some(item) => Column::with_children(
-                renderable_children(&item.menu.2).map(|menu| self.menu_voice(name, menu)),
+                renderable_children(&item.menu.2).map(|menu| self.menu_entry(name, menu)),
             )
             .spacing(space.xs),
             _ => Column::new(),

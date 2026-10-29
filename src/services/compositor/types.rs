@@ -121,21 +121,18 @@ pub struct CompositorService {
 
 #[derive(Debug, Clone)]
 pub enum CompositorEvent {
-    ActionPerformed, // for now a noop to respond to commands
+    /// Emitted after a command has been dispatched successfully.
+    ActionPerformed,
+    /// Full state after a change; simpler and safer than incremental diffs.
     StateChanged(Box<CompositorState>),
-    // We can add specific events if needed, but a full state sync is safer for workspaces
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum CompositorCommand {
     FocusWorkspace(i32),
     FocusNamedWorkspace(String),
-    FocusSpecialWorkspace(String),
-    FocusMonitor(i128),
     ToggleSpecialWorkspace(String),
-    ScrollWorkspace(i32),           // +1 or -1
-    CustomDispatch(String, String), // For "vdesk"
+    CustomDispatch(String, String),
     NextLayout,
     /// Focus a window of an application: one owned by `pid`, or, when none is
     /// (XWayland or sandboxed apps report another pid), one whose app id or

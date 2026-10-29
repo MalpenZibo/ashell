@@ -163,7 +163,7 @@ impl Updates {
                     id,
                     Task::perform(
                         async move {
-                            update(&update_command).await; // Wait for real completion
+                            update(&update_command).await;
                         },
                         move |_| Message::UpdateFinished,
                     ),

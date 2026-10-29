@@ -149,7 +149,7 @@ impl BrightnessSettings {
         BrightnessService::subscribe().map(Message::Event)
     }
 
-    pub fn percent_text<'a>(service: &BrightnessService) -> Text<'a> {
+    fn percent_text<'a>(service: &BrightnessService) -> Text<'a> {
         let percent = (service.current.value() * 100)
             .checked_div(service.max)
             .unwrap_or(0); // Always show 0%, if max_brightness happens to be 0

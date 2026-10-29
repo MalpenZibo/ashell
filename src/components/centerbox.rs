@@ -43,7 +43,7 @@ impl<'a, Message, Theme, Renderer> Centerbox<'a, Message, Theme, Renderer>
 where
     Renderer: iced::advanced::Renderer,
 {
-    /// Creates an empty [`Centerbox`].
+    /// Creates a [`Centerbox`] from its left, center and right children.
     pub fn new(children: [Element<'a, Message, Theme, Renderer>; 3]) -> Self {
         Centerbox {
             spacing: 0.0,
@@ -64,10 +64,6 @@ where
     }
 
     /// Sets the horizontal spacing _between_ elements.
-    ///
-    /// Custom margins per element do not exist in iced. You should use this
-    /// method instead! While less flexible, it helps you keep spacing between
-    /// elements consistent.
     pub fn spacing(mut self, amount: impl Into<Pixels>) -> Self {
         self.spacing = amount.into().0;
         self
@@ -91,7 +87,7 @@ where
         self
     }
 
-    /// Sets the vertical alignment of the contents of the [`Centerbox`] .
+    /// Sets the vertical alignment of the contents of the [`Centerbox`].
     pub fn align_items(mut self, align: Alignment) -> Self {
         self.align_items = align;
         self
@@ -137,7 +133,7 @@ where
             .height(self.height)
             .shrink(self.padding);
 
-        let total_spacing = self.spacing * 3_i32.saturating_sub(1) as f32;
+        let total_spacing = self.spacing * 2.0;
         let max_cross = limits.max().height;
 
         let mut cross = match self.height {

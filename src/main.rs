@@ -33,7 +33,7 @@ const NERD_FONT_MONO: &[u8] =
     include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
 const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 const HEIGHT: f64 = 26.;
-const TMP_FILE_SIZE: u64 = 10 * 1024 * 1024;
+const MAX_LOG_FILE_SIZE: u64 = 10 * 1024 * 1024;
 const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")");
 
 #[derive(Parser, Debug)]
@@ -119,13 +119,7 @@ fn resolve_font(name: &str, requested_weight: u16) -> Font {
     db.load_system_fonts();
 
     // Find the best matching face for the requested weight with Normal
-    // style/stretch. cosmic-text's font matcher re-scores all faces and
-    // prefers a face whose weight/stretch/style are closest to the requested
-    // ones. So if the user asks for `Weight::Normal` (400) but the font only
-    // has a face with weight=500 (Medium), the matcher will prefer a different
-    // font with weight=400 — a silent fallback. To work around this, we detect
-    // the closest available face in the requested family and pass its actual
-    // weight to iced so the matcher's scoring keeps us on the right font.
+    // style/stretch.
     let best_face = db
         .faces()
         .filter(|f| f.families.iter().any(|(fam, _)| fam == name))
@@ -217,7 +211,7 @@ fn main() -> iced::Result {
             let logger = Logger::with(log_spec)
                 .log_to_file(FileSpec::default().directory(directory))
                 .rotate(
-                    Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),
+                    Criterion::AgeOrSize(Age::Day, MAX_LOG_FILE_SIZE),
                     Naming::Timestamps,
                     Cleanup::KeepLogFiles(7),
                 );
@@ -289,7 +283,7 @@ fn main() -> iced::Result {
     };
 
     iced::application(
-        App::new((logger, config.clone(), config_path)),
+        App::new((logger, config, config_path)),
         App::update,
         App::view,
     )

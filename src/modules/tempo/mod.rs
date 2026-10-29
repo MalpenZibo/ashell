@@ -116,10 +116,6 @@ pub enum TimezoneDirection {
     Backward,
 }
 
-pub enum Action {
-    None,
-}
-
 pub struct Tempo {
     config: TempoModuleConfig,
     date: DateTime<Local>,
@@ -173,34 +169,25 @@ impl Tempo {
         }
     }
 
-    pub fn update(&mut self, message: Message) -> Action {
+    pub fn update(&mut self, message: Message) {
         match message {
             Message::Update => {
                 self.date = Local::now();
-
-                Action::None
             }
             Message::ChangeSelectDate(selected_date) => {
                 self.selected_date = selected_date;
-
-                Action::None
             }
             Message::UpdateWeather(data) => {
                 self.weather_data = Some(*data);
-
-                Action::None
             }
             Message::UpdateLocation(location) => {
                 self.location = Some(location);
-
-                Action::None
             }
             Message::CycleFormat => {
                 if !self.config.formats.is_empty() {
                     self.current_format_index =
                         (self.current_format_index + 1) % self.config.formats.len();
                 }
-                Action::None
             }
             Message::CycleTimezone(direction) => {
                 if !self.config.timezones.is_empty() {
@@ -213,7 +200,6 @@ impl Tempo {
                             .unwrap_or(len - 1),
                     };
                 }
-                Action::None
             }
             Message::SetTimezone(index) => {
                 if !self.config.timezones.is_empty() {
@@ -222,7 +208,6 @@ impl Tempo {
                         self.current_timezone_index = index;
                     }
                 }
-                Action::None
             }
             Message::ConfigReloaded(new_config) => {
                 if new_config.formats.is_empty()
@@ -245,11 +230,9 @@ impl Tempo {
                 }
 
                 self.config = new_config;
-                Action::None
             }
             Message::ToggleLocationVisibility => {
                 self.location_visible = !self.location_visible;
-                Action::None
             }
         }
     }
@@ -266,7 +249,7 @@ impl Tempo {
             .into()
     }
 
-    pub fn weather_indicator(&'_ self) -> Option<Element<'_, Message>> {
+    fn weather_indicator(&'_ self) -> Option<Element<'_, Message>> {
         let (font_size, space) = use_theme(|t| (t.font_size, t.space));
         if self.config.weather_location.is_none()
             || self.config.weather_indicator == WeatherIndicator::None
@@ -274,27 +257,26 @@ impl Tempo {
             return None;
         }
         let temp = unit_system().temperature_symbol();
-        self.weather_data
-            .as_ref()
-            .zip(self.location.as_ref())
-            .map(|(data, _)| {
-                Row::new()
-                    .push(
-                        weather_icon(data.current.weather_code, data.current.is_day > 0)
-                            .width(Length::Fixed(font_size.sm)),
-                    )
-                    .push(
-                        (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
-                            .then(|| {
-                                text(format!("{}{temp}", data.current.temperature_2m))
-                                    .align_y(Vertical::Center)
-                                    .size(font_size.sm)
-                            }),
-                    )
-                    .align_y(Vertical::Center)
-                    .spacing(space.xxs)
-                    .into()
-            })
+        self.location.as_ref()?;
+        self.weather_data.as_ref().map(|data| {
+            Row::new()
+                .push(
+                    weather_icon(data.current.weather_code, data.current.is_day > 0)
+                        .width(Length::Fixed(font_size.sm)),
+                )
+                .push(
+                    (self.config.weather_indicator == WeatherIndicator::IconAndTemperature).then(
+                        || {
+                            text(format!("{}{temp}", data.current.temperature_2m))
+                                .align_y(Vertical::Center)
+                                .size(font_size.sm)
+                        },
+                    ),
+                )
+                .align_y(Vertical::Center)
+                .spacing(space.xxs)
+                .into()
+        })
     }
 
     pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {

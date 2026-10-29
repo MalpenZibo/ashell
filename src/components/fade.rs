@@ -7,7 +7,7 @@
 //! iced has no alpha layer, so only the content's default text colour fades.
 //! Anything that paints its own colours keeps them.
 
-use crate::components::motion::{EASE_IN, EASE_OUT};
+use crate::components::motion::{BASE, EASE_IN, EASE_OUT};
 use iced::{
     Animation, Border, Color, Length, Rectangle, Shadow, Size, Vector,
     core::{
@@ -44,17 +44,6 @@ where
 {
     content: Element<'a, Message, Theme, Renderer>,
     visible: bool,
-    duration: std::time::Duration,
-}
-
-impl<'a, Message, Theme, Renderer> Fade<'a, Message, Theme, Renderer>
-where
-    Renderer: iced::core::Renderer,
-{
-    pub fn duration(mut self, duration: std::time::Duration) -> Self {
-        self.duration = duration;
-        self
-    }
 }
 
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
@@ -71,7 +60,7 @@ where
     fn state(&self) -> tree::State {
         tree::State::new(State {
             fade: Animation::new(if self.visible { 1.0 } else { 0.0 })
-                .duration(self.duration)
+                .duration(BASE)
                 .easing(EASE_OUT),
             last_visible: self.visible,
             initialized: false,
@@ -106,7 +95,7 @@ where
 
         if !state.initialized {
             state.fade = Animation::new(if self.visible { 0.0 } else { 1.0 })
-                .duration(self.duration)
+                .duration(BASE)
                 .easing(EASE_OUT);
             state.last_visible = self.visible;
             state.initialized = true;
@@ -117,7 +106,7 @@ where
             state.last_visible = self.visible;
             let current = state.opacity(self.visible, now);
             state.fade = Animation::new(current)
-                .duration(self.duration)
+                .duration(BASE)
                 .easing(if self.visible { EASE_OUT } else { EASE_IN });
             state.fade.go_mut(if self.visible { 1.0 } else { 0.0 }, now);
         }
@@ -428,7 +417,7 @@ where
 }
 
 /// Fades `content` towards `visible`.
-pub fn fade<'a, Message, Theme, Renderer>(
+fn fade<'a, Message, Theme, Renderer>(
     visible: bool,
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
 ) -> Fade<'a, Message, Theme, Renderer>
@@ -438,7 +427,6 @@ where
     Fade {
         content: content.into(),
         visible,
-        duration: crate::components::motion::BASE,
     }
 }
 

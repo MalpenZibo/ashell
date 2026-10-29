@@ -34,7 +34,7 @@ const DOTS: &[(f32, f32, f32)] = &[
     (4.8, 4.8, 2.3),
 ];
 
-/// Rotation origin, set by the canvas program.
+/// Start time used to derive the current rotation.
 struct SpinnerState {
     start: Instant,
 }

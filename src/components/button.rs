@@ -57,18 +57,13 @@ pub enum IconPosition {
     After,
 }
 
-pub(crate) enum OnPress<'a, Message> {
-    Direct(Message),
-    Closure(Box<dyn Fn() -> Message + 'a>),
-}
-
 pub struct StyledButton<'a, Message> {
     label: Element<'a, Message>,
     icon: Option<(IconKind, IconPosition)>,
     kind: ButtonKind,
     hierarchy: ButtonHierarchy,
     size: ButtonSize,
-    on_press: Option<OnPress<'a, Message>>,
+    on_press: Option<Message>,
     width: Option<Length>,
     height: Option<Length>,
 }
@@ -95,17 +90,12 @@ impl<'a, Message: 'static + Clone> StyledButton<'a, Message> {
     }
 
     pub fn on_press(mut self, on_press: Message) -> Self {
-        self.on_press = Some(OnPress::Direct(on_press));
-        self
-    }
-
-    pub fn on_press_with(mut self, on_press: impl Fn() -> Message + 'a) -> Self {
-        self.on_press = Some(OnPress::Closure(Box::new(on_press)));
+        self.on_press = Some(on_press);
         self
     }
 
     pub fn on_press_maybe(mut self, on_press: Option<Message>) -> Self {
-        self.on_press = on_press.map(OnPress::Direct);
+        self.on_press = on_press;
         self
     }
 
@@ -136,25 +126,23 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
             ButtonSize::Large => ([space.sm, space.xl], font_size.lg),
         };
 
-        let (icon_element, icon_position) = match value.icon {
-            Some((icon_kind, pos)) => (Some(icon_kind.to_text().size(icon_size)), Some(pos)),
-            None => (None, None),
-        };
-
-        let content = match (icon_element, icon_position) {
-            (Some(icon_el), Some(IconPosition::Before)) => container(
-                row![icon_el, value.label]
+        let content: Element<'a, Message> = match value.icon {
+            Some((icon_kind, IconPosition::Before)) => container(
+                row![icon_kind.to_text().size(icon_size), value.label]
                     .spacing(space.xs)
                     .align_y(Alignment::Center),
             )
             .into(),
-            (Some(icon_el), Some(IconPosition::After)) => container(
-                row![container(value.label).width(Length::Fill), icon_el,]
-                    .spacing(space.xs)
-                    .align_y(Alignment::Center),
+            Some((icon_kind, IconPosition::After)) => container(
+                row![
+                    container(value.label).width(Length::Fill),
+                    icon_kind.to_text().size(icon_size),
+                ]
+                .spacing(space.xs)
+                .align_y(Alignment::Center),
             )
             .into(),
-            _ => value.label,
+            None => value.label,
         };
 
         let mut btn = button_fn(content)
@@ -166,10 +154,10 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
             btn = btn.width(width);
         }
 
-        let btn = match value.on_press {
-            Some(OnPress::Direct(message)) => btn.on_press(message),
-            Some(OnPress::Closure(closure)) => btn.on_press_with(closure),
-            None => btn,
+        let btn = if let Some(message) = value.on_press {
+            btn.on_press(message)
+        } else {
+            btn
         };
 
         btn.into()

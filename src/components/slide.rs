@@ -35,7 +35,6 @@ where
     visible: bool,
     direction: SlideDirection,
     slide_distance: f32,
-    duration: Duration,
     key: u64,
     animated: bool,
 }
@@ -136,7 +135,7 @@ where
             state.initialized = true;
         } else if !state.initialized {
             state.offset_anim = Animation::new(off_screen)
-                .duration(self.duration)
+                .duration(DEFAULT_DURATION)
                 .easing(EASE_OUT);
             state.last_visible = self.visible;
             state.initialized = true;
@@ -150,7 +149,7 @@ where
             // mid-entry slides back out instead of snapping to its origin.
             let current = state.offset_anim.interpolate_with(|v| v, now);
             state.offset_anim = Animation::new(current)
-                .duration(self.duration)
+                .duration(DEFAULT_DURATION)
                 .easing(if self.visible { EASE_OUT } else { EASE_IN });
             state.offset_anim.go_mut(target, now);
         }
@@ -306,7 +305,6 @@ where
         visible,
         direction,
         slide_distance,
-        duration: DEFAULT_DURATION,
         key: 0,
         animated: true,
     }
