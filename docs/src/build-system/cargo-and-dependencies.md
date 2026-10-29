@@ -8,7 +8,7 @@ ashell's dependencies are managed in `Cargo.toml`. This chapter covers the key d
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| `iced` (iced_layershell) | Git (`v0.6.0`) | GUI framework with Wayland layer shell support via [iced_layershell](https://github.com/MalpenZibo/iced_layershell) |
+| `iced` (iced_layershell) | Git (`v0.6.1`) | GUI framework with Wayland layer shell support via [iced_layershell](https://github.com/MalpenZibo/iced_layershell) |
 
 The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell"`). It uses these features:
 - `tokio` — Async runtime integration
@@ -82,7 +82,7 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 
 Three dependencies come from git instead of crates.io:
 
-- [`iced_layershell`](https://github.com/MalpenZibo/iced_layershell) (aliased as `iced`) — pinned to tag `v0.6.0`
+- [`iced_layershell`](https://github.com/MalpenZibo/iced_layershell) (aliased as `iced`) — pinned to tag `v0.6.1`
 - [`hyprland`](https://github.com/hyprland-community/hyprland-rs) — tracks the `master` branch
 - [`softbuffer`](https://github.com/MalpenZibo/softbuffer) — replaced via `[patch.crates-io]` with a fork (branch `wayland-argb`) that uses `wl_shm` Argb8888, so the tiny-skia fallback renderer honors alpha on Wayland (upstream hardcodes Xrgb8888, which the compositor treats as fully opaque). The fork is based on v0.4.8 to match the `iced_tiny_skia` release `iced` depends on — rebasing it past 0.4.x will break the patch.
 

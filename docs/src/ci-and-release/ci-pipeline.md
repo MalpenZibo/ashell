@@ -8,7 +8,7 @@ ashell uses GitHub Actions for continuous integration. All workflow files are in
 
 **Runner**: `ubuntu-24.04`
 
-**Steps** (all skipped unless the change touches `src/`, `assets/`, `build.rs`, `Cargo.toml`, `Cargo.lock` or the workflow file, detected with `dorny/paths-filter`; Cargo builds are cached with `Swatinem/rust-cache`):
+**Steps** (all skipped unless the change touches `src/`, `crates/`, `assets/`, `i18n/`, `build.rs`, `Cargo.toml`, `Cargo.lock` or the workflow file, detected with `dorny/paths-filter`; Cargo builds are cached with `Swatinem/rust-cache`):
 
 1. **Install dependencies**: All system libraries needed for compilation
    ```bash
@@ -23,7 +23,10 @@ ashell uses GitHub Actions for continuous integration. All workflow files are in
 3. **Clippy lint**: `cargo clippy --workspace --all-features -- -D warnings`
    - Zero warnings policy. All clippy warnings are treated as errors.
 
-4. **Build**: `cargo build`
+4. **Test**: `cargo test --workspace --all-features`
+   - Runs the unit tests in both the `ashell` binary crate and `ashell-services`.
+
+5. **Build**: `cargo build`
    - Ensures the project compiles successfully.
 
 ## Nix CI (`nix-ci.yml`)
@@ -47,7 +50,7 @@ Dependabot is configured to:
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR to main | Format, lint, build |
+| `ci.yml` | Push/PR to main | Format, lint, test, build |
 | `nix-ci.yml` | Push/PR to main | Nix flake validation |
 | `release.yml` | Manual dispatch (or triggered by `pre-release.yml`) | Build release artifacts |
 | `pre-release.yml` | Release published | Update CHANGELOG, Cargo version and website docs version, then trigger `release.yml` |
@@ -57,4 +60,4 @@ Dependabot is configured to:
 | `update-arch-package.yml` | Called by release (post-announce) | Placeholder for AUR package updates (currently only echoes a message) |
 | `release-drafter.yml` | Push to main / PR | Auto-draft release notes, auto-label PRs |
 | `remove-manifest-assets.yml` | Called by release (post-announce) | Clean up dist manifests |
-| `copr-build.yml` | `v*` tag push / manual dispatch | Build an SRPM and trigger the Fedora Copr build |
+| `copr-build.yml` | Version tag push / manual dispatch | Build an SRPM and trigger the Fedora Copr build |

@@ -18,9 +18,9 @@ The project includes a `Makefile` with convenience targets:
 |--------|---------|-------------|
 | `make build` | `cargo build --release` | Build release binary |
 | `make start` | Build + `./target/release/ashell` | Build and run |
-| `make install` | Build + `install -Dm755 target/release/ashell $(DESTDIR)$(BINDIR)/ashell` | Install to system (`PREFIX` defaults to `/usr`, `BINDIR` to `$(PREFIX)/bin`) |
-| `make fmt` | `cargo fmt` | Format code |
-| `make check` | `cargo fmt` + `cargo check --workspace` + `cargo clippy --workspace -- -D warnings` | Full lint check |
+| `make install` | `install -Dm755 target/release/ashell $(DESTDIR)$(BINDIR)/ashell` | Install the existing binary (`make build` first). Supports `DESTDIR` and `PREFIX` (`/usr` by default, `BINDIR` defaults to `$(PREFIX)/bin`) |
+| `make fmt` | `cargo fmt --all` | Format code |
+| `make check` | `cargo fmt --all` + `cargo check --workspace --all-features` + clippy + tests | Full check (same as CI) |
 
 ## What build.rs Does
 

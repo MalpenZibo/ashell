@@ -92,7 +92,6 @@ pub struct Radius {
 
 ```rust
 pub struct FontSize {
-    pub xxs: f32,  // 8px
     pub xs: f32,   // 10px
     pub sm: f32,   // 12px
     pub md: f32,   // 16px

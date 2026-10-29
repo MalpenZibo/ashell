@@ -15,7 +15,7 @@ CI enforces formatting with `cargo fmt --all -- --check`.
 All clippy warnings are treated as errors:
 
 ```bash
-cargo clippy --workspace -- -D warnings
+cargo clippy --workspace --all-features -- -D warnings
 ```
 
 This is enforced in CI. Fix all warnings before submitting a PR.
@@ -26,7 +26,7 @@ The Makefile runs both:
 
 ```bash
 make check
-# Equivalent to: cargo fmt && cargo check --workspace && cargo clippy --workspace -- -D warnings
+# Equivalent to: cargo fmt && cargo check --workspace && cargo clippy --workspace --all-features -- -D warnings
 ```
 
 ## Module Structure Conventions

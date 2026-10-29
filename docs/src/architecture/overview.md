@@ -52,7 +52,7 @@ ashell uses upstream iced 0.14 with [iced_layershell](https://github.com/MalpenZ
 In `Cargo.toml` the dependency is aliased as `iced` for convenience:
 
 ```toml
-iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.6.0", features = [...] }
+iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.6.1", features = [...] }
 ```
 
 ## Design Principles

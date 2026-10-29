@@ -2,7 +2,14 @@
 
 ## Current Test Status
 
-ashell does not currently have an automated test suite. Testing is done manually by running the application on real hardware with Hyprland or Niri.
+ashell has unit tests for logic that does not need a display or D-Bus, run with:
+
+```bash
+cargo test --workspace --all-features
+```
+
+UI behavior still needs manual testing on real hardware with a supported compositor
+(Hyprland, Niri or MangoWC).
 
 ## Debugging with Logs
 

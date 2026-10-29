@@ -51,7 +51,6 @@ impl PositionButton {
     pub fn width(self, width: impl Into<Length>) -> Self;
     pub fn height(self, height: impl Into<Length>) -> Self;
     pub fn padding<P: Into<Padding>>(self, padding: P) -> Self;
-    pub fn clip(self, clip: bool) -> Self;
     pub fn style(self, style: impl Fn(&Theme, Status) -> Style) -> Self;
 }
 ```
@@ -70,8 +69,7 @@ Internally the press handlers live in a `[Option<PressHandler>; 3]` array indexe
 ```rust
 #[derive(Debug, Clone, Copy)]
 pub struct ButtonUIRef {
-    pub position: Point,    // Screen coordinates of the button's center
-    pub viewport: (f32, f32), // Width and height of the screen
+    pub position: Point, // Screen coordinates of the button's center
 }
 ```
 

@@ -12,9 +12,9 @@ services/network/
     ├── mod.rs
     ├── station.rs
     ├── network.rs
-    ├── known_network.rs
     ├── device.rs
-    └── ...
+    ├── adapter.rs
+    └── agent_manager.rs
 ```
 
 ## Dual Backend
@@ -48,12 +48,12 @@ This is an active area of refactoring.
 
 ## IWD D-Bus Bindings
 
-The IWD integration includes a comprehensive set of D-Bus proxy definitions — one of the most extensive in the project. This covers:
+The IWD integration defines proxies for the interfaces ashell actually uses:
 
 | Interface | Purpose |
 |-----------|---------|
 | `net.connman.iwd.Station` | WiFi station management |
 | `net.connman.iwd.Network` | Network connection control |
-| `net.connman.iwd.KnownNetwork` | Saved network management |
 | `net.connman.iwd.Device` | Wireless device control |
 | `net.connman.iwd.Adapter` | Physical adapter properties |
+| `net.connman.iwd.AgentManager` | Passphrase agent registration |

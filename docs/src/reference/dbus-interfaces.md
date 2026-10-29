@@ -18,7 +18,6 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 | NetworkManager | `org.freedesktop.NetworkManager.AccessPoint` | `services/network/dbus.rs` | WiFi access point info | `networkmanager` |
 | IWD | `net.connman.iwd.Station` | `services/network/iwd_dbus/` | WiFi station management | `iwd` |
 | IWD | `net.connman.iwd.Network` | `services/network/iwd_dbus/` | WiFi network connections | `iwd` |
-| IWD | `net.connman.iwd.KnownNetwork` | `services/network/iwd_dbus/` | Saved networks | `iwd` |
 | IWD | `net.connman.iwd.Device` | `services/network/iwd_dbus/` | Wireless device | `iwd` |
 | IWD | `net.connman.iwd.Agent` (served by ashell) | `services/network/iwd_dbus/` | Passphrase agent for connecting to secured networks | `iwd` |
 | UPower | `org.freedesktop.UPower` | `crates/ashell-services/src/upower/dbus.rs` | Power daemon | `upower` |

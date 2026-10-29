@@ -7,7 +7,7 @@ make check    # fmt + cargo check + clippy -D warnings + tests across the worksp
 make build    # cargo build --release
 make fmt      # cargo fmt
 make start    # run ./target/release/ashell
-make install  # install binary to /usr/bin (requires sudo)
+make install  # install the existing binary to /usr/bin (run `make build` first; sudo)
 ```
 
 ## Project overview

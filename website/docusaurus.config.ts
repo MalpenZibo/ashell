@@ -70,7 +70,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: "img/ashell-social-card.png",
+    image: "img/ashell_social_card.png",
     navbar: {
       logo: {
         alt: "Ashell Logo",
