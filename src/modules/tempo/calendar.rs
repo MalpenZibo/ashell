@@ -3,18 +3,18 @@ use chrono::{
 };
 use chrono_tz::Tz;
 use iced::{
-    Element, Length, Theme,
+    Border, Element, Length, Theme,
     alignment::{Horizontal, Vertical},
     widget::{Column, Row, column, container, row, text},
 };
 
 use crate::{
     components::{
-        ButtonKind, ButtonSize,
+        ButtonHierarchy, ButtonKind, ButtonSize, divider,
         icons::{StaticIcon, icon_button},
         styled_button,
     },
-    theme::{AshellTheme, use_theme},
+    theme::{AshellTheme, Paint, use_theme},
 };
 use ashell_i18n::chrono_locale;
 
@@ -89,9 +89,8 @@ impl Tempo {
 
     fn calendar_with_theme<'a>(&'a self, theme: &AshellTheme) -> Element<'a, Message> {
         let locale = chrono_locale();
-        let selected_date = self
-            .selected_date
-            .unwrap_or(self.naive_date(self.current_timezone_index));
+        let today = self.naive_date(self.current_timezone_index);
+        let selected_date = self.selected_date.unwrap_or(today);
 
         let current_month = selected_date.month0();
         let first_day_month = selected_date.with_day0(0).unwrap_or_default();
@@ -114,158 +113,197 @@ impl Tempo {
             6
         };
 
-        let calendar = column![
-            row![
-                icon_button::<Message>(StaticIcon::LeftChevron)
-                    .kind(ButtonKind::Solid)
-                    .on_press(Message::ChangeSelectDate(
-                        selected_date.checked_sub_months(Months::new(1)),
-                    )),
-                text(selected_date.format_localized("%B", locale).to_string())
-                    .size(theme.font_size.md)
-                    .width(Length::Fill)
-                    .align_x(Horizontal::Center),
-                icon_button::<Message>(StaticIcon::RightChevron)
-                    .kind(ButtonKind::Solid)
-                    .on_press(Message::ChangeSelectDate(
-                        selected_date.checked_add_months(Months::new(1))
-                    ))
+        let muted = theme.palette.text.scale_alpha(0.55);
+        let faint = theme.palette.text.scale_alpha(0.3);
+
+        let title: Element<'a, Message> = container(
+            text(selected_date.format_localized("%B %Y", locale).to_string())
+                .size(theme.font_size.md)
+                .align_x(Horizontal::Center),
+        )
+        .width(Length::Fill)
+        .center_x(Length::Fill)
+        .into();
+
+        let header = row![
+            icon_button::<Message>(StaticIcon::LeftChevron)
+                .kind(ButtonKind::Transparent)
+                .size(ButtonSize::Small)
+                .on_press(Message::ChangeSelectDate(
+                    selected_date.checked_sub_months(Months::new(1)),
+                )),
+            styled_button(title)
+                .kind(ButtonKind::Transparent)
+                .size(ButtonSize::Small)
+                .width(Length::Fill)
+                .on_press(Message::ChangeSelectDate(None)),
+            icon_button::<Message>(StaticIcon::RightChevron)
+                .kind(ButtonKind::Transparent)
+                .size(ButtonSize::Small)
+                .on_press(Message::ChangeSelectDate(
+                    selected_date.checked_add_months(Months::new(1))
+                ))
+        ]
+        .width(Length::Fill)
+        .spacing(theme.space.xxs)
+        .align_y(Vertical::Center);
+
+        let weekdays = Row::with_children(
+            [
+                Weekday::Mon,
+                Weekday::Tue,
+                Weekday::Wed,
+                Weekday::Thu,
+                Weekday::Fri,
+                Weekday::Sat,
+                Weekday::Sun,
             ]
-            .width(Length::Fill)
-            .align_y(Vertical::Center),
-            Row::with_children(
-                [
-                    Weekday::Mon,
-                    Weekday::Tue,
-                    Weekday::Wed,
-                    Weekday::Thu,
-                    Weekday::Fri,
-                    Weekday::Sat,
-                    Weekday::Sun,
-                ]
-                .into_iter()
-                .map(|i| {
-                    text(
-                        NaiveDate::from_isoywd_opt(2000, 20, i)
-                            .expect("valid NaiveDate")
-                            .format_localized("%a", locale)
-                            .to_string(),
+            .into_iter()
+            .map(|i| {
+                text(
+                    NaiveDate::from_isoywd_opt(2000, 20, i)
+                        .expect("valid NaiveDate")
+                        .format_localized("%a", locale)
+                        .to_string(),
+                )
+                .size(theme.font_size.xs)
+                .color(muted)
+                .align_x(Horizontal::Center)
+                .width(Length::Fill)
+                .into()
+            })
+            .collect::<Vec<Element<'a, Message>>>(),
+        )
+        .width(Length::Fill);
+
+        let grid = Column::with_children(
+            (0..weeks_in_month)
+                .map(|_| {
+                    Row::with_children(
+                        (0..7)
+                            .map(|_| {
+                                let day = current;
+                                current = current.succ_opt().unwrap_or(current);
+                                day_cell(
+                                    day,
+                                    today,
+                                    selected_date,
+                                    current_month,
+                                    theme.font_size.sm,
+                                    faint,
+                                )
+                            })
+                            .collect::<Vec<Element<'a, Message>>>(),
                     )
-                    .align_x(Horizontal::Center)
+                    .spacing(2.0)
                     .width(Length::Fill)
                     .into()
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
-            )
-            .width(Length::Fill)
-            .spacing(theme.space.sm),
-            Column::with_children(
-                (0..weeks_in_month)
-                    .map(|_| {
-                        Row::with_children(
-                            (0..7)
-                                .map(|_| {
-                                    let day = current;
-                                    current = current.succ_opt().unwrap_or(current);
+        )
+        .width(Length::Fill)
+        .spacing(2.0);
 
-                                    styled_button(Element::from(
-                                        text(day.format_localized("%-d", locale).to_string())
-                                            .align_x(Horizontal::Center)
-                                            .color_maybe({
-                                                if day
-                                                    == self.naive_date(self.current_timezone_index)
-                                                {
-                                                    Some(theme.palette.success)
-                                                } else if day == selected_date {
-                                                    Some(theme.palette.primary)
-                                                } else if day.month0() != current_month {
-                                                    Some(theme.palette.text.scale_alpha(0.2))
-                                                } else {
-                                                    None
-                                                }
-                                            }),
-                                    ))
-                                    .on_press_maybe(
-                                        if day != self.naive_date(self.current_timezone_index) {
-                                            Some(Message::ChangeSelectDate(Some(day)))
-                                        } else {
-                                            None
-                                        },
-                                    )
-                                    .size(ButtonSize::Small)
-                                    .width(Length::Fill)
-                                    .into()
+        let mut content = column![header, weekdays, grid]
+            .spacing(theme.space.sm)
+            .width(Length::Fixed(240.0));
+
+        if !self.config.timezones.is_empty() {
+            let radius = theme.radius.sm;
+            let rows = Column::with_children(
+                self.config
+                    .timezones
+                    .iter()
+                    .enumerate()
+                    .map(|(index, tz_name)| {
+                        let selected = self.current_timezone_index == index;
+                        let content: Element<'a, Message> = row![
+                            text(tz_name).size(theme.font_size.sm).width(Length::Fill),
+                            text(self.time_str("%R", index, None))
+                                .size(theme.font_size.sm)
+                                .color_maybe(if selected { None } else { Some(muted) }),
+                        ]
+                        .spacing(theme.space.sm)
+                        .align_y(Vertical::Center)
+                        .into();
+
+                        if selected {
+                            container(content)
+                                .padding([theme.space.xxs, theme.space.sm])
+                                .width(Length::Fill)
+                                .style(move |theme: &Theme| container::Style {
+                                    background: Some(
+                                        Paint::surface(
+                                            theme,
+                                            theme.extended_palette().background.weak.color,
+                                        )
+                                        .into(),
+                                    ),
+                                    border: Border::default().rounded(radius),
+                                    ..Default::default()
                                 })
-                                .collect::<Vec<Element<'a, Message>>>(),
-                        )
-                        .spacing(theme.space.xs)
-                        .width(Length::Fill)
-                        .into()
+                                .into()
+                        } else {
+                            styled_button(content)
+                                .kind(ButtonKind::Transparent)
+                                .size(ButtonSize::Small)
+                                .width(Length::Fill)
+                                .on_press(Message::SetTimezone(index))
+                                .into()
+                        }
                     })
                     .collect::<Vec<Element<'a, Message>>>(),
-            ),
-        ]
-        .spacing(theme.space.md);
+            )
+            .spacing(theme.space.xxs);
 
-        let timezones = Column::with_children(
-            self.config
-                .timezones
-                .iter()
-                .enumerate()
-                .map(|(index, tz_name)| {
-                    if self.current_timezone_index == index {
-                        container(
-                            text(format!(
-                                "{}: {}",
-                                tz_name,
-                                self.time_str("%d %h %R", index, None)
-                            ))
-                            .wrapping(text::Wrapping::Word),
-                        )
-                        .padding([theme.space.xxs, theme.space.sm])
-                        .width(Length::Fill)
-                        .style(|theme: &Theme| container::Style {
-                            text_color: Some(theme.palette().success),
-                            ..Default::default()
-                        })
-                        .into()
-                    } else {
-                        styled_button(format!(
-                            "{}: {}",
-                            tz_name,
-                            self.time_str("%d %h %R", index, None)
-                        ))
-                        .width(Length::Fill)
-                        .on_press(Message::SetTimezone(index))
-                        .into()
-                    }
-                })
-                .collect::<Vec<Element<'a, Message>>>(),
-        );
+            content = content.push(
+                column![divider(), rows]
+                    .spacing(theme.space.sm)
+                    .width(Length::Fill),
+            );
+        }
 
-        column!(
-            styled_button(Element::from(
-                column!(
-                    text(self.date.format_localized("%A", locale).to_string())
-                        .size(theme.font_size.sm),
-                    text(self.date.format_localized("%d %B %Y", locale).to_string())
-                        .size(theme.font_size.md),
-                )
-                .spacing(theme.space.xs),
-            ),)
-            .size(ButtonSize::Large)
-            .kind(ButtonKind::Outline)
-            .on_press_maybe(if self.selected_date.is_some() {
-                Some(Message::ChangeSelectDate(None))
-            } else {
-                None
-            })
-            .width(Length::Fill),
-            calendar,
-            timezones,
-        )
-        .spacing(theme.space.lg)
-        .width(225)
-        .into()
+        content.into()
     }
+}
+
+fn day_cell<'a>(
+    day: NaiveDate,
+    today: NaiveDate,
+    selected: NaiveDate,
+    current_month: u32,
+    font_size: f32,
+    faint: iced::Color,
+) -> Element<'a, Message> {
+    let locale = chrono_locale();
+    let is_today = day == today;
+    let is_selected = day == selected;
+
+    let (kind, hierarchy) = if is_selected {
+        (ButtonKind::Solid, ButtonHierarchy::Primary)
+    } else if is_today {
+        (ButtonKind::Outline, ButtonHierarchy::Primary)
+    } else {
+        (ButtonKind::Transparent, ButtonHierarchy::Secondary)
+    };
+
+    let color = if is_today || is_selected || day.month0() == current_month {
+        None
+    } else {
+        Some(faint)
+    };
+
+    styled_button(Element::from(
+        text(day.format_localized("%-d", locale).to_string())
+            .size(font_size)
+            .align_x(Horizontal::Center)
+            .color_maybe(color),
+    ))
+    .kind(kind)
+    .hierarchy(hierarchy)
+    .size(ButtonSize::Small)
+    .width(Length::Fill)
+    .height(Length::Fixed(28.0))
+    .on_press(Message::ChangeSelectDate(Some(day)))
+    .into()
 }
