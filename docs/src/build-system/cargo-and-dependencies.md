@@ -83,10 +83,10 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 Three dependencies come from git instead of crates.io:
 
 - [`iced_layershell`](https://github.com/MalpenZibo/iced_layershell) (aliased as `iced`) — pinned to tag `v0.6.1`
-- [`hyprland`](https://github.com/hyprland-community/hyprland-rs) — tracks the `master` branch
+- [`hyprland`](https://github.com/romanstingler/hyprland-rs-next) — pinned to rev `7c2f69f8be78d89b58720bce7cad03b82e99baa3`, a fork that adds Hyprland 0.57 workspace identity (`address`/`type`, no numeric `id` for named and special workspaces). Switch back to [`hyprland-community/hyprland-rs`](https://github.com/hyprland-community/hyprland-rs) once its 0.57 support lands (upstream PR #400).
 - [`softbuffer`](https://github.com/MalpenZibo/softbuffer) — replaced via `[patch.crates-io]` with a fork (branch `wayland-argb`) that uses `wl_shm` Argb8888, so the tiny-skia fallback renderer honors alpha on Wayland (upstream hardcodes Xrgb8888, which the compositor treats as fully opaque). The fork is based on v0.4.8 to match the `iced_tiny_skia` release `iced` depends on — rebasing it past 0.4.x will break the patch.
 
-`Cargo.lock` pins each source to an exact commit, so clones build reproducibly; only an explicit `cargo update -p <crate>` moves a branch-tracking dependency.
+`Cargo.lock` pins each source to an exact commit, so clones build reproducibly; only an explicit `cargo update -p <crate>` moves a branch-tracking dependency. Rev-pinned sources (the `hyprland` fork) only move when their rev is bumped in `Cargo.toml`.
 
 ## Release Profile
 
