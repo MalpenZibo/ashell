@@ -54,7 +54,7 @@ impl PositionButton {
 
 - Scroll events are explicit: separate `on_scroll_up` and `on_scroll_down` handlers. There is no generic "scroll" event.
 - For custom modules, these handlers map directly to `on_scroll_up` / `on_scroll_down` config fields.
-- Middle-click (`on_middle_press`) is primarily used by `CustomAction` (custom modules without menus). `ToggleMenuWithExtra` does not include middle-click support.
+- Middle-click (`on_middle_press`) is used by `ModulePress` for modules with independent per-button actions (custom modules of type `Button` and MediaPlayer). Any button — including middle-click — can emit a message or toggle a menu.
 
 ## ButtonUIRef
 
@@ -69,11 +69,14 @@ pub struct ButtonUIRef {
 ## Usage
 
 ```rust
-// In modules/mod.rs (module_item wraps its content in a position_button)
-module_item(content)
-    .on_press_with_position(move |button_ui_ref| {
+// In modules/mod.rs, build_module_item maps a ModulePress onto the item. A menu
+// toggle needs the button position, so it becomes PressHandler::WithPosition:
+module_item(content).set_handler(
+    Button::Press,
+    Some(PressHandler::WithPosition(Box::new(move |button_ui_ref| {
         Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
-    })
+    }))),
+)
 ```
 
 The `button_ui_ref` is then used by `MenuWrapper` to position the popup relative to the button.
