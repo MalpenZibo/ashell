@@ -25,4 +25,5 @@ cp -a * %{buildroot}
 rm -rf %{buildroot}
 
 %files
+%license %{_datadir}/licenses/ashell/LICENSE
 %{_bindir}/*

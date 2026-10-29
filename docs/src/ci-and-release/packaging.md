@@ -31,7 +31,7 @@ depends = ["libxkbcommon", "libwayland-client", "pipewire-libs", "pulseaudio-lib
 
 After building, `generate-installers.yml` installs each `.deb` in `ubuntu:24.04` and `debian:trixie` and each `.rpm` in `fedora:latest`, checks `ldd` for missing libraries and runs `ashell --version`. A failure stops the release before anything is uploaded. To try it without publishing, run the Release workflow manually with the default `dry-run` tag.
 
-Separately, `copr-build.yml` builds an SRPM with `cargo rpm` (using `.rpm/ashell.spec`) on `v*` tag pushes and submits it to the community Fedora Copr repository `killcrb/ashell`.
+Separately, `copr-build.yml` builds the release binary, packs it into a source archive and turns that into an SRPM with `rpmbuild -bs` (using `.rpm/ashell.spec`) on version tag pushes, then submits it to the community Fedora Copr repository `killcrb/ashell`.
 
 ## Arch Linux (AUR)
 
