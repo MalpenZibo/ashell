@@ -9,6 +9,7 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         compositor::{
             CompositorCommand, CompositorService, CompositorState, set_collect_window_classes,
+            types::CompositorMonitor,
         },
         xdg_icons::{self, XdgIcon},
     },
@@ -29,6 +30,29 @@ enum Displayed {
     Hidden,
 }
 
+fn display_state(
+    monitors: &[CompositorMonitor],
+    active_ids: &HashSet<i32>,
+    id: i32,
+    name: &str,
+) -> Displayed {
+    // No numeric id (0.57 special/named): active only on the focused monitor.
+    let is_active = active_ids.contains(&id)
+        || (id <= 0
+            && monitors
+                .iter()
+                .any(|m| m.focused && m.active_workspace_name == name));
+    let is_visible = monitors
+        .iter()
+        .any(|m| m.active_workspace_id == id || m.active_workspace_name == name);
+
+    match (is_active, is_visible) {
+        (true, _) => Displayed::Active,
+        (false, true) => Displayed::Visible,
+        (false, false) => Displayed::Hidden,
+    }
+}
+
 #[derive(Debug, Clone)]
 struct UiWorkspace {
     id: i32,
@@ -44,16 +68,16 @@ struct UiWorkspace {
 }
 
 impl UiWorkspace {
-    /// Hyprland reads a negative id as a relative move, so these are focused by name.
+    /// Workspaces with no usable numeric id are focused by name.
     fn is_named(&self) -> bool {
-        !self.is_special && self.id < 0
+        !self.is_special && self.id <= 0
     }
 
     fn press_message(&self) -> Message {
         if self.is_special {
-            Message::ToggleSpecialWorkspace(self.id)
+            Message::ToggleSpecialWorkspace(self.name.clone())
         } else if self.is_named() {
-            Message::FocusNamedWorkspace(self.id)
+            Message::FocusNamedWorkspace(self.name.clone())
         } else {
             Message::ChangeWorkspace(self.id)
         }
@@ -83,8 +107,8 @@ fn resolve_workspace_icons(window_classes: &[String]) -> Vec<XdgIcon> {
 pub enum Message {
     ServiceEvent(Box<ServiceEvent<CompositorService>>),
     ChangeWorkspace(i32),
-    FocusNamedWorkspace(i32),
-    ToggleSpecialWorkspace(i32),
+    FocusNamedWorkspace(String),
+    ToggleSpecialWorkspace(String),
     Scroll(i32, Option<String>),
     ConfigReloaded(WorkspacesModuleConfig),
     ScrollAccumulator(f32),
@@ -114,7 +138,13 @@ fn calculate_ui_workspaces(
         .workspaces
         .clone()
         .into_iter()
-        .unique_by(|w| w.id)
+        .unique_by(|w| {
+            if w.id > 0 {
+                format!("id:{}", w.id)
+            } else {
+                format!("name:{}", w.name)
+            }
+        })
         .collect_vec();
 
     let collect_icons = config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
@@ -126,7 +156,7 @@ fn calculate_ui_workspaces(
         for w in special {
             // Special workspaces are active if they are assigned to any monitor.
             // Currently a special and normal workspace can be active at the same time on the same monitor.
-            let active = monitors.iter().any(|m| m.special_workspace_id == w.id);
+            let active = monitors.iter().any(|m| m.special_workspace_name == w.name);
             result.push(UiWorkspace {
                 id: w.id,
                 index: w.index,
@@ -205,8 +235,7 @@ fn calculate_ui_workspaces(
         });
 
         for w in named {
-            let is_active = active_ids.contains(&w.id);
-            let is_visible = monitors.iter().any(|m| m.active_workspace_id == w.id);
+            let displayed = display_state(monitors, &active_ids, w.id, &w.name);
 
             result.push(UiWorkspace {
                 id: w.id,
@@ -214,11 +243,7 @@ fn calculate_ui_workspaces(
                 name: w.name,
                 monitor_id: w.monitor_id,
                 monitor: w.monitor,
-                displayed: match (is_active, is_visible) {
-                    (true, _) => Displayed::Active,
-                    (false, true) => Displayed::Visible,
-                    (false, false) => Displayed::Hidden,
-                },
+                displayed,
                 windows: w.windows,
                 has_urgent: w.has_urgent,
                 is_special: false,
@@ -227,6 +252,8 @@ fn calculate_ui_workspaces(
         }
     } else {
         for w in normal {
+            let displayed = display_state(monitors, &active_ids, w.id, &w.name);
+
             let display_name = if w.id > 0 {
                 let idx = (w.id - 1) as usize;
                 config.workspace_names.get(idx).cloned().unwrap_or(w.name)
@@ -234,20 +261,13 @@ fn calculate_ui_workspaces(
                 w.name
             };
 
-            let is_active = active_ids.contains(&w.id);
-            let is_visible = monitors.iter().any(|m| m.active_workspace_id == w.id);
-
             result.push(UiWorkspace {
                 id: w.id,
                 index: w.index,
                 name: display_name,
                 monitor_id: w.monitor_id,
                 monitor: w.monitor,
-                displayed: match (is_active, is_visible) {
-                    (true, _) => Displayed::Active,
-                    (false, true) => Displayed::Visible,
-                    (false, false) => Displayed::Hidden,
-                },
+                displayed,
                 windows: w.windows,
                 has_urgent: w.has_urgent,
                 is_special: false,
@@ -422,34 +442,25 @@ impl Workspaces {
                 }
                 iced::Task::none()
             }
-            Message::FocusNamedWorkspace(id) => {
+            Message::FocusNamedWorkspace(name) => {
                 let already_active = self
                     .ui_workspaces
                     .iter()
-                    .any(|w| w.displayed == Displayed::Active && w.id == id);
+                    .any(|w| w.displayed == Displayed::Active && w.name == name);
 
                 if let Some(service) = &mut self.service
                     && !already_active
-                    && let Some(named) = service.workspaces.iter().find(|w| w.id == id)
                 {
                     return service
-                        .command(CompositorCommand::FocusNamedWorkspace(named.name.clone()))
+                        .command(CompositorCommand::FocusNamedWorkspace(name))
                         .map(|event| Message::ServiceEvent(Box::new(event)));
                 }
                 iced::Task::none()
             }
-            Message::ToggleSpecialWorkspace(id) => {
-                if let Some(service) = &mut self.service
-                    && let Some(special) = service.workspaces.iter().find(|w| w.id == id)
-                {
+            Message::ToggleSpecialWorkspace(name) => {
+                if let Some(service) = &mut self.service {
                     return service
-                        .command(CompositorCommand::ToggleSpecialWorkspace(
-                            special
-                                .name
-                                .split(':')
-                                .next_back()
-                                .map_or_else(|| special.name.clone(), |s| s.to_string()),
-                        ))
+                        .command(CompositorCommand::ToggleSpecialWorkspace(name))
                         .map(|event| Message::ServiceEvent(Box::new(event)));
                 }
                 iced::Task::none()

@@ -254,8 +254,10 @@ impl GenericState {
                 CompositorMonitor {
                     id: i as i128,
                     name: o.name.clone(),
+                    focused: false,
                     active_workspace_id: active,
-                    special_workspace_id: -1,
+                    active_workspace_name: String::new(),
+                    special_workspace_name: String::new(),
                 }
             })
             .collect();

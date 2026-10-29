@@ -184,8 +184,10 @@ fn build_state(all: AllMonitors) -> CompositorState {
         monitors.push(CompositorMonitor {
             id: idx as i128,
             name: monitor.name.clone(),
+            focused: false,
             active_workspace_id: selected_ids.first().copied().unwrap_or(-1),
-            special_workspace_id: -1,
+            active_workspace_name: String::new(),
+            special_workspace_name: String::new(),
         });
 
         // Prefer the focused monitor's data, else the first that has any.
