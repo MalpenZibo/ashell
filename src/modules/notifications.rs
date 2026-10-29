@@ -32,7 +32,7 @@ use std::{
 };
 use zbus::Connection;
 
-const ICON_SIZE: f32 = 36.0;
+const ICON_SIZE: f32 = 24.0;
 
 fn notification_icon<'a, M: 'a>(icon_kind: Option<&NotificationIcon>) -> Element<'a, M> {
     match icon_kind {
@@ -160,12 +160,9 @@ pub enum Message {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum NotificationStyle {
+enum NotificationStyle {
     Toast,
-    Standalone,
-    GroupHeader,
-    GroupItem,
-    GroupLast,
+    Card,
 }
 
 pub enum Action {
@@ -755,20 +752,7 @@ impl Notifications {
         move |iced_theme: &Theme, status| {
             let mut border = match style {
                 NotificationStyle::Toast => surface_border(iced_theme, radius.lg),
-                NotificationStyle::Standalone => Border::default().rounded(radius.lg),
-                NotificationStyle::GroupHeader => Border::default().rounded(iced::border::Radius {
-                    top_left: radius.lg,
-                    top_right: radius.lg,
-                    bottom_left: radius.sm,
-                    bottom_right: radius.sm,
-                }),
-                NotificationStyle::GroupItem => Border::default().rounded(radius.sm),
-                NotificationStyle::GroupLast => Border::default().rounded(iced::border::Radius {
-                    top_left: 0.0,
-                    top_right: 0.0,
-                    bottom_left: radius.lg,
-                    bottom_right: radius.lg,
-                }),
+                NotificationStyle::Card => Border::default().rounded(radius.md),
             };
 
             if urgency == Urgency::Critical {
@@ -815,62 +799,54 @@ impl Notifications {
         on_press: Message,
         toast: bool,
     ) -> Element<'a, Message> {
-        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
-        let timestamp_element = if self.config.show_timestamps {
-            Some(
-                container(text(self.format_timestamp(notification.timestamp)).size(font_size.xs))
-                    .padding([0., space.xxs]),
-            )
-        } else {
-            None
-        };
+        let (space, font_size, palette) = use_theme(|t| (t.space, t.font_size, t.palette));
+        let muted = palette.text.scale_alpha(0.55);
+        let faint = palette.text.scale_alpha(0.4);
 
-        let body_element = if (!toast || self.config.show_bodies) && !notification.body.is_empty() {
-            Some(
+        let timestamp = self.config.show_timestamps.then(|| {
+            text(self.format_timestamp(notification.timestamp))
+                .size(font_size.xs)
+                .color(faint)
+        });
+
+        let meta = column![
+            text(&notification.app_name)
+                .size(font_size.xs)
+                .color(muted)
+                .wrapping(text::Wrapping::WordOrGlyph),
+            timestamp,
+        ]
+        .spacing(1.0);
+
+        let header = row![
+            notification_icon(notification.icon.as_ref()),
+            meta.width(Length::Fill),
+            icon_button(StaticIcon::Close)
+                .kind(ButtonKind::Transparent)
+                .hierarchy(ButtonHierarchy::Danger)
+                .size(ButtonSize::Small)
+                .on_press(Message::CloseNotificationById(notification.id)),
+        ]
+        .spacing(space.xs)
+        .align_y(Alignment::Center);
+
+        let body =
+            ((!toast || self.config.show_bodies) && !notification.body.is_empty()).then(|| {
                 text(&notification.body)
                     .size(font_size.sm)
-                    .wrapping(text::Wrapping::WordOrGlyph),
-            )
-        } else {
-            None
-        };
+                    .color(muted)
+                    .wrapping(text::Wrapping::WordOrGlyph)
+            });
 
-        let notification_id = notification.id;
+        let text_block = column![
+            text(&notification.summary)
+                .size(font_size.md)
+                .wrapping(text::Wrapping::WordOrGlyph),
+            body,
+        ]
+        .spacing(space.xxs);
 
-        let app_icon_button = notification_icon(notification.icon.as_ref());
-
-        let mut card = container(
-            column!(
-                Row::new()
-                    .push(
-                        Row::new()
-                            .push(app_icon_button)
-                            .push(column!(
-                                text(&notification.app_name)
-                                    .size(font_size.md)
-                                    .wrapping(text::Wrapping::WordOrGlyph),
-                                timestamp_element
-                            ))
-                            .width(Length::Fill)
-                            .spacing(space.xxs)
-                            .padding(space.xs)
-                            .align_y(Alignment::Center),
-                    )
-                    .push(
-                        icon_button(StaticIcon::Close)
-                            .kind(ButtonKind::Transparent)
-                            .hierarchy(ButtonHierarchy::Danger)
-                            .on_press(Message::CloseNotificationById(notification_id))
-                    ),
-                column!(
-                    text(&notification.summary).wrapping(text::Wrapping::WordOrGlyph),
-                    body_element,
-                )
-                .spacing(space.xxs)
-                .padding(Padding::new(space.xs).top(0.))
-            )
-            .spacing(space.xxs),
-        );
+        let mut card = container(column![header, text_block].spacing(space.xs));
 
         if toast {
             card = card.max_height(self.config.toast_max_height).clip(true);
@@ -893,12 +869,12 @@ impl Notifications {
         button(column!(card, actions_row, countdown))
             .on_press(on_press)
             .width(Length::Fill)
-            .padding(space.xxs)
+            .padding(space.sm)
             .style(Self::notification_button_style(
                 if toast {
                     NotificationStyle::Toast
                 } else {
-                    NotificationStyle::Standalone
+                    NotificationStyle::Card
                 },
                 notification.urgency,
             ))
@@ -926,32 +902,38 @@ impl Notifications {
         })
     }
 
-    fn group_item<'a>(
-        &'a self,
-        notification: &'a Notification,
-        is_last: bool,
-    ) -> Element<'a, Message> {
-        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
+    fn group_item<'a>(&'a self, notification: &'a Notification) -> Element<'a, Message> {
+        let (space, font_size, palette) = use_theme(|t| (t.space, t.font_size, t.palette));
+        let muted = palette.text.scale_alpha(0.55);
+
+        let body = (!notification.body.is_empty()).then(|| {
+            text(&notification.body)
+                .size(font_size.sm)
+                .color(muted)
+                .wrapping(text::Wrapping::WordOrGlyph)
+        });
+
         button(
-            column!(
+            column![
                 row!(
                     text(&notification.summary)
+                        .size(font_size.sm)
                         .wrapping(text::Wrapping::WordOrGlyph)
                         .width(Length::Fill),
-                    text(self.format_timestamp(notification.timestamp)).size(font_size.sm)
-                ),
-                text(&notification.body).wrapping(text::Wrapping::WordOrGlyph),
+                    text(self.format_timestamp(notification.timestamp))
+                        .size(font_size.xs)
+                        .color(muted)
+                )
+                .spacing(space.xs)
+                .align_y(Alignment::Center),
+                body,
                 Self::action_buttons(notification)
-            )
-            .padding(space.xs)
-            .spacing(space.xs),
+            ]
+            .padding(space.sm)
+            .spacing(space.xxs),
         )
         .style(Self::notification_button_style(
-            if is_last {
-                NotificationStyle::GroupLast
-            } else {
-                NotificationStyle::GroupItem
-            },
+            NotificationStyle::Card,
             notification.urgency,
         ))
         .on_press(Message::NotificationClicked(notification.id))
@@ -970,27 +952,37 @@ impl Notifications {
     }
 
     pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
-        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
+        let (space, font_size, palette) = use_theme(|t| (t.space, t.font_size, t.palette));
         let is_empty = self.notifications.is_empty();
+        let muted = palette.text.scale_alpha(0.55);
 
         let content = if is_empty {
-            container(text(t!("notifications-empty")).size(font_size.md))
-                .width(Length::Fill)
-                .center_x(Length::Fill)
-                .padding(space.xxl)
-                .into()
+            container(
+                column![
+                    icon(StaticIcon::BellOff).size(font_size.xxl).color(muted),
+                    text(t!("notifications-empty"))
+                        .size(font_size.sm)
+                        .color(muted),
+                ]
+                .spacing(space.sm)
+                .align_x(Alignment::Center),
+            )
+            .width(Length::Fill)
+            .center_x(Length::Fill)
+            .padding(space.xl)
+            .into()
         } else if self.config.grouped {
             self.grouped_notifications()
         } else {
             self.list_notifications()
         };
 
-        column!(
+        column![
             Row::new()
                 .push(
                     text(t!("notifications-heading"))
                         .width(Length::Fill)
-                        .size(font_size.lg)
+                        .size(font_size.md)
                 )
                 .push(
                     icon_button(if self.dnd {
@@ -999,6 +991,7 @@ impl Notifications {
                         StaticIcon::Bell
                     })
                     .kind(ButtonKind::Transparent)
+                    .size(ButtonSize::Small)
                     .hierarchy(if self.dnd {
                         ButtonHierarchy::Danger
                     } else {
@@ -1007,10 +1000,15 @@ impl Notifications {
                     .on_press(Message::ToggleDnd)
                 )
                 .push((!is_empty).then(|| {
-                    icon_button(StaticIcon::Delete).on_press(Message::ClearNotifications)
-                })),
+                    icon_button(StaticIcon::Delete)
+                        .kind(ButtonKind::Transparent)
+                        .size(ButtonSize::Small)
+                        .on_press(Message::ClearNotifications)
+                }))
+                .spacing(space.xxs)
+                .align_y(Alignment::Center),
             container(scrollable(content).spacing(space.xs)).max_height(400.),
-        )
+        ]
         .width(MenuSize::Medium)
         .spacing(space.sm)
         .into()
@@ -1102,7 +1100,8 @@ impl Notifications {
     }
 
     fn grouped_notifications<'a>(&'a self) -> Element<'a, Message> {
-        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
+        let (space, font_size, palette) = use_theme(|t| (t.space, t.font_size, t.palette));
+        let muted = palette.text.scale_alpha(0.55);
         let mut content = column!()
             .spacing(space.sm)
             .padding(Padding::default().right(space.md).left(space.xs));
@@ -1140,19 +1139,18 @@ impl Notifications {
             let mut group_notifications = vec![];
 
             if is_expanded {
-                group_notifications.push(self.group_item(first, false));
-                while let Some(notification) = iter.next() {
+                group_notifications.push(self.group_item(first));
+                for notification in iter {
                     count += 1;
                     has_critical = has_critical || notification.urgency == Urgency::Critical;
-                    let is_last = iter.peek().is_none();
-                    group_notifications.push(self.group_item(notification, is_last));
+                    group_notifications.push(self.group_item(notification));
                 }
             } else {
                 for notification in iter {
                     count += 1;
                     has_critical = has_critical || notification.urgency == Urgency::Critical;
                 }
-                group_notifications.push(self.group_item(first, true));
+                group_notifications.push(self.group_item(first));
             }
 
             let clear_msg = Message::ClearGroup(app_name.clone());
@@ -1161,13 +1159,15 @@ impl Notifications {
             let header = row!(
                 app_icon,
                 text(app_name)
-                    .size(font_size.md)
+                    .size(font_size.sm)
                     .wrapping(text::Wrapping::WordOrGlyph)
                     .width(Length::Fill),
-                text(t!("notifications-group-count", count = count)),
+                text(t!("notifications-group-count", count = count))
+                    .size(font_size.xs)
+                    .color(muted),
                 icon_button(StaticIcon::Delete)
                     .on_press(clear_msg)
-                    .size(ButtonSize::Large)
+                    .size(ButtonSize::Small)
                     .kind(ButtonKind::Transparent)
                     .hierarchy(ButtonHierarchy::Danger)
             )
@@ -1177,8 +1177,9 @@ impl Notifications {
             let item = Column::new()
                 .push(
                     button(header)
+                        .padding(space.sm)
                         .style(Self::notification_button_style(
-                            NotificationStyle::GroupHeader,
+                            NotificationStyle::Card,
                             if has_critical {
                                 Urgency::Critical
                             } else {
