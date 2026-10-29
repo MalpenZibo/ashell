@@ -70,10 +70,10 @@ pub struct ButtonUIRef {
 
 ```rust
 // In modules/mod.rs, build_module_item maps a ModulePress onto the item. A menu
-// toggle needs the button position, so it becomes Handler::WithPosition:
+// toggle needs the button position, so it becomes PressHandler::WithPosition:
 module_item(content).set_handler(
     Button::Press,
-    Some(Handler::WithPosition(Box::new(move |button_ui_ref| {
+    Some(PressHandler::WithPosition(Box::new(move |button_ui_ref| {
         Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
     }))),
 )

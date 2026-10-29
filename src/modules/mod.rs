@@ -2,7 +2,7 @@ use crate::{
     app::{App, Message},
     components::animated_size,
     components::menu::MenuType,
-    components::{Handler, MouseButton, module_group, module_item},
+    components::{MouseButton, PressHandler, module_group, module_item},
     config::{MediaPlayerButtonAction, MediaPlayerScrollAction, ModuleDef, ModuleName},
     theme::{IslandStyle, use_theme},
 };
@@ -42,12 +42,14 @@ impl ModuleAction {
         Self::ToggleMenu(menu_type)
     }
 
-    fn into_handler<'a>(self, id: SurfaceId) -> Handler<'a, Message> {
+    fn into_handler<'a>(self, id: SurfaceId) -> PressHandler<'a, Message> {
         match self {
-            Self::Message(message) => Handler::Message(*message),
-            Self::ToggleMenu(menu_type) => Handler::WithPosition(Box::new(move |button_ui_ref| {
-                Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
-            })),
+            Self::Message(message) => PressHandler::Message(*message),
+            Self::ToggleMenu(menu_type) => {
+                PressHandler::WithPosition(Box::new(move |button_ui_ref| {
+                    Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
+                }))
+            }
         }
     }
 }
@@ -80,6 +82,11 @@ impl ModulePress {
 
     fn right_message(mut self, message: Message) -> Self {
         self.on_right_press = Some(ModuleAction::message(message));
+        self
+    }
+
+    fn middle_message(mut self, message: Message) -> Self {
+        self.on_middle_press = Some(ModuleAction::message(message));
         self
     }
 
@@ -237,47 +244,31 @@ impl App {
                 let action = match custom.module_type() {
                     crate::config::CustomModuleType::Text => None,
                     crate::config::CustomModuleType::Button => {
-                        let name = name.clone();
-                        Some(ModulePress {
-                            on_press: Some(ModuleAction::message(Message::Custom(
-                                name.clone(),
-                                custom_module::Message::LaunchCommand,
-                            ))),
-                            on_right_press: custom.config.on_right_click.as_ref().map(|_| {
-                                ModuleAction::message(Message::Custom(
-                                    name.clone(),
-                                    custom_module::Message::LaunchRightClickCommand,
-                                ))
-                            }),
-                            on_middle_press: custom.config.on_middle_click.as_ref().map(|_| {
-                                ModuleAction::message(Message::Custom(
-                                    name.clone(),
-                                    custom_module::Message::LaunchMiddleClickCommand,
-                                ))
-                            }),
-                            on_scroll_up: custom
-                                .config
-                                .on_scroll_up
-                                .as_ref()
-                                .map(|_| {
-                                    Message::Custom(
-                                        name.clone(),
-                                        custom_module::Message::LaunchScrollUpCommand,
-                                    )
-                                })
-                                .map(Box::new),
-                            on_scroll_down: custom
-                                .config
-                                .on_scroll_down
-                                .as_ref()
-                                .map(|_| {
-                                    Message::Custom(
-                                        name,
-                                        custom_module::Message::LaunchScrollDownCommand,
-                                    )
-                                })
-                                .map(Box::new),
-                        })
+                        let custom_message = |message| Message::Custom(name.clone(), message);
+                        let mut press = ModulePress::message(custom_message(
+                            custom_module::Message::LaunchCommand,
+                        ));
+                        if custom.config.on_right_click.is_some() {
+                            press = press.right_message(custom_message(
+                                custom_module::Message::LaunchRightClickCommand,
+                            ));
+                        }
+                        if custom.config.on_middle_click.is_some() {
+                            press = press.middle_message(custom_message(
+                                custom_module::Message::LaunchMiddleClickCommand,
+                            ));
+                        }
+                        if custom.config.on_scroll_up.is_some() {
+                            press = press.scroll_up(custom_message(
+                                custom_module::Message::LaunchScrollUpCommand,
+                            ));
+                        }
+                        if custom.config.on_scroll_down.is_some() {
+                            press = press.scroll_down(custom_message(
+                                custom_module::Message::LaunchScrollDownCommand,
+                            ));
+                        }
+                        Some(press)
                     }
                 };
                 (
@@ -438,5 +429,27 @@ impl App {
                     .map(Message::Notifications),
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builders_bind_the_expected_buttons() {
+        let press = ModulePress::menu(MenuType::Settings)
+            .right_message(Message::None)
+            .middle_message(Message::None);
+
+        assert!(matches!(press.on_press, Some(ModuleAction::ToggleMenu(_))));
+        assert!(matches!(
+            press.on_right_press,
+            Some(ModuleAction::Message(_))
+        ));
+        assert!(matches!(
+            press.on_middle_press,
+            Some(ModuleAction::Message(_))
+        ));
     }
 }
