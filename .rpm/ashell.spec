@@ -3,7 +3,7 @@
 %define debug_package %{nil}
 
 Name: ashell
-Summary: A ready to go Wayland status bar for Hyprland
+Summary: A ready to go status bar for Wayland compositors
 Version: @@VERSION@@
 Release: @@RELEASE@@%{?dist}
 License: GPL-3.0-or-later

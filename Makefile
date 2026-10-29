@@ -9,10 +9,10 @@ help:
 	@echo "Targets:"
 	@echo "  help          Show this help message"
 	@echo "  build         Build the project"
-	@echo "  start         Run the build"
-	@echo "  install       Install the build (supports DESTDIR and PREFIX)"
+	@echo "  start         Run the built binary"
+	@echo "  install       Install the existing binary (run 'make build' first)"
 	@echo "  fmt           Format the code"
-	@echo "  check         Format, check and lint the code"
+	@echo "  check         Format, lint and test the code"
 
 build:
 	cargo build --release
@@ -20,13 +20,17 @@ build:
 start: build
 	./target/release/ashell
 
-install: build
+install:
+	@test -x target/release/ashell || { \
+		echo "error: target/release/ashell not found; run 'make build' first" >&2; \
+		exit 1; \
+	}
 	install -Dm755 target/release/ashell $(DESTDIR)$(BINDIR)/ashell
 
 fmt:
-	cargo fmt
+	cargo fmt --all
 
 check: fmt
-	cargo check --workspace
-	cargo clippy --workspace -- -D warnings
-	cargo test -p ashell-services --all-features
+	cargo check --workspace --all-features
+	cargo clippy --workspace --all-features -- -D warnings
+	cargo test --workspace --all-features

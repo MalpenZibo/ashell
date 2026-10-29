@@ -3,7 +3,6 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 use std::process::Command;
-use std::str;
 
 use allsorts::binary::read::ReadScope;
 use allsorts::error::ParseError;
@@ -17,7 +16,7 @@ use allsorts::tinyvec::tiny_vec;
 use allsorts::unicode::VariationSelector;
 use allsorts::{subset, tag};
 
-pub fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     let output = Command::new("git")
         .args(["rev-parse", "--short", "HEAD"])
         .output();
@@ -60,8 +59,6 @@ pub fn main() -> Result<(), Box<dyn Error>> {
             Ok(c.to_string())
         })
         .collect::<Result<Vec<_>, _>>()?;
-    println!("Request the following unicodes {:?}", unicodes);
-
     let text = unicodes.join("");
 
     subset_text(input, &text, output)?;
@@ -98,8 +95,6 @@ fn subset_text(input: &str, text: &str, output_path: &str) -> Result<(), Box<dyn
     if glyph_ids.is_empty() {
         return Err("no glyphs left in font".to_string().into());
     }
-
-    println!("Number of glyphs in new font: {}", glyph_ids.len());
 
     // Subset
     let new_font = subset::subset(
@@ -141,7 +136,7 @@ fn chars_to_glyphs<F: FontTableProvider>(
     Ok(glyphs)
 }
 
-pub(crate) fn map(
+fn map(
     cmap_subtable: &CmapSubtable,
     ch: char,
     variation: Option<VariationSelector>,
@@ -154,11 +149,7 @@ pub(crate) fn map(
     }
 }
 
-pub(crate) fn make(
-    ch: char,
-    glyph_index: u16,
-    variation: Option<VariationSelector>,
-) -> RawGlyph<()> {
+fn make(ch: char, glyph_index: u16, variation: Option<VariationSelector>) -> RawGlyph<()> {
     RawGlyph {
         unicodes: tiny_vec![[char; 1] => ch],
         glyph_index,

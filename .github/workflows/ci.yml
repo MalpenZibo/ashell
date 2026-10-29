@@ -29,6 +29,8 @@ jobs:
               - 'src/**'
               - 'crates/**'
               - 'assets/**'
+              - 'i18n/**'
+              - 'i18n.toml'
               - 'build.rs'
               - 'Cargo.toml'
               - 'Cargo.lock'
@@ -55,9 +57,9 @@ jobs:
         if: steps.filter.outputs.code == 'true'
         run: cargo clippy --workspace --all-features -- -D warnings
 
-      - name: Test ashell-services
+      - name: Test
         if: steps.filter.outputs.code == 'true'
-        run: cargo test -p ashell-services --all-features
+        run: cargo test --workspace --all-features
 
       - name: Build
         if: steps.filter.outputs.code == 'true'
