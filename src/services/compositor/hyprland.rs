@@ -319,23 +319,15 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
         .map_err(|e| anyhow::anyhow!(e))
 }
 
-const SPECIAL_WORKSPACE_ID_START: i32 = -99;
-const SPECIAL_WORKSPACE_ID_END: i32 = -2;
-
-/// Mirrors Hyprland's `CWorkspaceQueryCore::isSpecial`. Named workspaces are
-/// negative too (from -1337 down), so `id < 0` is not enough.
-fn is_special_workspace_id(id: i32) -> bool {
-    (SPECIAL_WORKSPACE_ID_START..=SPECIAL_WORKSPACE_ID_END).contains(&id)
-}
-
 fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorState> {
     let collect_classes = super::should_collect_window_classes();
 
-    let mut workspace_classes: HashMap<i32, Vec<String>> = HashMap::new();
+    // 0.57 special/named workspaces have no id, so key by name.
+    let mut workspace_classes: HashMap<String, Vec<String>> = HashMap::new();
     if collect_classes {
         for client in Clients::get()? {
             workspace_classes
-                .entry(client.workspace.id)
+                .entry(client.workspace.name)
                 .or_default()
                 .push(client.class);
         }
@@ -343,21 +335,24 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
 
     let workspaces = Workspaces::get()?
         .into_iter()
-        .sorted_by_key(|w| w.id)
+        .sorted_by_key(|w| w.id().unwrap_or(i32::MAX))
         .map(|w| {
+            // Zero is not a real workspace id: identify by name instead.
+            let id = w.id().unwrap_or(0);
+            let is_special = w.is_special();
             let window_classes = if collect_classes {
-                workspace_classes.remove(&w.id).unwrap_or_default()
+                workspace_classes.remove(&w.name).unwrap_or_default()
             } else {
                 Vec::new()
             };
             CompositorWorkspace {
-                id: w.id,
-                index: w.id,
+                id,
+                index: id,
                 name: w.name,
                 monitor: w.monitor,
                 monitor_id: w.monitor_id,
                 windows: w.windows,
-                is_special: is_special_workspace_id(w.id),
+                is_special,
                 has_urgent: false,
                 window_classes,
             }
@@ -369,14 +364,16 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
         .map(|m| CompositorMonitor {
             id: m.id,
             name: m.name,
-            active_workspace_id: m.active_workspace.id,
-            special_workspace_id: m.special_workspace.id,
+            focused: m.focused,
+            active_workspace_id: m.active_workspace.id().unwrap_or(-1),
+            active_workspace_name: m.active_workspace.name,
+            special_workspace_name: m.special_workspace.name,
         })
         .collect();
 
     let active_workspace_ids = Workspace::get_active()
         .ok()
-        .map(|w| w.id)
+        .and_then(|w| w.id().ok())
         .into_iter()
         .collect();
 
@@ -416,7 +413,7 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
 
 #[cfg(test)]
 mod tests {
-    use super::{escape_lua_string, is_special_workspace_id};
+    use super::escape_lua_string;
 
     #[test]
     fn quotes_and_backslashes_are_escaped() {
@@ -431,26 +428,5 @@ mod tests {
     #[test]
     fn plain_names_are_untouched() {
         assert_eq!(escape_lua_string("special:2"), "special:2");
-    }
-
-    #[test]
-    fn special_workspace_ids_are_special() {
-        for id in [-99, -50, -3, -2] {
-            assert!(is_special_workspace_id(id), "{id} should be special");
-        }
-    }
-
-    #[test]
-    fn named_workspace_ids_are_not_special() {
-        for id in [-1, -100, -1337, -1338, -2000] {
-            assert!(!is_special_workspace_id(id), "{id} should not be special");
-        }
-    }
-
-    #[test]
-    fn numbered_workspace_ids_are_not_special() {
-        for id in [0, 1, 10] {
-            assert!(!is_special_workspace_id(id), "{id} should not be special");
-        }
     }
 }

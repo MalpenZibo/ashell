@@ -301,8 +301,10 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         .map(|(i, name)| CompositorMonitor {
             id: i as i128,
             name: (*name).clone(),
+            focused: false,
             active_workspace_id: output_to_active_ws.get(*name).copied().unwrap_or(-1),
-            special_workspace_id: -1,
+            active_workspace_name: String::new(),
+            special_workspace_name: String::new(),
         })
         .collect();
 
