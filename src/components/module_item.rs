@@ -5,12 +5,12 @@ use super::ButtonUIRef;
 
 /// A handler for one mouse button: a plain message, or one built from the
 /// button's on-screen position (needed to place a menu popup under it).
-pub enum Handler<'a, Msg> {
+pub enum PressHandler<'a, Msg> {
     Message(Msg),
     WithPosition(Box<dyn Fn(ButtonUIRef) -> Msg + 'a>),
 }
 
-/// Which mouse button a [`Handler`] is bound to.
+/// Which mouse button a [`PressHandler`] is bound to.
 pub enum MouseButton {
     Press,
     RightPress,
@@ -23,9 +23,9 @@ pub enum MouseButton {
 /// When no handler at all is set, renders as a plain container.
 pub struct ModuleItem<'a, Msg> {
     content: Element<'a, Msg>,
-    on_press: Option<Handler<'a, Msg>>,
-    on_right_press: Option<Handler<'a, Msg>>,
-    on_middle_press: Option<Handler<'a, Msg>>,
+    on_press: Option<PressHandler<'a, Msg>>,
+    on_right_press: Option<PressHandler<'a, Msg>>,
+    on_middle_press: Option<PressHandler<'a, Msg>>,
     on_scroll_up: Option<Msg>,
     on_scroll_down: Option<Msg>,
 }
@@ -42,7 +42,11 @@ pub fn module_item<'a, Msg: 'static + Clone>(content: Element<'a, Msg>) -> Modul
 }
 
 impl<'a, Msg: 'static + Clone> ModuleItem<'a, Msg> {
-    pub fn set_handler(mut self, button: MouseButton, handler: Option<Handler<'a, Msg>>) -> Self {
+    pub fn set_handler(
+        mut self,
+        button: MouseButton,
+        handler: Option<PressHandler<'a, Msg>>,
+    ) -> Self {
         match button {
             MouseButton::Press => self.on_press = handler,
             MouseButton::RightPress => self.on_right_press = handler,
@@ -88,22 +92,22 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
             .style(module_button_style);
 
             match item.on_press {
-                Some(Handler::Message(msg)) => button = button.on_press(msg),
-                Some(Handler::WithPosition(handler)) => {
+                Some(PressHandler::Message(msg)) => button = button.on_press(msg),
+                Some(PressHandler::WithPosition(handler)) => {
                     button = button.on_press_with_position(handler);
                 }
                 None => {}
             }
             match item.on_right_press {
-                Some(Handler::Message(msg)) => button = button.on_right_press(msg),
-                Some(Handler::WithPosition(handler)) => {
+                Some(PressHandler::Message(msg)) => button = button.on_right_press(msg),
+                Some(PressHandler::WithPosition(handler)) => {
                     button = button.on_right_press_with_position(handler);
                 }
                 None => {}
             }
             match item.on_middle_press {
-                Some(Handler::Message(msg)) => button = button.on_middle_press(msg),
-                Some(Handler::WithPosition(handler)) => {
+                Some(PressHandler::Message(msg)) => button = button.on_middle_press(msg),
+                Some(PressHandler::WithPosition(handler)) => {
                     button = button.on_middle_press_with_position(handler);
                 }
                 None => {}

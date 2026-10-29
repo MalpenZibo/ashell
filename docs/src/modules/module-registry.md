@@ -80,8 +80,10 @@ button takes an `Option<ModuleAction>`.
 
 - **`ModulePress::message`**: Simple handler, no menu.
 - **`ModulePress::menu`**: Opens/closes a popup menu on left-click.
-- **`.right_message` / `.scroll_up` / `.scroll_down`**: Add extra handlers on
-  top of the left-click one. Any button can toggle a menu, not just left-click.
+- **`.right_message` / `.middle_message` / `.scroll_up` / `.scroll_down`**: Add
+  extra handlers on top of the left-click one. The two message helpers only take
+  a plain message; to toggle a menu from another button, build the `ModulePress`
+  struct directly and pass `ModuleAction::menu(..)` for that button.
 
 ## get_module_subscription
 
