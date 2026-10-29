@@ -19,7 +19,7 @@ pub mod rfkill;
     feature = "privacy",
     feature = "upower"
 ))]
-mod stream;
+pub mod stream;
 #[cfg(feature = "throttle")]
 pub mod throttle;
 #[cfg(feature = "upower")]
