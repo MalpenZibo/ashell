@@ -115,6 +115,50 @@ where
         self
     }
 
+    /// Sets the message that will be produced when the [`Button`] is pressed.
+    ///
+    /// Unless `on_press` is called, the [`Button`] will be disabled.
+    pub fn on_press(mut self, on_press: Message) -> Self {
+        self.handlers[MouseButton::Left.index()] = Some(PressHandler::message(on_press));
+        self
+    }
+
+    pub fn on_press_with_position(
+        mut self,
+        on_press: impl Fn(ButtonUIRef) -> Message + 'a,
+    ) -> Self {
+        self.handlers[MouseButton::Left.index()] = Some(PressHandler::with_position(on_press));
+        self
+    }
+
+    pub fn on_right_press(mut self, on_right_press: Message) -> Self {
+        self.handlers[MouseButton::Right.index()] = Some(PressHandler::message(on_right_press));
+        self
+    }
+
+    pub fn on_right_press_with_position(
+        mut self,
+        on_right_press: impl Fn(ButtonUIRef) -> Message + 'a,
+    ) -> Self {
+        self.handlers[MouseButton::Right.index()] =
+            Some(PressHandler::with_position(on_right_press));
+        self
+    }
+
+    pub fn on_middle_press(mut self, on_middle_press: Message) -> Self {
+        self.handlers[MouseButton::Middle.index()] = Some(PressHandler::message(on_middle_press));
+        self
+    }
+
+    pub fn on_middle_press_with_position(
+        mut self,
+        on_middle_press: impl Fn(ButtonUIRef) -> Message + 'a,
+    ) -> Self {
+        self.handlers[MouseButton::Middle.index()] =
+            Some(PressHandler::with_position(on_middle_press));
+        self
+    }
+
     /// Binds `handler` to `button`.
     pub fn on(mut self, button: MouseButton, handler: PressHandler<'a, Message>) -> Self {
         self.handlers[button.index()] = Some(handler);
@@ -131,8 +175,16 @@ where
         self
     }
 
-    pub fn on_hover(mut self, on_hover: PressHandler<'a, Message>) -> Self {
-        self.on_hover = Some(on_hover);
+    pub fn on_hover(mut self, on_hover: Message) -> Self {
+        self.on_hover = Some(PressHandler::message(on_hover));
+        self
+    }
+
+    pub fn on_hover_with_position(
+        mut self,
+        on_hover: impl Fn(ButtonUIRef) -> Message + 'a,
+    ) -> Self {
+        self.on_hover = Some(PressHandler::with_position(on_hover));
         self
     }
 
