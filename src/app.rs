@@ -617,11 +617,11 @@ impl App {
                         })
                     {
                         tasks.push(timer.map(Message::Osd));
-                        // `show_osd_layer` is a no-op when the surface is
-                        // already up, so a rapid repeat of the same OSD (e.g.
-                        // holding a volume key) revives it in place instead of
-                        // destroying and recreating it, which would flicker.
-                        tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
+                        // The layer is destroyed along with the fade-out, so a
+                        // re-show inside that window has to create it again.
+                        if !self.outputs.has_osd_layer() {
+                            tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
+                        }
                     }
                 }
 

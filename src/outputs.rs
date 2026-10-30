@@ -1036,6 +1036,10 @@ impl Outputs {
         .map_or(Task::none(), |(_, task)| task)
     }
 
+    pub fn has_osd_layer(&self) -> bool {
+        self.osd.is_some()
+    }
+
     pub fn hide_osd_layer<Message: 'static>(&mut self) -> Task<Message> {
         OverlaySurface::hide(&mut self.osd)
     }

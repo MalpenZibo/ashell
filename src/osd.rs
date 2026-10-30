@@ -263,7 +263,7 @@ impl Osd {
 
         // The surface is created and destroyed with each OSD, so it is always
         // entering: fade it in rather than letting it pop.
-        components::panel(content)
+        components::panel(self.state.is_some(), content)
             .background(background)
             .border(border)
             .into()

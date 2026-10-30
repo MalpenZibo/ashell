@@ -2,7 +2,12 @@
 //!
 //! iced paints a frame only when a widget asks for the next one, so a fade
 //! cannot be driven from application state alone. [`Fade`] keeps its tween in
-//! tree state and requests frames until it settles.
+//! tree state and requests frames until it settles. The widget tree belongs to
+//! one surface, so the fade describes entering that surface: the tween lives in
+//! tree state, which the surface discards when it goes away. There is no way to
+//! draw a frame while a surface is being torn down, so the caller owns the
+//! fade-out, waits for it, and then destroys the surface; a [`Panel`] can still
+//! be given `visible: false` for a surface that stays alive.
 //!
 //! iced has no alpha layer, so only the content's default text colour fades.
 //! Anything that paints its own colours keeps them.
@@ -19,10 +24,14 @@ use std::time::Instant;
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
+#[derive(Debug, Clone)]
 struct State {
     fade: Animation<f32>,
+    /// Tracks `visible` between layouts, so a change can start a new tween.
     last_visible: bool,
-    initialized: bool,
+    /// Cleared until the first layout, which is where a surface entering the
+    /// screen starts its tween.
+    entered: bool,
 }
 
 impl State {
@@ -51,6 +60,31 @@ impl<'a, Message, Theme, Renderer> Fade<'a, Message, Theme, Renderer>
 where
     Renderer: iced::core::Renderer,
 {
+    /// Starts the tween for a tree that has just been created, or for a panel
+    /// whose `visible` changed.
+    ///
+    /// Nothing can be drawn while a surface is torn down, so a fade describes
+    /// entering the screen: the tree is new with the surface, and a visible
+    /// panel starts hidden and fades in rather than popping.
+    fn enter(state: &mut State, visible: bool, duration: std::time::Duration, now: Instant) {
+        if !state.entered {
+            // The tree is new with the surface, so a visible panel is entering:
+            // start hidden and tween in instead of popping onto the screen.
+            state.entered = true;
+            if visible {
+                state.fade = Animation::new(0.0).duration(duration).easing(EASE_OUT);
+                state.fade.go_mut(1.0, now);
+            }
+        } else if visible != state.last_visible {
+            state.last_visible = visible;
+            let current = state.opacity(visible, now);
+            state.fade = Animation::new(current)
+                .duration(duration)
+                .easing(if visible { EASE_OUT } else { EASE_IN });
+            state.fade.go_mut(if visible { 1.0 } else { 0.0 }, now);
+        }
+    }
+
     pub fn duration(mut self, duration: std::time::Duration) -> Self {
         self.duration = duration;
         self
@@ -74,7 +108,7 @@ where
                 .duration(self.duration)
                 .easing(EASE_OUT),
             last_visible: self.visible,
-            initialized: false,
+            entered: false,
         })
     }
 
@@ -102,25 +136,7 @@ where
             .layout(&mut tree.children[0], renderer, limits);
 
         let state = tree.state.downcast_mut::<State>();
-        let now = Instant::now();
-
-        if !state.initialized {
-            state.fade = Animation::new(if self.visible { 0.0 } else { 1.0 })
-                .duration(self.duration)
-                .easing(EASE_OUT);
-            state.last_visible = self.visible;
-            state.initialized = true;
-            if self.visible {
-                state.fade.go_mut(1.0, now);
-            }
-        } else if self.visible != state.last_visible {
-            state.last_visible = self.visible;
-            let current = state.opacity(self.visible, now);
-            state.fade = Animation::new(current)
-                .duration(self.duration)
-                .easing(if self.visible { EASE_OUT } else { EASE_IN });
-            state.fade.go_mut(if self.visible { 1.0 } else { 0.0 }, now);
-        }
+        Self::enter(state, self.visible, self.duration, Instant::now());
 
         layout::Node::with_children(node.size(), vec![node])
     }
@@ -442,16 +458,72 @@ where
     }
 }
 
-/// A fading panel around `content`.
+/// A panel around `content` that fades in as its surface enters the screen.
 pub fn panel<'a, Message, Theme, Renderer>(
+    visible: bool,
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
 ) -> Panel<'a, Message, Theme, Renderer>
 where
     Renderer: iced::core::Renderer,
 {
     Panel {
-        inner: fade(true, content),
+        inner: fade(visible, content),
         background: None,
         border: Border::default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use iced::widget::text;
+
+    /// `layout` is where an entering panel starts its tween: the widget tree is
+    /// new with the surface, so a fade that is recreated has to start hidden
+    /// even when its content is already visible.
+    fn start<'a>(widget: &Fade<'a, (), iced::Theme, iced::Renderer>) -> State {
+        let mut state = State {
+            fade: Animation::new(if widget.visible { 1.0 } else { 0.0 })
+                .duration(widget.duration)
+                .easing(EASE_OUT),
+            last_visible: widget.visible,
+            entered: false,
+        };
+
+        Fade::<(), iced::Theme, iced::Renderer>::enter(
+            &mut state,
+            widget.visible,
+            widget.duration,
+            Instant::now(),
+        );
+
+        state
+    }
+
+    fn fade_of(visible: bool) -> Fade<'static, (), iced::Theme, iced::Renderer> {
+        fade(visible, text("osd"))
+    }
+
+    #[test]
+    fn a_panel_entering_the_screen_fades_in() {
+        let state = start(&fade_of(true));
+        let now = Instant::now();
+        assert!(state.fade.is_animating(now));
+        assert!(state.opacity(true, now) < 1.0);
+    }
+
+    #[test]
+    fn a_hidden_panel_does_not_fade_in() {
+        let state = start(&fade_of(false));
+        let now = Instant::now();
+        assert!(!state.fade.is_animating(now));
+        assert_eq!(state.opacity(false, now), 0.0);
+    }
+
+    #[test]
+    fn a_visible_panel_reaches_full_opacity() {
+        let state = start(&fade_of(true));
+        let now = Instant::now();
+        assert_eq!(state.opacity(true, now + crate::components::motion::BASE), 1.0);
     }
 }
