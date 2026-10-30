@@ -7,6 +7,7 @@ use iced::{
     widget::canvas::{self, Frame, Path},
 };
 use std::{
+    cell::Cell,
     f32::consts::PI,
     time::{Duration, Instant},
 };
@@ -48,18 +49,44 @@ impl Default for SpinnerState {
 }
 
 /// Redraw throttle, set by the widget wrapping the canvas.
+///
+/// Frames are counted in [`Widget::draw`], which runs on every drawn frame,
+/// rather than waiting for a `RedrawRequested` event: a layer surface that
+/// stays idle is only updated when it has events of its own or the app
+/// produced messages, so an event-driven throttle stops requesting frames
+/// after the first one and the spinner freezes. Counting drawn frames keeps
+/// the chain alive and still spaces redraws by at least [`FRAME_INTERVAL`].
 struct Throttle {
     last_frame: Instant,
+    /// Frames drawn since the last redraw request. A [`Cell`] because
+    /// [`Widget::draw`] only gets a shared [`Tree`].
+    drawn_frames: Cell<u32>,
 }
 
 impl Throttle {
-    fn frame_due(&mut self, now: Instant) -> bool {
-        if now.saturating_duration_since(self.last_frame) >= FRAME_INTERVAL {
-            self.last_frame = now;
-            true
-        } else {
-            false
+    fn new(now: Instant) -> Self {
+        Self {
+            last_frame: now,
+            drawn_frames: Cell::new(0),
         }
+    }
+}
+
+/// Records that a frame was drawn.
+fn drawn(throttle: &Throttle) {
+    throttle.drawn_frames.set(throttle.drawn_frames.get() + 1);
+}
+
+/// Returns `true` at most once per [`FRAME_INTERVAL`], and only after a frame
+/// has been drawn since the previous request.
+fn redraw_due(throttle: &mut Throttle, now: Instant) -> bool {
+    let elapsed = now.saturating_duration_since(throttle.last_frame);
+    if throttle.drawn_frames.get() > 0 && elapsed >= FRAME_INTERVAL {
+        throttle.drawn_frames.set(0);
+        throttle.last_frame = now;
+        true
+    } else {
+        false
     }
 }
 
@@ -125,9 +152,7 @@ where
     }
 
     fn state(&self) -> iced::core::widget::tree::State {
-        iced::core::widget::tree::State::new(Throttle {
-            last_frame: Instant::now(),
-        })
+        iced::core::widget::tree::State::new(Throttle::new(Instant::now()))
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -175,9 +200,7 @@ where
             viewport,
         );
 
-        if let event::Event::Window(iced::core::window::Event::RedrawRequested(now)) = event
-            && tree.state.downcast_mut::<Throttle>().frame_due(*now)
-        {
+        if redraw_due(tree.state.downcast_mut::<Throttle>(), Instant::now()) {
             shell.request_redraw();
         }
     }
@@ -201,6 +224,8 @@ where
             cursor,
             viewport,
         );
+
+        drawn(tree.state.downcast_ref::<Throttle>());
     }
 
     fn operate(
@@ -287,4 +312,35 @@ pub fn spinning_icon<Message: 'static>(
         content: canvas_widget.into(),
     }
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FRAME_INTERVAL, Throttle, drawn, redraw_due};
+    use std::time::Instant;
+
+    #[test]
+    fn requests_once_per_frame_interval_while_frames_keep_being_drawn() {
+        let start = Instant::now();
+        let mut throttle = Throttle::new(start);
+
+        // Nothing has been drawn yet: an event must not start a redraw loop.
+        assert!(!redraw_due(&mut throttle, start + FRAME_INTERVAL));
+        drawn(&throttle);
+
+        // Too early: wait, but keep the pending frame counted.
+        assert!(!redraw_due(&mut throttle, start + FRAME_INTERVAL / 2));
+        assert!(redraw_due(&mut throttle, start + FRAME_INTERVAL));
+
+        // The request is consumed until the next frame is drawn.
+        assert!(!redraw_due(
+            &mut throttle,
+            start + FRAME_INTERVAL + FRAME_INTERVAL
+        ));
+        drawn(&throttle);
+        assert!(redraw_due(
+            &mut throttle,
+            start + FRAME_INTERVAL + FRAME_INTERVAL
+        ));
+    }
 }

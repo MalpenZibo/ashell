@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use iced::{
-    Element, Length, Task, Theme,
+    Background, Border, Color, Element, Length, Task, Theme,
     widget::{blur_container, container, progress_bar, row, text},
 };
 use tokio::time::sleep;
@@ -68,6 +68,33 @@ pub enum Action {
     /// Fade finished (or animation disabled) — caller must destroy the layer
     /// surface.
     Hide,
+}
+
+/// Ink for the OSD's text and own-coloured paint: danger for a muted toggle,
+/// the theme text colour otherwise.
+fn osd_ink(theme: &Theme, state: &OsdState) -> Color {
+    match (state.kind, state.muted) {
+        (OsdKind::IdleInhibitor | OsdKind::Airplane, true) => theme.palette().danger,
+        _ => theme.palette().text,
+    }
+}
+
+/// `t` of the way to `style`, since iced has no alpha layer and a widget only
+/// fades the colours it paints itself.
+fn fade_progress_bar(style: progress_bar::Style, t: f32) -> progress_bar::Style {
+    let fade = |background: Background| match background {
+        Background::Color(color) => Background::Color(color.scale_alpha(t)),
+        other => other,
+    };
+
+    progress_bar::Style {
+        background: fade(style.background),
+        bar: fade(style.bar),
+        border: Border {
+            color: style.border.color.scale_alpha(t),
+            ..style.border
+        },
+    }
 }
 
 impl Osd {
@@ -188,18 +215,24 @@ impl Osd {
             _ => false,
         };
 
+        // Nothing in the panel paints until the OSD is on screen, so entering
+        // draws at zero and the fade decides how much shows.
+        let ink = use_theme(|t| osd_ink(&t.surface(Surface::Osd).iced_theme, state));
+        let entering = if self.state.is_some() { 0.0 } else { 1.0 };
+
         let detail: Element<'_, Message> = match state.kind {
             OsdKind::Volume | OsdKind::Microphone | OsdKind::Brightness => {
                 let bar = progress_bar(0.0..=state.scale, state.value)
                     .length(160.0)
                     .girth(8.0);
-                let bar = if state.muted {
-                    bar.style(crate::theme::progress_bar_secondary)
+                let style = if state.muted {
+                    crate::theme::progress_bar_secondary
                 } else if overdrive {
-                    bar.style(crate::theme::progress_bar_danger)
+                    crate::theme::progress_bar_danger
                 } else {
-                    bar.style(crate::theme::progress_bar_primary)
+                    crate::theme::progress_bar_primary
                 };
+                let bar = bar.style(move |t: &Theme| fade_progress_bar(style(t), entering));
                 if show_percentage {
                     let pct = (state.value * 100.0).round() as u32;
                     row![
@@ -226,17 +259,20 @@ impl Osd {
         };
 
         let content = row![
-            container(icon.to_text().size(font_size.xxl).center()).center_x(font_size.xxl),
+            container(
+                icon.to_text()
+                    .size(font_size.xxl)
+                    .center()
+                    .color(ink.scale_alpha(entering))
+            )
+            .center_x(font_size.xxl),
             detail,
         ]
         .spacing(space.sm)
         .align_y(iced::Alignment::Center);
 
-        let panel_style = move |t: &Theme| container::Style {
-            text_color: Some(match (state.kind, state.muted) {
-                (OsdKind::IdleInhibitor | OsdKind::Airplane, true) => t.palette().danger,
-                _ => t.palette().text,
-            }),
+        let panel_style = move |_: &Theme| container::Style {
+            text_color: Some(ink),
             ..Default::default()
         };
 
@@ -266,6 +302,7 @@ impl Osd {
         components::panel(self.state.is_some(), content)
             .background(background)
             .border(border)
+            .ink(ink)
             .into()
     }
 }

@@ -54,6 +54,10 @@ where
     content: Element<'a, Message, Theme, Renderer>,
     visible: bool,
     duration: std::time::Duration,
+    /// The colour to fade. The root only hands the theme's text colour to the
+    /// top widget, so a subtree moved into a fade arrives with a transparent
+    /// one and the fade could not be seen.
+    ink: Option<Color>,
 }
 
 impl<'a, Message, Theme, Renderer> Fade<'a, Message, Theme, Renderer>
@@ -88,6 +92,16 @@ where
     pub fn duration(mut self, duration: std::time::Duration) -> Self {
         self.duration = duration;
         self
+    }
+
+    /// Fades `color`, the ink this content is painted in.
+    pub fn ink(mut self, color: Color) -> Self {
+        self.ink = Some(color);
+        self
+    }
+
+    fn ink_or<'s>(&'s self, style: &'s renderer::Style) -> Color {
+        self.ink.unwrap_or(style.text_color)
     }
 }
 
@@ -202,7 +216,7 @@ where
             renderer,
             theme,
             &renderer::Style {
-                text_color: style.text_color.scale_alpha(opacity),
+                text_color: self.ink_or(style).scale_alpha(opacity),
             },
             child_layout,
             cursor,
@@ -299,6 +313,13 @@ where
 
     pub fn border(mut self, border: Border) -> Self {
         self.border = border;
+        self
+    }
+
+    /// Fades `color`, the ink the panel's text is painted in. Content that
+    /// paints its own colours has to fade them itself.
+    pub fn ink(mut self, color: Color) -> Self {
+        self.inner.ink = Some(color);
         self
     }
 }
@@ -455,6 +476,7 @@ where
         content: content.into(),
         visible,
         duration: crate::components::motion::BASE,
+        ink: None,
     }
 }
 
@@ -524,6 +546,9 @@ mod tests {
     fn a_visible_panel_reaches_full_opacity() {
         let state = start(&fade_of(true));
         let now = Instant::now();
-        assert_eq!(state.opacity(true, now + crate::components::motion::BASE), 1.0);
+        assert_eq!(
+            state.opacity(true, now + crate::components::motion::BASE),
+            1.0
+        );
     }
 }
