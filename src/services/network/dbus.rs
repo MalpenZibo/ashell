@@ -4,7 +4,10 @@ use crate::services::network::{
 use ashell_services::rfkill;
 
 use super::{AccessPointData, ActiveConnectionInfo, KnownConnection, Vpn};
-use iced::futures::{Stream, StreamExt, stream::select_all};
+use iced::futures::{
+    Stream, StreamExt,
+    stream::{self, select_all},
+};
 use itertools::Itertools;
 use log::{debug, warn};
 use std::{collections::HashMap, ops::Deref};
@@ -375,7 +378,7 @@ impl NetworkDbus<'_> {
         let wireless_devices_changed = nm
             .receive_devices_changed()
             .await
-            .filter_map({
+            .then({
                 let conn = conn.clone();
                 let devices = devices.clone();
                 move |_| {
@@ -386,7 +389,7 @@ impl NetworkDbus<'_> {
                             Ok(nm) => nm,
                             Err(e) => {
                                 warn!("Failed to create NetworkDbus proxy: {e}");
-                                return None;
+                                return Vec::new();
                             }
                         };
 
@@ -399,16 +402,22 @@ impl NetworkDbus<'_> {
                             debug!(
                                 "Wireless device changed: wifi present {wifi_present:?}, wireless_access_points {wireless_access_points:?}",
                             );
-                            Some(NetworkEvent::WirelessDevice {
-                                wifi_present,
-                                wireless_access_points,
-                            })
+                            // WirelessDevice ends the events loop, so known connections go first
+                            nm.refreshed_known_connections(&wireless_access_points)
+                                .await
+                                .into_iter()
+                                .chain([NetworkEvent::WirelessDevice {
+                                    wifi_present,
+                                    wireless_access_points,
+                                }])
+                                .collect()
                         } else {
-                            None
+                            Vec::new()
                         }
                     }
                 }
             })
+            .flat_map(stream::iter)
             .boxed();
 
         // When devices list change I need to update the wireless device state changes
@@ -459,22 +468,30 @@ impl NetworkDbus<'_> {
                         move |_| {
                             let conn = conn.clone();
                             async move {
-                                let wireless_access_point = match NetworkDbus::new(&conn).await {
-                                    Ok(nm) => nm.wireless_access_points().await.unwrap_or_default(),
+                                let nm = match NetworkDbus::new(&conn).await {
+                                    Ok(nm) => nm,
                                     Err(e) => {
                                         warn!("Failed to create NetworkDbus proxy: {e}");
-                                        Vec::new()
+                                        return vec![NetworkEvent::WirelessAccessPoint(Vec::new())];
                                     }
                                 };
+                                let wireless_access_point =
+                                    nm.wireless_access_points().await.unwrap_or_default();
                                 debug!(
                                     "access_points_changed event received, count: {}",
                                     wireless_access_point.len()
                                 );
 
-                                NetworkEvent::WirelessAccessPoint(wireless_access_point)
+                                let known_connections =
+                                    nm.refreshed_known_connections(&wireless_access_point).await;
+                                [NetworkEvent::WirelessAccessPoint(wireless_access_point)]
+                                    .into_iter()
+                                    .chain(known_connections)
+                                    .collect::<Vec<_>>()
                             }
                         }
                     })
+                    .flat_map(stream::iter)
                     .boxed(),
             );
         }
@@ -707,6 +724,24 @@ fn connection_id(settings: &HashMap<String, HashMap<String, OwnedVariant>>) -> O
 }
 
 impl NetworkDbus<'_> {
+    /// Known Wi-Fi connections only include visible access points, so they
+    /// must be recomputed whenever the access point list changes.
+    async fn refreshed_known_connections(
+        &self,
+        wireless_access_points: &[AccessPointData],
+    ) -> Option<NetworkEvent> {
+        match self
+            .known_connections_internal(wireless_access_points)
+            .await
+        {
+            Ok(known_connections) => Some(NetworkEvent::KnownConnections(known_connections)),
+            Err(e) => {
+                warn!("Failed to refresh known connections: {e}");
+                None
+            }
+        }
+    }
+
     pub async fn known_connections_internal(
         &self,
         wireless_access_points: &[AccessPointData],
