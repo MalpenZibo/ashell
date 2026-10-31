@@ -713,6 +713,23 @@ fn connection_ssid(settings: &ConnectionSettingsMap) -> Option<String> {
     Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
+/// SSID of a profile that joins networks as a client. Hotspot (`ap`), ad-hoc
+/// and mesh profiles share the SSID field but can't join a scanned network.
+fn client_connection_ssid(settings: &ConnectionSettingsMap) -> Option<String> {
+    let mode = settings
+        .get("802-11-wireless")?
+        .get("mode")
+        .and_then(|v| match v.deref() {
+            Variant::Str(s) => Some(s.to_string()),
+            _ => None,
+        });
+
+    match mode.as_deref() {
+        None | Some("infrastructure") => connection_ssid(settings),
+        _ => None,
+    }
+}
+
 fn connection_id(settings: &HashMap<String, HashMap<String, OwnedVariant>>) -> Option<String> {
     settings
         .get("connection")?
@@ -765,7 +782,7 @@ impl NetworkDbus<'_> {
             let wifi = s.get("802-11-wireless");
 
             if wifi.is_some() {
-                if let Some(cur_ssid) = connection_id(&s) {
+                if let Some(cur_ssid) = client_connection_ssid(&s) {
                     known_ssid.push(cur_ssid);
                 }
             } else if (s.contains_key("vpn") || s.contains_key("wireguard"))
@@ -943,7 +960,9 @@ impl NetworkSettingsDbus<'_> {
         Ok(self.list_connections().await?)
     }
 
-    pub async fn find_connection(&self, name: &str) -> anyhow::Result<Option<OwnedObjectPath>> {
+    /// Saved client Wi-Fi profile for `ssid`, matched by the profile's SSID since its
+    /// name (`connection.id`) can be anything.
+    pub async fn find_connection(&self, ssid: &str) -> anyhow::Result<Option<OwnedObjectPath>> {
         let connections = self.list_connections().await?;
 
         for connection in connections {
@@ -953,12 +972,8 @@ impl NetworkSettingsDbus<'_> {
                 .await?;
 
             let s = connection.get_settings().await?;
-            let id = connection_id(&s);
-            if id.as_deref() == Some(name) {
+            if client_connection_ssid(&s).as_deref() == Some(ssid) {
                 return Ok(Some(connection.inner().path().to_owned().into()));
-            }
-            if id.is_none() {
-                debug!("skipping connection with missing or invalid 'id' field");
             }
         }
 
@@ -1267,4 +1282,42 @@ trait ConnectionSettings {
         &self,
         setting_name: &str,
     ) -> Result<HashMap<String, HashMap<String, OwnedVariant>>>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wifi_settings(mode: Option<&str>) -> ConnectionSettingsMap {
+        let mut wifi = HashMap::from([(
+            "ssid".to_string(),
+            OwnedVariant::try_from(Variant::from(b"MyNet".to_vec())).unwrap(),
+        )]);
+        if let Some(mode) = mode {
+            wifi.insert(
+                "mode".to_string(),
+                OwnedVariant::try_from(Variant::from(mode)).unwrap(),
+            );
+        }
+        HashMap::from([("802-11-wireless".to_string(), wifi)])
+    }
+
+    #[test]
+    fn client_profiles_match_by_ssid() {
+        assert_eq!(
+            client_connection_ssid(&wifi_settings(None)).as_deref(),
+            Some("MyNet")
+        );
+        assert_eq!(
+            client_connection_ssid(&wifi_settings(Some("infrastructure"))).as_deref(),
+            Some("MyNet")
+        );
+    }
+
+    #[test]
+    fn non_client_profiles_are_skipped() {
+        for mode in ["ap", "adhoc", "mesh"] {
+            assert_eq!(client_connection_ssid(&wifi_settings(Some(mode))), None);
+        }
+    }
 }
