@@ -235,7 +235,10 @@ impl App {
         ));
         self.tray
             .update(modules::tray::Message::ConfigReloaded(config.tray));
-        self.osd.update(osd::Message::ConfigReloaded(config.osd));
+        self.osd.update(osd::Message::ConfigReloaded {
+            config: config.osd,
+            animations_enabled: config.animations.enabled,
+        });
 
         Task::batch([close_custom_tooltips, workspaces_task, notifications_task])
     }
@@ -614,7 +617,11 @@ impl App {
                         })
                     {
                         tasks.push(timer.map(Message::Osd));
-                        tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
+                        // The layer is destroyed along with the fade-out, so a
+                        // re-show inside that window has to create it again.
+                        if !self.outputs.has_osd_layer() {
+                            tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
+                        }
                     }
                 }
 

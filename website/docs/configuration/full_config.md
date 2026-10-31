@@ -230,7 +230,7 @@ show_brightness_percentage = false  # (default) show numeric brightness value in
 # ── Animations ────────────────────────────────────────────────────────────────
 
 [animations]
-enabled = false   # (default)
+enabled = false   # (default) master toggle for all UI motion
 
 # ── Appearance ────────────────────────────────────────────────────────────────
 

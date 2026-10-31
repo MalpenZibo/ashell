@@ -2,6 +2,7 @@ use crate::{
     components::MenuSize,
     components::divider,
     components::icons::{StaticIcon, icon},
+    components::motion::BASE,
     config::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         TemperatureSensor, TemperatureSensorType,
@@ -546,7 +547,7 @@ impl SystemInfo {
                     })
                     .into()
             })
-            .animation(Easing::EASE.quick())
+            .animation(Easing::EASE.with_duration(BASE))
             .into()
         } else {
             container(row!(icon(info_icon), text(label)).spacing(spacing))

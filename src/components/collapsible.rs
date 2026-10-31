@@ -1,3 +1,4 @@
+use crate::components::motion::{BASE, EASE_IN, EASE_OUT};
 use iced::{
     Animation, Length, Rectangle, Size, Vector,
     animation::Easing,
@@ -11,7 +12,7 @@ use std::time::{Duration, Instant};
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
-pub const DEFAULT_DURATION: Duration = Duration::from_millis(100);
+pub const DEFAULT_DURATION: Duration = BASE;
 
 /// Height below which the collapsible counts as invisible. Shared with the
 /// `draw` skip so the layout and the drawn band cannot disagree.
@@ -59,6 +60,14 @@ impl State {
             key,
         }
     }
+
+    /// Points the tween at `target`, keeping the value it has already reached
+    /// so a reversal mid-flight never jumps.
+    fn retarget(&mut self, target: f32, now: Instant, duration: Duration, easing: Easing) {
+        let value = self.height_anim.interpolate_with(|v| v, now);
+        self.height_anim = Animation::new(value).duration(duration).easing(easing);
+        self.height_anim.go_mut(target, now);
+    }
 }
 
 /// State-driven collapse/expand: stays in the tree and animates height
@@ -70,7 +79,6 @@ where
     content: Element<'a, Message, Theme, Renderer>,
     expanded: bool,
     duration: Duration,
-    easing: Easing,
     animated: bool,
     key: u64,
     open_padding_top: f32,
@@ -83,11 +91,6 @@ where
 {
     pub fn duration(mut self, duration: Duration) -> Self {
         self.duration = duration;
-        self
-    }
-
-    pub fn easing(mut self, easing: Easing) -> Self {
-        self.easing = easing;
         self
     }
 
@@ -189,12 +192,13 @@ where
         } else if !state.initialized {
             state.height_anim = Animation::new(target_height)
                 .duration(self.duration)
-                .easing(self.easing);
+                .easing(EASE_OUT);
             state.last_expanded = self.expanded;
             state.initialized = true;
         } else if self.expanded != state.last_expanded {
             state.last_expanded = self.expanded;
-            state.height_anim.go_mut(target_height, now);
+            let easing = if self.expanded { EASE_OUT } else { EASE_IN };
+            state.retarget(target_height, now, self.duration, easing);
         } else if self.expanded
             && (expanded_height - state.height_anim.value()).abs() > 0.5
             && !state.height_anim.is_animating(now)
@@ -202,7 +206,7 @@ where
             // Content height changed while expanded — snap to new height
             state.height_anim = Animation::new(expanded_height)
                 .duration(self.duration)
-                .easing(self.easing);
+                .easing(EASE_OUT);
         }
 
         let display_height = if state.height_anim.is_animating(now) {
@@ -373,7 +377,6 @@ where
         content: content.into(),
         expanded,
         duration: DEFAULT_DURATION,
-        easing: Easing::EaseOutCubic,
         animated: true,
         key: 0,
         open_padding_top: 0.0,

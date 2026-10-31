@@ -1,3 +1,4 @@
+use crate::components::motion::{EASE_OUT, FAST};
 use iced::{
     Animation, Length, Rectangle, Size, Vector,
     animation::Easing,
@@ -300,7 +301,8 @@ where
     }
 }
 
-/// Wraps content in an [`AnimatedSize`] with default settings (width-only, 100ms).
+/// Wraps content in an [`AnimatedSize`] with default settings (width-only,
+/// [`FAST`]).
 pub fn animated_size<'a, Message, Theme, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
 ) -> AnimatedSize<'a, Message, Theme, Renderer>
@@ -309,8 +311,8 @@ where
 {
     AnimatedSize {
         content: content.into(),
-        duration: Duration::from_millis(100),
-        easing: Easing::EaseOutCubic,
+        duration: FAST,
+        easing: EASE_OUT,
         axis: AnimationAxis::Width,
         animate_initial: false,
     }
