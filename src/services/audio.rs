@@ -1,145 +1,23 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::utils::remote_value::Remote;
-use iced::{
-    Subscription, Task,
-    futures::{SinkExt, channel::mpsc::Sender},
-    stream::channel,
-};
-use itertools::Either;
-pub use libpulse_binding::def::DevicePortType;
-use libpulse_binding::{
-    callbacks::ListResult,
-    context::{
-        self, Context, FlagSet,
-        introspect::{Introspector, SinkInfo, SourceInfo},
-        subscribe::InterestMaskSet,
-    },
-    def::PortAvailable,
-    mainloop::{
-        api::Mainloop as MainloopTrait,
-        events::io::FlagSet as IoFlagSet,
-        standard::{IterateResult, Mainloop},
-    },
-    operation::{self, Operation},
-    proplist::{Proplist, properties::APPLICATION_NAME},
-    volume::{ChannelVolumes, Volume},
-};
-use log::{debug, error, trace, warn};
+use ashell_services::audio::{Audio, AudioControl};
+use iced::{Subscription, Task, futures::SinkExt, stream::channel};
+use log::error;
 use std::{
     any::TypeId,
-    cell::RefCell,
-    fmt,
     ops::{Deref, DerefMut},
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
-    rc::Rc,
-    sync::Arc,
-    thread::{self, JoinHandle},
-    time::Duration,
-};
-use tokio::{
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
-    time::sleep,
 };
 
-#[derive(Debug, Clone)]
-pub struct Device {
-    pub name: String,
-    pub description: String,
-    pub volume: ChannelVolumes,
-    pub is_mute: bool,
-    pub is_filter: bool,
-    pub ports: Vec<Port>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Port {
-    pub name: String,
-    pub description: String,
-    pub device_type: DevicePortType,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Route<'a> {
-    pub device: &'a Device,
-    pub port: Option<&'a Port>,
-}
-
-impl<'a> fmt::Display for Route<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.port {
-            // The node description already names the port when it is the only one,
-            // so the prefix is only needed to tell apart ports of the same node
-            Some(port) if self.device.ports.len() > 1 => {
-                write!(f, "{}: {}", port.description, self.device.description)
-            }
-            _ => write!(f, "{}", self.device.description),
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct ServerInfo {
-    pub default_sink: String,
-    pub default_source: String,
-}
-
-pub trait ChannelVolumesExt {
-    fn get_volume(&self) -> u32;
-
-    fn scaled(&self, max: u32) -> Option<ChannelVolumes>;
-}
-
-impl ChannelVolumesExt for ChannelVolumes {
-    fn get_volume(&self) -> u32 {
-        self.max().0
-    }
-
-    fn scaled(&self, max: u32) -> Option<ChannelVolumes> {
-        let mut cv = *self; // Implicit copy
-        if cv.scale(Volume(max)).is_some() {
-            Some(cv)
-        } else {
-            error!("Failed scaling volume: {cv}");
-            None
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct AudioData {
-    pub server_info: ServerInfo,
-    sinks: Vec<Device>,
-    sources: Vec<Device>,
-    pub sink_slider: Remote<u32>,
-    pub source_slider: Remote<u32>,
-}
-
-/// Write end of a pipe used to wake the PulseAudio mainloop when commands arrive.
-#[derive(Clone)]
-struct WakePipe(Arc<OwnedFd>);
-
-impl fmt::Debug for WakePipe {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("WakePipe")
-            .field(&self.0.as_raw_fd())
-            .finish()
-    }
-}
-
-impl WakePipe {
-    fn wake(&self) {
-        // Write a single byte to unblock the mainloop's poll().
-        // Safe to ignore errors — if the pipe is full, the mainloop is already awake.
-        let fd = self.0.as_raw_fd();
-        unsafe { libc::write(fd, [1u8].as_ptr() as *const _, 1) };
-    }
-}
+pub use ashell_services::audio::{
+    AudioCommand, AudioData, AudioEvent, ChannelVolumesExt, DevicePortType, Port,
+};
 
 #[derive(Debug, Clone)]
 pub struct AudioService {
     data: AudioData,
-    commander: UnboundedSender<PulseAudioCommand>,
-    wake: WakePipe,
+    pub sink_slider: Remote<u32>,
+    pub source_slider: Remote<u32>,
+    control: AudioControl,
 }
 
 impl Deref for AudioService {
@@ -156,167 +34,60 @@ impl DerefMut for AudioService {
     }
 }
 
-struct PulseAudioServerHandle {
-    _listener: JoinHandle<()>,
-    receiver: UnboundedReceiver<PulseAudioServerEvent>,
-    sender: UnboundedSender<PulseAudioCommand>,
-    wake: WakePipe,
+enum State {
+    Init,
+    Active(Audio),
+    Error,
 }
 
 impl AudioService {
-    async fn init_service() -> anyhow::Result<PulseAudioServerHandle> {
-        PulseAudioServer::start().await
+    fn new(control: AudioControl) -> Self {
+        Self {
+            data: AudioData::default(),
+            sink_slider: Remote::new(0),
+            source_slider: Remote::new(0),
+            control,
+        }
     }
 
-    async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
+    fn update_volumes(&mut self) {
+        self.sink_slider.receive(self.data.sink_volume());
+        self.source_slider.receive(self.data.source_volume());
+    }
+
+    async fn start_listening(
+        state: State,
+        output: &mut iced::futures::channel::mpsc::Sender<ServiceEvent<Self>>,
+    ) -> State {
         match state {
-            State::Init => match Self::init_service().await {
-                Ok(handle) => {
+            State::Init => match Audio::connect().await {
+                Ok(audio) => {
                     let _ = output
-                        .send(ServiceEvent::Init(AudioService {
-                            data: AudioData::default(),
-                            commander: handle.sender.clone(),
-                            wake: handle.wake.clone(),
-                        }))
+                        .send(ServiceEvent::Init(AudioService::new(audio.control())))
                         .await;
-                    State::Active(handle)
+                    State::Active(audio)
                 }
                 Err(err) => {
                     error!("Failed to initialize audio service: {err}");
                     State::Error
                 }
             },
-            State::Active(mut handle) => match handle.receiver.recv().await {
-                Some(PulseAudioServerEvent::Error) => {
-                    error!("PulseAudio server error");
+            State::Active(mut audio) => match audio.next_event().await {
+                Some(AudioEvent::Error) | None => {
+                    error!("Audio service error, reconnecting in 5 seconds");
                     State::Error
                 }
-                Some(PulseAudioServerEvent::Sinks(sinks)) => {
-                    let _ = output
-                        .send(ServiceEvent::Update(AudioEvent::Sinks(sinks)))
-                        .await;
-
-                    State::Active(handle)
-                }
-                Some(PulseAudioServerEvent::Sources(sources)) => {
-                    let _ = output
-                        .send(ServiceEvent::Update(AudioEvent::Sources(sources)))
-                        .await;
-
-                    State::Active(handle)
-                }
-                Some(PulseAudioServerEvent::ServerInfo(info)) => {
-                    let _ = output
-                        .send(ServiceEvent::Update(AudioEvent::ServerInfo(info)))
-                        .await;
-
-                    State::Active(handle)
-                }
-                None => {
-                    error!("PulseAudio connection lost");
-                    State::Error
+                Some(event) => {
+                    let _ = output.send(ServiceEvent::Update(event)).await;
+                    State::Active(audio)
                 }
             },
             State::Error => {
-                error!("Audio service error, retrying in 5 seconds");
-
-                sleep(Duration::from_secs(5)).await;
-
+                tokio::time::sleep(Audio::retry_delay()).await;
                 State::Init
             }
         }
     }
-
-    pub fn update_source_volume(&mut self) {
-        let volume = self
-            .active_source()
-            .map(|source| {
-                if source.is_mute {
-                    0
-                } else {
-                    source.volume.get_volume()
-                }
-            })
-            .unwrap_or_default();
-        self.source_slider.receive(volume);
-    }
-
-    pub fn update_sink_volume(&mut self) {
-        let volume = self
-            .active_sink()
-            .map(|sink| {
-                if sink.is_mute {
-                    0
-                } else {
-                    sink.volume.get_volume()
-                }
-            })
-            .unwrap_or_default();
-        self.sink_slider.receive(volume);
-    }
-
-    pub fn active_sink(&self) -> Option<&Device> {
-        self.sinks
-            .iter()
-            .find(|device| device.name == self.server_info.default_sink)
-    }
-
-    pub fn active_source(&self) -> Option<&Device> {
-        self.sources
-            .iter()
-            .find(|device| device.name == self.server_info.default_source)
-    }
-
-    pub fn has_multiple_sources(&self) -> bool {
-        Self::route_iter(&self.sources).nth(1).is_some()
-    }
-
-    pub fn has_multiple_sinks(&self) -> bool {
-        Self::route_iter(&self.sinks).nth(1).is_some()
-    }
-
-    pub fn source_iter(&self) -> impl Iterator<Item = Route<'_>> {
-        Self::route_iter(&self.sources)
-    }
-
-    pub fn sink_iter(&self) -> impl Iterator<Item = Route<'_>> {
-        Self::route_iter(&self.sinks)
-    }
-
-    /// Iterates over all audio routes which user should be able to select
-    /// This includes devices with multiple available hardware ports as well as
-    /// [smart-filters](https://pipewire.pages.freedesktop.org/wireplumber/policies/smart_filters.html)
-    fn route_iter(devices: &[Device]) -> impl Iterator<Item = Route<'_>> {
-        devices.iter().flat_map(|device| {
-            if device.is_filter {
-                if device.ports.len() > 1 {
-                    let device_name = device.name.as_str();
-                    warn!("Unexpected multiple ports in a filter node: {device_name}")
-                }
-                Either::Left(std::iter::once(Route { device, port: None }))
-            } else if device.ports.is_empty() {
-                Either::Left(std::iter::once(Route { device, port: None }))
-            } else {
-                Either::Right(device.ports.iter().map(move |port| Route {
-                    device,
-                    port: Some(port),
-                }))
-            }
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum AudioEvent {
-    Sinks(Vec<Device>),
-    Sources(Vec<Device>),
-    ServerInfo(ServerInfo),
-}
-
-enum State {
-    Init,
-    Active(PulseAudioServerHandle),
-    Error,
 }
 
 impl ReadOnlyService for AudioService {
@@ -324,24 +95,11 @@ impl ReadOnlyService for AudioService {
     type Error = ();
 
     fn update(&mut self, event: Self::UpdateEvent) {
-        match event {
-            AudioEvent::Sinks(sinks) => {
-                self.data.sinks = sinks;
-                self.update_sink_volume();
-            }
-            AudioEvent::Sources(sources) => {
-                self.data.sources = sources;
-                self.update_source_volume();
-            }
-            AudioEvent::ServerInfo(info) => {
-                self.data.server_info = info;
-                self.update_sink_volume();
-                self.update_source_volume();
-            }
-        }
+        self.data.apply(event);
+        self.update_volumes();
     }
 
-    fn subscribe() -> iced::Subscription<super::ServiceEvent<Self>> {
+    fn subscribe() -> Subscription<ServiceEvent<Self>> {
         Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
@@ -354,533 +112,11 @@ impl ReadOnlyService for AudioService {
     }
 }
 
-pub enum AudioCommand {
-    ToggleSinkMute,
-    ToggleSourceMute,
-    SinkVolume(u32),
-    SourceVolume(u32),
-    DefaultSink(String, Option<String>),
-    DefaultSource(String, Option<String>),
-}
-
 impl Service for AudioService {
     type Command = AudioCommand;
 
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
-        let sent = match command {
-            AudioCommand::ToggleSinkMute => {
-                if let Some(sink) = self.active_sink() {
-                    self.commander
-                        .send(PulseAudioCommand::SinkMute(
-                            sink.name.clone(),
-                            !sink.is_mute,
-                        ))
-                        .is_ok()
-                } else {
-                    false
-                }
-            }
-            AudioCommand::ToggleSourceMute => {
-                if let Some(source) = self.active_source() {
-                    self.commander
-                        .send(PulseAudioCommand::SourceMute(
-                            source.name.clone(),
-                            !source.is_mute,
-                        ))
-                        .is_ok()
-                } else {
-                    false
-                }
-            }
-            AudioCommand::SinkVolume(volume) => {
-                if let Some(sink) = self.active_sink()
-                    && let Some(volume) = sink.volume.scaled(volume)
-                {
-                    self.commander
-                        .send(PulseAudioCommand::SinkVolume(sink.name.clone(), volume))
-                        .is_ok()
-                } else {
-                    false
-                }
-            }
-            AudioCommand::SourceVolume(volume) => {
-                if let Some(source) = self.active_source()
-                    && let Some(volume) = source.volume.scaled(volume)
-                {
-                    self.commander
-                        .send(PulseAudioCommand::SourceVolume(source.name.clone(), volume))
-                        .is_ok()
-                } else {
-                    false
-                }
-            }
-            AudioCommand::DefaultSink(name, port) => self
-                .commander
-                .send(PulseAudioCommand::DefaultSink(name, port))
-                .is_ok(),
-            AudioCommand::DefaultSource(name, port) => self
-                .commander
-                .send(PulseAudioCommand::DefaultSource(name, port))
-                .is_ok(),
-        };
-
-        if sent {
-            self.wake.wake();
-        }
-
-        iced::Task::none()
-    }
-}
-
-enum PulseAudioServerEvent {
-    Error,
-    Sinks(Vec<Device>),
-    Sources(Vec<Device>),
-    ServerInfo(ServerInfo),
-}
-
-enum PulseAudioCommand {
-    SinkMute(String, bool),
-    SourceMute(String, bool),
-    SinkVolume(String, ChannelVolumes),
-    SourceVolume(String, ChannelVolumes),
-    DefaultSink(String, Option<String>),
-    DefaultSource(String, Option<String>),
-}
-
-struct PulseAudioServer {
-    mainloop: Mainloop,
-    context: Context,
-    introspector: Introspector,
-}
-
-impl PulseAudioServer {
-    fn new() -> anyhow::Result<Self> {
-        let name = format!("{:?}", TypeId::of::<Self>());
-        let mut proplist = Proplist::new()
-            .ok_or_else(|| anyhow::anyhow!("Failed to create PulseAudio property list"))?;
-        proplist
-            .set_str(APPLICATION_NAME, name.as_str())
-            .map_err(|_| anyhow::anyhow!("Failed to set application name"))?;
-
-        let mut mainloop = Mainloop::new()
-            .ok_or_else(|| anyhow::anyhow!("Failed to create Pulse audio main loop"))?;
-
-        let mut context = Context::new_with_proplist(&mainloop, name.as_str(), &proplist)
-            .ok_or_else(|| anyhow::anyhow!("Failed to create Pulse audio context"))?;
-
-        context.connect(None, FlagSet::NOFLAGS, None)?;
-
-        // Wait for context to be ready
-        loop {
-            match mainloop.iterate(true) {
-                IterateResult::Quit(_) | IterateResult::Err(_) => {
-                    return Err(anyhow::anyhow!("PulseAudio: iterate state was not success"));
-                }
-                IterateResult::Success(_) => match context.get_state() {
-                    context::State::Ready => break,
-                    context::State::Failed | context::State::Terminated => {
-                        return Err(anyhow::anyhow!("PulseAudio: connection failed"));
-                    }
-                    _ => {}
-                },
-            }
-        }
-
-        let introspector = context.introspect();
-
-        Ok(Self {
-            mainloop,
-            context,
-            introspector,
-        })
-    }
-
-    async fn start() -> anyhow::Result<PulseAudioServerHandle> {
-        let (from_server_tx, from_server_rx) = tokio::sync::mpsc::unbounded_channel();
-        let (to_server_tx, to_server_rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let (init_tx, mut init_rx) = tokio::sync::mpsc::unbounded_channel();
-
-        // Create a pipe to wake the PulseAudio mainloop when commands arrive.
-        let (wake_read, wake_write) = {
-            let mut fds = [0i32; 2];
-            if unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) } != 0 {
-                return Err(anyhow::anyhow!("failed to create wake pipe"));
-            }
-            unsafe { (OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1])) }
-        };
-        let wake = WakePipe(Arc::new(wake_write));
-
-        // Single thread for both listening and commanding — avoids PulseAudio
-        // mainloop assertion failures from concurrent connections.
-        let handle = thread::spawn({
-            let from_server_tx = from_server_tx.clone();
-            let mut to_server_rx = to_server_rx;
-            move || match Self::new() {
-                Ok(mut server) => {
-                    let _ = init_tx.send(true);
-
-                    server.context.subscribe(
-                        InterestMaskSet::SERVER
-                            .union(InterestMaskSet::SINK)
-                            .union(InterestMaskSet::SOURCE),
-                        |res| {
-                            if !res {
-                                error!("Audio subscription failed!");
-                            }
-                        },
-                    );
-
-                    match server.wait_for_response(server.introspector.get_server_info({
-                        let tx = from_server_tx.clone();
-                        move |info| {
-                            Self::send_server_info(info, &tx);
-                        }
-                    })) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("Failed to get server info: {e}");
-                            let _ = from_server_tx.send(PulseAudioServerEvent::Error);
-                            return;
-                        }
-                    };
-
-                    let sinks = Rc::new(RefCell::new(Vec::new()));
-                    match server.wait_for_response(server.introspector.get_sink_info_list({
-                        let tx = from_server_tx.clone();
-                        let sinks = sinks.clone();
-                        move |info| {
-                            Self::populate_and_send_sinks(info, &tx, &mut sinks.borrow_mut());
-                        }
-                    })) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("Failed to get sink info: {e}");
-                            let _ = from_server_tx.send(PulseAudioServerEvent::Error);
-                            return;
-                        }
-                    };
-
-                    let sources = Rc::new(RefCell::new(Vec::new()));
-                    match server.wait_for_response(server.introspector.get_source_info_list({
-                        let tx = from_server_tx.clone();
-                        let sources = sources.clone();
-                        move |info| {
-                            Self::populate_and_send_sources(info, &tx, &mut sources.borrow_mut());
-                        }
-                    })) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("Failed to get source info: {e}");
-                            let _ = from_server_tx.send(PulseAudioServerEvent::Error);
-                            return;
-                        }
-                    };
-
-                    let introspector = server.context.introspect();
-                    let error_tx = from_server_tx.clone();
-                    server.context.set_subscribe_callback(Some(Box::new(
-                        move |_facility, _operation, _idx| {
-                            server.introspector.get_server_info({
-                                let tx = from_server_tx.clone();
-
-                                move |info| {
-                                    Self::send_server_info(info, &tx);
-                                }
-                            });
-                            introspector.get_sink_info_list({
-                                let tx = from_server_tx.clone();
-                                let sinks = sinks.clone();
-
-                                move |info| {
-                                    Self::populate_and_send_sinks(
-                                        info,
-                                        &tx,
-                                        &mut sinks.borrow_mut(),
-                                    );
-                                }
-                            });
-                            introspector.get_source_info_list({
-                                let tx = from_server_tx.clone();
-                                let sources = sources.clone();
-
-                                move |info| {
-                                    Self::populate_and_send_sources(
-                                        info,
-                                        &tx,
-                                        &mut sources.borrow_mut(),
-                                    );
-                                }
-                            });
-                        },
-                    )));
-
-                    // Register the wake pipe on the mainloop so that iterate(true)
-                    // unblocks when a command is sent from another thread.
-                    let wake_fd = wake_read.as_raw_fd();
-                    let _wake_io = server.mainloop.new_io_event(
-                        wake_fd,
-                        IoFlagSet::INPUT,
-                        Box::new(move |_event, _fd, _flags| {
-                            // Drain the pipe so it doesn't keep firing
-                            let mut buf = [0u8; 64];
-                            unsafe { libc::read(wake_fd, buf.as_mut_ptr() as *mut _, buf.len()) };
-                        }),
-                    );
-
-                    // Main loop: blocks until PulseAudio events OR wake pipe signal
-                    let mut cmd_introspector = server.context.introspect();
-                    loop {
-                        let data = server.mainloop.iterate(true);
-                        if let IterateResult::Quit(_) | IterateResult::Err(_) = data {
-                            error!("PulseAudio mainloop error");
-                            let _ = error_tx.send(PulseAudioServerEvent::Error);
-                            break;
-                        }
-
-                        // A server restart (e.g. `systemctl --user restart pipewire`) drops the
-                        // connection without making `iterate` fail: the context just moves out of
-                        // `Ready`. Every context/introspector call below would then get a null
-                        // operation back from libpulse and panic, so bail out and let the
-                        // subscription reconnect instead.
-                        let context_state = server.context.get_state();
-                        if context_state != context::State::Ready {
-                            error!("PulseAudio context is no longer ready: {context_state:?}");
-                            let _ = error_tx.send(PulseAudioServerEvent::Error);
-                            break;
-                        }
-
-                        // Process any pending commands
-                        while let Ok(cmd) = to_server_rx.try_recv() {
-                            match cmd {
-                                PulseAudioCommand::SinkMute(name, mute) => {
-                                    cmd_introspector.set_sink_mute_by_name(&name, mute, None);
-                                }
-                                PulseAudioCommand::SourceMute(name, mute) => {
-                                    cmd_introspector.set_source_mute_by_name(&name, mute, None);
-                                }
-                                PulseAudioCommand::SinkVolume(name, volume) => {
-                                    cmd_introspector.set_sink_volume_by_name(&name, &volume, None);
-                                }
-                                PulseAudioCommand::SourceVolume(name, volume) => {
-                                    cmd_introspector
-                                        .set_source_volume_by_name(&name, &volume, None);
-                                }
-                                PulseAudioCommand::DefaultSink(name, port) => {
-                                    server.context.set_default_sink(&name, |_| {});
-                                    if let Some(port) = port {
-                                        cmd_introspector.set_sink_port_by_name(&name, &port, None);
-                                    }
-                                }
-                                PulseAudioCommand::DefaultSource(name, port) => {
-                                    server.context.set_default_source(&name, |_| {});
-                                    if let Some(port) = port {
-                                        cmd_introspector
-                                            .set_source_port_by_name(&name, &port, None);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to start PulseAudio thread: {e}");
-                    let _ = init_tx.send(false);
-                }
-            }
-        });
-
-        match init_rx.recv().await {
-            Some(true) => Ok(PulseAudioServerHandle {
-                _listener: handle,
-                receiver: from_server_rx,
-                sender: to_server_tx,
-                wake,
-            }),
-            _ => Err(anyhow::anyhow!("Failed to start PulseAudio thread")),
-        }
-    }
-
-    fn wait_for_response<T: ?Sized>(&mut self, operation: Operation<T>) -> anyhow::Result<()> {
-        loop {
-            match self.mainloop.iterate(true) {
-                IterateResult::Quit(_) | IterateResult::Err(_) => {
-                    error!("PulseAudio: iterate state was not success");
-                    return Err(anyhow::anyhow!("PulseAudio: iterate state was not success"));
-                }
-                IterateResult::Success(_) => match operation.get_state() {
-                    operation::State::Done => break,
-                    // Losing the connection cancels every pending operation. Without this the
-                    // loop would wait for a `Done` that can never arrive.
-                    operation::State::Cancelled => {
-                        error!("PulseAudio: operation was cancelled");
-                        return Err(anyhow::anyhow!("PulseAudio: operation was cancelled"));
-                    }
-                    operation::State::Running => {}
-                },
-            }
-        }
-
-        Ok(())
-    }
-
-    fn send_server_info(
-        info: &libpulse_binding::context::introspect::ServerInfo<'_>,
-        tx: &UnboundedSender<PulseAudioServerEvent>,
-    ) {
-        let _ = tx.send(PulseAudioServerEvent::ServerInfo(info.into()));
-    }
-
-    fn populate_and_send_sinks(
-        info: ListResult<&SinkInfo<'_>>,
-        tx: &UnboundedSender<PulseAudioServerEvent>,
-        sinks: &mut Vec<Device>,
-    ) {
-        match info {
-            ListResult::Item(data) => {
-                if data.ports.is_empty()
-                    || data
-                        .ports
-                        .iter()
-                        .any(|port| port.available != PortAvailable::No)
-                    || data.proplist.get_str("node.link-group").is_some()
-                {
-                    debug!("Adding sink data: {data:?}");
-                    sinks.push(data.into());
-                }
-            }
-            ListResult::End => {
-                debug!("New sink list {sinks:?}");
-                let _ = tx.send(PulseAudioServerEvent::Sinks(sinks.clone()));
-                sinks.clear();
-            }
-            ListResult::Error => error!("Error during sink list population"),
-        }
-    }
-
-    fn populate_and_send_sources(
-        info: ListResult<&SourceInfo<'_>>,
-        tx: &UnboundedSender<PulseAudioServerEvent>,
-        sources: &mut Vec<Device>,
-    ) {
-        match info {
-            ListResult::Item(data) => {
-                trace!("Receved source data: {data:?}");
-
-                if data
-                    .name
-                    .as_ref()
-                    .map(|name| !name.contains("monitor"))
-                    .unwrap_or_default()
-                {
-                    debug!("Adding source data: {data:?}");
-                    sources.push(data.into());
-                }
-            }
-            ListResult::End => {
-                debug!("New sources list {sources:?}");
-                let _ = tx.send(PulseAudioServerEvent::Sources(sources.clone()));
-                sources.clear();
-            }
-            ListResult::Error => error!("Error during sources list population"),
-        }
-    }
-}
-
-impl<'a> From<&'a libpulse_binding::context::introspect::ServerInfo<'a>> for ServerInfo {
-    fn from(value: &'a libpulse_binding::context::introspect::ServerInfo<'a>) -> Self {
-        Self {
-            default_sink: value
-                .default_sink_name
-                .as_ref()
-                .map_or_else(String::default, |s| s.to_string()),
-            default_source: value
-                .default_source_name
-                .as_ref()
-                .map_or_else(String::default, |s| s.to_string()),
-        }
-    }
-}
-
-impl From<&SinkInfo<'_>> for Device {
-    fn from(value: &SinkInfo<'_>) -> Self {
-        Self {
-            name: value
-                .name
-                .as_ref()
-                .map_or_else(String::default, |n| n.to_string()),
-            description: value
-                .description
-                .as_ref()
-                .map(|d| d.to_string())
-                .or_else(|| value.proplist.get_str("device.description"))
-                .unwrap_or_default(),
-            volume: value.volume,
-            is_mute: value.mute,
-            is_filter: value.proplist.get_str("node.link-group").is_some(),
-            ports: value
-                .ports
-                .iter()
-                .filter_map(|port| {
-                    if port.available != PortAvailable::No {
-                        Some(Port {
-                            name: port
-                                .name
-                                .as_ref()
-                                .map_or_else(String::default, |n| n.to_string()),
-                            description: port
-                                .description
-                                .as_ref()
-                                .map_or_else(String::default, |d| d.to_string()),
-                            device_type: port.r#type,
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>(),
-        }
-    }
-}
-
-impl From<&SourceInfo<'_>> for Device {
-    fn from(value: &SourceInfo<'_>) -> Self {
-        Self {
-            name: value
-                .name
-                .as_ref()
-                .map_or_else(String::default, |n| n.to_string()),
-            description: value
-                .description
-                .as_ref()
-                .map(|d| d.to_string())
-                .or_else(|| value.proplist.get_str("device.description"))
-                .unwrap_or_default(),
-            volume: value.volume,
-            is_mute: value.mute,
-            is_filter: value.proplist.get_str("node.link-group").is_some(),
-            ports: value
-                .ports
-                .iter()
-                .filter_map(|port| {
-                    if port.available != PortAvailable::No {
-                        Some(Port {
-                            name: port
-                                .name
-                                .as_ref()
-                                .map_or_else(String::default, |n| n.to_string()),
-                            description: port
-                                .description
-                                .as_ref()
-                                .map_or_else(String::default, |d| d.to_string()),
-                            device_type: port.r#type,
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>(),
-        }
+        self.control.execute(command);
+        Task::none()
     }
 }
