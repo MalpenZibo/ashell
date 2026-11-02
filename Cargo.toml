@@ -76,7 +76,7 @@ ashell-services = { path = "crates/ashell-services", features = [
   "upower",
   "xdg_icons",
 ] }
-iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.6.1", features = [
+iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.6.2", features = [
   "tokio",
   "advanced",
   "wgpu",
