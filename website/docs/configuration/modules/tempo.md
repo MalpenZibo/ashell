@@ -31,7 +31,9 @@ forecast, and a seven-day outlook.
 
 The weather times in the menu follow the clock's 12/24-hour format. When the active clock format renders a 12-hour time
 in your locale, the hourly forecast shows `9 PM` and the update time `9:15 PM`. Otherwise both use `%H:%M`. Locale
-formats like `%r`, `%X` and `%c` count as 12-hour only where the locale renders them that way.
+formats like `%r`, `%X` and `%c` count as 12-hour only where the locale renders them that way. The AM/PM marker goes
+before the hour when the clock format puts it there, as `%r` does in `ja_JP`, `ko_KR` and `zh_CN`, and the hourly forecast
+adds the hour word those locales use, like `오전 10시`.
 
 ### City-based weather
 

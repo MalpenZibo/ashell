@@ -33,7 +33,7 @@ impl Tempo {
             .map(|(data, location)| {
                 let inner_element: Element<'a, Message> = if location_visible {
                     let display_time = self.time_str(
-                        self.weather_time_format(),
+                        &self.weather_time_format(),
                         self.current_timezone_index,
                         Some(data.current.time),
                     );
@@ -186,7 +186,7 @@ impl Tempo {
                                         Some(*hour_time),
                                     ) == "00";
                                     let display_time = self.time_str(
-                                        if on_the_hour {
+                                        &if on_the_hour {
                                             self.weather_hour_format()
                                         } else {
                                             self.weather_time_format()

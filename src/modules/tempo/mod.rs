@@ -47,21 +47,79 @@ const SECOND_SPECIFIERS: [&str; 15] = [
 /// Weather times in the menu, picked to match
 /// the clock's hour cycle. Hourly forecast entries always fall on the hour,
 /// so the 12-hour variant drops the minutes there.
-const WEATHER_TIME_FORMAT_12H: &str = "%-I:%M %p";
-const WEATHER_HOUR_FORMAT_12H: &str = "%-I %p";
+const WEATHER_TIME_FORMAT_12H: &str = "%-I:%M";
+const WEATHER_HOUR_FORMAT_12H: &str = "%-I";
 const WEATHER_TIME_FORMAT_24H: &str = "%H:%M";
 
-/// Whether `format` renders a 12-hour time in `locale`. Parsing with the
-/// locale expands `%r`, `%X` and `%c`, which are 12-hour in some locales only.
-fn uses_twelve_hour(format: &str, locale: Locale) -> bool {
-    StrftimeItems::new_with_locale(format, locale).any(|item| {
-        matches!(
-            item,
-            Item::Numeric(Numeric::Hour12, _)
-                | Item::Fixed(Fixed::UpperAmPm)
-                | Item::Fixed(Fixed::LowerAmPm)
-        )
-    })
+/// Where a 12-hour clock puts the AM/PM marker.
+#[derive(Debug, PartialEq, Eq)]
+enum AmPm {
+    After,
+    /// Before the hour, with the text the clock puts between the two.
+    Before(String),
+}
+
+/// Where `format` puts the AM/PM marker in `locale`, or `None` when it renders
+/// a 24-hour time. Parsing with the locale expands `%r`, `%X` and `%c`, which
+/// are 12-hour in some locales only and put the marker first in `ja_JP`,
+/// `ko_KR` and `zh_CN`.
+fn am_pm_placement(format: &str, locale: Locale) -> Option<AmPm> {
+    let mut twelve_hour = false;
+    let mut hour_seen = false;
+    let mut before = None::<String>;
+
+    for item in StrftimeItems::new_with_locale(format, locale) {
+        match item {
+            Item::Fixed(Fixed::UpperAmPm | Fixed::LowerAmPm) => {
+                if hour_seen {
+                    return Some(AmPm::After);
+                }
+                before = Some(String::new());
+            }
+            Item::Numeric(hour @ (Numeric::Hour | Numeric::Hour12), _) => {
+                if let Some(separator) = before {
+                    return Some(AmPm::Before(separator));
+                }
+                hour_seen = true;
+                twelve_hour |= hour == Numeric::Hour12;
+            }
+            Item::Literal(text) | Item::Space(text) => {
+                if let Some(separator) = &mut before {
+                    separator.push_str(text);
+                }
+            }
+            Item::OwnedLiteral(text) | Item::OwnedSpace(text) => {
+                if let Some(separator) = &mut before {
+                    separator.push_str(&text);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    (twelve_hour || before.is_some()).then_some(AmPm::After)
+}
+
+/// The word `locale` writes after a bare 12-hour hour, like `시` in `ko_KR`,
+/// `時` in `ja_JP` and `时` in `zh_CN`. Taken from the text after `%I` in the
+/// locale's `%r`, and only where `%r` puts the marker first, since `br_FR`
+/// separates the hour and minutes with a letter (`%Ie%M`).
+fn hour_unit(locale: Locale) -> Option<String> {
+    let Some(AmPm::Before(_)) = am_pm_placement("%r", locale) else {
+        return None;
+    };
+
+    let mut items = StrftimeItems::new_with_locale("%r", locale)
+        .skip_while(|item| !matches!(item, Item::Numeric(Numeric::Hour12, _)))
+        .skip(1);
+
+    let unit = match items.next()? {
+        Item::Literal(text) => text.to_owned(),
+        Item::OwnedLiteral(text) => text.into(),
+        _ => return None,
+    };
+
+    unit.chars().all(char::is_alphabetic).then_some(unit)
 }
 
 fn shows_seconds(format: &str) -> bool {
@@ -157,19 +215,24 @@ impl Tempo {
         }
     }
 
-    fn weather_time_format(&self) -> &str {
+    fn weather_time_format(&self) -> String {
         self.weather_format(WEATHER_TIME_FORMAT_12H)
     }
 
-    fn weather_hour_format(&self) -> &str {
-        self.weather_format(WEATHER_HOUR_FORMAT_12H)
+    fn weather_hour_format(&self) -> String {
+        match hour_unit(chrono_locale()) {
+            Some(unit) => self.weather_format(&format!("{WEATHER_HOUR_FORMAT_12H}{unit}")),
+            None => self.weather_format(WEATHER_HOUR_FORMAT_12H),
+        }
     }
 
-    fn weather_format(&self, twelve_hour: &'static str) -> &str {
-        if uses_twelve_hour(self.current_format(), chrono_locale()) {
-            twelve_hour
-        } else {
-            WEATHER_TIME_FORMAT_24H
+    fn weather_format(&self, twelve_hour: &str) -> String {
+        match am_pm_placement(self.current_format(), chrono_locale()) {
+            None => WEATHER_TIME_FORMAT_24H.to_owned(),
+            Some(AmPm::After) => format!("{twelve_hour} %p"),
+            Some(AmPm::Before(separator)) => {
+                format!("%p{}{twelve_hour}", separator.replace('%', "%%"))
+            }
         }
     }
 
@@ -392,5 +455,43 @@ impl Tempo {
         } else {
             time_sub
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn am_pm_placement_follows_the_clock() {
+        let before = |separator: &str| Some(AmPm::Before(separator.to_owned()));
+
+        assert_eq!(am_pm_placement("%H:%M", Locale::en_US), None);
+        assert_eq!(
+            am_pm_placement("%I:%M %p", Locale::en_US),
+            Some(AmPm::After)
+        );
+        assert_eq!(
+            am_pm_placement("%H:%M %p", Locale::en_US),
+            Some(AmPm::After)
+        );
+        assert_eq!(am_pm_placement("%p%I:%M", Locale::en_US), before(""));
+        assert_eq!(am_pm_placement("%a %X", Locale::en_US), Some(AmPm::After));
+        assert_eq!(am_pm_placement("%r", Locale::de_DE), None);
+        assert_eq!(am_pm_placement("%r", Locale::ja_JP), before(""));
+        assert_eq!(am_pm_placement("%r", Locale::ko_KR), before(" "));
+        assert_eq!(am_pm_placement("%r", Locale::zh_CN), before(" "));
+    }
+
+    #[test]
+    fn hour_unit_comes_from_the_locale() {
+        assert_eq!(hour_unit(Locale::ko_KR).as_deref(), Some("시"));
+        assert_eq!(hour_unit(Locale::ja_JP).as_deref(), Some("時"));
+        assert_eq!(hour_unit(Locale::zh_CN).as_deref(), Some("时"));
+        assert_eq!(hour_unit(Locale::en_US), None);
+        assert_eq!(hour_unit(Locale::de_DE), None);
+        assert_eq!(hour_unit(Locale::br_FR), None);
+        assert_eq!(hour_unit(Locale::zh_TW).as_deref(), Some("時"));
+        assert_eq!(hour_unit(Locale::bo_CN), None);
     }
 }
