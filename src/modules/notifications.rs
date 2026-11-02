@@ -9,13 +9,14 @@ use crate::{
     services::{
         ReadOnlyService, ServiceEvent, compositor, connection_pid,
         notifications::{
-            Notification, NotificationIcon, NotificationsService, Urgency,
-            dbus::{CloseGuard, DEFAULT_ACTION_KEY, NotificationDaemon, NotificationEvent},
+            CloseGuard, DEFAULT_ACTION_KEY, Notification, NotificationEvent, NotificationIcon,
+            NotificationsService, Urgency,
         },
     },
     theme::{Paint, surface_border, use_theme},
 };
 use ashell_i18n::t;
+use ashell_services::notifications::Notifications as NotificationsHandle;
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
@@ -30,17 +31,24 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     time::{Duration, Instant},
 };
-use zbus::Connection;
 
 const ICON_SIZE: f32 = 36.0;
 
 fn notification_icon<'a, M: 'a>(icon_kind: Option<&NotificationIcon>) -> Element<'a, M> {
     match icon_kind {
-        Some(NotificationIcon::Svg(handle)) => svg(handle.clone())
+        Some(NotificationIcon::Svg(path)) => svg(svg::Handle::from_path(path.clone()))
             .width(Length::Fixed(ICON_SIZE))
             .height(Length::Fixed(ICON_SIZE))
             .into(),
-        Some(NotificationIcon::Image(handle)) => image(handle.clone())
+        Some(NotificationIcon::Image(path)) => image(image::Handle::from_path(path.clone()))
+            .width(Length::Fixed(ICON_SIZE))
+            .height(Length::Fixed(ICON_SIZE))
+            .into(),
+        Some(NotificationIcon::Rgba {
+            width,
+            height,
+            pixels,
+        }) => image(image::Handle::from_rgba(*width, *height, pixels.clone()))
             .width(Length::Fixed(ICON_SIZE))
             .height(Length::Fixed(ICON_SIZE))
             .into(),
@@ -58,7 +66,7 @@ struct FocusTarget {
 }
 
 fn invoke_and_close_task(
-    connection: Option<Connection>,
+    handle: Option<NotificationsHandle>,
     id: u32,
     action_key: Option<String>,
     guard: CloseGuard,
@@ -66,14 +74,14 @@ fn invoke_and_close_task(
 ) -> Task<Message> {
     Task::perform(
         async move {
-            let Some(connection) = connection else {
+            let Some(handle) = handle else {
                 return;
             };
-            match NotificationDaemon::invoke_and_close(&connection, id, action_key, guard).await {
+            match handle.invoke_and_close(id, action_key, guard).await {
                 Ok(true) => {
                     if let Some(FocusTarget { sender, apps }) = focus {
                         let pid = match sender {
-                            Some(sender) => connection_pid(&connection, &sender)
+                            Some(sender) => connection_pid(&handle.connection(), &sender)
                                 .await
                                 .inspect_err(|e| debug!("No pid for sender {sender}: {e}"))
                                 .ok(),
@@ -92,23 +100,21 @@ fn invoke_and_close_task(
     )
 }
 
-async fn close_notification_ids(connection: Option<Connection>, notification_ids: &[u32]) {
-    if let Some(connection) = connection {
+async fn close_notification_ids(handle: Option<NotificationsHandle>, notification_ids: &[u32]) {
+    if let Some(handle) = handle {
         for id in notification_ids {
-            if let Err(e) =
-                NotificationDaemon::invoke_and_close(&connection, *id, None, CloseGuard::Any).await
-            {
+            if let Err(e) = handle.close(*id).await {
                 error!("Failed to close notification id {}: {}", id, e);
             }
         }
     }
 }
 
-fn evict_task(connection: Option<Connection>, evicted: Vec<(u32, u64)>) -> Task<Message> {
+fn evict_task(handle: Option<NotificationsHandle>, evicted: Vec<(u32, u64)>) -> Task<Message> {
     Task::perform(
         async move {
-            if let Some(connection) = connection
-                && let Err(e) = NotificationDaemon::evict_notifications(&connection, &evicted).await
+            if let Some(handle) = handle
+                && let Err(e) = handle.evict_notifications(&evicted).await
             {
                 error!("Failed to close evicted notifications: {e}");
             }
@@ -246,7 +252,7 @@ fn needs_wakeup(previous: Option<ToastTimer>, deadline: Instant) -> bool {
 
 pub struct Notifications {
     config: NotificationsModuleConfig,
-    connection: Option<Connection>,
+    handle: Option<NotificationsHandle>,
     notifications: VecDeque<Notification>,
     expanded_groups: HashSet<String>,
     blocklist: Vec<crate::config::RegexCfg>,
@@ -263,7 +269,7 @@ impl Notifications {
         let blocklist = config.blocklist.clone();
         Self {
             config,
-            connection: None,
+            handle: None,
             notifications: VecDeque::new(),
             expanded_groups: HashSet::new(),
             blocklist,
@@ -325,9 +331,9 @@ impl Notifications {
         action_key: Option<String>,
         focus: Option<FocusTarget>,
     ) -> Action {
-        let connection = self.connection.clone();
+        let handle = self.handle.clone();
         let guard = self.close_guard(id);
-        let invoke_task = invoke_and_close_task(connection, id, action_key, guard, focus);
+        let invoke_task = invoke_and_close_task(handle, id, action_key, guard, focus);
         if !self.toasts.contains(&id) || self.dismiss_phases.contains_key(&id) {
             return Action::Task(invoke_task);
         }
@@ -504,7 +510,7 @@ impl Notifications {
         if evicted.is_empty() {
             action
         } else {
-            action.with_task(evict_task(self.connection.clone(), evicted))
+            action.with_task(evict_task(self.handle.clone(), evicted))
         }
     }
 
@@ -525,7 +531,7 @@ impl Notifications {
             }
             Message::Event(event) => match event {
                 ServiceEvent::Init(service) => {
-                    self.connection = Some(service.connection);
+                    self.handle = Some(service.handle);
                     Action::None
                 }
                 ServiceEvent::Update(update_event) => {
@@ -536,7 +542,7 @@ impl Notifications {
                         // and the daemon would keep its revision tracked for the
                         // lifetime of the process. Dismiss it at the source.
                         return Action::Task(evict_task(
-                            self.connection.clone(),
+                            self.handle.clone(),
                             vec![(notification.id, notification.revision)],
                         ));
                     }
@@ -558,11 +564,11 @@ impl Notifications {
                 ServiceEvent::Error(_) => Action::None,
             },
             Message::NotificationClicked(id) => {
-                let connection = self.connection.clone();
+                let handle = self.handle.clone();
                 let (action_key, focus) = self.default_action(id).unzip();
                 let guard = self.close_guard(id);
                 let close_menu = focus.is_some();
-                let task = invoke_and_close_task(connection, id, action_key, guard, focus);
+                let task = invoke_and_close_task(handle, id, action_key, guard, focus);
                 if close_menu {
                     Action::TaskAndCloseMenu(task)
                 } else {
@@ -578,12 +584,12 @@ impl Notifications {
                 Action::None
             }
             Message::ClearNotifications => {
-                let connection = self.connection.clone();
+                let handle = self.handle.clone();
                 let notification_ids: Vec<u32> = self.notifications.iter().map(|n| n.id).collect();
 
                 Action::Task(Task::perform(
                     async move {
-                        close_notification_ids(connection, &notification_ids).await;
+                        close_notification_ids(handle, &notification_ids).await;
                     },
                     |_| Message::NotificationsCleared,
                 ))
@@ -593,12 +599,12 @@ impl Notifications {
                 self.hide_toasts_if_empty(had_toasts)
             }
             Message::ClearGroup(app_name) => {
-                let connection = self.connection.clone();
+                let handle = self.handle.clone();
                 let notification_ids = self.notification_ids_for_app(&app_name);
 
                 Action::Task(Task::perform(
                     async move {
-                        close_notification_ids(connection, &notification_ids).await;
+                        close_notification_ids(handle, &notification_ids).await;
                         (app_name, notification_ids)
                     },
                     |(app_name, ids)| Message::GroupCleared(app_name, ids),
@@ -653,12 +659,12 @@ impl Notifications {
                 }
             }
             Message::CloseNotificationById(id) => {
-                let connection = self.connection.clone();
+                let handle = self.handle.clone();
                 let guard = self.close_guard(id);
                 let had_toasts = self.remove_toast(id);
                 self.dismiss_phases.remove(&id);
 
-                let task = invoke_and_close_task(connection, id, None, guard, None);
+                let task = invoke_and_close_task(handle, id, None, guard, None);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
             Message::DismissToast(id) => {
@@ -1226,7 +1232,7 @@ mod tests {
         config::NotificationsModuleConfig,
         services::{
             ServiceEvent,
-            notifications::dbus::{Notification, NotificationEvent, Urgency},
+            notifications::{Notification, NotificationEvent, Urgency},
         },
     };
     use std::time::{Duration, Instant, SystemTime};

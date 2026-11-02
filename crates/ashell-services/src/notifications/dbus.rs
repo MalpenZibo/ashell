@@ -28,11 +28,12 @@ pub enum CloseGuard {
 
 const NAME: WellKnownName =
     WellKnownName::from_static_str_unchecked("org.freedesktop.Notifications");
-pub const OBJECT_PATH: &str = "/org/freedesktop/Notifications";
+const OBJECT_PATH: &str = "/org/freedesktop/Notifications";
 
 /// Notification urgency as defined by the freedesktop Notifications
 /// specification (sent as the `urgency` byte hint).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Urgency {
     Low,
     #[default]
@@ -54,7 +55,8 @@ impl Urgency {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Notification {
     pub id: u32,
     /// Bumped on every `Notify`, so a consumer can tell one instance of an id
@@ -66,7 +68,7 @@ pub struct Notification {
     pub body: String,
     pub actions: Vec<String>,
     /// Kept instead of all hints, which can carry raw `image-data`.
-    #[serde(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub desktop_entry: Option<String>,
     pub expire_timeout: i32,
     pub timestamp: SystemTime,
@@ -74,9 +76,9 @@ pub struct Notification {
     /// Unique name of the D-Bus connection that sent the notification, whose
     /// pid finds the sender's window on click. For sandboxed apps (Flatpak's
     /// D-Bus proxy) or portal notifications that is not the app's own pid.
-    #[serde(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub sender: Option<String>,
-    #[serde(skip)]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub icon: Option<NotificationIcon>,
 }
 
@@ -108,7 +110,7 @@ impl Notification {
     }
 }
 
-pub struct NotificationDaemon {
+pub(super) struct NotificationDaemon {
     next_id: u32,
     next_revision: u64,
     revisions: HashMap<u32, u64>,
@@ -117,7 +119,7 @@ pub struct NotificationDaemon {
 }
 
 impl NotificationDaemon {
-    pub fn new(event_tx: broadcast::Sender<NotificationEvent>, connection: Connection) -> Self {
+    fn new(event_tx: broadcast::Sender<NotificationEvent>, connection: Connection) -> Self {
         Self {
             next_id: 0,
             next_revision: 0,
@@ -187,7 +189,6 @@ impl NotificationDaemon {
 
         debug!("New notification: {:?}", notification);
 
-        // Send event through channel
         let _ = self
             .event_tx
             .send(NotificationEvent::Received(Box::new(notification)));
@@ -203,23 +204,22 @@ impl NotificationDaemon {
         (
             "ashell".to_string(),
             "MalpenZibo".to_string(),
-            "0.1".to_string(),
+            env!("CARGO_PKG_VERSION").to_string(),
             "1.2".to_string(),
         )
     }
 }
 
 impl NotificationDaemon {
-    pub async fn start_server() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)>
-    {
+    pub(super) async fn start_server() -> anyhow::Result<Connection> {
         Self::init_server().await
     }
 
-    async fn init_server() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)> {
+    async fn init_server() -> anyhow::Result<Connection> {
         let (event_tx, _rx) = broadcast::channel(100);
 
         let connection = zbus::connection::Connection::session().await?;
-        let daemon = NotificationDaemon::new(event_tx.clone(), connection.clone());
+        let daemon = NotificationDaemon::new(event_tx, connection.clone());
         connection.object_server().at(OBJECT_PATH, daemon).await?;
 
         let dbus_proxy = DBusProxy::new(&connection).await?;
@@ -233,7 +233,19 @@ impl NotificationDaemon {
             }
         }
 
-        Ok((connection, event_tx))
+        Ok(connection)
+    }
+
+    /// The events that follow a `Notify` or a close.
+    pub(super) async fn events(
+        connection: &Connection,
+    ) -> anyhow::Result<broadcast::Receiver<NotificationEvent>> {
+        let iface_ref = connection
+            .object_server()
+            .interface::<_, NotificationDaemon>(OBJECT_PATH)
+            .await?;
+
+        Ok(iface_ref.get().await.event_tx.subscribe())
     }
 
     /// `guard` pins the instance the caller acted on: both steps are skipped
@@ -243,11 +255,12 @@ impl NotificationDaemon {
     /// the check and both steps is what keeps that ordering decidable.
     ///
     /// Returns whether `id` was closed, false when it was replaced since.
-    pub async fn invoke_and_close(
+    pub(super) async fn invoke_and_close(
         connection: &Connection,
         id: u32,
         action_key: Option<String>,
         guard: CloseGuard,
+        reason: u32,
     ) -> anyhow::Result<bool> {
         let iface_ref = connection
             .object_server()
@@ -274,8 +287,29 @@ impl NotificationDaemon {
                 .await?;
         }
 
-        daemon.close_with_reason(id, 2).await;
+        daemon.close_with_reason(id, reason).await;
         Ok(true)
+    }
+
+    /// Skips ids replaced since, like [`Self::invoke_and_close`].
+    pub(super) async fn evict_notifications(
+        connection: &Connection,
+        evicted: &[(u32, u64)],
+    ) -> anyhow::Result<()> {
+        let iface_ref = connection
+            .object_server()
+            .interface::<_, NotificationDaemon>(OBJECT_PATH)
+            .await?;
+        let mut daemon = iface_ref.get_mut().await;
+
+        for (id, revision) in evicted {
+            if daemon.revisions.get(id) != Some(revision) {
+                debug!("Skipping eviction of notification {id}: replaced since");
+                continue;
+            }
+            daemon.close_with_reason(*id, 1).await;
+        }
+        Ok(())
     }
 
     /// `reason` per the freedesktop Notifications spec: 1 expired,
@@ -295,27 +329,6 @@ impl NotificationDaemon {
                 &(id, reason),
             )
             .await;
-    }
-
-    /// Skips ids replaced since, like [`Self::invoke_and_close`].
-    pub async fn evict_notifications(
-        connection: &Connection,
-        evicted: &[(u32, u64)],
-    ) -> anyhow::Result<()> {
-        let iface_ref = connection
-            .object_server()
-            .interface::<_, NotificationDaemon>(OBJECT_PATH)
-            .await?;
-        let mut daemon = iface_ref.get_mut().await;
-
-        for (id, revision) in evicted {
-            if daemon.revisions.get(id) != Some(revision) {
-                debug!("Skipping eviction of notification {id}: replaced since");
-                continue;
-            }
-            daemon.close_with_reason(*id, 1).await;
-        }
-        Ok(())
     }
 }
 
@@ -351,5 +364,35 @@ mod tests {
     fn app_ids_fall_back_to_the_app_name() {
         assert_eq!(notification("firefox", None).app_ids(), ["firefox"]);
         assert!(notification(" ", None).app_ids().is_empty());
+    }
+
+    #[test]
+    fn action_pairs_pair_keys_with_labels() {
+        let mut n = notification("app", None);
+        n.actions = vec![
+            "default".to_string(),
+            "Open".to_string(),
+            "reply".to_string(),
+            "Reply".to_string(),
+        ];
+        assert_eq!(
+            n.action_pairs().collect::<Vec<_>>(),
+            [("default", "Open"), ("reply", "Reply")]
+        );
+    }
+
+    #[test]
+    fn urgency_reads_the_byte_hint() {
+        let mut hints = HashMap::new();
+        assert_eq!(Urgency::from_hints(&hints), Urgency::Normal);
+
+        hints.insert("urgency".to_string(), OwnedVariant::from(0u8));
+        assert_eq!(Urgency::from_hints(&hints), Urgency::Low);
+
+        hints.insert("urgency".to_string(), OwnedVariant::from(2u8));
+        assert_eq!(Urgency::from_hints(&hints), Urgency::Critical);
+
+        hints.insert("urgency".to_string(), OwnedVariant::from(1u8));
+        assert_eq!(Urgency::from_hints(&hints), Urgency::Normal);
     }
 }

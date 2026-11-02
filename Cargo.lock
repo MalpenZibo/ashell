@@ -207,6 +207,7 @@ dependencies = [
  "serde",
  "tokio",
  "udev",
+ "url",
  "wayland-client",
  "wayland-protocols",
  "wayland-protocols-wlr",
