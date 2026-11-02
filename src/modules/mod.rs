@@ -4,9 +4,12 @@ use crate::{
     components::menu::MenuType,
     components::{module_group, module_item},
     config::{MediaPlayerButtonAction, MediaPlayerScrollAction, ModuleDef, ModuleName},
-    theme::use_theme,
+    theme::{IslandStyle, use_theme},
 };
-use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
+use iced::{
+    Alignment, Element, Length, Subscription, SurfaceId, Theme,
+    widget::{Row, container},
+};
 
 pub mod custom_module;
 pub mod keyboard_layout;
@@ -100,17 +103,31 @@ impl App {
     fn build_module_item<'a>(
         &'a self,
         id: SurfaceId,
+        module_name: &ModuleName,
         content: Element<'a, Message>,
         action: Option<OnModulePress>,
+        island_style: IslandStyle,
     ) -> Element<'a, Message> {
+        let content = match use_theme(|t| t.module_text_color(module_name)) {
+            Some(text_color) => container(content)
+                .style(move |t: &Theme| container::Style {
+                    text_color: Some(text_color.color(t)),
+                    ..container::Style::default()
+                })
+                .into(),
+            None => content,
+        };
+
         let content = if use_theme(|t| t.animations_enabled) {
             animated_size(content).into()
         } else {
             content
         };
+
         match action {
             Some(action) => {
-                let mut item = module_item(content);
+                let mut item = module_item(content, island_style);
+
                 match action {
                     OnModulePress::Action(msg) => {
                         item = item.on_press(*msg);
@@ -189,7 +206,7 @@ impl App {
                 }
                 item.into()
             }
-            None => module_item(content).into(),
+            None => module_item(content, island_style).into(),
         }
     }
 
@@ -198,8 +215,14 @@ impl App {
         id: SurfaceId,
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
+        let island_style = use_theme(|t| t.module_island_style(module_name));
         self.get_module_view(id, module_name)
-            .map(|(content, action)| module_group(self.build_module_item(id, content, action)))
+            .map(|(content, action)| {
+                module_group(
+                    self.build_module_item(id, module_name, content, action, island_style),
+                    island_style,
+                )
+            })
     }
 
     fn group_module_wrapper<'a>(
@@ -209,19 +232,27 @@ impl App {
     ) -> Option<Element<'a, Message>> {
         let modules: Vec<_> = group
             .iter()
-            .filter_map(|module| self.get_module_view(id, module))
+            .filter_map(|module| {
+                self.get_module_view(id, module)
+                    .map(|(content, action)| (module, content, action))
+            })
             .collect();
 
         if modules.is_empty() {
             None
         } else {
+            let (island_style, spacing) =
+                use_theme(|t| (t.group_island_style(), t.group_spacing()));
             let items = Row::with_children(
                 modules
                     .into_iter()
-                    .map(|(content, action)| self.build_module_item(id, content, action))
+                    .map(|(module, content, action)| {
+                        self.build_module_item(id, module, content, action, island_style)
+                    })
                     .collect::<Vec<_>>(),
-            );
-            Some(module_group(items.into()))
+            )
+            .spacing(spacing);
+            Some(module_group(items.into(), island_style))
         }
     }
 
