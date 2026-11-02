@@ -15,8 +15,10 @@ pub struct CompositorWorkspace {
 pub struct CompositorMonitor {
     pub id: i128,
     pub name: String,
+    pub focused: bool,
     pub active_workspace_id: i32,
-    pub special_workspace_id: i32,
+    pub active_workspace_name: String,
+    pub special_workspace_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]

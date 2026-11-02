@@ -91,7 +91,7 @@ chrono = { workspace = true, features = [
   "serde",
   "unstable-locales",
 ] }
-hyprland = { git = "https://github.com/hyprland-community/hyprland-rs", branch = "master" }
+hyprland = { git = "https://github.com/romanstingler/hyprland-rs-next", rev = "7c2f69f8be78d89b58720bce7cad03b82e99baa3" }
 serde = { workspace = true, features = ["derive"] }
 sysinfo = { version = "0.39", features = ["linux-netdevs"] }
 tokio = { workspace = true, features = ["fs", "io-util", "net", "process"] }
