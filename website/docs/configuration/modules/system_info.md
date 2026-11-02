@@ -18,6 +18,8 @@ For example, if the CPU usage is above 80%, the indicator will be red.
 
 By default, the module will display the CPU usage, memory usage, and temperature.
 
+Clicking the module opens a menu with every value, grouped into cards for CPU, memory, swap and temperature, for the disks, and for the network.
+
 ## Indicators
 
 Using the `indicators` configuration, you can select which indicators
@@ -80,7 +82,7 @@ You can change the display format using the `format` option in `[system_info.dis
 
 By default, all non-removable disks with available space are shown in the system info menu. You can use the `mounts` option in `[system_info.disk]` to specify which mount points to display.
 
-If `mounts` is not specified, all disks are shown (default behavior).
+If `mounts` is not specified, all disks are shown (default behavior). The disk card in the menu scrolls once the list is taller than 300 pixels, as it is on systems with many bind mounts.
 
 ```toml
 [system_info.disk]

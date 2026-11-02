@@ -1,7 +1,7 @@
 use crate::{
     components::MenuSize,
-    components::divider,
     components::icons::{StaticIcon, icon},
+    components::{scrollable, sub_menu_wrapper},
     config::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         TemperatureSensor, TemperatureSensorType,
@@ -13,7 +13,7 @@ use ashell_i18n::t;
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
     futures::channel::mpsc,
-    widget::{Column, Row, column, container, row, text},
+    widget::{Column, Row, container, row, text},
 };
 use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
@@ -498,9 +498,9 @@ impl SystemInfo {
         label: String,
         value: String,
     ) -> Element<'a, Message> {
-        let (font_size, space) = use_theme(|t| (t.font_size, t.space));
+        let space = use_theme(|t| t.space);
         row!(
-            container(icon(info_icon).size(font_size.xl)).center_x(Length::Fixed(space.xl)),
+            container(icon(info_icon)).center_x(Length::Fixed(space.lg)),
             text(label).width(Length::Fill),
             text(value)
         )
@@ -561,103 +561,109 @@ impl SystemInfo {
     pub fn menu_view(&'_ self) -> Element<'_, Message> {
         let (font_size, space) = use_theme(|t| (t.font_size, t.space));
         let data = self.data.as_ref();
-        container(
-            column!(
-                text(t!("system-info-heading")).size(font_size.lg),
-                divider(),
-                Column::with_capacity(6)
-                    .push(data.map(|data| Self::info_element(
-                        StaticIcon::Cpu,
-                        t!("system-info-cpu-usage"),
-                        match self.config.cpu.format {
-                            CpuFormat::Percentage => format!("{}%", data.cpu_usage.percentage),
-                            CpuFormat::Frequency => format!("{} GHz", data.cpu_usage.frequency),
-                        }
-                    )))
-                    .push(data.map(|data| Self::info_element(
-                        StaticIcon::Mem,
-                        t!("system-info-memory-usage"),
-                        match self.config.memory.format {
-                            MemoryFormat::Percentage =>
-                                format!("{}%", data.memory_usage.percentage),
-                            MemoryFormat::Fraction => format!("{} GiB", data.memory_usage.fraction),
-                            MemoryFormat::Amount => format!("{:.1} GiB", data.memory_usage.amount),
-                        }
-                    )))
-                    .push(data.map(|data| Self::info_element(
-                        StaticIcon::Mem,
-                        t!("system-info-swap-memory-usage"),
-                        match self.config.memory.format {
-                            MemoryFormat::Percentage =>
-                                format!("{}%", data.memory_swap_usage.percentage),
-                            MemoryFormat::Fraction =>
-                                format!("{} GiB", data.memory_swap_usage.fraction),
-                            MemoryFormat::Amount =>
-                                format!("{:.1} GiB", data.memory_swap_usage.amount),
-                        }
-                    )))
-                    .push(data.and_then(|data| data.temperature.celsius).map(|cel| {
-                        Self::info_element(StaticIcon::Temp, t!("system-info-temperature"), {
-                            let units = self.config.temperature.resolved_units();
-                            format!("{}{}", units.convert_celsius(cel), units.symbol())
-                        })
-                    }))
-                    .push(
-                        Column::with_children(
-                            self.disks
-                                .iter()
-                                .map(|(mount_point, usage)| {
-                                    Self::info_element(
-                                        StaticIcon::Drive,
-                                        t!("system-info-disk-usage", mount = mount_point.as_str()),
-                                        match self.config.disk.format {
-                                            DiskFormat::Percentage => {
-                                                format!("{}%", usage.percentage)
-                                            }
-                                            DiskFormat::Fraction => {
-                                                format!("{} GB", usage.fraction)
-                                            }
-                                        },
-                                    )
-                                })
-                                .collect::<Vec<Element<_>>>(),
-                        )
-                        .spacing(space.xxs),
-                    )
-                    .push(data.and_then(|data| data.network.as_ref()).map(|network| {
-                        Column::with_children(vec![
-                            Self::info_element(
-                                StaticIcon::IpAddress,
-                                t!("system-info-ip-address"),
-                                network.ip.to_string(),
-                            ),
-                            Self::info_element(
-                                StaticIcon::DownloadSpeed,
-                                t!("system-info-download-speed"),
-                                if network.download_speed > 1000 {
-                                    format!("{} MB/s", network.download_speed / 1000)
-                                } else {
-                                    format!("{} KB/s", network.download_speed)
-                                },
-                            ),
-                            Self::info_element(
-                                StaticIcon::UploadSpeed,
-                                t!("system-info-upload-speed"),
-                                if network.upload_speed > 1000 {
-                                    format!("{} MB/s", network.upload_speed / 1000)
-                                } else {
-                                    format!("{} KB/s", network.upload_speed)
-                                },
-                            ),
-                        ])
-                    }))
-                    .spacing(space.xxs)
-                    .padding([0.0, space.xs])
-            )
-            .spacing(space.xs),
-        )
-        .width(MenuSize::Medium)
-        .into()
+        let rows =
+            |rows: Vec<Element<'static, Message>>| Column::with_children(rows).spacing(space.sm);
+        let card = |content: Option<Element<'static, Message>>| content.map(sub_menu_wrapper);
+
+        let mut resources = Vec::with_capacity(4);
+        if let Some(data) = data {
+            resources.push(Self::info_element(
+                StaticIcon::Cpu,
+                t!("system-info-cpu-usage"),
+                match self.config.cpu.format {
+                    CpuFormat::Percentage => format!("{}%", data.cpu_usage.percentage),
+                    CpuFormat::Frequency => format!("{} GHz", data.cpu_usage.frequency),
+                },
+            ));
+            resources.push(Self::info_element(
+                StaticIcon::Mem,
+                t!("system-info-memory-usage"),
+                match self.config.memory.format {
+                    MemoryFormat::Percentage => format!("{}%", data.memory_usage.percentage),
+                    MemoryFormat::Fraction => format!("{} GiB", data.memory_usage.fraction),
+                    MemoryFormat::Amount => format!("{:.1} GiB", data.memory_usage.amount),
+                },
+            ));
+            resources.push(Self::info_element(
+                StaticIcon::Mem,
+                t!("system-info-swap-memory-usage"),
+                match self.config.memory.format {
+                    MemoryFormat::Percentage => format!("{}%", data.memory_swap_usage.percentage),
+                    MemoryFormat::Fraction => format!("{} GiB", data.memory_swap_usage.fraction),
+                    MemoryFormat::Amount => format!("{:.1} GiB", data.memory_swap_usage.amount),
+                },
+            ));
+            if let Some(cel) = data.temperature.celsius {
+                let units = self.config.temperature.resolved_units();
+                resources.push(Self::info_element(
+                    StaticIcon::Temp,
+                    t!("system-info-temperature"),
+                    format!("{}{}", units.convert_celsius(cel), units.symbol()),
+                ));
+            }
+        }
+
+        let disks = self
+            .disks
+            .iter()
+            .map(|(mount_point, usage)| {
+                Self::info_element(
+                    StaticIcon::Drive,
+                    t!("system-info-disk-usage", mount = mount_point.as_str()),
+                    match self.config.disk.format {
+                        DiskFormat::Percentage => format!("{}%", usage.percentage),
+                        DiskFormat::Fraction => format!("{} GB", usage.fraction),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        // Bind mounts can add dozens of disks, so the card scrolls past a few.
+        let disks = (!disks.is_empty()).then(|| {
+            container(scrollable(rows(disks)).spacing(space.xs))
+                .max_height(300)
+                .into()
+        });
+
+        let speed = |speed: u32| {
+            if speed > 1000 {
+                format!("{} MB/s", speed / 1000)
+            } else {
+                format!("{speed} KB/s")
+            }
+        };
+        let network = data
+            .and_then(|data| data.network.as_ref())
+            .map(|network| {
+                vec![
+                    Self::info_element(
+                        StaticIcon::IpAddress,
+                        t!("system-info-ip-address"),
+                        network.ip.to_string(),
+                    ),
+                    Self::info_element(
+                        StaticIcon::DownloadSpeed,
+                        t!("system-info-download-speed"),
+                        speed(network.download_speed),
+                    ),
+                    Self::info_element(
+                        StaticIcon::UploadSpeed,
+                        t!("system-info-upload-speed"),
+                        speed(network.upload_speed),
+                    ),
+                ]
+            })
+            .map(|network| rows(network).into());
+
+        Column::new()
+            .push(text(t!("system-info-heading")).size(font_size.lg))
+            .push(card(
+                (!resources.is_empty()).then(|| rows(resources).into()),
+            ))
+            .push(card(disks))
+            .push(card(network))
+            .spacing(space.md)
+            .width(MenuSize::Medium)
+            .into()
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
