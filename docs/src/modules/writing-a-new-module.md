@@ -120,7 +120,7 @@ In `src/modules/mod.rs`:
 ```rust
 ModuleName::MyModule => Some((
     self.my_module.view().map(Message::MyModule),
-    None,  // Or Some(OnModulePress::ToggleMenu(MenuType::MyModule)) if you have a menu
+    None,  // Or Some(ModulePress::menu(MenuType::MyModule)) if you have a menu
 )),
 ```
 
@@ -182,7 +182,7 @@ pub enum MenuType {
 
 2. Add a `menu_view()` method to your module.
 
-3. Change `get_module_view` to return `Some(OnModulePress::ToggleMenu(MenuType::MyModule))`.
+3. Change `get_module_view` to return `Some(ModulePress::menu(MenuType::MyModule))`.
 
 4. Handle the menu rendering in `App::view()` / `App::menu_wrapper()`.
 
