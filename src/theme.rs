@@ -1,11 +1,12 @@
 use std::cell::RefCell;
 
 use crate::{
+    HEIGHT,
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
-        self, Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarPadding,
-        BarRadius, BarSurface, ColorRef, FontSizeScale, MenuAppearance, ModuleName,
-        ModulesAppearance, Position, RadiusSize, SpaceSize, Surface,
+        self, Appearance, AppearanceColor, BackgroundLevel, BarMargin, BarPadding, BarRadius,
+        BarSurface, ColorRef, FontSizeScale, MenuAppearance, ModuleName, ModulesAppearance,
+        Position, RadiusSize, SpaceSize, Surface,
     },
 };
 use iced::{
@@ -104,6 +105,10 @@ impl Radius {
     }
 }
 
+/// Room the bar keeps around the tallest module text: what the workspace
+/// buttons have around their `xs` text.
+const TEXT_ROOM: f64 = 6.0;
+
 /// Bar geometry the layer-surface layer needs: which surface mode drives the
 /// bar height, plus the resolved outer margin in logical (unscaled) pixels
 /// ordered `(top, right, bottom, left)`.
@@ -112,18 +117,36 @@ pub struct BarLayout {
     pub surface: BarSurface,
     pub margin: BarMargin,
     pub padding: BarPadding,
+    /// Height inside the padding: `HEIGHT`, or more when a module's
+    /// `font_size` needs it.
+    pub content_height: f64,
 }
 
 impl BarLayout {
-    pub fn from_appearance(bar: &BarAppearance) -> Self {
-        Self::new(bar.surface, bar.margin, bar.padding)
+    pub fn from_appearance(appearance: &Appearance) -> Self {
+        let bar = &appearance.bar;
+        Self::new(bar.surface, bar.margin, bar.padding, &appearance.modules)
     }
 
-    fn new(surface: BarSurface, margin: BarMargin, padding: BarPadding) -> Self {
+    fn new(
+        surface: BarSurface,
+        margin: BarMargin,
+        padding: BarPadding,
+        modules: &ModulesAppearance,
+    ) -> Self {
+        let font_size = FontSize::default();
+        let content_height = modules
+            .overrides
+            .values()
+            .filter_map(|style| style.font_size)
+            .map(|size| f64::from(font_size.resolve(size)) + TEXT_ROOM)
+            .fold(HEIGHT, f64::max);
+
         Self {
             surface,
             margin,
             padding,
+            content_height,
         }
     }
 
@@ -137,10 +160,10 @@ impl BarLayout {
         }
     }
 
-    /// Extra surface height the padding needs on top of the content height.
-    pub fn vertical_padding(&self) -> f64 {
+    /// The content height plus the vertical padding.
+    pub fn height(&self) -> f64 {
         let p = self.padding();
-        f64::from(p.top + p.bottom)
+        self.content_height + f64::from(p.top + p.bottom)
     }
 }
 
@@ -596,7 +619,12 @@ impl AshellTheme {
     }
 
     pub fn bar_layout(&self) -> BarLayout {
-        BarLayout::new(self.bar_surface, self.bar_margin, self.bar_padding)
+        BarLayout::new(
+            self.bar_surface,
+            self.bar_margin,
+            self.bar_padding,
+            &self.modules,
+        )
     }
 
     pub fn bar_border_radius(&self) -> border::Radius {

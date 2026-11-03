@@ -276,7 +276,7 @@ fn main() -> iced::Result {
     };
 
     let geometry = Outputs::bar_geometry(
-        BarLayout::from_appearance(&config.appearance.bar),
+        BarLayout::from_appearance(&config.appearance),
         config.position,
         config.appearance.scale_factor,
         BarVisibility::Shown,

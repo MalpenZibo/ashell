@@ -6,7 +6,6 @@ use iced::{
 use log::debug;
 
 use crate::{
-    HEIGHT,
     components::ButtonUIRef,
     components::menu::{Menu, MenuType, OpenMenu},
     config::{self, Position},
@@ -187,7 +186,7 @@ impl Outputs {
     /// Surface height: the content height plus the vertical padding, all scaled.
     /// Padding is rendered inside the surface by iced, so it scales with it.
     fn get_height(layout: BarLayout, scale_factor: f64) -> f64 {
-        (HEIGHT + layout.vertical_padding()) * scale_factor
+        layout.height() * scale_factor
     }
 
     /// Space reserved on the anchored edge: the bar height plus the margin that

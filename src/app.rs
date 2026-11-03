@@ -1,5 +1,4 @@
 use crate::{
-    HEIGHT,
     components::{Centerbox, menu::MenuType},
     config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
     get_log_spec,
@@ -87,7 +86,7 @@ impl App {
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
             let mut outputs = Outputs::new(
-                BarLayout::from_appearance(&config.appearance.bar),
+                BarLayout::from_appearance(&config.appearance),
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
@@ -264,7 +263,7 @@ impl App {
                 );
                 let (bar_position, bar_layout, scale_factor) =
                     use_theme(|t| (t.bar_position, t.bar_layout(), t.scale_factor));
-                let new_layout = BarLayout::from_appearance(&config.appearance.bar);
+                let new_layout = BarLayout::from_appearance(&config.appearance);
                 if self.general_config.outputs != config.outputs
                     || bar_position != config.position
                     || bar_layout != new_layout
@@ -689,7 +688,7 @@ impl App {
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height((HEIGHT + bar_layout.vertical_padding()) as f32)
+                    .height(bar_layout.height() as f32)
                     .padding(bar_layout.padding());
 
                 let menu_is_open = self.outputs.menu_is_open();
