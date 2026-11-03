@@ -23,7 +23,7 @@ use crate::{
     osd::{self, Osd},
     outputs::{HasOutput, Outputs},
     services::{ReadOnlyService, xdg_icons},
-    theme::{AshellTheme, BarLayout, backdrop_color, darken_color, init_theme, use_theme},
+    theme::{AshellTheme, BarLayout, Paint, backdrop_color, darken_color, init_theme, use_theme},
 };
 use ashell_i18n::{Localizer, init_localizer};
 use flexi_logger::LoggerHandle;
@@ -663,18 +663,27 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar_surface, menu, animations_enabled, bar_radius, blur, bar_layout) =
-                    use_theme(|t| {
-                        (
-                            t.space,
-                            t.bar_surface,
-                            t.menu,
-                            t.animations_enabled,
-                            t.bar_border_radius(),
-                            t.surface(Surface::Bar).blur,
-                            t.bar_layout(),
-                        )
-                    });
+                let (
+                    space,
+                    bar_surface,
+                    menu,
+                    animations_enabled,
+                    bar_radius,
+                    bar_border,
+                    blur,
+                    bar_layout,
+                ) = use_theme(|t| {
+                    (
+                        t.space,
+                        t.bar_surface,
+                        t.menu,
+                        t.animations_enabled,
+                        t.bar_border_radius(),
+                        t.bar_border,
+                        t.surface(Surface::Bar).blur,
+                        t.bar_layout(),
+                    )
+                });
                 let centerbox = Centerbox::new([left, center, right])
                     .animated(animations_enabled)
                     .spacing(space.xxs)
@@ -705,7 +714,8 @@ impl App {
                     },
                     border: iced::Border {
                         radius: bar_radius,
-                        ..Default::default()
+                        width: bar_border.width,
+                        color: Paint::surface(t, bar_border.color.color(t)).color(),
                     },
                     ..Default::default()
                 };

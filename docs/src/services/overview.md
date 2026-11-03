@@ -35,9 +35,11 @@ It returns an `IconFile`, the path tagged as `Image` or `Svg`. The glue in
 `NerdFont` glyph fallback).
 
 Each consumer keeps its own concern on top of this core: the tray handles raw
-D-Bus pixmaps, while the workspaces module lowercases the window class before
-lookup. Results are memoized in a process-wide cache, and the underlying indexes
-are built lazily; `warm_cache_async` pre-builds them off the UI thread when a
+D-Bus pixmaps and looks names up in the item's own `IconThemePath` first
+(`get_icon_from_theme_path`, not cached, since apps rewrite those directories),
+while the workspaces module lowercases the window class before lookup. Theme
+lookups are memoized in a process-wide cache, and the underlying indexes are
+built lazily; `warm_cache_async` pre-builds them off the UI thread when a
 consumer is active.
 
 ## Services vs. Modules

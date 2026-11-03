@@ -107,9 +107,9 @@ surface = "solid"
 
 ### Radius
 
-The `radius` field rounds the corners of the bar surface (it only has an effect
-with `surface = "solid"`). Values are steps of the radius scale: `none` (square),
-`sm`, `md`, `lg`, `xl`.
+The `radius` field rounds the corners of the solid bar surface and the bar
+border. It also applies to the border with `surface = "transparent"`. Values are
+steps of the radius scale: `none` (square), `sm`, `md`, `lg`, `xl`.
 
 It uses CSS `border-radius` shorthand: a single value applies to all corners, two
 values are `[top-left+bottom-right, top-right+bottom-left]`, and four values are
@@ -165,6 +165,39 @@ Padding is drawn inside the bar, so it scales with `scale_factor` like the rest
 of the interface. `margin` is applied by the compositor and is always in screen
 pixels.
 
+### Border
+
+The `border` field draws a border around the bar, with both surfaces. With
+`transparent` it outlines the whole bar area around the islands. It follows the
+bar `radius`.
+
+- `width`: in pixels. Defaults to `0` (no border).
+- `color`: a [color](#colors). Defaults to `background.strong`.
+
+```toml
+[appearance.bar]
+border = { width = 1, color = "background.strong" }
+# border = { width = 2, color = "#414868" }
+```
+
+### Colors
+
+Style colors (`border.color`, `background`, `text_color`) accept a hex color or
+a reference to the [palette](./palette.md), so they follow theme changes:
+
+| Reference | Color |
+| --- | --- |
+| `background` | The background color |
+| `background.weakest` … `background.strongest` | Background levels: `weakest`, `weaker`, `weak`, `neutral`, `strong`, `stronger`, `strongest` |
+| `primary`, `primary.weak`, `primary.strong` | The primary color |
+| `success`, `warning`, `danger` (also `.weak` / `.strong`) | The status colors |
+| `text` | The text color |
+
+```toml
+border = { width = 1, color = "primary.weak" }
+# border = { width = 1, color = "#414868" }
+```
+
 ### Opacity
 
 The `opacity` field sets the opacity of the surfaces ashell draws. The value
@@ -200,6 +233,63 @@ notifications = 0.9
 | `menu` | Every menu opened from the bar, the notification centre included |
 | `osd` | The volume and brightness OSD |
 | `notifications` | Toast notifications |
+
+## Module Islands
+
+Each module, or [group of modules](../modules/index.md), sits in an island: the
+pill behind it with `surface = "transparent"`. Islands are styled under
+`[appearance.modules]`:
+
+- `default`: every island.
+- `group`: the islands of module groups. Unset fields fall back to `default`.
+- One table per module, named after its settings section (`system_info`,
+  `media_player`, …), or `custom.<name>` for a custom module. Unset fields fall
+  back to `default`.
+
+| Field | `default` | `group` | module | Description |
+| --- | :---: | :---: | :---: | --- |
+| `radius` | ✓ | ✓ | ✓ | Corner radius, same values and shorthand as [`bar.radius`](#radius). Defaults to `lg` |
+| `padding` | ✓ | ✓ | ✓ | Space inside the island, same values and shorthand as [`bar.padding`](#padding). Defaults to `none` |
+| `border` | ✓ | ✓ | ✓ | `{ width, color }`, like [`bar.border`](#border). No border by default |
+| `background` | ✓ | ✓ | ✓ | A [color](#colors). Defaults to `background` |
+| `spacing` | | ✓ | | Space between the modules of a group, same values as `bar.margin`. Defaults to `none` |
+| `text_color` | | | ✓ | Text color of the module, a [color](#colors). Also applies inside a group |
+
+For modules and groups, `border` falls back to `default.border` as a whole table.
+Setting a `border` table replaces that default: omitted `width` and `color` use
+`0` and `background.strong`, respectively. For example, `border = { width = 2 }`
+uses `background.strong` even if `default.border.color` is `primary`. Set both
+fields to retain a custom default color while changing the width.
+
+A module inside a group sits in the group's island, so its own `radius`,
+`padding`, `border` and `background` only apply when it is on its own.
+
+With `surface = "solid"` the bar paints the background, so islands are not
+drawn unless their style sets a `border` or `background`. This lets you put
+islands on top of a solid bar.
+
+```toml
+[modules]
+right = [ "SystemInfo", [ "Tempo", "Privacy", "Settings" ] ]
+
+[appearance.modules.default]
+radius = "lg"
+border = { width = 1, color = "background.strong" }
+
+[appearance.modules.group]
+radius = "md"
+padding = ["none", "xxs"]
+background = "background.weak"
+spacing = "xs"
+
+[appearance.modules.system_info]
+radius = "md"
+border = { width = 1, color = "#414868" }
+text_color = "primary"
+
+[appearance.modules.custom.my_custom_module]
+background = "primary.weak"
+```
 
 ## Menu Backdrop
 
