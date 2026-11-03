@@ -297,8 +297,8 @@ background = "primary.weak"
 
 ### Module Font Size
 
-A module's `font_size` sets the size of its main text and of the icons next
-to it, as a step of the font scale:
+A module's `font_size` sets the size of its main text and of its icons, as a
+step of the font scale:
 
 | Step | `xxs` | `xs` | `sm` | `md` | `lg` | `xl` | `xxl` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -313,14 +313,15 @@ next to the time, keep theirs.
 | `keyboard_layout` | The layout | `md` |
 | `keyboard_submap` | The submap | `md` |
 | `media_player` | The icon and the title | `md` for the icon, `sm` for the title |
+| `notifications` | The icon | `md` |
+| `privacy` | The icons | `md` |
+| `settings` | The icons and texts of the indicators | `md` |
 | `system_info` | The icons and the values | `md` |
 | `tempo` | The time | `md` |
+| `tray` | The icons | `md` |
 | `updates` | The icon and the count | `md` |
 | `window_title` | The title | `sm` |
 | `workspaces` | The names and icons; the buttons grow with them | `xs` |
-
-Modules that only show icons (`notifications`, `privacy`, `settings` and `tray`)
-don't support `font_size` yet.
 
 The bar gets taller when a module's text no longer fits: above `xs` for
 `workspaces`, above `md` for the other modules. The corners of the bar, the

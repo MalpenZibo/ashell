@@ -16,6 +16,9 @@ pub struct AshellTheme {
     pub bar_radius: BarRadius,                                // per-corner radius (CSS shorthand)
     pub bar_margin: BarMargin,                                // per-edge margin (CSS shorthand)
     pub bar_padding: BarPadding,                              // per-edge padding (CSS shorthand)
+    pub bar_border: config::Border,                           // bar outline
+    pub bar_scale: f32,                                       // bar content height / HEIGHT
+    pub modules: ModulesAppearance,                           // [appearance.modules]
     pub menu: MenuAppearance,                                 // Menu-specific styling
     pub workspace_colors: Vec<AppearanceColor>,               // Per-workspace color cycling
     pub special_workspace_colors: Option<Vec<AppearanceColor>>, // Special workspace colors
@@ -110,6 +113,25 @@ The `[appearance.bar].surface` field controls where the background is painted:
 - **`solid`**: Flat background color across the entire bar width; module groups render pass-through so the bar reads as a single surface.
 
 The bar surface can additionally be rounded (`radius`) and inset from the screen edges (`margin`); both use CSS shorthand over the radius/spacing scales. Additionally, margin can be an `f32` representing physical pixels. Margins are applied by the compositor outside the bar surface, so they are always screen pixels and are not multiplied by `scale_factor`. `padding` uses the same shorthand to inset the bar content without moving the surface, so a solid bar keeps its full-width background; being drawn inside the bar it does scale with `scale_factor`.
+
+## Module Styles
+
+`[appearance.modules]` styles the bar modules: `default` and `group` for the islands, and one table per module, keyed by its section name (`system_info`, `custom.<name>`). The theme resolves them:
+
+| Method | Resolves |
+|--------|----------|
+| `module_island_style(name)` | A module's island: its table, then `default` |
+| `group_island_style()`, `group_spacing()` | The island of a module group: `group`, then `default` |
+| `module_text_color(name)` | The module's `text_color` |
+| `module_font_size(name, default)` | The size of the module's main text and the icons next to it |
+
+The island and the text color are applied around each module in `src/modules/mod.rs`. The font size lives inside the module's view, so every module reads it itself, passing the size it uses when the option is unset.
+
+### Bar height
+
+`BarLayout::content_height` is `HEIGHT` (26px), or more when a module's `font_size` needs it: each module keeps the room it has around its text at its built-in size, 10px around `md` text, 16px for the workspace buttons around `xs`. `BarLayout::height()` adds the vertical padding, and sizes both the layer surface and the bar view. Since `BarLayout` is compared on config reload, a new `font_size` resizes the bar.
+
+`bar_scale` is `content_height / HEIGHT`. The bar, island and workspace button radii are multiplied by it, so they keep their shape as the bar grows.
 
 ## Color System
 

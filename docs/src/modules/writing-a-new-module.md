@@ -7,7 +7,12 @@ This guide walks through adding a new module to ashell, step by step.
 Create `src/modules/my_module.rs`:
 
 ```rust
-use iced::{Element, Subscription, widget::text};
+use crate::{
+    components::icons::{StaticIcon, icon},
+    config::ModuleName,
+    theme::use_theme,
+};
+use iced::{Element, Subscription, widget::{row, text}};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -36,8 +41,11 @@ impl MyModule {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        // Read theme values with `crate::theme::use_theme(|t| ...)` if needed
-        text(&self.value).into()
+        let size = use_theme(|t| t.module_font_size(&ModuleName::MyModule, t.font_size.md));
+
+        row![icon(StaticIcon::Point).size(size), text(&self.value).size(size)]
+            .spacing(use_theme(|t| t.space.xxs))
+            .into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -45,6 +53,10 @@ impl MyModule {
     }
 }
 ```
+
+### Follow the module styles
+
+The view reads its text size through `module_font_size`, passing the size it uses on its own. Do the same for the module's main text and the icons next to it, so `font_size` in `[appearance.modules.my_module]` applies to it; secondary texts can keep a fixed size. Then add the module to the "Module Font Size" table on the website's Appearance page. The island style and `text_color` are applied around the module in `src/modules/mod.rs`, so there is nothing to do for them.
 
 ## Step 2: Register the Module Name
 
@@ -57,7 +69,13 @@ pub enum ModuleName {
 }
 ```
 
-`ModuleName` has a hand-written `Deserialize` impl in the same file: add a match arm mapping the TOML string to your variant (e.g. `"MyModule" => ModuleName::MyModule`), otherwise the string is parsed as `ModuleName::Custom`.
+Then add it to `BUILTIN_MODULES` in the same file (and bump the array length), with its layout name and its settings section name:
+
+```rust
+("MyModule", "my_module", ModuleName::MyModule),
+```
+
+The layout name is what users write in `[modules]`; any other string is parsed as `ModuleName::Custom`. The section name is also the module's key in `[appearance.modules]`, so `[appearance.modules.my_module]` styles it.
 
 ## Step 3: Add to Module Declarations
 

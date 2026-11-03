@@ -391,14 +391,9 @@ impl NetworkSettings {
                         _ => strength_text,
                     };
 
-                    format_indicator(
-                        self.config.indicator_format,
-                        icon_type,
-                        text(label).into(),
-                        state,
-                    )
-                    .on_right_press(Message::OpenMore)
-                    .into()
+                    format_indicator(self.config.indicator_format, icon_type, text(label), state)
+                        .on_right_press(Message::OpenMore)
+                        .into()
                 } else {
                     let label = match self.config.indicator_format {
                         SettingsFormat::Name | SettingsFormat::IconAndName => "-".to_string(),
@@ -407,7 +402,7 @@ impl NetworkSettings {
                     format_indicator(
                         self.config.indicator_format,
                         StaticIcon::Wifi0,
-                        text(label).into(),
+                        text(label),
                         IndicatorState::Normal,
                     )
                     .on_right_press(Message::OpenMore)
@@ -426,7 +421,7 @@ impl NetworkSettings {
                 .map(|a| {
                     let icon_type = a.get_icon();
 
-                    container(icon(icon_type))
+                    container(icon(icon_type).size(super::Settings::indicator_size()))
                         .style(|theme: &Theme| container::Style {
                             text_color: Some(theme.palette().warning),
                             ..Default::default()
