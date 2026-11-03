@@ -254,6 +254,7 @@ pill behind it with `surface = "transparent"`. Islands are styled under
 | `background` | ✓ | ✓ | ✓ | A [color](#colors). Defaults to `background` |
 | `spacing` | | ✓ | | Space between the modules of a group, same values as `bar.margin`. Defaults to `none` |
 | `text_color` | | | ✓ | Text color of the module, a [color](#colors). Also applies inside a group |
+| `font_size` | | | ✓ | Size of the module's main text, see [below](#module-font-size). Also applies inside a group |
 
 For modules and groups, `border` falls back to `default.border` as a whole table.
 Setting a `border` table replaces that default: omitted `width` and `color` use
@@ -287,9 +288,39 @@ radius = "md"
 border = { width = 1, color = "#414868" }
 text_color = "primary"
 
+[appearance.modules.workspaces]
+font_size = "sm"
+
 [appearance.modules.custom.my_custom_module]
 background = "primary.weak"
 ```
+
+### Module Font Size
+
+A module's `font_size` sets the size of its main text, as a step of the font
+scale:
+
+| Step | `xxs` | `xs` | `sm` | `md` | `lg` | `xl` | `xxl` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Size (px) | 8 | 10 | 12 | 16 | 20 | 22 | 32 |
+
+When unset, each module keeps its own size. Icons and secondary texts, like the
+weather next to the time, keep theirs.
+
+| Module | Main text | Default |
+| --- | --- | --- |
+| `custom.<name>` | The text | `md` |
+| `keyboard_layout` | The layout | `md` |
+| `keyboard_submap` | The submap | `md` |
+| `media_player` | The title | `sm` |
+| `system_info` | The values | `md` |
+| `tempo` | The time | `md` |
+| `updates` | The count | `md` |
+| `window_title` | The title | `sm` |
+| `workspaces` | The names and icons; the buttons grow with them | `xs` |
+
+The other modules only show icons, so `font_size` has no effect on them. The bar
+height is fixed, so sizes above `lg` may not fit.
 
 ## Menu Backdrop
 

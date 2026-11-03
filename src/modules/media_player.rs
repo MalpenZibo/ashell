@@ -5,7 +5,7 @@ use crate::{
     components::{ButtonKind, ButtonSize, MenuSize},
     config::{
         MediaPlayerFormat, MediaPlayerIndicatorControls, MediaPlayerModuleConfig,
-        MediaPlayerTextField, MediaPlayerVisualizer,
+        MediaPlayerTextField, MediaPlayerVisualizer, ModuleName,
     },
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -590,15 +590,20 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
-        let (space, font_size, palette) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.palette));
+        let (space, label_size, palette) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.module_font_size(&ModuleName::MediaPlayer, theme.font_size.sm),
+                theme.palette,
+            )
+        });
         self.active_player().map(|player| {
             let has_text = self.config.indicator_format != MediaPlayerFormat::Icon;
             let label = || {
                 container(
                     text(self.indicator_text(player))
                         .wrapping(text::Wrapping::None)
-                        .size(font_size.sm),
+                        .size(label_size),
                 )
                 .clip(true)
             };

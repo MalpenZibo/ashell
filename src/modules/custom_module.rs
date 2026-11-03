@@ -1,7 +1,7 @@
 use crate::{
     components::icons::{DynamicIcon, StaticIcon, icon},
     components::{ButtonUIRef, position_button},
-    config::CustomModuleDef,
+    config::{CustomModuleDef, ModuleName},
     theme::{transparent_button_style, use_theme},
     utils::launcher::execute_command,
 };
@@ -170,7 +170,13 @@ impl Custom {
     }
 
     pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
-        let space = use_theme(|theme| theme.space);
+        let name = ModuleName::Custom(self.config.name.clone());
+        let (space, font_size) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.module_font_size(&name, theme.font_size.md),
+            )
+        });
         let content = match self.config.r#type {
             crate::config::CustomModuleType::Text => self
                 .data
@@ -178,7 +184,7 @@ impl Custom {
                 .as_ref()
                 .and_then(|text_content| {
                     if !text_content.is_empty() {
-                        Some(text(text_content.clone()).into())
+                        Some(text(text_content.clone()).size(font_size).into())
                     } else {
                         None
                     }
@@ -230,7 +236,7 @@ impl Custom {
 
                 let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {
                     if !text_content.is_empty() {
-                        Some(text(text_content.clone()))
+                        Some(text(text_content.clone()).size(font_size))
                     } else {
                         None
                     }

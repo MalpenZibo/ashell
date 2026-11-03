@@ -4,7 +4,7 @@ use crate::{
     components::scrollable,
     components::spinning_icon::spinning_icon,
     components::{IconPosition, MenuSize, styled_button},
-    config::UpdatesModuleConfig,
+    config::{ModuleName, UpdatesModuleConfig},
     theme::use_theme,
 };
 use ashell_i18n::t;
@@ -192,7 +192,9 @@ impl Updates {
             .spacing(space.xxs);
 
         if !self.updates.is_empty() {
-            content = content.push(text(self.updates.len()));
+            content = content.push(text(self.updates.len()).size(use_theme(|t| {
+                t.module_font_size(&ModuleName::Updates, t.font_size.md)
+            })));
         }
 
         content.into()
