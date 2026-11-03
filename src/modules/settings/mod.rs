@@ -857,6 +857,11 @@ impl Settings {
         .into()
     }
 
+    /// Size of the icons and texts of the bar indicators.
+    pub fn indicator_size() -> f32 {
+        use_theme(|t| t.module_font_size(&ModuleName::Settings, t.font_size.md))
+    }
+
     pub fn view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
         let spacing = use_theme(|t| t.module_spacing(&ModuleName::Settings, t.space.xs));
         let mut row = Row::with_capacity(self.indicators.len());
@@ -868,7 +873,7 @@ impl Settings {
                     .as_ref()
                     .filter(|i| i.is_inhibited())
                     .map(|_| {
-                        container(icon(idle_inhibitor::icon(true)))
+                        container(icon(idle_inhibitor::icon(true)).size(Self::indicator_size()))
                             .style(|theme: &Theme| container::Style {
                                 text_color: Some(theme.palette().danger),
                                 ..Default::default()

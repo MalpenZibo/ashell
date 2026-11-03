@@ -286,11 +286,11 @@ impl TrayModule {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
-        let (space, spacing, font_size, button_style) = use_theme(|theme| {
+        let (space, spacing, size, button_style) = use_theme(|theme| {
             (
                 theme.space,
                 theme.module_spacing(&ModuleName::Tray, 0.0),
-                theme.font_size,
+                theme.module_font_size(&ModuleName::Tray, theme.font_size.md),
                 theme.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary),
             )
         });
@@ -316,12 +316,12 @@ impl TrayModule {
                                 };
                                 let icon_content: Element<'_, Message> = match active_icon {
                                     Some(TrayIcon::Image(handle)) => Image::new(handle.clone())
-                                        .height(Length::Fixed(font_size.md - 2.0))
+                                        .height(Length::Fixed(size - 2.0))
                                         .into(),
                                     Some(TrayIcon::Svg { handle, symbolic }) => {
                                         let svg = Svg::new(handle.clone())
-                                            .height(Length::Fixed(font_size.md + 2.))
-                                            .width(Length::Fixed(font_size.md + 2.))
+                                            .height(Length::Fixed(size + 2.))
+                                            .width(Length::Fixed(size + 2.))
                                             .content_fit(iced::ContentFit::Cover);
                                         // Symbolic icons ship a fixed dark fill and
                                         // expect the host to recolor them.
@@ -334,7 +334,7 @@ impl TrayModule {
                                             svg.into()
                                         }
                                     }
-                                    _ => icon(StaticIcon::Point).into(),
+                                    _ => icon(StaticIcon::Point).size(size).into(),
                                 };
                                 let open_app = Message::Activate(name.clone());
                                 let toggle_menu = move |r| Message::ToggleMenu(name.clone(), id, r);

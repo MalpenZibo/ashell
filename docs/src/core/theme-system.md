@@ -17,6 +17,7 @@ pub struct AshellTheme {
     pub bar_margin: BarMargin,                                // per-edge margin (CSS shorthand)
     pub bar_padding: BarPadding,                              // per-edge padding (CSS shorthand)
     pub bar_border: config::Border,                           // bar outline
+    pub bar_scale: f32,                                       // bar content height / HEIGHT
     pub modules: ModulesAppearance,                           // [appearance.modules]
     pub menu: MenuAppearance,                                 // Menu-specific styling
     pub workspace_colors: Vec<AppearanceColor>,               // Per-workspace color cycling
@@ -123,8 +124,15 @@ The bar surface can additionally be rounded (`radius`) and inset from the screen
 | `group_island_style()`, `group_spacing()` | The island of a module group: `group`, then `default` |
 | `module_text_color(name)` | The module's `text_color` |
 | `module_spacing(name, default)` | The space between the module's elements |
+| `module_font_size(name, default)` | The size of the module's main text and the icons next to it |
 
-The island and the text color are applied around each module in `src/modules/mod.rs`. The spacing lives inside the module's view, so every module reads it itself, passing the value it uses when the option is unset.
+The island and the text color are applied around each module in `src/modules/mod.rs`. The spacing and the font size live inside the module's view, so every module reads them itself, passing the value it uses when the option is unset.
+
+### Bar height
+
+`BarLayout::content_height` is `HEIGHT` (26px), or more when a module's `font_size` needs it: each module keeps the room it has around its text at its built-in size, 10px around `md` text, 16px for the workspace buttons around `xs`. `BarLayout::height()` adds the vertical padding, and sizes both the layer surface and the bar view. Since `BarLayout` is compared on config reload, a new `font_size` resizes the bar.
+
+`bar_scale` is `content_height / HEIGHT`. The bar, island and workspace button radii are multiplied by it, so they keep their shape as the bar grows.
 
 ## Color System
 

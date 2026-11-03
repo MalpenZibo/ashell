@@ -41,9 +41,14 @@ impl MyModule {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let spacing = use_theme(|t| t.module_spacing(&ModuleName::MyModule, t.space.xxs));
+        let (spacing, size) = use_theme(|t| {
+            (
+                t.module_spacing(&ModuleName::MyModule, t.space.xxs),
+                t.module_font_size(&ModuleName::MyModule, t.font_size.md),
+            )
+        });
 
-        row![icon(StaticIcon::Point), text(&self.value)]
+        row![icon(StaticIcon::Point).size(size), text(&self.value).size(size)]
             .spacing(spacing)
             .into()
     }
@@ -56,7 +61,7 @@ impl MyModule {
 
 ### Follow the module styles
 
-The view reads the space between its elements through `module_spacing`, passing the value it uses on its own. Do the same for every gap between the module's elements, so `spacing` in `[appearance.modules.my_module]` applies to it, and add the module to the "Module Spacing" table on the website's Appearance page. The island style and `text_color` are applied around the module in `src/modules/mod.rs`, so there is nothing to do for them.
+The view reads the space between its elements through `module_spacing` and its text size through `module_font_size`, passing the values it uses on its own. Do the same for every gap between the module's elements, and for its main text and the icons next to it, so `spacing` and `font_size` in `[appearance.modules.my_module]` apply to it; secondary texts can keep a fixed size. Then add the module to the "Module Spacing" and "Module Font Size" tables on the website's Appearance page. The island style and `text_color` are applied around the module in `src/modules/mod.rs`, so there is nothing to do for them.
 
 ## Step 2: Register the Module Name
 

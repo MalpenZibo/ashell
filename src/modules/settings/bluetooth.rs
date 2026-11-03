@@ -413,7 +413,7 @@ impl BluetoothSettings {
                     format_indicator(
                         self.config.indicator_format,
                         StaticIcon::BluetoothConnected,
-                        text(format!("{}", connected_count)).into(),
+                        text(format!("{}", connected_count)),
                         IndicatorState::Normal,
                     )
                     .on_right_press(Message::OpenMore)
@@ -421,9 +421,11 @@ impl BluetoothSettings {
                 )
             } else {
                 Some(
-                    MouseArea::new(icon(StaticIcon::Bluetooth))
-                        .on_right_press(Message::OpenMore)
-                        .into(),
+                    MouseArea::new(
+                        icon(StaticIcon::Bluetooth).size(super::Settings::indicator_size()),
+                    )
+                    .on_right_press(Message::OpenMore)
+                    .into(),
                 )
             }
         } else {
