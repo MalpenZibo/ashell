@@ -6,7 +6,7 @@ use crate::{
         styled_button,
     },
     components::{scrollable, toggler},
-    config::{TrayClickAction, TrayModuleConfig},
+    config::{ModuleName, TrayClickAction, TrayModuleConfig},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -286,9 +286,10 @@ impl TrayModule {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
-        let (space, font_size, button_style) = use_theme(|theme| {
+        let (space, spacing, font_size, button_style) = use_theme(|theme| {
             (
                 theme.space,
+                theme.module_spacing(&ModuleName::Tray, 0.0),
                 theme.font_size,
                 theme.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary),
             )
@@ -355,6 +356,7 @@ impl TrayModule {
                             .collect::<Vec<_>>(),
                     )
                     .padding([2.0, 0.])
+                    .spacing(spacing)
                     .align_y(Alignment::Center),
                 )
             })

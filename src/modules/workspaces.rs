@@ -1,8 +1,8 @@
 use crate::{
     components::icons::icon,
     config::{
-        AppearanceColor, InvertScrollDirection, WorkspaceIndicatorFormat, WorkspaceVisibilityMode,
-        WorkspacesModuleConfig,
+        AppearanceColor, InvertScrollDirection, ModuleName, WorkspaceIndicatorFormat,
+        WorkspaceVisibilityMode, WorkspacesModuleConfig,
     },
     outputs::Outputs,
     services::{
@@ -766,7 +766,7 @@ impl Workspaces {
                     })
                     .collect::<Vec<_>>(),
             )
-            .spacing(theme.space.xxs)
+            .spacing(theme.module_spacing(&ModuleName::Workspaces, theme.space.xxs))
         });
 
         let scroll_monitor = monitor_name.map(str::to_owned);
