@@ -529,8 +529,12 @@ impl SystemInfo {
         });
 
         let Some((value, warn_threshold, alert_threshold)) = threshold else {
-            return container(row!(icon(info_icon), text(label).size(font_size)).spacing(spacing))
-                .into();
+            return container(
+                row!(icon(info_icon), text(label).size(font_size))
+                    .spacing(spacing)
+                    .align_y(Alignment::Center),
+            )
+            .into();
         };
 
         // 0.0 = normal, 1.0 = warning, 2.0 = danger. Animating through the
@@ -547,7 +551,9 @@ impl SystemInfo {
         if animations_enabled {
             AnimationBuilder::new(target, move |t| {
                 container(
-                    row!(icon(info_icon), text(label.clone()).size(font_size)).spacing(spacing),
+                    row!(icon(info_icon), text(label.clone()).size(font_size))
+                        .spacing(spacing)
+                        .align_y(Alignment::Center),
                 )
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(severity_color(theme, t)),
@@ -558,12 +564,16 @@ impl SystemInfo {
             .animation(Easing::EASE.quick())
             .into()
         } else {
-            container(row!(icon(info_icon), text(label).size(font_size)).spacing(spacing))
-                .style(move |theme: &Theme| container::Style {
-                    text_color: Some(severity_color(theme, target)),
-                    ..Default::default()
-                })
-                .into()
+            container(
+                row!(icon(info_icon), text(label).size(font_size))
+                    .spacing(spacing)
+                    .align_y(Alignment::Center),
+            )
+            .style(move |theme: &Theme| container::Style {
+                text_color: Some(severity_color(theme, target)),
+                ..Default::default()
+            })
+            .into()
         }
     }
 

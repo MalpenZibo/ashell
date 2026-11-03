@@ -7,7 +7,7 @@ use crate::{
 };
 use iced::widget::canvas;
 use iced::{
-    Element, Length, Subscription, SurfaceId, Theme,
+    Alignment, Element, Length, Subscription, SurfaceId, Theme,
     stream::channel,
     widget::{Space, Stack, column, row, text},
 };
@@ -243,7 +243,10 @@ impl Custom {
                 });
 
                 if let Some(text_element) = maybe_text_element {
-                    row![icon_with_alert, text_element].spacing(space.xs).into()
+                    row![icon_with_alert, text_element]
+                        .spacing(space.xs)
+                        .align_y(Alignment::Center)
+                        .into()
                 } else {
                     icon_with_alert
                 }
