@@ -340,8 +340,8 @@ weather next to the time, keep theirs.
 | `window_title` | The title | `sm` |
 | `workspaces` | The names and icons; the buttons grow with them | `xs` |
 
-The other modules only show icons, so `font_size` has no effect on them. The bar
-height is fixed, so sizes above `lg` may not fit.
+The other modules only show icons, so `font_size` has no effect on them. From
+`xl` up, the bar gets taller to fit the text.
 
 ## Menu Backdrop
 
