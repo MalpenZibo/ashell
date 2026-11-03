@@ -197,7 +197,9 @@ impl Updates {
             .spacing(spacing);
 
         if !self.updates.is_empty() {
-            content = content.push(text(self.updates.len()));
+            content = content.push(text(self.updates.len()).size(use_theme(|t| {
+                t.module_font_size(&ModuleName::Updates, t.font_size.md)
+            })));
         }
 
         content.into()

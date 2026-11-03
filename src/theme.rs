@@ -4,8 +4,8 @@ use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
         self, Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarPadding,
-        BarRadius, BarSurface, ColorRef, MenuAppearance, ModuleName, ModulesAppearance, Position,
-        RadiusSize, SpaceSize, Surface,
+        BarRadius, BarSurface, ColorRef, FontSizeScale, MenuAppearance, ModuleName,
+        ModulesAppearance, Position, RadiusSize, SpaceSize, Surface,
     },
 };
 use iced::{
@@ -166,6 +166,20 @@ impl Default for FontSize {
             lg: 20.0,
             xl: 22.0,
             xxl: 32.0,
+        }
+    }
+}
+
+impl FontSize {
+    pub fn resolve(&self, size: FontSizeScale) -> f32 {
+        match size {
+            FontSizeScale::Xxs => self.xxs,
+            FontSizeScale::Xs => self.xs,
+            FontSizeScale::Sm => self.sm,
+            FontSizeScale::Md => self.md,
+            FontSizeScale::Lg => self.lg,
+            FontSizeScale::Xl => self.xl,
+            FontSizeScale::Xxl => self.xxl,
         }
     }
 }
@@ -619,6 +633,16 @@ impl AshellTheme {
             .get(name)
             .and_then(|m| m.spacing)
             .map_or(default, Into::into)
+    }
+
+    /// Size of a module's main text: its override, else `default`, the
+    /// module's built-in size.
+    pub fn module_font_size(&self, name: &ModuleName, default: f32) -> f32 {
+        self.modules
+            .overrides
+            .get(name)
+            .and_then(|m| m.font_size)
+            .map_or(default, |size| self.font_size.resolve(size))
     }
 
     pub fn group_spacing(&self) -> f32 {

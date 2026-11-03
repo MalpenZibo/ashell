@@ -590,11 +590,11 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
-        let (space, spacing, font_size, palette) = use_theme(|theme| {
+        let (space, spacing, label_size, palette) = use_theme(|theme| {
             (
                 theme.space,
                 theme.module_spacing(&ModuleName::MediaPlayer, theme.space.xs),
-                theme.font_size,
+                theme.module_font_size(&ModuleName::MediaPlayer, theme.font_size.sm),
                 theme.palette,
             )
         });
@@ -604,7 +604,7 @@ impl MediaPlayer {
                 container(
                     text(self.indicator_text(player))
                         .wrapping(text::Wrapping::None)
-                        .size(font_size.sm),
+                        .size(label_size),
                 )
                 .clip(true)
             };

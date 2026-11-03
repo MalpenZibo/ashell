@@ -648,8 +648,11 @@ impl Workspaces {
                                 let icons = w.icons.clone().unwrap_or_default();
                                 let has_icons = !icons.is_empty();
                                 let on_press = w.press_message();
-                                let font_size = theme.font_size.xs;
-                                let height = theme.space.md;
+                                let font_size = theme
+                                    .module_font_size(&ModuleName::Workspaces, theme.font_size.xs);
+                                // The button is sized for `xs` text and grows with it.
+                                let grow = (font_size - theme.font_size.xs).max(0.0);
+                                let height = theme.space.md + grow;
 
                                 // Numbered workspaces animate to a fixed width; icon
                                 // and named workspaces size to their content instead.
@@ -659,13 +662,14 @@ impl Workspaces {
                                     && w.name.chars().all(|c| c.is_ascii_digit());
 
                                 Some(if numbered {
-                                    let target_width = match (&w.displayed, urgent) {
-                                        (Displayed::Active, _) => theme.space.xl,
-                                        (Displayed::Visible, _) | (Displayed::Hidden, true) => {
-                                            theme.space.lg
-                                        }
-                                        (Displayed::Hidden, false) => theme.space.md,
-                                    };
+                                    let target_width = grow
+                                        + match (&w.displayed, urgent) {
+                                            (Displayed::Active, _) => theme.space.xl,
+                                            (Displayed::Visible, _) | (Displayed::Hidden, true) => {
+                                                theme.space.lg
+                                            }
+                                            (Displayed::Hidden, false) => theme.space.md,
+                                        };
 
                                     if theme.animations_enabled {
                                         AnimationBuilder::new(target_width, move |width| {
