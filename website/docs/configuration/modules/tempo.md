@@ -114,6 +114,9 @@ IANA timezone names and fixed offset strings.
 - Fixed offsets (e.g., `"+00:00"`, `"-05:00"`) are used for numeric offset display with `%z`, `%:z`, etc.
 - Scroll up/down to cycle forward/backward through the configured timezones
 
+The list of timezones under the calendar follows the clock's date order and 12/24-hour format the same way the weather
+times do, so a month-first 12-hour clock lists `+05:30: Oct 27 6:54 PM`.
+
 #### Example: Multiple Timezones
 
 ```toml

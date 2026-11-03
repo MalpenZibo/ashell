@@ -207,6 +207,7 @@ impl Tempo {
         ]
         .spacing(theme.space.md);
 
+        let timezone_format = self.timezone_list_format();
         let timezones = Column::with_children(
             self.config
                 .timezones
@@ -218,7 +219,7 @@ impl Tempo {
                             text(format!(
                                 "{}: {}",
                                 tz_name,
-                                self.time_str("%d %h %R", index, None)
+                                self.time_str(&timezone_format, index, None)
                             ))
                             .wrapping(text::Wrapping::Word),
                         )
@@ -233,7 +234,7 @@ impl Tempo {
                         styled_button(format!(
                             "{}: {}",
                             tz_name,
-                            self.time_str("%d %h %R", index, None)
+                            self.time_str(&timezone_format, index, None)
                         ))
                         .width(Length::Fill)
                         .on_press(Message::SetTimezone(index))
