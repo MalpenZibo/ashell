@@ -105,10 +105,6 @@ impl Radius {
     }
 }
 
-/// Room the bar keeps around the tallest module text: what the workspace
-/// buttons have around their `xs` text.
-const TEXT_ROOM: f64 = 6.0;
-
 /// Bar geometry the layer-surface layer needs: which surface mode drives the
 /// bar height, plus the resolved outer margin in logical (unscaled) pixels
 /// ordered `(top, right, bottom, left)`.
@@ -137,9 +133,17 @@ impl BarLayout {
         let font_size = FontSize::default();
         let content_height = modules
             .overrides
-            .values()
-            .filter_map(|style| style.font_size)
-            .map(|size| f64::from(font_size.resolve(size)) + TEXT_ROOM)
+            .iter()
+            .filter_map(|(name, style)| style.font_size.map(|size| (name, size)))
+            .map(|(name, size)| {
+                // Keep the room each module has around its text at its
+                // built-in size: workspaces have buttons around `xs` text.
+                let built_in = match name {
+                    ModuleName::Workspaces => font_size.xs,
+                    _ => font_size.md,
+                };
+                f64::from(font_size.resolve(size)) + HEIGHT - f64::from(built_in)
+            })
             .fold(HEIGHT, f64::max);
 
         Self {
@@ -240,6 +244,9 @@ pub struct AshellTheme {
     pub bar_margin: BarMargin,
     pub bar_padding: BarPadding,
     pub bar_border: config::Border,
+    /// How much taller than `HEIGHT` the bar content is, to round the bar,
+    /// the islands and the workspace buttons in proportion.
+    pub bar_scale: f32,
     pub modules: ModulesAppearance,
     pub menu: MenuAppearance,
     pub workspace_colors: Vec<AppearanceColor>,
@@ -587,6 +594,7 @@ fn base_theme_from_appearance(
         bar_margin: appearance.bar.margin,
         bar_padding: appearance.bar.padding,
         bar_border: appearance.bar.border,
+        bar_scale: (BarLayout::from_appearance(appearance).content_height / HEIGHT) as f32,
         modules: appearance.modules.clone(),
         menu: appearance.menu,
         workspace_colors: appearance.workspace_colors.clone(),
@@ -628,11 +636,16 @@ impl AshellTheme {
     }
 
     pub fn bar_border_radius(&self) -> border::Radius {
+        self.scaled_radius(self.bar_radius)
+    }
+
+    fn scaled_radius(&self, radius: BarRadius) -> border::Radius {
+        let resolve = |size| self.radius.resolve(size) * self.bar_scale;
         border::Radius {
-            top_left: self.radius.resolve(self.bar_radius.top_left),
-            top_right: self.radius.resolve(self.bar_radius.top_right),
-            bottom_right: self.radius.resolve(self.bar_radius.bottom_right),
-            bottom_left: self.radius.resolve(self.bar_radius.bottom_left),
+            top_left: resolve(radius.top_left),
+            top_right: resolve(radius.top_right),
+            bottom_right: resolve(radius.bottom_right),
+            bottom_left: resolve(radius.bottom_left),
         }
     }
 
@@ -696,11 +709,8 @@ impl AshellTheme {
         background: Option<ColorRef>,
     ) -> IslandStyle {
         IslandStyle {
-            radius: radius.map_or(self.radius.lg.into(), |radius| border::Radius {
-                top_left: self.radius.resolve(radius.top_left),
-                top_right: self.radius.resolve(radius.top_right),
-                bottom_right: self.radius.resolve(radius.bottom_right),
-                bottom_left: self.radius.resolve(radius.bottom_left),
+            radius: radius.map_or((self.radius.lg * self.bar_scale).into(), |radius| {
+                self.scaled_radius(radius)
             }),
             padding: padding.map_or(iced::Padding::ZERO, |padding| iced::Padding {
                 top: padding.top.into(),
@@ -956,7 +966,7 @@ impl AshellTheme {
         is_active: bool,
         colors: Option<Option<AppearanceColor>>,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
-        let radius_lg = self.radius.lg;
+        let radius_lg = self.radius.lg * self.bar_scale;
         move |theme: &Theme, status: Status| {
             // An active or urgent workspace is a mark drawn on the bar, so it
             // stays opaque; everything else is part of the bar and fades with it.
