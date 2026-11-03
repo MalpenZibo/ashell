@@ -1,5 +1,5 @@
 use crate::{
-    config::{WindowTitleConfig, WindowTitleMode},
+    config::{ModuleName, WindowTitleConfig, WindowTitleMode},
     services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
     theme::use_theme,
     utils::truncate_text,
@@ -94,7 +94,7 @@ impl WindowTitle {
         use_theme(|theme| {
             container(
                 text(title)
-                    .size(theme.font_size.sm)
+                    .size(theme.module_font_size(&ModuleName::WindowTitle, theme.font_size.sm))
                     .wrapping(text::Wrapping::None),
             )
             .clip(true)

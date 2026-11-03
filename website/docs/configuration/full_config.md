@@ -272,6 +272,7 @@ surface = "transparent"  # (default) or "solid"
 # [appearance.modules.system_info]
 # radius, padding, border, background: fall back to [appearance.modules.default]
 # text_color = "primary"   # text color of the module, also inside a group
+# font_size = "md"         # (default: the module's own) xxs|xs|sm|md|lg|xl|xxl, main text and icons
 
 [appearance.menu]
 # backdrop = 0.0   # (default) darkening drawn behind an open menu

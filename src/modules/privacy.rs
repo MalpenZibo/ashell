@@ -1,5 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
+    config::ModuleName,
     services::{ReadOnlyService, ServiceEvent, privacy::PrivacyService},
     theme::use_theme,
 };
@@ -36,7 +37,12 @@ impl Privacy {
     }
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
-        let space = use_theme(|theme| theme.space);
+        let (space, size) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.module_font_size(&ModuleName::Privacy, theme.font_size.md),
+            )
+        });
         if let Some(service) = self.service.as_ref()
             && !service.no_access()
         {
@@ -46,10 +52,18 @@ impl Privacy {
                         .push(
                             service
                                 .screenshare_access()
-                                .then(|| icon(StaticIcon::ScreenShare)),
+                                .then(|| icon(StaticIcon::ScreenShare).size(size)),
                         )
-                        .push(service.webcam_access().then(|| icon(StaticIcon::Webcam)))
-                        .push(service.microphone_access().then(|| icon(StaticIcon::Mic1)))
+                        .push(
+                            service
+                                .webcam_access()
+                                .then(|| icon(StaticIcon::Webcam).size(size)),
+                        )
+                        .push(
+                            service
+                                .microphone_access()
+                                .then(|| icon(StaticIcon::Mic1).size(size)),
+                        )
                         .align_y(Alignment::Center)
                         .spacing(space.xs),
                 )

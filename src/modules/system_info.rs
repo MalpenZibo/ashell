@@ -3,8 +3,8 @@ use crate::{
     components::icons::{StaticIcon, icon},
     components::{scrollable, sub_menu_wrapper},
     config::{
-        CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
-        TemperatureSensor, TemperatureSensorType,
+        CpuFormat, DiskFormat, MemoryFormat, ModuleName, SystemInfoIndicator,
+        SystemInfoModuleConfig, TemperatureSensor, TemperatureSensorType,
     },
     theme::{lerp_color, use_theme},
     utils,
@@ -520,10 +520,21 @@ impl SystemInfo {
         } else {
             format!("{display}{unit}")
         };
-        let (spacing, animations_enabled) = use_theme(|t| (t.space.xxs, t.animations_enabled));
+        let (spacing, font_size, animations_enabled) = use_theme(|t| {
+            (
+                t.space.xxs,
+                t.module_font_size(&ModuleName::SystemInfo, t.font_size.md),
+                t.animations_enabled,
+            )
+        });
 
         let Some((value, warn_threshold, alert_threshold)) = threshold else {
-            return container(row!(icon(info_icon), text(label)).spacing(spacing)).into();
+            return container(
+                row!(icon(info_icon).size(font_size), text(label).size(font_size))
+                    .spacing(spacing)
+                    .align_y(Alignment::Center),
+            )
+            .into();
         };
 
         // 0.0 = normal, 1.0 = warning, 2.0 = danger. Animating through the
@@ -539,22 +550,33 @@ impl SystemInfo {
 
         if animations_enabled {
             AnimationBuilder::new(target, move |t| {
-                container(row!(icon(info_icon), text(label.clone())).spacing(spacing))
-                    .style(move |theme: &Theme| container::Style {
-                        text_color: Some(severity_color(theme, t)),
-                        ..Default::default()
-                    })
-                    .into()
+                container(
+                    row!(
+                        icon(info_icon).size(font_size),
+                        text(label.clone()).size(font_size)
+                    )
+                    .spacing(spacing)
+                    .align_y(Alignment::Center),
+                )
+                .style(move |theme: &Theme| container::Style {
+                    text_color: Some(severity_color(theme, t)),
+                    ..Default::default()
+                })
+                .into()
             })
             .animation(Easing::EASE.quick())
             .into()
         } else {
-            container(row!(icon(info_icon), text(label)).spacing(spacing))
-                .style(move |theme: &Theme| container::Style {
-                    text_color: Some(severity_color(theme, target)),
-                    ..Default::default()
-                })
-                .into()
+            container(
+                row!(icon(info_icon).size(font_size), text(label).size(font_size))
+                    .spacing(spacing)
+                    .align_y(Alignment::Center),
+            )
+            .style(move |theme: &Theme| container::Style {
+                text_color: Some(severity_color(theme, target)),
+                ..Default::default()
+            })
+            .into()
         }
     }
 

@@ -19,7 +19,7 @@ use log::{debug, warn};
 use self::weather::{Location, WeatherData, fetch_location, fetch_weather_data};
 use crate::{
     components::MenuSize,
-    config::{TempoModuleConfig, WeatherIndicator},
+    config::{ModuleName, TempoModuleConfig, WeatherIndicator},
     theme::use_theme,
 };
 use ashell_i18n::{chrono_locale, language_subtag, unit_system};
@@ -318,12 +318,17 @@ impl Tempo {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space = use_theme(|t| t.space);
+        let (space, font_size) = use_theme(|t| {
+            (
+                t.space,
+                t.module_font_size(&ModuleName::Tempo, t.font_size.md),
+            )
+        });
         let display_text = self.time_str(self.current_format(), self.current_timezone_index, None);
 
         Row::with_capacity(2)
             .push(self.weather_indicator())
-            .push(text(display_text))
+            .push(text(display_text).size(font_size))
             .align_y(Vertical::Center)
             .spacing(space.sm)
             .into()
