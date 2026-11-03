@@ -14,7 +14,7 @@ use crate::{
         password_dialog, position_button, quick_setting_button, share_wifi_dialog,
         sub_menu_wrapper,
     },
-    config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
+    config::{ModuleName, Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -858,7 +858,7 @@ impl Settings {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
-        let space = use_theme(|t| t.space);
+        let spacing = use_theme(|t| t.module_spacing(&ModuleName::Settings, t.space.xs));
         let mut row = Row::with_capacity(self.indicators.len());
 
         for indicator in &self.indicators {
@@ -972,7 +972,7 @@ impl Settings {
             }
         }
 
-        row.spacing(space.xs).into()
+        row.spacing(spacing).into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

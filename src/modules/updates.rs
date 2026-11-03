@@ -4,7 +4,7 @@ use crate::{
     components::scrollable,
     components::spinning_icon::spinning_icon,
     components::{IconPosition, MenuSize, styled_button},
-    config::UpdatesModuleConfig,
+    config::{ModuleName, UpdatesModuleConfig},
     theme::use_theme,
 };
 use ashell_i18n::t;
@@ -173,8 +173,13 @@ impl Updates {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let (space, font_size, animated) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.animations_enabled));
+        let (spacing, font_size, animated) = use_theme(|theme| {
+            (
+                theme.module_spacing(&ModuleName::Updates, theme.space.xxs),
+                theme.font_size,
+                theme.animations_enabled,
+            )
+        });
         let is_checking = matches!(self.state, State::Checking);
         let icon_element: Element<'_, Message> = if is_checking {
             spinning_icon(font_size.sm, animated)
@@ -189,7 +194,7 @@ impl Updates {
 
         let mut content = row!(icon_element)
             .align_y(Alignment::Center)
-            .spacing(space.xxs);
+            .spacing(spacing);
 
         if !self.updates.is_empty() {
             content = content.push(text(self.updates.len()));

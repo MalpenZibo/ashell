@@ -5,7 +5,7 @@ use crate::{
     components::{ButtonKind, ButtonSize, MenuSize},
     config::{
         MediaPlayerFormat, MediaPlayerIndicatorControls, MediaPlayerModuleConfig,
-        MediaPlayerTextField, MediaPlayerVisualizer,
+        MediaPlayerTextField, MediaPlayerVisualizer, ModuleName,
     },
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -590,8 +590,14 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
-        let (space, font_size, palette) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.palette));
+        let (space, spacing, font_size, palette) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.module_spacing(&ModuleName::MediaPlayer, theme.space.xs),
+                theme.font_size,
+                theme.palette,
+            )
+        });
         self.active_player().map(|player| {
             let has_text = self.config.indicator_format != MediaPlayerFormat::Icon;
             let label = || {
@@ -609,7 +615,7 @@ impl MediaPlayer {
                 MediaPlayerFormat::IconAndText => row![icon(StaticIcon::MusicNote), label()],
             }
             .align_y(Vertical::Center)
-            .spacing(space.xs)
+            .spacing(spacing)
             .height(Length::Fill);
 
             let active = player.state == PlaybackStatus::Playing && !self.bars.is_empty();
@@ -667,12 +673,12 @@ impl MediaPlayer {
                 }
                 Some(MediaPlayerVisualizer::Before) if active => row![beside_visualizer(), content]
                     .align_y(Vertical::Center)
-                    .spacing(space.xs)
+                    .spacing(spacing)
                     .height(Length::Fill)
                     .into(),
                 Some(MediaPlayerVisualizer::After) if active => row![content, beside_visualizer()]
                     .align_y(Vertical::Center)
-                    .spacing(space.xs)
+                    .spacing(spacing)
                     .height(Length::Fill)
                     .into(),
                 _ => content.into(),
