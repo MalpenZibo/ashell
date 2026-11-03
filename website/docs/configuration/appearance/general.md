@@ -319,8 +319,10 @@ weather next to the time, keep theirs.
 | `window_title` | The title | `sm` |
 | `workspaces` | The names and icons; the buttons grow with them | `xs` |
 
-The other modules only show icons, so `font_size` has no effect on them. From
-`xl` up, the bar gets taller to fit the text, and the corners of the bar, the
+The other modules only show icons, so `font_size` has no effect on them.
+
+The bar gets taller when a module's text no longer fits: above `xs` for
+`workspaces`, above `md` for the other modules. The corners of the bar, the
 islands and the workspaces grow with it to keep their shape.
 
 ## Menu Backdrop
