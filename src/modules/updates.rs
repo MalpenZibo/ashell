@@ -173,17 +173,26 @@ impl Updates {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let (space, font_size, animated) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.animations_enabled));
+        let (space, size, spinner_size, animated) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.module_font_size(&ModuleName::Updates, theme.font_size.md),
+                theme.module_font_size(&ModuleName::Updates, theme.font_size.sm),
+                theme.animations_enabled,
+            )
+        });
         let is_checking = matches!(self.state, State::Checking);
         let icon_element: Element<'_, Message> = if is_checking {
-            spinning_icon(font_size.sm, animated)
+            spinning_icon(spinner_size, animated)
         } else {
-            container(icon(if self.updates.is_empty() {
-                StaticIcon::NoUpdatesAvailable
-            } else {
-                StaticIcon::UpdatesAvailable
-            }))
+            container(
+                icon(if self.updates.is_empty() {
+                    StaticIcon::NoUpdatesAvailable
+                } else {
+                    StaticIcon::UpdatesAvailable
+                })
+                .size(size),
+            )
             .into()
         };
 
@@ -192,9 +201,7 @@ impl Updates {
             .spacing(space.xxs);
 
         if !self.updates.is_empty() {
-            content = content.push(text(self.updates.len()).size(use_theme(|t| {
-                t.module_font_size(&ModuleName::Updates, t.font_size.md)
-            })));
+            content = content.push(text(self.updates.len()).size(size));
         }
 
         content.into()

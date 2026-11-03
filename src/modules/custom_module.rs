@@ -206,7 +206,7 @@ impl Custom {
                 }
 
                 // Wrap the icon in a container to apply padding
-                let padded_icon_container = container(icon_element).padding([0, 1]);
+                let padded_icon_container = container(icon_element.size(font_size)).padding([0, 1]);
 
                 let show_alert = self
                     .config
