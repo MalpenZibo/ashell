@@ -530,7 +530,7 @@ impl SystemInfo {
 
         let Some((value, warn_threshold, alert_threshold)) = threshold else {
             return container(
-                row!(icon(info_icon), text(label).size(font_size))
+                row!(icon(info_icon).size(font_size), text(label).size(font_size))
                     .spacing(spacing)
                     .align_y(Alignment::Center),
             )
@@ -551,9 +551,12 @@ impl SystemInfo {
         if animations_enabled {
             AnimationBuilder::new(target, move |t| {
                 container(
-                    row!(icon(info_icon), text(label.clone()).size(font_size))
-                        .spacing(spacing)
-                        .align_y(Alignment::Center),
+                    row!(
+                        icon(info_icon).size(font_size),
+                        text(label.clone()).size(font_size)
+                    )
+                    .spacing(spacing)
+                    .align_y(Alignment::Center),
                 )
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(severity_color(theme, t)),
@@ -565,7 +568,7 @@ impl SystemInfo {
             .into()
         } else {
             container(
-                row!(icon(info_icon), text(label).size(font_size))
+                row!(icon(info_icon).size(font_size), text(label).size(font_size))
                     .spacing(spacing)
                     .align_y(Alignment::Center),
             )

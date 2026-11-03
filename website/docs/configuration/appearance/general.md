@@ -318,29 +318,30 @@ It also applies inside a group.
 
 ### Module Font Size
 
-A module's `font_size` sets the size of its main text, as a step of the font
-scale:
+A module's `font_size` sets the size of its main text and of the icons next
+to it, as a step of the font scale:
 
 | Step | `xxs` | `xs` | `sm` | `md` | `lg` | `xl` | `xxl` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Size (px) | 8 | 10 | 12 | 16 | 20 | 22 | 32 |
 
-When unset, each module keeps its own size. Icons and secondary texts, like the
-weather next to the time, keep theirs.
+When unset, each module keeps its own sizes. Secondary texts, like the weather
+next to the time, keep theirs.
 
-| Module | Main text | Default |
+| Module | Follows `font_size` | Default |
 | --- | --- | --- |
-| `custom.<name>` | The text | `md` |
+| `custom.<name>` | The icon and the text | `md` |
 | `keyboard_layout` | The layout | `md` |
 | `keyboard_submap` | The submap | `md` |
-| `media_player` | The title | `sm` |
-| `system_info` | The values | `md` |
+| `media_player` | The icon and the title | `md` for the icon, `sm` for the title |
+| `system_info` | The icons and the values | `md` |
 | `tempo` | The time | `md` |
-| `updates` | The count | `md` |
+| `updates` | The icon and the count | `md` |
 | `window_title` | The title | `sm` |
 | `workspaces` | The names and icons; the buttons grow with them | `xs` |
 
-The other modules only show icons, so `font_size` has no effect on them.
+Modules that only show icons (`notifications`, `privacy`, `settings` and `tray`)
+don't support `font_size` yet.
 
 The bar gets taller when a module's text no longer fits: above `xs` for
 `workspaces`, above `md` for the other modules. The corners of the bar, the
