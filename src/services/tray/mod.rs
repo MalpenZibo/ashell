@@ -59,6 +59,10 @@ fn is_no_menu_path(path: &str) -> bool {
     path.is_empty() || path == "/" || path == "/NO_DBUSMENU"
 }
 
+fn retry_delay(attempt: usize) -> Option<Duration> {
+    ITEM_RETRY_DELAYS.get(attempt).copied()
+}
+
 fn pixmap_to_icon(icons: Vec<dbus::Icon>) -> Option<TrayIcon> {
     icons
         .into_iter()
@@ -497,8 +501,8 @@ impl ItemStreams {
                 Some(item)
             }
             Err(err) => {
-                match ITEM_RETRY_DELAYS.get(attempt) {
-                    Some(&delay) => {
+                match retry_delay(attempt) {
+                    Some(delay) => {
                         debug!("tray item {name} not ready (attempt {attempt}): {err}");
                         self.load(conn, name, attempt + 1, delay);
                     }
@@ -914,8 +918,9 @@ impl Service for TrayService {
 
 #[cfg(test)]
 mod tests {
-    use super::{ItemStatus, pixmap_to_icon};
+    use super::{ItemStatus, is_missing_property, is_no_menu_path, pixmap_to_icon, retry_delay};
     use crate::services::tray::dbus::Icon;
+    use std::time::Duration;
 
     fn valid_pixmap(width: i32, height: i32) -> Icon {
         Icon {
@@ -990,5 +995,40 @@ mod tests {
     #[test]
     fn pixmap_to_icon_returns_none_for_empty_vec() {
         assert!(pixmap_to_icon(Vec::new()).is_none());
+    }
+
+    #[test]
+    fn no_menu_paths_are_recognized() {
+        assert!(is_no_menu_path(""));
+        assert!(is_no_menu_path("/"));
+        assert!(is_no_menu_path("/NO_DBUSMENU"));
+        assert!(!is_no_menu_path("/MenuBar"));
+        assert!(!is_no_menu_path("/com/example/Menu"));
+    }
+
+    #[test]
+    fn missing_property_errors_are_not_load_failures() {
+        for err in [
+            zbus::fdo::Error::UnknownProperty("Menu".into()),
+            zbus::fdo::Error::InvalidArgs("Menu".into()),
+        ] {
+            assert!(is_missing_property(&zbus::Error::FDO(Box::new(err))));
+        }
+
+        assert!(!is_missing_property(&zbus::Error::FDO(Box::new(
+            zbus::fdo::Error::ServiceUnknown("org.example.StatusNotifierItem".into())
+        ))));
+        assert!(!is_missing_property(&zbus::Error::Failure(
+            "connection closed".into()
+        )));
+    }
+
+    #[test]
+    fn retries_stop_after_the_configured_delays() {
+        assert_eq!(retry_delay(0), Some(Duration::from_millis(500)));
+        assert_eq!(retry_delay(1), Some(Duration::from_secs(2)));
+        assert_eq!(retry_delay(2), Some(Duration::from_secs(5)));
+        assert_eq!(retry_delay(3), None);
+        assert_eq!(retry_delay(usize::MAX), None);
     }
 }
