@@ -81,11 +81,6 @@ impl<'a, Message, Theme, Renderer> Collapsible<'a, Message, Theme, Renderer>
 where
     Renderer: iced::core::Renderer,
 {
-    pub fn duration(mut self, duration: Duration) -> Self {
-        self.duration = duration;
-        self
-    }
-
     pub fn easing(mut self, easing: Easing) -> Self {
         self.easing = easing;
         self
