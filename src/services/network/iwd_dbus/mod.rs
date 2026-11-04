@@ -1,11 +1,9 @@
-pub mod access_point;
 pub mod adapter;
 pub mod agent_manager;
 pub mod basic_service_set;
 pub mod daemon;
 pub mod device;
 pub mod device_provisioning;
-pub mod known_network;
 pub mod network;
 pub mod service_manager;
 pub mod shared_code_device_provisioning;
@@ -36,11 +34,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use zbus::OwnedObjectPath;
 use zbus::fdo::ObjectManagerProxy;
 
-use access_point::AccessPointProxy;
 use adapter::AdapterProxy;
 use agent_manager::AgentManagerProxy;
 use device::DeviceProxy;
-use known_network::KnownNetworkProxy;
 use network::NetworkProxy;
 use station::StationProxy;
 
@@ -332,28 +328,6 @@ macro_rules! list_proxies {
     };
 }
 
-#[allow(unused)]
-enum IwdStationState {
-    Connected,
-    Disconnected,
-    Connecting,
-    Disconnecting,
-    Roaming,
-}
-
-impl From<String> for IwdStationState {
-    fn from(state: String) -> Self {
-        match state.as_str() {
-            "connected" => IwdStationState::Connected,
-            "disconnected" => IwdStationState::Disconnected,
-            "connecting" => IwdStationState::Connecting,
-            "disconnecting" => IwdStationState::Disconnecting,
-            "roaming" => IwdStationState::Roaming,
-            _ => IwdStationState::Disconnected,
-        }
-    }
-}
-
 static NEXT_SIGNAL_AGENT_ID: AtomicU64 = AtomicU64::new(0);
 
 struct SignalAgent {
@@ -458,7 +432,6 @@ impl PWAgent {
     }
 }
 
-#[allow(dead_code, unused_variables)]
 impl IwdDbus<'_> {
     /// Connect to the system bus and the IWD service.
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
@@ -495,31 +468,6 @@ impl IwdDbus<'_> {
         .first()
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("No AgentManagerProxy found"))
-    }
-
-    pub async fn known_networks_proxies(&'_ self) -> anyhow::Result<Vec<KnownNetworkProxy<'_>>> {
-        list_proxies!(
-            &self._inner,
-            "net.connman.iwd.KnownNetwork",
-            KnownNetworkProxy
-        )
-        .await
-    }
-
-    pub async fn networks_proxies(&'_ self) -> anyhow::Result<Vec<NetworkProxy<'_>>> {
-        list_proxies!(&self._inner, "net.connman.iwd.Network", NetworkProxy).await
-    }
-
-    pub async fn access_points_proxies(&'_ self) -> anyhow::Result<Vec<AccessPointProxy<'_>>> {
-        // Note: AccessPoint interface might not be directly on the root object manager.
-        // It might be associated with a Device or Station. This function assumes they might appear.
-        // If this doesn't work as expected, the logic might need refinement based on IWD's structure.
-        list_proxies!(
-            &self._inner,
-            "net.connman.iwd.AccessPoint",
-            AccessPointProxy
-        )
-        .await
     }
 
     pub async fn reachable_networks(&'_ self) -> anyhow::Result<Vec<(NetworkProxy<'_>, i16)>> {
@@ -680,7 +628,8 @@ impl IwdDbus<'_> {
             ))?;
             let station_for_signal_stream = station.clone();
 
-            let server = self
+            // Keep the interface registered for as long as this stream lives.
+            let _server = self
                 .inner()
                 .connection()
                 .object_server()
