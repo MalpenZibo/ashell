@@ -6,7 +6,7 @@ use crate::services::{ServiceEvent, compositor::CompositorService};
 use anyhow::{Result, anyhow};
 use hyprland::{
     data::{Client, Clients, Devices, Monitors, Workspace, Workspaces},
-    dispatch::{Dispatch, DispatchType, MonitorIdentifier, WorkspaceIdentifierWithSpecial},
+    dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
     event_listener::AsyncEventListener,
     prelude::*,
 };
@@ -76,22 +76,8 @@ async fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
                 WorkspaceIdentifierWithSpecial::Name(name.as_str()),
             ))?;
         }
-        CompositorCommand::FocusSpecialWorkspace(name) => {
-            Dispatch::call(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Special(Some(name.as_str())),
-            ))?;
-        }
         CompositorCommand::ToggleSpecialWorkspace(name) => {
             Dispatch::call(DispatchType::ToggleSpecialWorkspace(Some(name)))?;
-        }
-        CompositorCommand::FocusMonitor(id) => {
-            Dispatch::call(DispatchType::FocusMonitor(MonitorIdentifier::Id(id)))?;
-        }
-        CompositorCommand::ScrollWorkspace(dir) => {
-            let d = if dir > 0 { "+1" } else { "-1" };
-            Dispatch::call(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Relative(d.to_string().parse()?),
-            ))?;
         }
         CompositorCommand::NextLayout => {
             hyprland::ctl::switch_xkb_layout::call(
@@ -121,20 +107,9 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
             let name = escape_lua_string(&name);
             format!("hl.dispatch(hl.dsp.focus({{ workspace = \"name:{name}\" }}))")
         }
-        CompositorCommand::FocusSpecialWorkspace(name) => {
-            let name = escape_lua_string(&name);
-            format!("hl.dispatch(hl.dsp.focus({{ workspace = \"special:{name}\" }}))")
-        }
         CompositorCommand::ToggleSpecialWorkspace(name) => {
             let name = escape_lua_string(&name);
             format!("hl.dispatch(hl.dsp.workspace.toggle_special(\"{name}\"))")
-        }
-        CompositorCommand::FocusMonitor(id) => {
-            format!("hl.dispatch(hl.dsp.focus({{ monitor = {id} }}))")
-        }
-        CompositorCommand::ScrollWorkspace(dir) => {
-            let d = if dir > 0 { "+1" } else { "-1" };
-            format!("hl.dispatch(hl.dsp.focus({{ workspace = \"{d}\" }}))")
         }
         CompositorCommand::NextLayout => {
             hyprland::ctl::switch_xkb_layout::call(
