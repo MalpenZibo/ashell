@@ -306,6 +306,25 @@ It is drawn by ashell and involves no blur — see [Blur](#blur) for that.
 backdrop = 0.3
 ```
 
+## Menu Geometry
+
+The settings menu and its tooltips use three geometry values, all in logical
+pixels. Like the rest of the interface, they scale with `scale_factor`.
+
+```toml
+[appearance.menu]
+settings_width = 320      # content width of the settings menu
+tile_height = 44          # height of each quick-setting tile
+tooltip_max_width = 280   # widest a tooltip may get
+```
+
+`settings_width` covers the menu content; the card's inset is added outside it
+and follows the spacing scale. `tooltip_max_width` applies to every hover
+tooltip, including custom-module tooltips, and longer text is clipped.
+
+**Default values:** `menu.settings_width`: `320`, `menu.tile_height`: `44`,
+`menu.tooltip_max_width`: `280`
+
 ## Blur
 
 The `blur` field asks the compositor to blur the wallpaper behind ashell's
