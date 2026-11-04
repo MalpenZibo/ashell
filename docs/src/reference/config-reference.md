@@ -85,6 +85,9 @@ Available color fields: `background_color`, `primary_color`, `success_color`, `w
 ```toml
 [appearance.menu]
 backdrop = 0.3                  # darkening drawn behind an open menu
+settings_width = 320            # content width of the settings menu, in logical pixels
+tile_height = 44                # height of a quick-setting tile, in logical pixels
+tooltip_max_width = 280         # widest a tooltip may get, in logical pixels
 ```
 
 ### Workspace Colors

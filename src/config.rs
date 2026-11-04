@@ -111,6 +111,7 @@ impl Config {
             .padding
             .validate("appearance.bar.padding");
         self.appearance.bar.border.validate("appearance.bar.border");
+        self.appearance.menu.validate();
         self.appearance.modules.validate(&self.custom_modules);
         self.system_info.validate();
         self.tempo.validate();
@@ -1090,6 +1091,15 @@ fn is_valid_length(length: f32) -> bool {
     length.is_finite() && length >= 0.0
 }
 
+/// Geometry like menu widths and tile heights has to stay visible, so zero is
+/// as invalid as a negative or non-finite length.
+fn validate_positive_length(value: &mut f32, fallback: f32, field: &str) {
+    if !value.is_finite() || *value <= 0.0 {
+        warn!("{field} ({value}) must be a positive length, using {fallback}");
+        *value = fallback;
+    }
+}
+
 impl MarginSize {
     fn validate(&mut self, field: &str, edge: &str) {
         if let MarginSize::Pixels(pixels) = *self
@@ -1570,10 +1580,43 @@ impl Default for BarAppearance {
     }
 }
 
-#[derive(Deserialize, Default, Clone, Copy, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(default)]
 pub struct MenuAppearance {
     pub backdrop: f32,
+    /// Content width of the settings quick-menu, in logical pixels.
+    pub settings_width: f32,
+    /// Height of a quick-setting tile, in logical pixels.
+    pub tile_height: f32,
+    /// Widest a tooltip may get, in logical pixels.
+    pub tooltip_max_width: f32,
+}
+
+impl Default for MenuAppearance {
+    fn default() -> Self {
+        Self {
+            backdrop: 0.0,
+            settings_width: 320.0,
+            tile_height: 44.0,
+            tooltip_max_width: 280.0,
+        }
+    }
+}
+
+impl MenuAppearance {
+    fn validate(&mut self) {
+        validate_positive_length(
+            &mut self.settings_width,
+            320.0,
+            "appearance.menu.settings_width",
+        );
+        validate_positive_length(&mut self.tile_height, 44.0, "appearance.menu.tile_height");
+        validate_positive_length(
+            &mut self.tooltip_max_width,
+            280.0,
+            "appearance.menu.tooltip_max_width",
+        );
+    }
 }
 
 /// A layer-shell surface. Each one is drawn with its own theme.
@@ -2409,6 +2452,40 @@ mod tests {
         assert_eq!(appearance.bar.border.width, 0.0);
         assert_eq!(appearance.bar.border.color, BACKGROUND_STRONG);
         assert_eq!(appearance.modules, ModulesAppearance::default());
+    }
+
+    #[test]
+    fn menu_geometry_defaults_match_the_compact_menu() {
+        let menu = parse("").unwrap().appearance.menu;
+        assert_eq!(menu.settings_width, 320.0);
+        assert_eq!(menu.tile_height, 44.0);
+        assert_eq!(menu.tooltip_max_width, 280.0);
+    }
+
+    #[test]
+    fn parses_menu_geometry() {
+        let menu = parse(
+            "[appearance.menu]\nsettings_width = 300\ntile_height = 40\ntooltip_max_width = 240",
+        )
+        .unwrap()
+        .appearance
+        .menu;
+        assert_eq!(menu.settings_width, 300.0);
+        assert_eq!(menu.tile_height, 40.0);
+        assert_eq!(menu.tooltip_max_width, 240.0);
+    }
+
+    #[test]
+    fn invalid_menu_geometry_falls_back_per_field() {
+        let menu = parse(
+            "[appearance.menu]\nsettings_width = 0\ntile_height = -1\ntooltip_max_width = inf",
+        )
+        .unwrap()
+        .appearance
+        .menu;
+        assert_eq!(menu.settings_width, 320.0);
+        assert_eq!(menu.tile_height, 44.0);
+        assert_eq!(menu.tooltip_max_width, 280.0);
     }
 
     #[test]
