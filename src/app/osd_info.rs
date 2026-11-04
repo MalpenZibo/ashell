@@ -25,11 +25,12 @@ pub fn osd_info_for(app: &App, cmd: &IpcCommand) -> Option<(OsdKind, f32, f32, b
                 muted,
             ))
         }
-        IpcCommand::VolumeToggleMute { .. } => {
+        IpcCommand::VolumeToggleMute { state, .. } => {
             let vol = app.settings.audio().real_sink_volume().unwrap_or(0);
-            // Invert: the toggle was just sent but PulseAudio hasn't
-            // round-tripped yet, so the current state is stale.
-            let muted = !app.settings.audio().is_sink_muted().unwrap_or(false);
+            // For a toggle the command was just sent but PulseAudio hasn't
+            // round-tripped yet, so the current state is stale. For an
+            // explicit state, that is the target.
+            let muted = state.unwrap_or(!app.settings.audio().is_sink_muted().unwrap_or(false));
             let scale = normalise(app.settings.audio().vol_max(), audio::NORMAL_VOLUME).max(1.0);
             Some((
                 OsdKind::Volume,
@@ -50,11 +51,10 @@ pub fn osd_info_for(app: &App, cmd: &IpcCommand) -> Option<(OsdKind, f32, f32, b
                 muted,
             ))
         }
-        IpcCommand::MicrophoneToggleMute { .. } => {
+        IpcCommand::MicrophoneToggleMute { state, .. } => {
             let vol = app.settings.audio().real_source_volume().unwrap_or(0);
-            // Invert: the toggle was just sent but PulseAudio hasn't
-            // round-tripped yet, so the current state is stale.
-            let muted = !app.settings.audio().is_source_muted().unwrap_or(false);
+            // See VolumeToggleMute: a toggle is stale until the round-trip.
+            let muted = state.unwrap_or(!app.settings.audio().is_source_muted().unwrap_or(false));
             Some((
                 OsdKind::Microphone,
                 normalise(vol, audio::AudioSettings::mic_max()),
@@ -67,20 +67,22 @@ pub fn osd_info_for(app: &App, cmd: &IpcCommand) -> Option<(OsdKind, f32, f32, b
             .brightness()
             .current_brightness()
             .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), 1.0, false)),
-        IpcCommand::ToggleAirplaneMode { .. } => {
-            // After toggle: the new state is the opposite of current.
-            // For toggles, `muted` carries the active/enabled state; `value` is unused.
-            let active = !app.settings.network().is_airplane_mode().unwrap_or(false);
+        IpcCommand::ToggleAirplaneMode { state, .. } => {
+            // For a toggle, the new state is the opposite of current; an
+            // explicit state is the target. `muted` carries the enabled state;
+            // `value` is unused.
+            let active =
+                state.unwrap_or(!app.settings.network().is_airplane_mode().unwrap_or(false));
             Some((OsdKind::Airplane, 0.0, 1.0, active))
         }
-        IpcCommand::ToggleIdleInhibitor { .. } => {
+        IpcCommand::ToggleIdleInhibitor { state, .. } => {
             if let Some(idle_inhibitor) = app.settings.idle_inhibitor() {
-                let active = idle_inhibitor.is_inhibited();
+                let active = state.unwrap_or(idle_inhibitor.is_inhibited());
                 Some((OsdKind::IdleInhibitor, 0.0, 1.0, active))
             } else {
                 None
             }
         }
-        IpcCommand::ToggleVisibility | IpcCommand::LoadConfig { .. } => None,
+        IpcCommand::ToggleVisibility { .. } | IpcCommand::LoadConfig { .. } => None,
     }
 }

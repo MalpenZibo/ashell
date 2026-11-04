@@ -94,6 +94,7 @@ pub enum Message {
     ConfirmOpenNetwork(String),
     ToggleVpn(Vpn),
     ToggleAirplaneMode,
+    SetAirplaneMode(bool),
     OpenMore,
     ToggleWifiMenu,
     ToggleVPNMenu,
@@ -209,6 +210,14 @@ impl NetworkSettings {
                 Some(service) => Action::CloseSubMenu(
                     service
                         .command(NetworkCommand::ToggleAirplaneMode)
+                        .map(Message::Event),
+                ),
+                _ => Action::None,
+            },
+            Message::SetAirplaneMode(enabled) => match self.service.as_mut() {
+                Some(service) => Action::CloseSubMenu(
+                    service
+                        .command(NetworkCommand::SetAirplaneMode(enabled))
                         .map(Message::Event),
                 ),
                 _ => Action::None,

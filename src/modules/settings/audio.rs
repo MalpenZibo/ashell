@@ -38,8 +38,10 @@ pub enum Message {
     DefaultSinkChanged(String, Option<String>),
     DefaultSourceChanged(String, Option<String>),
     ToggleSinkMute,
+    SetSinkMute(bool),
     SinkVolumeChanged(remote_value::Message<u32>),
     ToggleSourceMute,
+    SetSourceMute(bool),
     SourceVolumeChanged(remote_value::Message<u32>),
     SinksMore(SurfaceId),
     SourcesMore(SurfaceId),
@@ -165,6 +167,10 @@ impl AudioSettings {
         self.update(Message::ToggleSinkMute)
     }
 
+    pub fn set_sink_mute(&mut self, muted: bool) -> Action {
+        self.update(Message::SetSinkMute(muted))
+    }
+
     pub fn speaker_icon(muted: bool, normalised: f32, overdrive: bool) -> StaticIcon {
         if muted {
             StaticIcon::Speaker0
@@ -216,6 +222,10 @@ impl AudioSettings {
 
     pub fn microphone_toggle_mute(&mut self) -> Action {
         self.update(Message::ToggleSourceMute)
+    }
+
+    pub fn set_source_mute(&mut self, muted: bool) -> Action {
+        self.update(Message::SetSourceMute(muted))
     }
 
     pub fn microphone_icon(muted: bool) -> StaticIcon {
@@ -285,6 +295,12 @@ impl AudioSettings {
                 }
                 Action::None
             }
+            Message::SetSinkMute(muted) => {
+                if let Some(service) = self.service.as_mut() {
+                    let _ = service.command(AudioCommand::SetSinkMute(muted));
+                }
+                Action::None
+            }
             Message::SinkVolumeChanged(message) => {
                 if let Some(service) = self.service.as_mut() {
                     if let Some(value) = message.value() {
@@ -311,6 +327,12 @@ impl AudioSettings {
             Message::ToggleSourceMute => {
                 if let Some(service) = self.service.as_mut() {
                     let _ = service.command(AudioCommand::ToggleSourceMute);
+                }
+                Action::None
+            }
+            Message::SetSourceMute(muted) => {
+                if let Some(service) = self.service.as_mut() {
+                    let _ = service.command(AudioCommand::SetSourceMute(muted));
                 }
                 Action::None
             }

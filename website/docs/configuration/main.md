@@ -224,6 +224,10 @@ You can toggle the visibility of the status bar using the built-in IPC socket:
 ```bash
 # Toggle ashell visibility
 ashell msg toggle-visibility
+
+# Force it visible or hidden (e.g. from a compositor overview event)
+ashell msg toggle-visibility true
+ashell msg toggle-visibility false
 ```
 
 This is the recommended approach for keybind-based toggling or scripting.
@@ -272,6 +276,10 @@ ashell msg toggle-airplane-mode
 # Idle Inhibitor
 ashell msg toggle-idle-inhibitor
 ```
+
+The `toggle-*` commands and the two mute commands take an optional `true` or
+`false` argument to force a state instead of toggling, for example
+`ashell msg toggle-airplane-mode false --no-osd`.
 
 The OSD appears at center-bottom and auto-hides after a timeout. To suppress
 it for a specific command, add `--no-osd`:

@@ -640,10 +640,11 @@ impl Outputs {
         self.visibility == BarVisibility::Shown
     }
 
-    pub fn toggle_visibility<Message: 'static>(&mut self) -> Task<Message> {
-        self.visibility = match self.visibility {
-            BarVisibility::Shown => BarVisibility::Hidden,
-            BarVisibility::Hidden => BarVisibility::Shown,
+    pub fn set_visibility<Message: 'static>(&mut self, shown: bool) -> Task<Message> {
+        self.visibility = if shown {
+            BarVisibility::Shown
+        } else {
+            BarVisibility::Hidden
         };
         let visibility = self.visibility;
         Task::batch(

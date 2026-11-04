@@ -75,18 +75,31 @@ Available commands:
 
 | Command                  | Description                          |
 | ------------------------ | ------------------------------------ |
-| `toggle-visibility`      | Toggle the bar on/off                                        |
+| `toggle-visibility [state]`      | Toggle the bar on/off, or force it with `true`/`false`       |
 | `volume-up`              | Increase sink volume by `settings.volume_step` (default 5%)  |
 | `volume-down`            | Decrease sink volume by `settings.volume_step` (default 5%)  |
-| `volume-toggle-mute`     | Toggle sink mute                                             |
+| `volume-toggle-mute [state]`     | Toggle sink mute, or force it with `true`/`false`            |
 | `microphone-up`          | Increase source volume by 5% (fixed)                         |
 | `microphone-down`        | Decrease source volume by 5% (fixed)                         |
-| `microphone-toggle-mute` | Toggle source mute                                           |
+| `microphone-toggle-mute [state]` | Toggle source mute, or force it with `true`/`false`          |
 | `brightness-up`          | Increase screen brightness by 5% of the device maximum       |
 | `brightness-down`        | Decrease screen brightness by 5% of the device maximum       |
-| `toggle-airplane-mode`   | Toggle airplane mode                                         |
-| `toggle-idle-inhibitor`  | Toggle idle inhibitor                                        |
+| `toggle-airplane-mode [state]`   | Toggle airplane mode, or force it with `true`/`false`        |
+| `toggle-idle-inhibitor [state]`  | Toggle idle inhibitor, or force it with `true`/`false`       |
 | `load-config <file>`            | Load another config without restarting ashell         |
+
+The commands marked `[state]` take an optional `true` or `false` argument to
+force a concrete state instead of toggling. This is useful in scripts and
+keybindings that need to match a compositor event:
+
+```bash
+# Show the bar while the overview is open, hide it afterwards
+ashell msg toggle-visibility true
+ashell msg toggle-visibility false
+
+# Mute the microphone without caring about the current state
+ashell msg microphone-toggle-mute true
+```
 
 Only `volume-up` / `volume-down` honour
 [`settings.volume_step`](./modules/settings.md#volume-step); the microphone and
