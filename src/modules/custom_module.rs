@@ -259,14 +259,23 @@ impl Custom {
     }
 
     pub fn tooltip_view(&'_ self) -> Element<'_, Message> {
-        let space = use_theme(|theme| theme.space);
+        let (space, font_size, max_width) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.font_size,
+                theme.menu.tooltip_max_width * theme.scale_factor as f32,
+            )
+        });
         let lines: Vec<Element<'_, Message>> = self
             .tooltip()
             .unwrap_or_default()
             .lines()
-            .map(|line| text(line).into())
+            .map(|line| text(line).size(font_size.sm).into())
             .collect();
-        column(lines).spacing(space.xs).into()
+        container(column(lines).spacing(space.xxs))
+            .max_width(max_width)
+            .clip(true)
+            .into()
     }
 
     pub fn subscription(&self) -> Subscription<(String, Message)> {
