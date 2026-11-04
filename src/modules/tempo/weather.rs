@@ -387,10 +387,14 @@ pub struct Location {
     pub region_name: String,
 }
 
-pub async fn fetch_location(location: &WeatherLocation, lang: &str) -> anyhow::Result<Location> {
-    let client = reqwest::Client::builder()
+fn http_client() -> anyhow::Result<reqwest::Client> {
+    Ok(reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
-        .build()?;
+        .build()?)
+}
+
+pub async fn fetch_location(location: &WeatherLocation, lang: &str) -> anyhow::Result<Location> {
+    let client = http_client()?;
 
     match location {
         WeatherLocation::City(city) => {
@@ -398,10 +402,7 @@ pub async fn fetch_location(location: &WeatherLocation, lang: &str) -> anyhow::R
                 "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language={}&format=json",
                 city, lang
             );
-            let response = client.get(&url).send().await?;
-            let raw_data = response.text().await?;
-
-            let data: GeoLocations = serde_json::from_str(&raw_data)?;
+            let data: GeoLocations = client.get(&url).send().await?.json().await?;
 
             data.results
                 .first()
@@ -412,10 +413,7 @@ pub async fn fetch_location(location: &WeatherLocation, lang: &str) -> anyhow::R
         WeatherLocation::Current => {
             let find_location = "http://ip-api.com/json/";
 
-            let response = client.get(find_location).send().await?;
-            let raw_data = response.text().await?;
-
-            let data: IpLocation = serde_json::from_str(&raw_data)?;
+            let data: IpLocation = client.get(find_location).send().await?.json().await?;
 
             Ok(data.into())
         }
@@ -498,9 +496,7 @@ pub async fn fetch_weather_data(
     units: UnitSystem,
     wind_unit: crate::config::WindSpeedUnit,
 ) -> anyhow::Result<WeatherData> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(20))
-        .build()?;
+    let client = http_client()?;
 
     let temp_param = match units {
         UnitSystem::Metric => "celsius",
@@ -518,12 +514,9 @@ latitude={lat}&longitude={lon}\
 &temperature_unit={temp_param}\
 &wind_speed_unit={wind_param}\
 &timezone=UTC"
-    )).send().await?;
-    let raw_data = response.text().await?;
+    )).send().await?.json::<WeatherData>().await?;
 
-    let data: WeatherData = serde_json::from_str(&raw_data)?;
-
-    Ok(data)
+    Ok(response)
 }
 
 #[derive(Clone, Debug, Deserialize)]
