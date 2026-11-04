@@ -4,7 +4,7 @@ use iced::widget::{image, svg};
 
 pub use ashell_services::xdg_icons::warm_cache_async;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum XdgIcon {
     Image(image::Handle),
     Svg { handle: svg::Handle, symbolic: bool },
