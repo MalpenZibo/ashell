@@ -32,6 +32,10 @@ pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
     xdg_icons::get_icon_from_name(icon_name).map(XdgIcon::from)
 }
 
+pub fn get_icon_from_file(path: &std::path::Path) -> Option<XdgIcon> {
+    xdg_icons::get_icon_from_file(path).map(XdgIcon::from)
+}
+
 pub fn get_icon_from_theme_path(theme_path: &str, icon_name: &str) -> Option<XdgIcon> {
     xdg_icons::get_icon_from_theme_path(theme_path, icon_name).map(XdgIcon::from)
 }
