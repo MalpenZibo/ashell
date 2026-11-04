@@ -96,6 +96,9 @@ ashell msg toggle-idle-inhibitor
 ashell msg load-config <file>
 ```
 
+The toggle and mute commands accept an optional `true`/`false` argument to force
+a concrete state instead of toggling, e.g. `ashell msg toggle-visibility false`.
+
 Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD overlay. Add `--no-osd` to suppress it.
 
 ## Signal Handling

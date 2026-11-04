@@ -574,17 +574,27 @@ impl App {
                 let action = match &cmd {
                     IpcCommand::VolumeUp { .. } => self.settings.volume_adjust(true),
                     IpcCommand::VolumeDown { .. } => self.settings.volume_adjust(false),
-                    IpcCommand::VolumeToggleMute { .. } => self.settings.toggle_mute(),
+                    IpcCommand::VolumeToggleMute { state, .. } => match state {
+                        Some(muted) => self.settings.set_mute(*muted),
+                        None => self.settings.toggle_mute(),
+                    },
                     IpcCommand::MicrophoneUp { .. } => self.settings.microphone_adjust(true),
                     IpcCommand::MicrophoneDown { .. } => self.settings.microphone_adjust(false),
-                    IpcCommand::MicrophoneToggleMute { .. } => {
-                        self.settings.microphone_toggle_mute()
-                    }
+                    IpcCommand::MicrophoneToggleMute { state, .. } => match state {
+                        Some(muted) => self.settings.set_microphone_mute(*muted),
+                        None => self.settings.microphone_toggle_mute(),
+                    },
                     IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
                     IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
-                    IpcCommand::ToggleAirplaneMode { .. } => self.settings.toggle_airplane(),
-                    IpcCommand::ToggleIdleInhibitor { .. } => self.settings.toggle_idle_inhibitor(),
-                    IpcCommand::ToggleVisibility => {
+                    IpcCommand::ToggleAirplaneMode { state, .. } => match state {
+                        Some(enabled) => self.settings.set_airplane(*enabled),
+                        None => self.settings.toggle_airplane(),
+                    },
+                    IpcCommand::ToggleIdleInhibitor { state, .. } => match state {
+                        Some(enabled) => self.settings.set_idle_inhibitor(*enabled),
+                        None => self.settings.toggle_idle_inhibitor(),
+                    },
+                    IpcCommand::ToggleVisibility { .. } => {
                         warn!(
                             "IpcCommand::ToggleVisibility reached IpcOsdCommand handler; use Message::ToggleVisibility instead"
                         );
@@ -625,22 +635,8 @@ impl App {
                 _ => Task::none(),
             },
             Message::None => Task::none(),
-            Message::ToggleVisibility => {
-                let task = self.outputs.toggle_visibility();
-
-                if self.outputs.bar_is_shown() {
-                    task
-                } else {
-                    // A menu surface spans the whole output and keeps accepting
-                    // input there, so hiding the bar has to close it instead of
-                    // leaving it floating over the desktop.
-                    Task::batch(vec![
-                        task,
-                        self.outputs
-                            .close_all_menus(self.general_config.enable_esc_key),
-                    ])
-                }
-            }
+            Message::ToggleVisibility => self.set_bar_visibility(!self.outputs.bar_is_shown()),
+            Message::SetVisibility(shown) => self.set_bar_visibility(shown),
             Message::LoadConfig(config_file) => match config::read_config(&config_file) {
                 Ok(config) => {
                     self.config_path = config_file;
@@ -651,6 +647,28 @@ impl App {
                     Task::none()
                 }
             },
+        }
+    }
+
+    /// Show or hide the bar, closing open menus when it goes away. A menu
+    /// surface spans the whole output and keeps accepting input there, so
+    /// hiding the bar has to close it instead of leaving it floating over the
+    /// desktop.
+    fn set_bar_visibility(&mut self, shown: bool) -> Task<Message> {
+        if self.outputs.bar_is_shown() == shown {
+            return Task::none();
+        }
+
+        let task = self.outputs.set_visibility(shown);
+
+        if shown {
+            task
+        } else {
+            Task::batch(vec![
+                task,
+                self.outputs
+                    .close_all_menus(self.general_config.enable_esc_key),
+            ])
         }
     }
 
@@ -866,7 +884,10 @@ impl App {
             // even when the Settings module isn't in the module list.
             self.settings.subscription().map(Message::Settings),
             crate::ipc::subscription().map(|cmd| match cmd {
-                IpcCommand::ToggleVisibility => Message::ToggleVisibility,
+                IpcCommand::ToggleVisibility { state } => match state {
+                    Some(shown) => Message::SetVisibility(shown),
+                    None => Message::ToggleVisibility,
+                },
                 IpcCommand::LoadConfig { file } => Message::LoadConfig(file),
                 other => Message::IpcOsdCommand(other),
             }),
