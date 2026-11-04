@@ -289,8 +289,10 @@ impl StatusNotifierItem {
         })
     }
 
+    /// A menu is only clickable once its layout is known; until then the
+    /// module falls back to activating the application.
     pub fn has_menu(&self) -> bool {
-        self.menu_proxy.is_some()
+        self.menu.is_some()
     }
 
     /// Change notifications for this item. Reads are coalesced, so a signal
@@ -335,47 +337,59 @@ impl StatusNotifierItem {
             }
         }));
 
+        let mut attention_triggers = Vec::with_capacity(2);
         if let Ok(new_attention_icon) = self.item_proxy.receive_new_attention_icon().await {
-            streams.push(coalesced_reads(new_attention_icon.map(|_| ()), {
+            attention_triggers.push(new_attention_icon.map(|_| ()).boxed());
+        }
+        // One read once subscribed, so a change that raced `new` is not lost.
+        attention_triggers.push(stream::once(std::future::ready(())).boxed());
+        streams.push(coalesced_reads(select_all(attention_triggers), {
+            let name = name.clone();
+            let item_proxy = self.item_proxy.clone();
+            move |()| {
                 let name = name.clone();
-                let item_proxy = self.item_proxy.clone();
-                move |()| {
-                    let name = name.clone();
-                    let item_proxy = item_proxy.clone();
-                    async move {
-                        current_attention_icon_from_proxy(&item_proxy)
-                            .await
-                            .map(|icon| TrayEvent::AttentionIconChanged(name, icon))
-                    }
+                let item_proxy = item_proxy.clone();
+                async move {
+                    current_attention_icon_from_proxy(&item_proxy)
+                        .await
+                        .map(|icon| TrayEvent::AttentionIconChanged(name, icon))
                 }
-            }));
-        }
+            }
+        }));
 
+        let mut status_triggers = Vec::with_capacity(2);
         if let Ok(new_status) = self.item_proxy.receive_new_status().await {
-            streams.push(
-                new_status
-                    .filter_map({
-                        let name = name.clone();
-                        move |signal| {
-                            let name = name.clone();
-                            async move {
-                                let status = signal.args().ok()?.status.to_owned();
-                                Some(TrayEvent::StatusChanged(name, status))
-                            }
-                        }
-                    })
-                    .boxed(),
-            );
+            status_triggers.push(new_status.map(|_| ()).boxed());
         }
+        // One read once subscribed, so a change that raced `new` is not lost.
+        status_triggers.push(stream::once(std::future::ready(())).boxed());
+        streams.push(coalesced_reads(select_all(status_triggers), {
+            let name = name.clone();
+            let item_proxy = self.item_proxy.clone();
+            move |()| {
+                let name = name.clone();
+                let item_proxy = item_proxy.clone();
+                async move {
+                    item_proxy
+                        .status()
+                        .await
+                        .ok()
+                        .map(|status| TrayEvent::StatusChanged(name, status))
+                }
+            }
+        }));
 
         if let Some(menu_proxy) = self.menu_proxy.clone() {
-            let mut layout_triggers = Vec::with_capacity(2);
+            let mut layout_triggers = Vec::with_capacity(3);
             if let Ok(layout_updated) = menu_proxy.receive_layout_updated().await {
                 layout_triggers.push(layout_updated.map(|_| ()).boxed());
             }
             if let Ok(items_removed) = menu_proxy.receive_items_removed().await {
                 layout_triggers.push(items_removed.map(|_| ()).boxed());
             }
+            // One read once subscribed, so a layout that raced `new` is not
+            // lost; a static menu may never emit `LayoutUpdated` again.
+            layout_triggers.push(stream::once(std::future::ready(())).boxed());
             streams.push(coalesced_reads(select_all(layout_triggers), {
                 let name = name.clone();
                 move |()| {
@@ -545,21 +559,12 @@ impl TrayService {
         }
     }
 
-    async fn initialize_data(conn: &zbus::Connection) -> anyhow::Result<TrayData> {
+    async fn initialize_data(_conn: &zbus::Connection) -> anyhow::Result<TrayData> {
         debug!("initializing tray data");
-        let proxy = watcher_proxy(conn).await?;
 
-        let items = proxy.registered_status_notifier_items().await?;
-
-        let mut status_items = Vec::with_capacity(items.len());
-        for name in items {
-            match StatusNotifierItem::new(conn, name.clone()).await {
-                Ok(item) => status_items.push(item),
-                Err(err) => warn!("Skipping tray item {name}: {err}"),
-            }
-        }
-
-        Ok(TrayData(status_items))
+        // Items are loaded by the `events` task: its `Registered` events
+        // populate the tray with one load path and one failure policy.
+        Ok(TrayData::default())
     }
 
     /// Watcher-driven events. Per-item loads run alongside the streams, so a
@@ -580,7 +585,8 @@ impl TrayService {
         tokio::spawn(async move {
             let mut streams = ItemStreams::default();
 
-            // `Init` loads these too; `Registered` replaces that copy.
+            // `Init` is empty: these loads are the single source of tray
+            // items, and their `Registered` events populate the tray.
             for name in items {
                 streams.load(&conn, name, 0, Duration::ZERO);
             }
