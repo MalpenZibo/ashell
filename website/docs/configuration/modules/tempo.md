@@ -35,6 +35,12 @@ formats like `%r`, `%X` and `%c` count as 12-hour only where the locale renders 
 before the hour when the clock format puts it there, as `%r` does in `ja_JP`, `ko_KR` and `zh_CN`, and the hourly forecast
 adds the hour word those locales use, like `오전 10시`.
 
+The dates in the menu follow the clock's day and month order. When the clock puts the month first, the forecast shows
+`Wed, Oct 28` and the calendar header `October 27, 2026`. A clock without a date uses the order of your locale's `%x`,
+and a date that starts with the year keeps the day first. Locales that write the date with words after the numbers,
+like `ja_JP`, `ko_KR` and `zh_CN`, use their own order, so the header reads `2026年10月27日`. The day and month keep
+the clock's padding, so `%-d` drops the leading zero.
+
 ### City-based weather
 
 ```toml
