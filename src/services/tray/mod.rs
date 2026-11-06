@@ -11,7 +11,7 @@ use iced::{
         channel::mpsc::{self, Sender},
         future::{self, BoxFuture, Either, select},
         stream::{
-            self, AbortHandle, Aborted, BoxStream, FuturesUnordered, SelectAll, abortable, pending,
+            self, AbortHandle, Aborted, BoxStream, FuturesUnordered, SelectAll, abortable,
             select_all,
         },
     },
@@ -42,6 +42,9 @@ const ITEM_RETRY_DELAYS: [Duration; 3] = [
     Duration::from_secs(2),
     Duration::from_secs(5),
 ];
+
+/// Retry delay for a failed watcher connection or event stream.
+const HOST_RETRY_DELAY: Duration = Duration::from_secs(2);
 
 /// The object answered but has no such property.
 fn is_missing_property(err: &zbus::Error) -> bool {
@@ -713,7 +716,6 @@ impl TrayService {
                         events
                     }
                     Err(err) => {
-                        // Typically no watcher right now: wait for one.
                         error!("Failed to listen for tray events: {err}");
                         if reload {
                             let _ = output
@@ -723,14 +725,22 @@ impl TrayService {
                                 }))
                                 .await;
                         }
-                        return match watcher_owner.next().await {
-                            Some(_) => State::Active {
+
+                        // Retry on the same connection, but wake up early if
+                        // the watcher owner changes.
+                        let retry = tokio::select! {
+                            _ = tokio::time::sleep(HOST_RETRY_DELAY) => true,
+                            owner = watcher_owner.next() => owner.is_some(),
+                        };
+                        return if retry {
+                            State::Active {
                                 conn,
                                 host,
                                 watcher_owner,
                                 reload: true,
-                            },
-                            None => State::Error,
+                            }
+                        } else {
+                            State::Error
                         };
                     }
                 };
@@ -773,10 +783,10 @@ impl TrayService {
                 }
             }
             State::Error => {
-                error!("Tray service error");
+                warn!("Tray service error, retrying in {HOST_RETRY_DELAY:?}");
 
-                let _ = pending::<u8>().next().await;
-                State::Error
+                tokio::time::sleep(HOST_RETRY_DELAY).await;
+                State::Init
             }
         }
     }
