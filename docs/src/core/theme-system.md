@@ -17,7 +17,7 @@ pub struct AshellTheme {
     pub bar_margin: BarMargin,                                // per-edge margin (CSS shorthand)
     pub bar_padding: BarPadding,                              // per-edge padding (CSS shorthand)
     pub bar_border: config::Border,                           // bar outline
-    pub bar_scale: f32,                                       // bar content height / HEIGHT
+    pub bar_content_height: f64,                              // BarLayout::content_height
     pub modules: ModulesAppearance,                           // [appearance.modules]
     pub menu: MenuAppearance,                                 // Menu-specific styling
     pub workspace_colors: Vec<AppearanceColor>,               // Per-workspace color cycling
@@ -130,9 +130,9 @@ The island and the text color are applied around each module in `src/modules/mod
 
 ### Bar height
 
-`BarLayout::content_height` is `HEIGHT` (26px), or more when a module's `font_size` needs it: each module keeps the room it has around its text at its built-in size, 10px around `md` text, 16px for the workspace buttons around `xs`. `BarLayout::height()` adds the vertical padding, and sizes both the layer surface and the bar view. Since `BarLayout` is compared on config reload, a new `font_size` resizes the bar.
+`BarLayout::content_height` is `HEIGHT` (26px), or more when the `font_size` of a module in `[modules]` needs it: each module keeps the room it has around its text at its built-in size, 10px around `md` text, 16px for the workspace buttons around `xs`. `BarLayout::height()` adds the vertical padding, and sizes both the layer surface and the bar view. Since `BarLayout` is compared on config reload, a new `font_size`, or a module added to or removed from the layout, resizes the bar. The theme keeps the content height in `bar_content_height`, so `bar_layout()` returns the same `BarLayout` without the module layout.
 
-`bar_scale` is `content_height / HEIGHT`. The bar, island and workspace button radii are multiplied by it, so they keep their shape as the bar grows.
+`bar_scale()` is `bar_content_height / HEIGHT`. The bar, island and workspace button radii are multiplied by it, so they keep their shape as the bar grows.
 
 ## Color System
 
@@ -175,16 +175,16 @@ pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style + 
 
 ## Theme Construction
 
-The theme is built from the config's `Appearance` section:
+The theme is built from the config's `Appearance` section and the module layout, which decides the bar height:
 
 ```rust
 impl AshellTheme {
-    pub fn new(position: Position, appearance: &Appearance, animations: &AnimationsConfig) -> Self {
-        base_theme_from_appearance(appearance, position, animations.enabled)
+    pub fn new(position: Position, appearance: &Appearance, layout: &Modules, animations: &AnimationsConfig) -> Self {
+        base_theme_from_appearance(appearance, layout, position, animations.enabled)
     }
 }
 
-fn base_theme_from_appearance(appearance: &Appearance, bar_position: Position, animations_enabled: bool) -> AshellTheme {
+fn base_theme_from_appearance(appearance: &Appearance, layout: &Modules, bar_position: Position, animations_enabled: bool) -> AshellTheme {
     AshellTheme {
         surfaces: Surface::ALL.map(/* one theme per surface */),
         space: Space::default(),

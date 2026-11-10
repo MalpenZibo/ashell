@@ -86,7 +86,7 @@ impl App {
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
             let mut outputs = Outputs::new(
-                BarLayout::from_appearance(&config.appearance),
+                BarLayout::from_appearance(&config.appearance, &config.modules),
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
@@ -103,6 +103,7 @@ impl App {
             init_theme(AshellTheme::new(
                 config.position,
                 &config.appearance,
+                &config.modules,
                 &config.animations,
             ));
             init_localizer(resolve_localizer(&config));
@@ -152,6 +153,7 @@ impl App {
         init_theme(AshellTheme::new(
             config.position,
             &config.appearance,
+            &config.modules,
             &config.animations,
         ));
         init_localizer(resolve_localizer(&config));
@@ -263,7 +265,7 @@ impl App {
                 );
                 let (bar_position, bar_layout, scale_factor) =
                     use_theme(|t| (t.bar_position, t.bar_layout(), t.scale_factor));
-                let new_layout = BarLayout::from_appearance(&config.appearance);
+                let new_layout = BarLayout::from_appearance(&config.appearance, &config.modules);
                 if self.general_config.outputs != config.outputs
                     || bar_position != config.position
                     || bar_layout != new_layout
