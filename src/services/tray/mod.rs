@@ -180,8 +180,8 @@ where
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Registered(Box<StatusNotifierItem>),
-    IconChanged(String, TrayIcon),
-    AttentionIconChanged(String, TrayIcon),
+    IconChanged(String, Option<TrayIcon>),
+    AttentionIconChanged(String, Option<TrayIcon>),
     MenuLayoutChanged(String, Layout),
     StatusChanged(String, String),
     Unregistered(String),
@@ -306,13 +306,16 @@ impl StatusNotifierItem {
         // A signal only triggers a fresh read: its args would decode a
         // pixmap one `Variant` per byte.
         let item_inner = self.item_proxy.inner();
-        let mut icon_triggers = Vec::with_capacity(4);
-        if let Ok(properties) = zbus::fdo::PropertiesProxy::new(
+        let properties = zbus::fdo::PropertiesProxy::new(
             conn,
             item_inner.destination().to_owned(),
             item_inner.path().to_owned(),
         )
         .await
+        .ok();
+
+        let mut icon_triggers = Vec::with_capacity(4);
+        if let Some(properties) = &properties
             && let Ok(properties_changed) = properties.receive_properties_changed().await
         {
             icon_triggers.push(properties_changed.map(|_| ()).boxed());
@@ -325,39 +328,62 @@ impl StatusNotifierItem {
         }
         // One read once subscribed, so a change that raced `new` is not lost.
         icon_triggers.push(stream::once(std::future::ready(())).boxed());
-        streams.push(coalesced_reads(select_all(icon_triggers), {
-            let name = name.clone();
-            let item_proxy = self.item_proxy.clone();
-            move |()| {
-                let name = name.clone();
-                let item_proxy = item_proxy.clone();
-                async move {
-                    current_icon_from_proxy(&item_proxy)
-                        .await
-                        .map(|icon| TrayEvent::IconChanged(name, icon))
+        let mut last_icon = self.icon.clone();
+        streams.push(
+            coalesced_reads(select_all(icon_triggers), {
+                let item_proxy = self.item_proxy.clone();
+                move |()| {
+                    let item_proxy = item_proxy.clone();
+                    async move { Some(current_icon_from_proxy(&item_proxy).await) }
                 }
-            }
-        }));
+            })
+            .filter_map({
+                let name = name.clone();
+                move |icon| {
+                    let changed = icon != last_icon;
+                    if changed {
+                        last_icon = icon.clone();
+                    }
+                    std::future::ready(changed.then(|| TrayEvent::IconChanged(name.clone(), icon)))
+                }
+            })
+            .boxed(),
+        );
 
-        let mut attention_triggers = Vec::with_capacity(2);
+        let mut attention_triggers = Vec::with_capacity(3);
+        if let Some(properties) = &properties
+            && let Ok(properties_changed) = properties.receive_properties_changed().await
+        {
+            attention_triggers.push(properties_changed.map(|_| ()).boxed());
+        }
         if let Ok(new_attention_icon) = self.item_proxy.receive_new_attention_icon().await {
             attention_triggers.push(new_attention_icon.map(|_| ()).boxed());
         }
         // One read once subscribed, so a change that raced `new` is not lost.
         attention_triggers.push(stream::once(std::future::ready(())).boxed());
-        streams.push(coalesced_reads(select_all(attention_triggers), {
-            let name = name.clone();
-            let item_proxy = self.item_proxy.clone();
-            move |()| {
-                let name = name.clone();
-                let item_proxy = item_proxy.clone();
-                async move {
-                    current_attention_icon_from_proxy(&item_proxy)
-                        .await
-                        .map(|icon| TrayEvent::AttentionIconChanged(name, icon))
+        let mut last_attention = self.attention_icon.clone();
+        streams.push(
+            coalesced_reads(select_all(attention_triggers), {
+                let item_proxy = self.item_proxy.clone();
+                move |()| {
+                    let item_proxy = item_proxy.clone();
+                    async move { Some(current_attention_icon_from_proxy(&item_proxy).await) }
                 }
-            }
-        }));
+            })
+            .filter_map({
+                let name = name.clone();
+                move |icon| {
+                    let changed = icon != last_attention;
+                    if changed {
+                        last_attention = icon.clone();
+                    }
+                    std::future::ready(
+                        changed.then(|| TrayEvent::AttentionIconChanged(name.clone(), icon)),
+                    )
+                }
+            })
+            .boxed(),
+        );
 
         let mut status_triggers = Vec::with_capacity(2);
         if let Ok(new_status) = self.item_proxy.receive_new_status().await {
@@ -826,14 +852,14 @@ impl ReadOnlyService for TrayService {
                     }
                 }
             }
-            TrayEvent::IconChanged(name, handle) => {
+            TrayEvent::IconChanged(name, icon) => {
                 if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
-                    item.icon = Some(handle);
+                    item.icon = icon;
                 }
             }
-            TrayEvent::AttentionIconChanged(name, handle) => {
+            TrayEvent::AttentionIconChanged(name, icon) => {
                 if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
-                    item.attention_icon = Some(handle);
+                    item.attention_icon = icon;
                 }
             }
             TrayEvent::MenuLayoutChanged(name, layout) => {
