@@ -277,6 +277,9 @@ surface = "transparent"  # (default) or "solid"
 
 [appearance.menu]
 # backdrop = 0.0   # (default) darkening drawn behind an open menu
+# settings_width = 320      # (default) content width of the settings menu, in logical pixels
+# tile_height = 44          # (default) height of a quick-setting tile, in logical pixels
+# tooltip_max_width = 280   # (default) widest a tooltip may get, in logical pixels
 
 [appearance.background_color]
 base = "#1a1b26"

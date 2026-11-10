@@ -8,7 +8,7 @@ use tokio::time::timeout;
 
 use crate::{
     components::{
-        ButtonUIRef, MenuSize, collapsible,
+        ButtonUIRef, collapsible,
         icons::{DynamicIcon, Icon, StaticIcon, icon, icon_button},
         menu::MenuType,
         password_dialog, position_button, quick_setting_button, share_wifi_dialog,
@@ -624,6 +624,7 @@ impl Settings {
         dnd: Option<bool>,
     ) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
+        let menu_width = use_theme(|t| t.menu.settings_width * t.scale_factor as f32);
         container(if let Some(dialog) = &self.network_dialog {
             match dialog {
                 NetworkDialogState::Password { ssid, password } => password_dialog::view(
@@ -799,7 +800,7 @@ impl Settings {
                             sub_menu_wrapper(e.map(Message::Power)),
                         )
                         .animated(animated)
-                        .open_padding_top(space.md),
+                        .open_padding_top(space.sm),
                     );
                 }
                 col = col.push(
@@ -808,7 +809,7 @@ impl Settings {
                         sub_menu_wrapper(self.power.menu(id).map(Message::Power)),
                     )
                     .animated(animated)
-                    .open_padding_top(space.md),
+                    .open_padding_top(space.sm),
                 );
                 col
             };
@@ -850,10 +851,10 @@ impl Settings {
                         .map(|e| e.map(Message::Power)),
                 )
                 .push(quick_settings)
-                .spacing(space.md)
+                .spacing(space.sm)
                 .into()
         })
-        .width(MenuSize::Medium)
+        .width(Length::Fixed(menu_width))
         .into()
     }
 
@@ -991,8 +992,16 @@ impl Settings {
     }
 
     pub fn tooltip_view<'a>(&'a self, menu_type: &MenuType) -> Element<'a, Message> {
+        let width = use_theme(|t| t.menu.tooltip_max_width * t.scale_factor as f32);
+        let body: Element<'a, Message> = self.tooltip_body(menu_type);
+        container(body).max_width(width).clip(true).into()
+    }
+
+    fn tooltip_body<'a>(&'a self, menu_type: &MenuType) -> Element<'a, Message> {
         let (space, font_size) = use_theme(|t| (t.space, t.font_size));
-        let fallback = |label: String| -> Element<'a, Message> { iced::widget::text(label).into() };
+        let label = |value: String| iced::widget::text(value).size(font_size.sm);
+        let icon = |icon: StaticIcon| icon.to_text().size(font_size.sm);
+        let fallback = |value: String| -> Element<'a, Message> { label(value).into() };
         match menu_type {
             MenuType::AudioTooltip => {
                 let sink = self.audio.active_sink_label();
@@ -1000,18 +1009,14 @@ impl Settings {
                 if sink.is_none() && source.is_none() {
                     return fallback(t!("settings-tooltip-empty-audio"));
                 }
-                let mut column = Column::new().spacing(space.xs);
+                let mut column = Column::new().spacing(space.xxs);
                 if let Some(sink) = sink {
-                    column = column.push(
-                        row![StaticIcon::Speaker3.to_text(), iced::widget::text(sink)]
-                            .spacing(space.xs),
-                    );
+                    column = column
+                        .push(row![icon(StaticIcon::Speaker3), label(sink)].spacing(space.xxs));
                 }
                 if let Some(source) = source {
-                    column = column.push(
-                        row![StaticIcon::Mic1.to_text(), iced::widget::text(source)]
-                            .spacing(space.xs),
-                    );
+                    column =
+                        column.push(row![icon(StaticIcon::Mic1), label(source)].spacing(space.xxs));
                 }
                 column.into()
             }
@@ -1021,27 +1026,23 @@ impl Settings {
                     Column::with_capacity(devices.len())
                         .extend(devices.into_iter().map(|(name, battery)| {
                             if let Some(bat) = battery {
-                                row![
-                                    iced::widget::text(name),
-                                    iced::widget::text(format!("{bat}%"))
-                                ]
-                                .spacing(space.xs)
-                                .into()
+                                row![label(name), label(format!("{bat}%"))]
+                                    .spacing(space.xxs)
+                                    .into()
                             } else {
-                                row![iced::widget::text(name)].spacing(space.xs).into()
+                                row![label(name)].spacing(space.xxs).into()
                             }
                         }))
-                        .spacing(space.xs)
+                        .spacing(space.xxs)
                         .into()
                 } else {
                     fallback(t!("settings-tooltip-empty-bluetooth"))
                 }
             }
             MenuType::WifiTooltip => {
-                if let Some(label) = self.network.connected_wifi_label() {
+                if let Some(name) = self.network.connected_wifi_label() {
                     let band = self.network.connected_wifi_band();
-                    let mut r = row![StaticIcon::Wifi4.to_text(), iced::widget::text(label)]
-                        .spacing(space.xs);
+                    let mut r = row![icon(StaticIcon::Wifi4), label(name)].spacing(space.xxs);
                     if let Some(b) = band {
                         r = r.push(iced::widget::text(b).size(font_size.xs).style(
                             |theme: &Theme| iced::widget::text::Style {
@@ -1055,9 +1056,9 @@ impl Settings {
                 }
             }
             MenuType::VpnTooltip => {
-                if let Some(label) = self.network.vpn_tooltip_label() {
-                    row![StaticIcon::Vpn.to_text(), iced::widget::text(label)]
-                        .spacing(space.xs)
+                if let Some(name) = self.network.vpn_tooltip_label() {
+                    row![icon(StaticIcon::Vpn), label(name)]
+                        .spacing(space.xxs)
                         .into()
                 } else {
                     fallback(t!("settings-tooltip-empty-vpn"))
@@ -1072,21 +1073,21 @@ impl Settings {
                 }) = self.power.battery_tooltip_info()
                 {
                     let mut r = Row::new()
-                        .push(StaticIcon::Battery4.to_text())
-                        .push(iced::widget::text(format!("{capacity}%")))
-                        .push(iced::widget::text(status_label))
-                        .spacing(space.xs);
+                        .push(icon(StaticIcon::Battery4))
+                        .push(label(format!("{capacity}%")))
+                        .push(label(status_label))
+                        .spacing(space.xxs);
                     if !details.is_empty() {
-                        r = r.push(iced::widget::text(details));
+                        r = r.push(label(details));
                     }
                     Column::new()
                         .push(r)
                         .extend(health_lines.into_iter().map(|(icon_kind, line)| {
-                            row![icon_kind.to_text(), iced::widget::text(line)]
-                                .spacing(space.xs)
+                            row![icon_kind.to_text().size(font_size.sm), label(line)]
+                                .spacing(space.xxs)
                                 .into()
                         }))
-                        .spacing(space.xs)
+                        .spacing(space.xxs)
                         .into()
                 } else {
                     fallback(t!("settings-tooltip-empty-battery"))
@@ -1097,11 +1098,11 @@ impl Settings {
                     self.power.peripheral_battery_tooltip_info(*index)
                 {
                     row![
-                        device_icon.to_text(),
-                        iced::widget::text(name),
-                        iced::widget::text(format!("{capacity}%"))
+                        device_icon.to_text().size(font_size.sm),
+                        label(name),
+                        label(format!("{capacity}%"))
                     ]
-                    .spacing(space.xs)
+                    .spacing(space.xxs)
                     .into()
                 } else {
                     fallback(t!("settings-tooltip-empty-battery"))
@@ -1119,7 +1120,7 @@ fn audio_group<'a>(
     slider: Element<'a, Message>,
     submenu: Option<(bool, Element<'a, Message>)>,
 ) -> Element<'a, Message> {
-    let pad = use_theme(|t| t.space.md);
+    let pad = use_theme(|t| t.space.sm);
     let mut col = Column::<'a, Message>::with_capacity(2).spacing(0);
     match position {
         Position::Top => {
@@ -1140,7 +1141,7 @@ fn audio_group<'a>(
 
 fn quick_settings_section<'a>(buttons: Vec<QuickSettingEntry<'a>>) -> Element<'a, Message> {
     let (space, animated) = use_theme(|t| (t.space, t.animations_enabled));
-    let mut section = Column::with_capacity(buttons.len().div_ceil(2)).spacing(space.xs);
+    let mut section = Column::with_capacity(buttons.len().div_ceil(2)).spacing(space.xxs);
 
     let mut buttons_iter = buttons.into_iter();
     while let Some((left_button, left_menu)) = buttons_iter.next() {
@@ -1151,7 +1152,7 @@ fn quick_settings_section<'a>(buttons: Vec<QuickSettingEntry<'a>>) -> Element<'a
                 (
                     row![left_button, right_button]
                         .width(Length::Fill)
-                        .spacing(space.xs)
+                        .spacing(space.xxs)
                         .into(),
                     right_menu,
                 )
@@ -1159,7 +1160,7 @@ fn quick_settings_section<'a>(buttons: Vec<QuickSettingEntry<'a>>) -> Element<'a
                 (
                     row![left_button, space::horizontal()]
                         .width(Length::Fill)
-                        .spacing(space.xs)
+                        .spacing(space.xxs)
                         .into(),
                     None,
                 )
@@ -1171,14 +1172,14 @@ fn quick_settings_section<'a>(buttons: Vec<QuickSettingEntry<'a>>) -> Element<'a
             group = group.push(
                 collapsible(expanded, sub_menu_wrapper(content))
                     .animated(animated)
-                    .open_padding_top(space.xs),
+                    .open_padding_top(space.xxs),
             );
         }
         if let Some((expanded, content)) = right_menu {
             group = group.push(
                 collapsible(expanded, sub_menu_wrapper(content))
                     .animated(animated)
-                    .open_padding_top(space.xs),
+                    .open_padding_top(space.xxs),
             );
         }
 

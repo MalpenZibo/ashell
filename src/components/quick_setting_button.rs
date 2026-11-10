@@ -25,8 +25,14 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
 ) -> Element<'a, Msg> {
     let target: f32 = if active { 1.0 } else { 0.0 };
     let icon_kind: IconKind = icon.into();
-    let (space, font_size, animations_enabled) =
-        use_theme(|theme| (theme.space, theme.font_size, theme.animations_enabled));
+    let (space, font_size, animations_enabled, tile_height) = use_theme(|theme| {
+        (
+            theme.space,
+            theme.font_size,
+            theme.animations_enabled,
+            theme.menu.tile_height * theme.scale_factor as f32,
+        )
+    });
 
     let build_btn = move |t: f32,
                           title: String,
@@ -88,7 +94,7 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
         .on_press(on_press)
         .style(settings_btn_style)
         .width(Length::Fill)
-        .height(Length::Fixed(50.))
+        .height(Length::Fixed(tile_height))
         .into()
     };
 

@@ -144,6 +144,9 @@ base = "#1e1e2e"
 
 [appearance.menu]
 backdrop = 0.3
+# settings_width = 320      # content width of the settings menu (logical pixels)
+# tile_height = 44          # quick-setting tile height (logical pixels)
+# tooltip_max_width = 280   # widest a tooltip may get (logical pixels)
 ```
 
 See the [Configuration Reference](../reference/config-reference.md) for a complete list of all configuration options.

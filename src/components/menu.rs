@@ -32,6 +32,23 @@ pub enum MenuType {
     CustomTooltip(String),
 }
 
+impl MenuType {
+    /// Whether this is a pointer-following tooltip rather than a menu opened
+    /// by a click.
+    pub fn is_tooltip(&self) -> bool {
+        matches!(
+            self,
+            MenuType::AudioTooltip
+                | MenuType::BluetoothTooltip
+                | MenuType::WifiTooltip
+                | MenuType::VpnTooltip
+                | MenuType::BatteryTooltip
+                | MenuType::PeripheralBatteryTooltip(_)
+                | MenuType::CustomTooltip(_)
+        )
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct OpenMenu {
     pub id: SurfaceId,
@@ -320,15 +337,21 @@ impl App {
             border: surface_border(theme, radius.lg),
             ..Default::default()
         };
+        // Settings and tooltips are dense by design: their content already
+        // provides separation, so the card can afford a tighter inset.
+        let compact = self.outputs.menu_of_id(id).is_some_and(|menu| {
+            matches!(menu.menu_type, MenuType::Settings) || menu.menu_type.is_tooltip()
+        });
+        let body_padding = if compact { space.sm } else { space.md };
         let menu_body = if blur {
             blur_container(content)
-                .padding(space.md)
+                .padding(body_padding)
                 .style(menu_style)
                 .width(Length::Shrink)
                 .into()
         } else {
             container(content)
-                .padding(space.md)
+                .padding(body_padding)
                 .style(menu_style)
                 .width(Length::Shrink)
                 .into()
