@@ -65,6 +65,23 @@ logout_cmd = "loginctl kill-user $(whoami)"
 
 The `lock_cmd` parameter is optional. If not set, or set to an empty string, the lock button will not appear.
 
+On systems where the built-in executable is missing, ashell retries the same
+power action through `loginctl` once. This only applies while the command is
+still the default one shown above, and only when the shell reports the
+executable as not found (exit status 127):
+
+| Built-in default | Fallback |
+| ---------------- | -------- |
+| `shutdown now` | `loginctl poweroff` |
+| `systemctl suspend` | `loginctl suspend` |
+| `systemctl reboot` | `loginctl reboot` |
+
+Custom commands are always used verbatim, and other failures (permissions,
+inhibitor locks, unsupported sleep states) do not trigger the fallback. Set the
+`*_cmd` options explicitly when your system needs a different implementation.
+Hibernate has no built-in default, so on elogind set
+`hibernate_cmd = "loginctl hibernate"` if you want that button.
+
 The `hibernate_cmd` parameter is optional. If not set, or set to an empty string, the hibernate button will not appear.
 
 With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`  

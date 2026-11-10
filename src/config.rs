@@ -23,6 +23,12 @@ use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 
+/// Built-in power commands. The launcher only applies its `loginctl` fallback
+/// when a configured command still matches one of these defaults exactly.
+pub const DEFAULT_SHUTDOWN_CMD: &str = "shutdown now";
+pub const DEFAULT_SUSPEND_CMD: &str = "systemctl suspend";
+pub const DEFAULT_REBOOT_CMD: &str = "systemctl reboot";
+
 #[derive(Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LogTarget {
@@ -723,10 +729,10 @@ impl Default for SettingsModuleConfig {
     fn default() -> Self {
         Self {
             lock_cmd: Default::default(),
-            shutdown_cmd: "shutdown now".to_string(),
-            suspend_cmd: "systemctl suspend".to_string(),
+            shutdown_cmd: DEFAULT_SHUTDOWN_CMD.to_string(),
+            suspend_cmd: DEFAULT_SUSPEND_CMD.to_string(),
             hibernate_cmd: Default::default(),
-            reboot_cmd: "systemctl reboot".to_string(),
+            reboot_cmd: DEFAULT_REBOOT_CMD.to_string(),
             logout_cmd: "loginctl kill-user $(whoami)".to_string(),
             battery_format: SettingsFormat::IconAndPercentage,
             battery_hide_when_full: false,
