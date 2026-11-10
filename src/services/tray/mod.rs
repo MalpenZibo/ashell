@@ -113,14 +113,16 @@ fn pixmap_to_icon(icons: Vec<dbus::Icon>) -> Option<TrayIcon> {
 }
 
 async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Option<TrayIcon> {
-    if let Ok(icons) = item_proxy.icon_pixmap().await
-        && let Some(icon) = pixmap_to_icon(icons)
-    {
-        return Some(icon);
-    }
+    // The spec calls IconName the preferred source; IconPixmap is for when the
+    // host cannot resolve the name.
     if let Some(name) = item_proxy.icon_name().await.ok()
         && !name.is_empty()
         && let Some(icon) = icon_from_name(&name, &icon_theme_path(item_proxy).await)
+    {
+        return Some(icon);
+    }
+    if let Ok(icons) = item_proxy.icon_pixmap().await
+        && let Some(icon) = pixmap_to_icon(icons)
     {
         return Some(icon);
     }
