@@ -23,6 +23,7 @@ use std::{
     any::TypeId,
     collections::HashMap,
     ops::Deref,
+    path::Path,
     sync::atomic::{AtomicU32, Ordering},
     time::Duration,
 };
@@ -129,9 +130,11 @@ async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Op
     None
 }
 
-/// Looks `name` up in the item's `IconThemePath` first, then the icon theme.
+/// An absolute `IconName` path first, then the item's `IconThemePath`, then
+/// the icon theme.
 fn icon_from_name(name: &str, theme_path: &str) -> Option<TrayIcon> {
-    xdg_icons::get_icon_from_theme_path(theme_path, name)
+    xdg_icons::get_icon_from_file(Path::new(name))
+        .or_else(|| xdg_icons::get_icon_from_theme_path(theme_path, name))
         .or_else(|| xdg_icons::get_icon_from_name(name))
 }
 
