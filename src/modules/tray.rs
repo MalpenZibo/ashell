@@ -286,10 +286,11 @@ impl TrayModule {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
-        let (space, spacing, size, button_style) = use_theme(|theme| {
+        let (space, spacing, size, point_size, button_style) = use_theme(|theme| {
             (
                 theme.space,
                 theme.module_spacing(&ModuleName::Tray, 0.0),
+                theme.module_font_size(&ModuleName::Tray, theme.font_size.lg),
                 theme.module_font_size(&ModuleName::Tray, theme.font_size.md),
                 theme.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary),
             )
@@ -334,7 +335,7 @@ impl TrayModule {
                                             svg.into()
                                         }
                                     }
-                                    _ => icon(StaticIcon::Point).size(size).into(),
+                                    _ => icon(StaticIcon::Point).size(point_size).into(),
                                 };
                                 let open_app = Message::Activate(name.clone());
                                 let toggle_menu = move |r| Message::ToggleMenu(name.clone(), id, r);

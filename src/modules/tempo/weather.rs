@@ -98,7 +98,7 @@ impl Tempo {
                                         "../../../assets/weather_icon/drop.svg"
                                     )))
                                     .width(Length::Shrink)
-                                    .height(font_size.lg),
+                                    .height(font_size.xl),
                                     column!(
                                         text(t!("tempo-humidity"))
                                             .size(font_size.xs)
@@ -117,7 +117,7 @@ impl Tempo {
                                     svg(Handle::from_memory(include_bytes!(
                                         "../../../assets/weather_icon/wind.svg"
                                     )))
-                                    .height(font_size.lg)
+                                    .height(font_size.xl)
                                     .width(Length::Shrink)
                                     .rotation(
                                         Rotation::Floating(
@@ -197,7 +197,7 @@ impl Tempo {
                                     column!(
                                         text(format!("{}{temp}", temp_value.round())),
                                         weather_icon(*weather_code, *is_day > 0)
-                                            .height(font_size.md)
+                                            .height(font_size.lg)
                                             .width(Length::Shrink),
                                         text(display_time).size(font_size.sm)
                                     )
@@ -248,8 +248,8 @@ impl Tempo {
                                         .width(Length::FillPortion(5)),
                                         row!(
                                             weather_icon(*weather_code, true)
-                                                .height(font_size.md)
-                                                .width(Length::Fixed(font_size.md)),
+                                                .height(font_size.lg)
+                                                .width(Length::Fixed(font_size.lg)),
                                             text(format!(
                                                 "{}{temp}/{}{temp}",
                                                 temp_max.round(),

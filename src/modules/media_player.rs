@@ -348,7 +348,7 @@ impl MediaPlayer {
         container(match &self.service {
             None => Into::<Element<'a, Message>>::into(text(t!("media-player-not-connected"))),
             Some(service) => column!(
-                text(t!("media-player-heading")).size(font_size.lg),
+                text(t!("media-player-heading")).size(font_size.xl),
                 divider(),
                 container(scrollable(
                     column(service.players().iter().map(|d| {

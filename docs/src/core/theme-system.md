@@ -95,12 +95,14 @@ pub struct FontSize {
     pub xxs: f32,  // 8px
     pub xs: f32,   // 10px
     pub sm: f32,   // 12px
-    pub md: f32,   // 16px
-    pub lg: f32,   // 20px
-    pub xl: f32,   // 22px
+    pub md: f32,   // 14px
+    pub lg: f32,   // 16px
+    pub xl: f32,   // 20px
     pub xxl: f32,  // 32px
 }
 ```
+
+`md` matches the renderer's default text size (14px, set by iced_layershell), so text with no explicit size and text at `md` look the same.
 
 ## Bar Surface
 
@@ -127,7 +129,7 @@ The island and the text color are applied around each module in `src/modules/mod
 
 ### Bar height
 
-`BarLayout::content_height` is `HEIGHT` (26px), or more when the `font_size` of a module in `[modules]` needs it: each module keeps around its tallest element the 10px that `HEIGHT` leaves around `md` text, the largest that fits it. That element is the text, or for workspaces the button, whose height `workspace_button_height` gives to both the view and the layout. `BarLayout::height()` adds the vertical padding, and sizes both the layer surface and the bar view. Since `BarLayout` is compared on config reload, a new `font_size`, or a module added to or removed from the layout, resizes the bar. The theme keeps the whole `BarLayout` in `bar_layout`, so views read it without the module layout.
+`BarLayout::content_height` is `HEIGHT` (26px), or more when the `font_size` of a module in `[modules]` needs it: each module keeps around its tallest element the 10px that `HEIGHT` leaves around `lg` text, the largest that fits it. That element is the text, or for workspaces the button, whose height `workspace_button_height` gives to both the view and the layout. `BarLayout::height()` adds the vertical padding, and sizes both the layer surface and the bar view. Since `BarLayout` is compared on config reload, a new `font_size`, or a module added to or removed from the layout, resizes the bar. The theme keeps the whole `BarLayout` in `bar_layout`, so views read it without the module layout.
 
 `bar_scale()` is `bar_layout.content_height / HEIGHT`. The bar and island radii are multiplied by it, so they keep their shape as the bar grows; a workspace button is rounded to half its own height. `module_item` also keeps each module at least as wide as it is tall, from `bar_layout.content_height` minus the island's vertical padding, so a module showing a single icon stays round.
 

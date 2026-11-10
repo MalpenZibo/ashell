@@ -666,7 +666,7 @@ impl SystemInfo {
             .map(|network| rows(network).into());
 
         Column::new()
-            .push(text(t!("system-info-heading")).size(font_size.lg))
+            .push(text(t!("system-info-heading")).size(font_size.xl))
             .push(card(
                 (!resources.is_empty()).then(|| rows(resources).into()),
             ))
