@@ -132,7 +132,7 @@ The island and the text color are applied around each module in `src/modules/mod
 
 `BarLayout::content_height` is `HEIGHT` (26px), or more when the `font_size` of a module in `[modules]` needs it: each module keeps the room it has around its text at its built-in size, 10px around `md` text, 16px for the workspace buttons around `xs`. `BarLayout::height()` adds the vertical padding, and sizes both the layer surface and the bar view. Since `BarLayout` is compared on config reload, a new `font_size`, or a module added to or removed from the layout, resizes the bar. The theme keeps the content height in `bar_content_height`, so `bar_layout()` returns the same `BarLayout` without the module layout.
 
-`bar_scale()` is `bar_content_height / HEIGHT`. The bar, island and workspace button radii are multiplied by it, so they keep their shape as the bar grows.
+`bar_scale()` is `bar_content_height / HEIGHT`. The bar, island and workspace button radii are multiplied by it, so they keep their shape as the bar grows. `module_item` also keeps each module at least as wide as it is tall, from `bar_content_height` minus the island's vertical padding, so a module showing a single icon stays round.
 
 ## Color System
 

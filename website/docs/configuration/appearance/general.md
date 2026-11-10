@@ -346,7 +346,8 @@ next to the time, keep theirs.
 
 The bar gets taller when the text of a module in `[modules]` no longer fits:
 above `xs` for `workspaces`, above `md` for the other modules. The corners of the bar, the
-islands and the workspaces grow with it to keep their shape.
+islands and the workspaces grow with it to keep their shape, and a module is
+at least as wide as the bar is tall, so the island of a single icon stays round.
 
 ## Menu Backdrop
 
