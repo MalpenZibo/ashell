@@ -323,7 +323,7 @@ step of the font scale:
 
 | Step | `xxs` | `xs` | `sm` | `md` | `lg` | `xl` | `xxl` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Size (px) | 8 | 10 | 12 | 16 | 20 | 22 | 32 |
+| Size (px) | 8 | 10 | 12 | 14 | 16 | 20 | 32 |
 
 When unset, each module keeps its own sizes. Secondary texts, like the weather
 next to the time, keep theirs.
@@ -339,13 +339,13 @@ next to the time, keep theirs.
 | `settings` | The icons and texts of the indicators | `md` |
 | `system_info` | The icons and the values | `md` |
 | `tempo` | The time | `md` |
-| `tray` | The icons | `md` |
+| `tray` | The icons | `lg` |
 | `updates` | The icon and the count; the spinner shown while checking keeps its size in proportion | `md` |
 | `window_title` | The title | `sm` |
 | `workspaces` | The names and icons; the buttons grow with them | `xs` |
 
 The bar gets taller when the text of a module in `[modules]` no longer fits:
-above `xs` for `workspaces`, above `md` for the other modules. The corners of the bar, the
+above `xs` for `workspaces`, above `lg` for the other modules. The corners of the bar, the
 islands and the workspaces grow with it to keep their shape, and a module is
 at least as wide as the bar is tall, so the island of a single icon stays round.
 

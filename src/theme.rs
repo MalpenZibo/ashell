@@ -122,9 +122,9 @@ impl BarLayout {
     pub fn from_appearance(appearance: &Appearance, layout: &Modules) -> Self {
         let bar = &appearance.bar;
         let (space, font_size) = (Space::default(), FontSize::default());
-        // The room `HEIGHT` leaves around `md` text, the largest that fits it,
+        // The room `HEIGHT` leaves around `lg` text, the largest that fits it,
         // kept around each module's tallest element.
-        let room = HEIGHT - f64::from(font_size.md);
+        let room = HEIGHT - f64::from(font_size.lg);
         let content_height = appearance
             .modules
             .overrides
@@ -188,9 +188,9 @@ impl Default for FontSize {
             xxs: 8.0,
             xs: 10.0,
             sm: 12.0,
-            md: 16.0,
-            lg: 20.0,
-            xl: 22.0,
+            md: 14.0,
+            lg: 16.0,
+            xl: 20.0,
             xxl: 32.0,
         }
     }

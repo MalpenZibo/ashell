@@ -132,8 +132,8 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
 
         let (padding, icon_size) = match value.size {
             ButtonSize::Small => ([space.xxs, space.sm], font_size.sm),
-            ButtonSize::Medium => ([space.xs, space.md], font_size.md),
-            ButtonSize::Large => ([space.sm, space.xl], font_size.lg),
+            ButtonSize::Medium => ([space.xs, space.md], font_size.lg),
+            ButtonSize::Large => ([space.sm, space.xl], font_size.xl),
         };
 
         let (icon_element, icon_position) = match value.icon {

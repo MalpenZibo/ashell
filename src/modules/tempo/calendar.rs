@@ -122,7 +122,7 @@ impl Tempo {
                         selected_date.checked_sub_months(Months::new(1)),
                     )),
                 text(selected_date.format_localized("%B", locale).to_string())
-                    .size(theme.font_size.md)
+                    .size(theme.font_size.lg)
                     .width(Length::Fill)
                     .align_x(Horizontal::Center),
                 icon_button::<Message>(StaticIcon::RightChevron)
@@ -249,7 +249,7 @@ impl Tempo {
                     text(self.date.format_localized("%A", locale).to_string())
                         .size(theme.font_size.sm),
                     text(self.date.format_localized("%d %B %Y", locale).to_string())
-                        .size(theme.font_size.md),
+                        .size(theme.font_size.lg),
                 )
                 .spacing(theme.space.xs),
             ),)
