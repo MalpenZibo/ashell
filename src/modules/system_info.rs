@@ -3,8 +3,8 @@ use crate::{
     components::icons::{StaticIcon, icon},
     components::{scrollable, sub_menu_wrapper},
     config::{
-        CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
-        TemperatureSensor, TemperatureSensorType,
+        CpuFormat, DiskFormat, MemoryFormat, ModuleName, SystemInfoIndicator,
+        SystemInfoModuleConfig, TemperatureSensor, TemperatureSensorType,
     },
     theme::{lerp_color, use_theme},
     utils,
@@ -667,7 +667,7 @@ impl SystemInfo {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space = use_theme(|t| t.space);
+        let spacing = use_theme(|t| t.module_spacing(&ModuleName::SystemInfo, t.space.xxs));
         let data = self.data.as_ref();
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemInfoIndicator::Cpu => data.map(|data| {
@@ -819,7 +819,7 @@ impl SystemInfo {
 
         Row::with_children(indicators)
             .align_y(Alignment::Center)
-            .spacing(space.xxs)
+            .spacing(spacing)
             .into()
     }
 

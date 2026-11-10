@@ -252,7 +252,7 @@ pill behind it with `surface = "transparent"`. Islands are styled under
 | `padding` | ✓ | ✓ | ✓ | Space inside the island, same values and shorthand as [`bar.padding`](#padding). Defaults to `none` |
 | `border` | ✓ | ✓ | ✓ | `{ width, color }`, like [`bar.border`](#border). No border by default |
 | `background` | ✓ | ✓ | ✓ | A [color](#colors). Defaults to `background` |
-| `spacing` | | ✓ | | Space between the modules of a group, same values as `bar.margin`. Defaults to `none` |
+| `spacing` | | ✓ | ✓ | Same values as `bar.margin`. For a group, the space between its modules, defaulting to `none`. For a module, the space between its own elements, see [below](#module-spacing) |
 | `text_color` | | | ✓ | Text color of the module, a [color](#colors). Also applies inside a group |
 
 For modules and groups, `border` falls back to `default.border` as a whole table.
@@ -286,10 +286,31 @@ spacing = "xs"
 radius = "md"
 border = { width = 1, color = "#414868" }
 text_color = "primary"
+spacing = "xs"
 
 [appearance.modules.custom.my_custom_module]
 background = "primary.weak"
 ```
+
+### Module Spacing
+
+A module's `spacing` is the space between the elements it shows. When unset,
+each module keeps its own value:
+
+| Module | Space between | Default |
+| --- | --- | --- |
+| `custom.<name>` | The icon and the text of a button | `xs` |
+| `media_player` | The icon, the text and the visualizer | `xs` |
+| `privacy` | The icons | `xs` |
+| `settings` | The indicators | `xs` |
+| `system_info` | The indicators | `xxs` |
+| `tempo` | The weather and the time | `sm` |
+| `tray` | The icons | `none` |
+| `updates` | The icon and the count | `xxs` |
+| `workspaces` | The workspaces | `xxs` |
+
+The other modules show a single element, so `spacing` has no effect on them.
+It also applies inside a group.
 
 ## Menu Backdrop
 

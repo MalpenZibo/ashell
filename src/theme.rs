@@ -611,6 +611,16 @@ impl AshellTheme {
         self.modules.overrides.get(name).and_then(|m| m.text_color)
     }
 
+    /// Space between a module's own elements: its override, else `default`,
+    /// the module's built-in value.
+    pub fn module_spacing(&self, name: &ModuleName, default: f32) -> f32 {
+        self.modules
+            .overrides
+            .get(name)
+            .and_then(|m| m.spacing)
+            .map_or(default, Into::into)
+    }
+
     pub fn group_spacing(&self) -> f32 {
         self.modules.group.spacing.map_or(0.0, Into::into)
     }
