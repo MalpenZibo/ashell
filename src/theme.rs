@@ -121,7 +121,10 @@ pub struct BarLayout {
 impl BarLayout {
     pub fn from_appearance(appearance: &Appearance, layout: &Modules) -> Self {
         let bar = &appearance.bar;
-        let font_size = FontSize::default();
+        let (space, font_size) = (Space::default(), FontSize::default());
+        // The room `HEIGHT` leaves around `md` text, the largest that fits it,
+        // kept around each module's tallest element.
+        let room = HEIGHT - f64::from(font_size.md);
         let content_height = appearance
             .modules
             .overrides
@@ -129,13 +132,12 @@ impl BarLayout {
             .filter(|(name, _)| layout.contains(name))
             .filter_map(|(name, style)| style.font_size.map(|size| (name, size)))
             .map(|(name, size)| {
-                // Keep the room each module has around its text at its
-                // built-in size: workspaces have buttons around `xs` text.
-                let built_in = match name {
-                    ModuleName::Workspaces => font_size.xs,
-                    _ => font_size.md,
+                let size = font_size.resolve(size);
+                let tallest = match name {
+                    ModuleName::Workspaces => workspace_button_height(&space, &font_size, size),
+                    _ => size,
                 };
-                f64::from(font_size.resolve(size)) + HEIGHT - f64::from(built_in)
+                f64::from(tallest) + room
             })
             .fold(HEIGHT, f64::max);
 
@@ -159,12 +161,16 @@ impl BarLayout {
 
     /// The content height plus the vertical padding.
     pub fn height(&self) -> f64 {
-        let p = self.padding();
-        self.content_height + f64::from(p.top + p.bottom)
+        self.content_height + f64::from(self.padding().y())
     }
 }
 
-#[allow(unused)]
+/// Height of a workspace button around text of `font_size`: sized for `xs`
+/// text, it grows with it.
+pub fn workspace_button_height(space: &Space, font: &FontSize, font_size: f32) -> f32 {
+    space.md + (font_size - font.xs).max(0.0)
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct FontSize {
     pub xxs: f32,
@@ -232,12 +238,9 @@ pub struct AshellTheme {
     pub radius: Radius,
     pub font_size: FontSize,
     pub bar_position: Position,
-    pub bar_surface: BarSurface,
     pub bar_radius: BarRadius,
-    pub bar_margin: BarMargin,
-    pub bar_padding: BarPadding,
     pub bar_border: config::Border,
-    pub bar_content_height: f64,
+    pub bar_layout: BarLayout,
     pub modules: ModulesAppearance,
     pub menu: MenuAppearance,
     pub workspace_colors: Vec<AppearanceColor>,
@@ -581,12 +584,9 @@ fn base_theme_from_appearance(
         radius: Radius::default(),
         font_size: FontSize::default(),
         bar_position,
-        bar_surface: appearance.bar.surface,
         bar_radius: appearance.bar.radius,
-        bar_margin: appearance.bar.margin,
-        bar_padding: appearance.bar.padding,
         bar_border: appearance.bar.border,
-        bar_content_height: BarLayout::from_appearance(appearance, layout).content_height,
+        bar_layout: BarLayout::from_appearance(appearance, layout),
         modules: appearance.modules.clone(),
         menu: appearance.menu,
         workspace_colors: appearance.workspace_colors.clone(),
@@ -619,19 +619,10 @@ impl AshellTheme {
         &self.surfaces[surface as usize]
     }
 
-    pub fn bar_layout(&self) -> BarLayout {
-        BarLayout {
-            surface: self.bar_surface,
-            margin: self.bar_margin,
-            padding: self.bar_padding,
-            content_height: self.bar_content_height,
-        }
-    }
-
     /// How much taller than `HEIGHT` the bar content is, to round the bar,
     /// the islands and the workspace buttons in proportion.
     pub fn bar_scale(&self) -> f32 {
-        (self.bar_content_height / HEIGHT) as f32
+        (self.bar_layout.content_height / HEIGHT) as f32
     }
 
     pub fn bar_border_radius(&self) -> border::Radius {
@@ -964,8 +955,9 @@ impl AshellTheme {
         is_urgent: bool,
         is_active: bool,
         colors: Option<Option<AppearanceColor>>,
+        height: f32,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
-        let radius_lg = self.radius.lg * self.bar_scale();
+        let radius = height / 2.0;
         move |theme: &Theme, status: Status| {
             // An active or urgent workspace is a mark drawn on the bar, so it
             // stays opaque; everything else is part of the bar and fades with it.
@@ -1023,7 +1015,7 @@ impl AshellTheme {
                     } else {
                         bg_weak
                     },
-                    radius: radius_lg.into(),
+                    radius: radius.into(),
                 },
                 text_color: if is_urgent && is_empty {
                     theme.extended_palette().danger.base.text

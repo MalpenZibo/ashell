@@ -83,13 +83,13 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
             (
                 theme.space,
                 theme.module_button_style(item.island_style),
-                theme.bar_content_height as f32,
+                theme.bar_layout.content_height as f32,
             )
         });
         // As wide as it is tall at least, so the island of a narrow module
         // stays round when a taller module grows the bar.
         let padding = item.island_style.padding;
-        let min_width = bar_height - padding.top - padding.bottom;
+        let min_width = bar_height - padding.y();
 
         // A module can bind only, say, right-click or scroll, so the button has
         // to be built whenever any handler is set, not just on left press.
@@ -105,8 +105,7 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
                     .padding([0.0, 1.0])
                     .align_y(Alignment::Center)
                     .height(Length::Fill)
-                    .clip(true)
-                    .into(),
+                    .clip(true),
                 min_width - 2.0 * (space.xs - 1.0),
             ))
             .padding([0.0, space.xs - 1.0])
@@ -148,8 +147,7 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
                     .padding([0.0, space.xs])
                     .height(Length::Fill)
                     .align_y(Alignment::Center)
-                    .clip(true)
-                    .into(),
+                    .clip(true),
                 min_width,
             )
         }
@@ -157,8 +155,8 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
 }
 
 /// Widens `content` to `width` when it is narrower, keeping it centered.
-fn at_least<'a, Msg: 'a>(content: Element<'a, Msg>, width: f32) -> Element<'a, Msg> {
-    column![Space::new().width(width.max(0.0)), content]
+fn at_least<'a, Msg: 'a>(content: impl Into<Element<'a, Msg>>, width: f32) -> Element<'a, Msg> {
+    column![Space::new().width(width.max(0.0)), content.into()]
         .align_x(Alignment::Center)
         .height(Length::Fill)
         .into()

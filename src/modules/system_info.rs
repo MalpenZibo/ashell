@@ -527,14 +527,14 @@ impl SystemInfo {
                 t.animations_enabled,
             )
         });
+        let content = move |label: String| {
+            row!(icon(info_icon).size(font_size), text(label).size(font_size))
+                .spacing(spacing)
+                .align_y(Alignment::Center)
+        };
 
         let Some((value, warn_threshold, alert_threshold)) = threshold else {
-            return container(
-                row!(icon(info_icon).size(font_size), text(label).size(font_size))
-                    .spacing(spacing)
-                    .align_y(Alignment::Center),
-            )
-            .into();
+            return container(content(label)).into();
         };
 
         // 0.0 = normal, 1.0 = warning, 2.0 = danger. Animating through the
@@ -550,33 +550,22 @@ impl SystemInfo {
 
         if animations_enabled {
             AnimationBuilder::new(target, move |t| {
-                container(
-                    row!(
-                        icon(info_icon).size(font_size),
-                        text(label.clone()).size(font_size)
-                    )
-                    .spacing(spacing)
-                    .align_y(Alignment::Center),
-                )
-                .style(move |theme: &Theme| container::Style {
-                    text_color: Some(severity_color(theme, t)),
-                    ..Default::default()
-                })
-                .into()
+                container(content(label.clone()))
+                    .style(move |theme: &Theme| container::Style {
+                        text_color: Some(severity_color(theme, t)),
+                        ..Default::default()
+                    })
+                    .into()
             })
             .animation(Easing::EASE.quick())
             .into()
         } else {
-            container(
-                row!(icon(info_icon).size(font_size), text(label).size(font_size))
-                    .spacing(spacing)
-                    .align_y(Alignment::Center),
-            )
-            .style(move |theme: &Theme| container::Style {
-                text_color: Some(severity_color(theme, target)),
-                ..Default::default()
-            })
-            .into()
+            container(content(label))
+                .style(move |theme: &Theme| container::Style {
+                    text_color: Some(severity_color(theme, target)),
+                    ..Default::default()
+                })
+                .into()
         }
     }
 

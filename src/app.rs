@@ -264,7 +264,7 @@ impl App {
                     self.general_config.outputs, config.outputs
                 );
                 let (bar_position, bar_layout, scale_factor) =
-                    use_theme(|t| (t.bar_position, t.bar_layout(), t.scale_factor));
+                    use_theme(|t| (t.bar_position, t.bar_layout, t.scale_factor));
                 let new_layout = BarLayout::from_appearance(&config.appearance, &config.modules);
                 if self.general_config.outputs != config.outputs
                     || bar_position != config.position
@@ -472,7 +472,7 @@ impl App {
                     };
 
                     let (bar_layout, bar_position, scale_factor) =
-                        use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
+                        use_theme(|t| (t.bar_layout, t.bar_position, t.scale_factor));
                     let task = self.outputs.add(
                         bar_layout,
                         &self.general_config.outputs,
@@ -494,7 +494,7 @@ impl App {
                 OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
                     let (bar_layout, bar_position, scale_factor) =
-                        use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
+                        use_theme(|t| (t.bar_layout, t.bar_position, t.scale_factor));
                     self.outputs.remove(
                         bar_layout,
                         bar_position,
@@ -531,7 +531,7 @@ impl App {
             }
             Message::ResumeFromSleep => {
                 let (bar_layout, bar_position, scale_factor) =
-                    use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
+                    use_theme(|t| (t.bar_layout, t.bar_position, t.scale_factor));
                 self.outputs.sync(
                     bar_layout,
                     &self.general_config.outputs,
@@ -676,13 +676,13 @@ impl App {
                 ) = use_theme(|t| {
                     (
                         t.space,
-                        t.bar_surface,
+                        t.bar_layout.surface,
                         t.menu,
                         t.animations_enabled,
                         t.bar_border_radius(),
                         t.bar_border,
                         t.surface(Surface::Bar).blur,
-                        t.bar_layout(),
+                        t.bar_layout,
                     )
                 });
                 let centerbox = Centerbox::new([left, center, right])

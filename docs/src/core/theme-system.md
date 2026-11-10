@@ -12,12 +12,9 @@ pub struct AshellTheme {
     pub radius: Radius,                                       // Border radius tokens
     pub font_size: FontSize,                                  // Font size tokens
     pub bar_position: Position,                               // Top or Bottom
-    pub bar_surface: BarSurface,                              // transparent or solid
     pub bar_radius: BarRadius,                                // per-corner radius (CSS shorthand)
-    pub bar_margin: BarMargin,                                // per-edge margin (CSS shorthand)
-    pub bar_padding: BarPadding,                              // per-edge padding (CSS shorthand)
     pub bar_border: config::Border,                           // bar outline
-    pub bar_content_height: f64,                              // BarLayout::content_height
+    pub bar_layout: BarLayout,                                // surface, margin, padding, content height
     pub modules: ModulesAppearance,                           // [appearance.modules]
     pub menu: MenuAppearance,                                 // Menu-specific styling
     pub workspace_colors: Vec<AppearanceColor>,               // Per-workspace color cycling
@@ -130,9 +127,9 @@ The island and the text color are applied around each module in `src/modules/mod
 
 ### Bar height
 
-`BarLayout::content_height` is `HEIGHT` (26px), or more when the `font_size` of a module in `[modules]` needs it: each module keeps the room it has around its text at its built-in size, 10px around `md` text, 16px for the workspace buttons around `xs`. `BarLayout::height()` adds the vertical padding, and sizes both the layer surface and the bar view. Since `BarLayout` is compared on config reload, a new `font_size`, or a module added to or removed from the layout, resizes the bar. The theme keeps the content height in `bar_content_height`, so `bar_layout()` returns the same `BarLayout` without the module layout.
+`BarLayout::content_height` is `HEIGHT` (26px), or more when the `font_size` of a module in `[modules]` needs it: each module keeps around its tallest element the 10px that `HEIGHT` leaves around `md` text, the largest that fits it. That element is the text, or for workspaces the button, whose height `workspace_button_height` gives to both the view and the layout. `BarLayout::height()` adds the vertical padding, and sizes both the layer surface and the bar view. Since `BarLayout` is compared on config reload, a new `font_size`, or a module added to or removed from the layout, resizes the bar. The theme keeps the whole `BarLayout` in `bar_layout`, so views read it without the module layout.
 
-`bar_scale()` is `bar_content_height / HEIGHT`. The bar, island and workspace button radii are multiplied by it, so they keep their shape as the bar grows. `module_item` also keeps each module at least as wide as it is tall, from `bar_content_height` minus the island's vertical padding, so a module showing a single icon stays round.
+`bar_scale()` is `bar_layout.content_height / HEIGHT`. The bar and island radii are multiplied by it, so they keep their shape as the bar grows; a workspace button is rounded to half its own height. `module_item` also keeps each module at least as wide as it is tall, from `bar_layout.content_height` minus the island's vertical padding, so a module showing a single icon stays round.
 
 ## Color System
 
@@ -162,7 +159,7 @@ Colors map to iced's `Extended` palette system with `base`, `strong`, `weak`, an
 | `button_style(kind, hierarchy)` | General buttons (`ButtonKind`: Solid/Transparent/Outline; `ButtonHierarchy`: Primary/Secondary/Danger) |
 | `quick_settings_button_style(active)` | Quick settings toggles |
 | `quick_settings_submenu_button_style(active)` | Quick settings submenu toggles |
-| `workspace_button_style(is_empty, is_urgent, is_active, colors)` | Workspace indicator buttons |
+| `workspace_button_style(is_empty, is_urgent, is_active, colors, height)` | Workspace indicator buttons |
 
 Each method returns a closure compatible with iced's button styling API:
 
@@ -191,10 +188,8 @@ fn base_theme_from_appearance(appearance: &Appearance, layout: &Modules, bar_pos
         radius: Radius::default(),
         font_size: FontSize::default(),
         bar_position,
-        bar_surface: appearance.bar.surface,
         bar_radius: appearance.bar.radius,
-        bar_margin: appearance.bar.margin,
-        bar_padding: appearance.bar.padding,
+        bar_layout: BarLayout::from_appearance(appearance, layout),
         // ...
     }
 }
