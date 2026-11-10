@@ -341,8 +341,9 @@ fn webcam_listener() -> anyhow::Result<WebcamEvents> {
             warn!("Failed to watch {}: {err}", path.display());
         }
     }
-    // Webcams plugged in later get a watch when their node appears.
-    let dev_wd = watches.add(DEV_DIR, WatchMask::CREATE)?;
+    // Webcams plugged in later get a watch once udev grants access: the node
+    // is created root-only, so the CREATE watch fails and ATTRIB retries it.
+    let dev_wd = watches.add(DEV_DIR, WatchMask::CREATE | WatchMask::ATTRIB)?;
 
     let buffer = [0; 1024];
     Ok(Box::new(
@@ -357,8 +358,9 @@ fn webcam_listener() -> anyhow::Result<WebcamEvents> {
                                 && name.to_string_lossy().starts_with("video")
                             {
                                 let path = Path::new(DEV_DIR).join(name);
+                                // Expected to fail until udev grants access.
                                 if let Err(err) = watches.add(&path, webcam_watch_mask()) {
-                                    warn!("Failed to watch {}: {err}", path.display());
+                                    debug!("Not watching {} yet: {err}", path.display());
                                 }
                             }
                             None
