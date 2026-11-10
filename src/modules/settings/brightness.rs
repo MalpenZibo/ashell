@@ -48,16 +48,22 @@ impl BrightnessSettings {
         (5 * max / 100).max(1)
     }
 
+    /// One step from `current`. Down stops at 1, not 0: a raw 0 blanks the
+    /// panel, and kernel backlights treat 1 as their lowest usable level.
+    fn stepped(current: u32, max: u32, up: bool) -> u32 {
+        let step = Self::step(max);
+        if up {
+            (current + step).min(max)
+        } else {
+            current.saturating_sub(step).max(max.min(1))
+        }
+    }
+
     pub fn brightness_adjust(&mut self, up: bool) -> Action {
         let Some((cur, max)) = self.current_brightness() else {
             return Action::None;
         };
-        let step = Self::step(max);
-        let new_val = if up {
-            (cur + step).min(max)
-        } else {
-            cur.saturating_sub(step)
-        };
+        let new_val = Self::stepped(cur, max, up);
         self.update(Message::Changed(remote_value::Message::RequestAndTimeout(
             new_val,
         )))
@@ -66,12 +72,7 @@ impl BrightnessSettings {
     fn on_scroll(current: u32, max: u32) -> impl Fn(ScrollDelta) -> Message {
         move |delta| {
             let y = crate::utils::scroll_delta_y(delta);
-            let step = Self::step(max);
-            let new = if y > 0.0 {
-                (current + step).min(max)
-            } else {
-                current.saturating_sub(step)
-            };
+            let new = Self::stepped(current, max, y > 0.0);
             Message::Changed(remote_value::Message::RequestAndTimeout(new))
         }
     }
@@ -155,5 +156,24 @@ impl BrightnessSettings {
             .checked_div(service.max)
             .unwrap_or(0); // Always show 0%, if max_brightness happens to be 0
         text(format!("{percent}%"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BrightnessSettings;
+
+    #[test]
+    fn stepping_down_never_reaches_zero() {
+        assert_eq!(BrightnessSettings::stepped(5, 100, false), 1);
+        assert_eq!(BrightnessSettings::stepped(1, 100, false), 1);
+        assert_eq!(BrightnessSettings::stepped(0, 100, false), 1);
+    }
+
+    #[test]
+    fn stepping_stays_inside_the_device_range() {
+        assert_eq!(BrightnessSettings::stepped(98, 100, true), 100);
+        assert_eq!(BrightnessSettings::stepped(100, 100, true), 100);
+        assert_eq!(BrightnessSettings::stepped(1, 1, false), 1);
     }
 }
