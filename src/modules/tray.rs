@@ -341,6 +341,9 @@ impl TrayModule {
 
                                 let mut btn = position_button(icon_content);
                                 btn = match &self.right_click {
+                                    _ if !item.has_menu() => btn
+                                        .on_press(open_app.clone())
+                                        .on_right_press(open_app.clone()),
                                     None => btn.on_press_with_position(toggle_menu.clone()),
                                     Some(TrayClickAction::Open) => btn
                                         .on_press_with_position(toggle_menu.clone())
@@ -368,9 +371,10 @@ impl TrayModule {
             .service
             .as_ref()
             .and_then(|service| service.data.iter().find(|item| item.name == name))
+            .and_then(|item| item.menu.as_ref())
         {
-            Some(item) => Column::with_children(
-                renderable_children(&item.menu.2).map(|menu| self.menu_voice(name, menu)),
+            Some(menu) => Column::with_children(
+                renderable_children(&menu.2).map(|menu| self.menu_voice(name, menu)),
             )
             .spacing(space.xs),
             _ => Column::new(),
