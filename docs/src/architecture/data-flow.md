@@ -156,7 +156,7 @@ ashell subscribes to many event sources:
 | PulseAudio | libpulse mainloop on dedicated thread | Volume changes, device hotplug |
 | D-Bus (BlueZ, NM, UPower, etc.) | zbus signal watchers | Device state changes |
 | Config file | inotify | `ConfigChanged` |
-| System signals | signal-hook | `SIGUSR1` → `ToggleVisibility` |
+| System signals | signal-hook-tokio | `SIGUSR1` → `ToggleVisibility` |
 | Timers | iced `time::every`, `tokio::time::interval` | Periodic updates (Tempo, system info) |
 | Wayland | `iced::output_events()` | Output add/remove (`OutputEvent`) |
 | systemd-logind | D-Bus | Sleep/wake (`ResumeFromSleep`) |

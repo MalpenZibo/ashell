@@ -110,14 +110,6 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     match cmd {
         CompositorCommand::FocusWorkspace(id) => focus_workspace(id).await,
-        CompositorCommand::ScrollWorkspace(dir) => {
-            let func = if dir > 0 {
-                "viewtoleft_have_client"
-            } else {
-                "viewtoright_have_client"
-            };
-            dispatch(func).await
-        }
         CompositorCommand::NextLayout => dispatch("switch_keyboard_layout").await,
         CompositorCommand::CustomDispatch(dispatcher, args) => {
             let func = if args.is_empty() {

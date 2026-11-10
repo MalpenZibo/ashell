@@ -66,7 +66,7 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 | `anyhow` | 1 | Error handling |
 | `log` | 0.4 | Logging facade |
 | `flexi_logger` | 0.31 | Logging implementation |
-| `signal-hook` | 0.4.3 | Unix signal handling (SIGUSR1) |
+| `signal-hook-tokio` | 0.4 | Unix signal handling (SIGUSR1) |
 | `reqwest` | 0.13 | HTTP client (weather data, media artwork) |
 | `url` | 2.5.7 | URL parsing |
 | `shellexpand` | 3 | Tilde/env var expansion in paths |

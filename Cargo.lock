@@ -165,7 +165,6 @@ dependencies = [
  "serde_json",
  "serde_with",
  "shellexpand",
- "signal-hook",
  "signal-hook-tokio",
  "sysinfo",
  "tokio",
