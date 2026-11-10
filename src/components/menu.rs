@@ -308,7 +308,7 @@ impl App {
             (
                 t.space,
                 t.radius,
-                t.bar_surface,
+                t.bar_layout.surface,
                 t.bar_position,
                 t.menu.backdrop,
                 t.surface(Surface::Menu).blur,

@@ -4,14 +4,15 @@ use crate::{
 use iced::{
     Alignment, Element, Theme,
     mouse::ScrollDelta,
-    widget::{MouseArea, container, row},
+    widget::{MouseArea, Text, container, row},
 };
 
 pub struct FormatIndicator<'a, Msg> {
     format: SettingsFormat,
     icon: IconKind,
-    label_element: Element<'a, Msg>,
+    label: Text<'a>,
     state: IndicatorState,
+    size: f32,
     on_scroll: Option<Box<dyn Fn(ScrollDelta) -> Msg + 'a>>,
     on_right_press: Option<Msg>,
 }
@@ -19,14 +20,16 @@ pub struct FormatIndicator<'a, Msg> {
 pub fn format_indicator<'a, Msg: 'static + Clone>(
     format: SettingsFormat,
     icon: impl Into<IconKind>,
-    label_element: Element<'a, Msg>,
+    label: Text<'a>,
     state: IndicatorState,
+    size: f32,
 ) -> FormatIndicator<'a, Msg> {
     FormatIndicator {
         format,
         icon: icon.into(),
-        label_element,
+        label,
         state,
+        size,
         on_scroll: None,
         on_right_press: None,
     }
@@ -47,17 +50,19 @@ impl<'a, Msg: 'static + Clone> FormatIndicator<'a, Msg> {
 impl<'a, Msg: 'static + Clone> From<FormatIndicator<'a, Msg>> for Element<'a, Msg> {
     fn from(fi: FormatIndicator<'a, Msg>) -> Self {
         let space = use_theme(|theme| theme.space);
+        let icon = fi.icon.to_text().size(fi.size);
+        let label = fi.label.size(fi.size);
 
         let content = match fi.format {
-            SettingsFormat::Icon => fi.icon.to_text().into(),
+            SettingsFormat::Icon => icon.into(),
             SettingsFormat::Percentage
             | SettingsFormat::Time
             | SettingsFormat::Name
-            | SettingsFormat::PercentageAndTime => fi.label_element,
+            | SettingsFormat::PercentageAndTime => label.into(),
             SettingsFormat::IconAndPercentage
             | SettingsFormat::IconAndTime
             | SettingsFormat::IconAndName
-            | SettingsFormat::IconAndPercentageAndTime => row![fi.icon.to_text(), fi.label_element]
+            | SettingsFormat::IconAndPercentageAndTime => row![icon, label]
                 .spacing(space.xxs)
                 .align_y(Alignment::Center)
                 .into(),

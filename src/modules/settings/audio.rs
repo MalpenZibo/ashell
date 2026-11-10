@@ -390,8 +390,9 @@ impl AudioSettings {
                 format_indicator(
                     self.config.indicator_format,
                     icon_type,
-                    Self::vol_text(volume).into(),
+                    Self::vol_text(volume),
                     IndicatorState::Normal,
+                    super::Settings::indicator_size(),
                 )
                 .on_right_press(Message::OpenMore)
                 .on_scroll(Self::on_scroll(
@@ -417,8 +418,9 @@ impl AudioSettings {
                 format_indicator(
                     self.config.microphone_indicator_format,
                     icon_type,
-                    Self::vol_text(volume).into(),
+                    Self::vol_text(volume),
                     IndicatorState::Normal,
+                    super::Settings::indicator_size(),
                 )
                 .on_right_press(Message::OpenSourceMore)
                 .on_scroll(Self::on_scroll(

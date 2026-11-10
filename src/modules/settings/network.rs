@@ -394,8 +394,9 @@ impl NetworkSettings {
                     format_indicator(
                         self.config.indicator_format,
                         icon_type,
-                        text(label).into(),
+                        text(label),
                         state,
+                        super::Settings::indicator_size(),
                     )
                     .on_right_press(Message::OpenMore)
                     .into()
@@ -407,8 +408,9 @@ impl NetworkSettings {
                     format_indicator(
                         self.config.indicator_format,
                         StaticIcon::Wifi0,
-                        text(label).into(),
+                        text(label),
                         IndicatorState::Normal,
+                        super::Settings::indicator_size(),
                     )
                     .on_right_press(Message::OpenMore)
                     .into()
@@ -426,7 +428,7 @@ impl NetworkSettings {
                 .map(|a| {
                     let icon_type = a.get_icon();
 
-                    container(icon(icon_type))
+                    container(icon(icon_type).size(super::Settings::indicator_size()))
                         .style(|theme: &Theme| container::Style {
                             text_color: Some(theme.palette().warning),
                             ..Default::default()

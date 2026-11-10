@@ -7,7 +7,7 @@ use crate::{
 };
 use iced::widget::canvas;
 use iced::{
-    Element, Length, Subscription, SurfaceId, Theme,
+    Alignment, Element, Length, Subscription, SurfaceId, Theme,
     stream::channel,
     widget::{Space, Stack, column, row, text},
 };
@@ -171,8 +171,13 @@ impl Custom {
 
     pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
         let name = ModuleName::Custom(self.config.name.clone());
-        let (space, spacing) =
-            use_theme(|theme| (theme.space, theme.module_spacing(&name, theme.space.xs)));
+        let (space, spacing, font_size) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.module_spacing(&name, theme.space.xs),
+                theme.module_font_size(&name, theme.font_size.md),
+            )
+        });
         let content = match self.config.r#type {
             crate::config::CustomModuleType::Text => self
                 .data
@@ -180,7 +185,7 @@ impl Custom {
                 .as_ref()
                 .and_then(|text_content| {
                     if !text_content.is_empty() {
-                        Some(text(text_content.clone()).into())
+                        Some(text(text_content.clone()).size(font_size).into())
                     } else {
                         None
                     }
@@ -202,7 +207,7 @@ impl Custom {
                 }
 
                 // Wrap the icon in a container to apply padding
-                let padded_icon_container = container(icon_element).padding([0, 1]);
+                let padded_icon_container = container(icon_element.size(font_size)).padding([0, 1]);
 
                 let show_alert = self
                     .config
@@ -232,14 +237,17 @@ impl Custom {
 
                 let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {
                     if !text_content.is_empty() {
-                        Some(text(text_content.clone()))
+                        Some(text(text_content.clone()).size(font_size))
                     } else {
                         None
                     }
                 });
 
                 if let Some(text_element) = maybe_text_element {
-                    row![icon_with_alert, text_element].spacing(spacing).into()
+                    row![icon_with_alert, text_element]
+                        .spacing(spacing)
+                        .align_y(Alignment::Center)
+                        .into()
                 } else {
                     icon_with_alert
                 }

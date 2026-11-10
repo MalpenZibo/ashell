@@ -318,12 +318,17 @@ impl Tempo {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let spacing = use_theme(|t| t.module_spacing(&ModuleName::Tempo, t.space.sm));
+        let (spacing, font_size) = use_theme(|t| {
+            (
+                t.module_spacing(&ModuleName::Tempo, t.space.sm),
+                t.module_font_size(&ModuleName::Tempo, t.font_size.md),
+            )
+        });
         let display_text = self.time_str(self.current_format(), self.current_timezone_index, None);
 
         Row::with_capacity(2)
             .push(self.weather_indicator())
-            .push(text(display_text))
+            .push(text(display_text).size(font_size))
             .align_y(Vertical::Center)
             .spacing(spacing)
             .into()

@@ -590,11 +590,12 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
-        let (space, spacing, font_size, palette) = use_theme(|theme| {
+        let (space, spacing, label_size, icon_size, palette) = use_theme(|theme| {
             (
                 theme.space,
                 theme.module_spacing(&ModuleName::MediaPlayer, theme.space.xs),
-                theme.font_size,
+                theme.module_font_size(&ModuleName::MediaPlayer, theme.font_size.sm),
+                theme.module_font_size(&ModuleName::MediaPlayer, theme.font_size.md),
                 theme.palette,
             )
         });
@@ -604,15 +605,17 @@ impl MediaPlayer {
                 container(
                     text(self.indicator_text(player))
                         .wrapping(text::Wrapping::None)
-                        .size(font_size.sm),
+                        .size(label_size),
                 )
                 .clip(true)
             };
 
             let content = match self.config.indicator_format {
-                MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote)],
+                MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote).size(icon_size)],
                 MediaPlayerFormat::Text => row![label()],
-                MediaPlayerFormat::IconAndText => row![icon(StaticIcon::MusicNote), label()],
+                MediaPlayerFormat::IconAndText => {
+                    row![icon(StaticIcon::MusicNote).size(icon_size), label()]
+                }
             }
             .align_y(Vertical::Center)
             .spacing(spacing)
@@ -646,7 +649,7 @@ impl MediaPlayer {
                     let base: Element<'_, Message> = if has_text {
                         content.into()
                     } else {
-                        container(icon(StaticIcon::MusicNote))
+                        container(icon(StaticIcon::MusicNote).size(icon_size))
                             .center_x(Length::Fixed(VISUALIZER_BG_MIN_WIDTH))
                             .center_y(Length::Fill)
                             .into()

@@ -19,7 +19,7 @@ use crate::{
 };
 use ashell_i18n::t;
 use iced::{
-    Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
+    Element, Length, Subscription, SurfaceId, Task, Theme,
     alignment::Vertical,
     widget::{Column, Row, column, container, row, text},
 };
@@ -358,7 +358,7 @@ impl PowerSettings {
     }
 
     pub fn peripheral_indicators<'a>(&self) -> Vec<Element<'a, Message>> {
-        let space = use_theme(|t| t.space);
+        let size = super::Settings::indicator_size();
         let kinds_filter = match &self.config.peripheral_indicators {
             PeripheralIndicators::All => None,
             PeripheralIndicators::Specific(kinds) => Some(kinds.as_slice()),
@@ -378,44 +378,24 @@ impl PowerSettings {
             .filter(|p| kinds_filter.is_none_or(|kinds| kinds.contains(&p.kind)))
             .map(|p| {
                 let state = p.data.get_indicator_state();
-                container(match self.config.peripheral_battery_format {
-                    SettingsFormat::Icon => {
-                        convert::Into::<Element<'a, Message>>::into(icon(p.get_icon_state()))
+                let label = match self.config.peripheral_battery_format {
+                    SettingsFormat::Time | SettingsFormat::IconAndTime => {
+                        format_time_for_battery(&p.data)
                     }
-                    SettingsFormat::Percentage => text(format!("{}%", p.data.capacity)).into(),
-                    SettingsFormat::IconAndPercentage => row!(
-                        icon(p.get_icon_state()),
-                        text(format!("{}%", p.data.capacity))
-                    )
-                    .spacing(space.xxs)
-                    .align_y(Alignment::Center)
-                    .into(),
-                    SettingsFormat::Time => text(format_time_for_battery(&p.data)).into(),
-                    SettingsFormat::IconAndTime => row!(
-                        icon(p.get_icon_state()),
-                        text(format_time_for_battery(&p.data))
-                    )
-                    .spacing(space.xxs)
-                    .align_y(Alignment::Center)
-                    .into(),
-                    SettingsFormat::Name => text(p.name.to_string()).into(),
-                    SettingsFormat::IconAndName => {
-                        row!(icon(p.get_icon_state()), text(p.name.to_string()))
-                            .spacing(space.xxs)
-                            .align_y(Alignment::Center)
-                            .into()
+                    SettingsFormat::Name | SettingsFormat::IconAndName => p.name.to_string(),
+                    SettingsFormat::PercentageAndTime
+                    | SettingsFormat::IconAndPercentageAndTime => {
+                        format_percentage_and_time(&p.data)
                     }
-                    SettingsFormat::PercentageAndTime => {
-                        text(format_percentage_and_time(&p.data)).into()
-                    }
-                    SettingsFormat::IconAndPercentageAndTime => row!(
-                        icon(p.get_icon_state()),
-                        text(format_percentage_and_time(&p.data))
-                    )
-                    .spacing(space.xxs)
-                    .align_y(Alignment::Center)
-                    .into(),
-                })
+                    _ => format!("{}%", p.data.capacity),
+                };
+                container(format_indicator(
+                    self.config.peripheral_battery_format,
+                    p.get_icon_state(),
+                    text(label),
+                    IndicatorState::Normal,
+                    size,
+                ))
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(match state {
                         IndicatorState::Success => theme.palette().success,
@@ -467,8 +447,9 @@ impl PowerSettings {
                     format_indicator(
                         self.config.battery_format,
                         indicator_icon,
-                        text(label).into(),
+                        text(label),
                         state,
+                        super::Settings::indicator_size(),
                     )
                     .into(),
                 )
@@ -589,12 +570,13 @@ impl PowerSettings {
     }
 
     pub fn power_profile_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
+        let size = super::Settings::indicator_size();
         self.service
             .as_ref()
             .and_then(|service| match service.power_profile {
                 PowerProfile::Balanced => None,
                 PowerProfile::Performance => Some(
-                    container(icon(StaticIcon::Performance))
+                    container(icon(StaticIcon::Performance).size(size))
                         .style(|theme: &Theme| container::Style {
                             text_color: Some(theme.palette().danger),
                             ..Default::default()
@@ -602,7 +584,7 @@ impl PowerSettings {
                         .into(),
                 ),
                 PowerProfile::PowerSaver => Some(
-                    container(icon(StaticIcon::PowerSaver))
+                    container(icon(StaticIcon::PowerSaver).size(size))
                         .style(|theme: &Theme| container::Style {
                             text_color: Some(theme.palette().success),
                             ..Default::default()

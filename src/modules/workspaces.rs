@@ -13,7 +13,7 @@ use crate::{
         },
         xdg_icons::{self, XdgIcon},
     },
-    theme::{AshellTheme, use_theme},
+    theme::{AshellTheme, use_theme, workspace_button_height},
 };
 use iced::{
     Element, Length, Subscription, SurfaceId, alignment,
@@ -389,7 +389,7 @@ fn workspace_button<'a>(
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center),
     )
-    .style(theme.workspace_button_style(empty, urgent, active, color))
+    .style(theme.workspace_button_style(empty, urgent, active, color, height))
     .padding([0.0, padding])
     .on_press(on_press)
     .width(width)
@@ -598,6 +598,9 @@ impl Workspaces {
         let monitor_name = outputs.get_monitor_name(id);
 
         let row = use_theme(|theme| {
+            let font_size = theme.module_font_size(&ModuleName::Workspaces, theme.font_size.xs);
+            let height = workspace_button_height(&theme.space, &theme.font_size, font_size);
+            let grow = height - theme.space.md;
             Row::with_children(
                 self.ui_workspaces
                     .iter()
@@ -648,8 +651,6 @@ impl Workspaces {
                                 let icons = w.icons.clone().unwrap_or_default();
                                 let has_icons = !icons.is_empty();
                                 let on_press = w.press_message();
-                                let font_size = theme.font_size.xs;
-                                let height = theme.space.md;
 
                                 // Numbered workspaces animate to a fixed width; icon
                                 // and named workspaces size to their content instead.
@@ -659,13 +660,14 @@ impl Workspaces {
                                     && w.name.chars().all(|c| c.is_ascii_digit());
 
                                 Some(if numbered {
-                                    let target_width = match (&w.displayed, urgent) {
-                                        (Displayed::Active, _) => theme.space.xl,
-                                        (Displayed::Visible, _) | (Displayed::Hidden, true) => {
-                                            theme.space.lg
-                                        }
-                                        (Displayed::Hidden, false) => theme.space.md,
-                                    };
+                                    let target_width = grow
+                                        + match (&w.displayed, urgent) {
+                                            (Displayed::Active, _) => theme.space.xl,
+                                            (Displayed::Visible, _) | (Displayed::Hidden, true) => {
+                                                theme.space.lg
+                                            }
+                                            (Displayed::Hidden, false) => theme.space.md,
+                                        };
 
                                     if theme.animations_enabled {
                                         AnimationBuilder::new(target_width, move |width| {

@@ -18,7 +18,7 @@ pub fn module_group<'a, Msg: 'static>(
     island_style: IslandStyle,
 ) -> Element<'a, Msg> {
     let (bar_surface, blur) =
-        use_theme(|theme| (theme.bar_surface, theme.surface(Surface::Bar).blur));
+        use_theme(|theme| (theme.bar_layout.surface, theme.surface(Surface::Bar).blur));
 
     let style = move |iced_theme: &iced::Theme| container::Style {
         background: match island_style.background {

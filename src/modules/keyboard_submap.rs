@@ -1,4 +1,8 @@
-use crate::services::{ReadOnlyService, ServiceEvent, compositor::CompositorService};
+use crate::{
+    config::ModuleName,
+    services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
+    theme::use_theme,
+};
 use iced::{Element, Subscription, widget::text};
 
 #[derive(Debug, Clone)]
@@ -30,7 +34,9 @@ impl KeyboardSubmap {
         let submap = self.service.as_ref()?.submap.as_ref()?;
 
         if !submap.is_empty() {
-            Some(text(submap).into())
+            let size =
+                use_theme(|t| t.module_font_size(&ModuleName::KeyboardSubmap, t.font_size.md));
+            Some(text(submap).size(size).into())
         } else {
             None
         }

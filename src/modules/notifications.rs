@@ -5,7 +5,7 @@ use crate::{
     components::scrollable,
     components::slide::{self, SlideDirection, slide},
     components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, styled_button},
-    config::{NotificationsModuleConfig, Surface, ToastPosition},
+    config::{ModuleName, NotificationsModuleConfig, Surface, ToastPosition},
     services::{
         ReadOnlyService, ServiceEvent, compositor, connection_pid,
         notifications::{
@@ -966,7 +966,11 @@ impl Notifications {
         } else {
             StaticIcon::Bell
         };
-        icon(bell_icon).into()
+        icon(bell_icon)
+            .size(use_theme(|t| {
+                t.module_font_size(&ModuleName::Notifications, t.font_size.md)
+            }))
+            .into()
     }
 
     pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
