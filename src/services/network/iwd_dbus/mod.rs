@@ -628,9 +628,7 @@ impl IwdDbus<'_> {
             ))?;
             let station_for_signal_stream = station.clone();
 
-            // Keep the interface registered for as long as this stream lives.
-            let _server = self
-                .inner()
+            self.inner()
                 .connection()
                 .object_server()
                 .at(&agent_path, agent)
