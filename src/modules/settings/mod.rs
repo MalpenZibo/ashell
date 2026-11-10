@@ -158,6 +158,11 @@ impl Settings {
         Action::None
     }
 
+    pub fn set_mute(&mut self, muted: bool) -> Action {
+        self.audio.set_sink_mute(muted);
+        Action::None
+    }
+
     pub fn microphone_adjust(&mut self, up: bool) -> Action {
         match self.audio.microphone_adjust(up) {
             audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
@@ -167,6 +172,11 @@ impl Settings {
 
     pub fn microphone_toggle_mute(&mut self) -> Action {
         self.audio.microphone_toggle_mute();
+        Action::None
+    }
+
+    pub fn set_microphone_mute(&mut self, muted: bool) -> Action {
+        self.audio.set_source_mute(muted);
         Action::None
     }
 
@@ -186,11 +196,32 @@ impl Settings {
         }
     }
 
+    pub fn set_airplane(&mut self, enabled: bool) -> Action {
+        match self
+            .network
+            .update(network::Message::SetAirplaneMode(enabled))
+        {
+            network::Action::CloseSubMenu(task) | network::Action::Command(task) => {
+                Action::Command(task.map(Message::Network))
+            }
+            _ => Action::None,
+        }
+    }
+
     pub fn toggle_idle_inhibitor(&mut self) -> Action {
         if let Some(idle_inhibitor) = &mut self.idle_inhibitor
             && let Err(err) = idle_inhibitor.toggle()
         {
             warn!("Failed to toggle idle inhibitor: {err}");
+        }
+        Action::None
+    }
+
+    pub fn set_idle_inhibitor(&mut self, enabled: bool) -> Action {
+        if let Some(idle_inhibitor) = &mut self.idle_inhibitor
+            && let Err(err) = idle_inhibitor.set(enabled)
+        {
+            warn!("Failed to set idle inhibitor: {err}");
         }
         Action::None
     }

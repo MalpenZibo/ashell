@@ -356,7 +356,9 @@ impl ReadOnlyService for AudioService {
 
 pub enum AudioCommand {
     ToggleSinkMute,
+    SetSinkMute(bool),
     ToggleSourceMute,
+    SetSourceMute(bool),
     SinkVolume(u32),
     SourceVolume(u32),
     DefaultSink(String, Option<String>),
@@ -380,6 +382,15 @@ impl Service for AudioService {
                     false
                 }
             }
+            AudioCommand::SetSinkMute(mute) => {
+                if let Some(sink) = self.active_sink() {
+                    self.commander
+                        .send(PulseAudioCommand::SinkMute(sink.name.clone(), mute))
+                        .is_ok()
+                } else {
+                    false
+                }
+            }
             AudioCommand::ToggleSourceMute => {
                 if let Some(source) = self.active_source() {
                     self.commander
@@ -387,6 +398,15 @@ impl Service for AudioService {
                             source.name.clone(),
                             !source.is_mute,
                         ))
+                        .is_ok()
+                } else {
+                    false
+                }
+            }
+            AudioCommand::SetSourceMute(mute) => {
+                if let Some(source) = self.active_source() {
+                    self.commander
+                        .send(PulseAudioCommand::SourceMute(source.name.clone(), mute))
                         .is_ok()
                 } else {
                     false
