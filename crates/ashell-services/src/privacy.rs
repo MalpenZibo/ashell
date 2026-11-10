@@ -3,13 +3,21 @@ use futures::{FutureExt, SinkExt, Stream, StreamExt, select, stream::pending};
 use inotify::{EventMask, Inotify, WatchMask};
 use log::{debug, error, info, warn};
 use pipewire::{context::ContextBox, core::PW_ID_CORE, main_loop::MainLoopRc};
-use std::{cell::RefCell, collections::HashSet, fs, path::Path, rc::Rc, thread, time::Duration};
+use std::{
+    cell::RefCell,
+    collections::HashSet,
+    fs,
+    path::{Path, PathBuf},
+    rc::Rc,
+    thread,
+    time::Duration,
+};
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
     time::{Instant, sleep_until},
 };
 
-const WEBCAM_DEVICE_PATH: &str = "/dev/video0";
+const DEV_DIR: &str = "/dev";
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -34,7 +42,10 @@ impl PrivacyData {
     fn new() -> Self {
         Self {
             nodes: Vec::new(),
-            webcam_access: is_device_in_use(WEBCAM_DEVICE_PATH),
+            webcam_access: webcam_device_paths()
+                .iter()
+                .map(|p| is_device_in_use(p))
+                .sum(),
         }
     }
 
@@ -303,40 +314,76 @@ async fn create_pipewire_listener() -> anyhow::Result<UnboundedReceiver<PrivacyE
     }
 }
 
+/// Every V4L2 node, not just /dev/video0: a USB webcam next to a built-in
+/// one gets a higher number.
+fn webcam_device_paths() -> Vec<PathBuf> {
+    fs::read_dir(DEV_DIR)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|e| e.file_name().to_string_lossy().starts_with("video"))
+                .map(|e| e.path())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn webcam_watch_mask() -> WatchMask {
+    WatchMask::CLOSE_WRITE | WatchMask::CLOSE_NOWRITE | WatchMask::OPEN
+}
+
 fn webcam_listener() -> anyhow::Result<WebcamEvents> {
     let inotify = Inotify::init()?;
+    let mut watches = inotify.watches();
 
-    inotify.watches().add(
-        WEBCAM_DEVICE_PATH,
-        WatchMask::CLOSE_WRITE
-            | WatchMask::CLOSE_NOWRITE
-            | WatchMask::DELETE_SELF
-            | WatchMask::OPEN
-            | WatchMask::ATTRIB,
-    )?;
+    for path in webcam_device_paths() {
+        if let Err(err) = watches.add(&path, webcam_watch_mask()) {
+            warn!("Failed to watch {}: {err}", path.display());
+        }
+    }
+    // Webcams plugged in later get a watch once udev grants access: the node
+    // is created root-only, so the CREATE watch fails and ATTRIB retries it.
+    let dev_wd = watches.add(DEV_DIR, WatchMask::CREATE | WatchMask::ATTRIB)?;
 
-    let buffer = [0; 512];
+    let buffer = [0; 1024];
     Ok(Box::new(
         inotify
             .into_event_stream(buffer)?
-            .filter_map(async move |event| match event {
-                Ok(event) => {
-                    debug!("Webcam event: {event:?}");
-                    match event.mask {
-                        EventMask::OPEN => Some(PrivacyEvent::WebcamOpen),
-                        EventMask::CLOSE_WRITE | EventMask::CLOSE_NOWRITE => {
+            .filter_map(move |event| {
+                let result = match event {
+                    Ok(event) => {
+                        debug!("Webcam event: {event:?}");
+                        if event.wd == dev_wd {
+                            if let Some(name) = event.name.as_ref()
+                                && name.to_string_lossy().starts_with("video")
+                            {
+                                let path = Path::new(DEV_DIR).join(name);
+                                // Expected to fail until udev grants access.
+                                if let Err(err) = watches.add(&path, webcam_watch_mask()) {
+                                    debug!("Not watching {} yet: {err}", path.display());
+                                }
+                            }
+                            None
+                        } else if event.mask.contains(EventMask::OPEN) {
+                            Some(PrivacyEvent::WebcamOpen)
+                        } else if event
+                            .mask
+                            .intersects(EventMask::CLOSE_WRITE | EventMask::CLOSE_NOWRITE)
+                        {
                             Some(PrivacyEvent::WebcamClose)
+                        } else {
+                            None
                         }
-                        _ => None,
                     }
-                }
-                _ => None,
+                    _ => None,
+                };
+                async move { result }
             })
             .boxed(),
     ))
 }
 
-fn is_device_in_use(target: &str) -> i32 {
+fn is_device_in_use(target: &Path) -> i32 {
     let mut used_by = 0;
     if let Ok(entries) = fs::read_dir("/proc") {
         for entry in entries.flatten() {
@@ -351,7 +398,7 @@ fn is_device_in_use(target: &str) -> i32 {
             if let Ok(fd_entries) = fs::read_dir(pid_path.join("fd")) {
                 for fd_entry in fd_entries.flatten() {
                     if let Ok(link_path) = fs::read_link(fd_entry.path())
-                        && link_path == Path::new(target)
+                        && link_path == target
                     {
                         used_by += 1;
                     }
