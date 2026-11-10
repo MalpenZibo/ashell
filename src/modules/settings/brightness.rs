@@ -139,6 +139,7 @@ impl BrightnessSettings {
                 StaticIcon::Brightness,
                 Self::percent_text(service),
                 IndicatorState::Normal,
+                super::Settings::indicator_size(),
             )
             .on_scroll(scroll_handler)
             .into()

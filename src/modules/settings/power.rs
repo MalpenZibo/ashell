@@ -475,6 +475,7 @@ impl PowerSettings {
                         indicator_icon,
                         text(label),
                         state,
+                        super::Settings::indicator_size(),
                     )
                     .into(),
                 )

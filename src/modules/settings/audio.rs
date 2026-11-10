@@ -392,6 +392,7 @@ impl AudioSettings {
                     icon_type,
                     Self::vol_text(volume),
                     IndicatorState::Normal,
+                    super::Settings::indicator_size(),
                 )
                 .on_right_press(Message::OpenMore)
                 .on_scroll(Self::on_scroll(
@@ -419,6 +420,7 @@ impl AudioSettings {
                     icon_type,
                     Self::vol_text(volume),
                     IndicatorState::Normal,
+                    super::Settings::indicator_size(),
                 )
                 .on_right_press(Message::OpenSourceMore)
                 .on_scroll(Self::on_scroll(

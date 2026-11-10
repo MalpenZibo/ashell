@@ -1,6 +1,5 @@
 use crate::{
-    components::icons::IconKind, config::SettingsFormat, modules::settings::Settings,
-    theme::use_theme, utils::IndicatorState,
+    components::icons::IconKind, config::SettingsFormat, theme::use_theme, utils::IndicatorState,
 };
 use iced::{
     Alignment, Element, Theme,
@@ -13,6 +12,7 @@ pub struct FormatIndicator<'a, Msg> {
     icon: IconKind,
     label: Text<'a>,
     state: IndicatorState,
+    size: f32,
     on_scroll: Option<Box<dyn Fn(ScrollDelta) -> Msg + 'a>>,
     on_right_press: Option<Msg>,
 }
@@ -22,12 +22,14 @@ pub fn format_indicator<'a, Msg: 'static + Clone>(
     icon: impl Into<IconKind>,
     label: Text<'a>,
     state: IndicatorState,
+    size: f32,
 ) -> FormatIndicator<'a, Msg> {
     FormatIndicator {
         format,
         icon: icon.into(),
         label,
         state,
+        size,
         on_scroll: None,
         on_right_press: None,
     }
@@ -48,9 +50,8 @@ impl<'a, Msg: 'static + Clone> FormatIndicator<'a, Msg> {
 impl<'a, Msg: 'static + Clone> From<FormatIndicator<'a, Msg>> for Element<'a, Msg> {
     fn from(fi: FormatIndicator<'a, Msg>) -> Self {
         let space = use_theme(|theme| theme.space);
-        let size = Settings::indicator_size();
-        let icon = fi.icon.to_text().size(size);
-        let label = fi.label.size(size);
+        let icon = fi.icon.to_text().size(fi.size);
+        let label = fi.label.size(fi.size);
 
         let content = match fi.format {
             SettingsFormat::Icon => icon.into(),

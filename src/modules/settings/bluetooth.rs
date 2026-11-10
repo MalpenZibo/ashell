@@ -415,6 +415,7 @@ impl BluetoothSettings {
                         StaticIcon::BluetoothConnected,
                         text(format!("{}", connected_count)),
                         IndicatorState::Normal,
+                        super::Settings::indicator_size(),
                     )
                     .on_right_press(Message::OpenMore)
                     .into(),
