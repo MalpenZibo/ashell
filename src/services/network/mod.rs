@@ -125,6 +125,7 @@ pub enum NetworkCommand {
     ScanNearByWiFi,
     ToggleWiFi,
     ToggleAirplaneMode,
+    SetAirplaneMode(bool),
     SelectAccessPoint {
         access_point: AccessPointData,
         password: Option<String>,
@@ -687,6 +688,19 @@ impl Service for NetworkService {
                         } else {
                             airplane_mode
                         }
+                    },
+                    |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
+                )
+            }
+            NetworkCommand::SetAirplaneMode(enabled) => {
+                let previous = self.airplane_mode;
+
+                Task::perform(
+                    async move {
+                        debug!("Setting airplane mode to: {enabled}");
+                        let res = bc.set_airplane_mode(enabled).await;
+
+                        if res.is_ok() { enabled } else { previous }
                     },
                     |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
                 )

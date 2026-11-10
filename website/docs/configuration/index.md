@@ -76,17 +76,35 @@ Available commands:
 | Command                  | Description                          |
 | ------------------------ | ------------------------------------ |
 | `toggle-visibility`      | Toggle the bar on/off                                        |
+| `set-visibility <state>` | Show (`true`) or hide (`false`) the bar                      |
 | `volume-up`              | Increase sink volume by `settings.volume_step` (default 5%)  |
 | `volume-down`            | Decrease sink volume by `settings.volume_step` (default 5%)  |
 | `volume-toggle-mute`     | Toggle sink mute                                             |
+| `volume-set-mute <state>`  | Mute (`true`) or unmute (`false`) the sink                 |
 | `microphone-up`          | Increase source volume by 5% (fixed)                         |
 | `microphone-down`        | Decrease source volume by 5% (fixed)                         |
 | `microphone-toggle-mute` | Toggle source mute                                           |
+| `microphone-set-mute <state>` | Mute (`true`) or unmute (`false`) the source            |
 | `brightness-up`          | Increase screen brightness by 5% of the device maximum       |
 | `brightness-down`        | Decrease screen brightness by 5% of the device maximum       |
 | `toggle-airplane-mode`   | Toggle airplane mode                                         |
+| `set-airplane-mode <state>` | Turn airplane mode on (`true`) or off (`false`)           |
 | `toggle-idle-inhibitor`  | Toggle idle inhibitor                                        |
+| `set-idle-inhibitor <state>` | Turn the idle inhibitor on (`true`) or off (`false`)     |
 | `load-config <file>`            | Load another config without restarting ashell         |
+
+The `set-*` commands take a `true` or `false` argument (other clap bool spellings
+such as `1`/`0` or `on`/`off` are accepted too) and are useful when a script
+needs a fixed state instead of a flip:
+
+```bash
+# Show the bar while the overview is open, hide it afterwards
+ashell msg set-visibility true
+ashell msg set-visibility false
+
+# Mute the microphone without caring about the current state
+ashell msg microphone-set-mute true
+```
 
 Only `volume-up` / `volume-down` honour
 [`settings.volume_step`](./modules/settings.md#volume-step); the microphone and

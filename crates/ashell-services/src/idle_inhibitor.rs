@@ -144,7 +144,11 @@ impl IdleInhibitor {
     }
 
     pub fn toggle(&mut self) -> anyhow::Result<()> {
-        self.set_inhibit_idle(!self.is_inhibited())
+        self.set(!self.is_inhibited())
+    }
+
+    pub fn set(&mut self, enabled: bool) -> anyhow::Result<()> {
+        self.set_inhibit_idle(enabled)
     }
 
     fn set_inhibit_idle(&mut self, inhibit_idle: bool) -> anyhow::Result<()> {
