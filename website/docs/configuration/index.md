@@ -31,6 +31,7 @@ The options executed this way are:
 | [Updates](./modules/updates.md) | `check_cmd`, `update_cmd` |
 | [Settings](./modules/settings.md), power menu | `lock_cmd`, `suspend_cmd`, `hibernate_cmd`, `reboot_cmd`, `shutdown_cmd`, `logout_cmd` |
 | [Settings](./modules/settings.md), "more" buttons | `audio_sinks_more_cmd`, `audio_sources_more_cmd`, `wifi_more_cmd`, `vpn_more_cmd`, `bluetooth_more_cmd` |
+| [Settings](./modules/settings.md), audio post-switch | `audio_sink_post_switch_cmd`, `audio_source_post_switch_cmd` |
 | [Settings](./modules/settings.md), custom buttons | `command`, `status_command` |
 | [Custom modules](./modules/custom_module.md) | `command`, `listen_cmd`, `on_right_click`, `on_middle_click`, `on_scroll_up`, `on_scroll_down` |
 
@@ -91,7 +92,7 @@ Available commands:
 | `set-airplane-mode <state>` | Turn airplane mode on (`true`) or off (`false`)           |
 | `toggle-idle-inhibitor`  | Toggle idle inhibitor                                        |
 | `set-idle-inhibitor <state>` | Turn the idle inhibitor on (`true`) or off (`false`)     |
-| `load-config <file>`            | Load another config without restarting ashell         |
+| `load-config <file>`     | Load another config without restarting ashell                |
 
 The `set-*` commands take a `true` or `false` argument (other clap bool spellings
 such as `1`/`0` or `on`/`off` are accepted too) and are useful when a script
@@ -113,7 +114,7 @@ brightness steps are fixed. Sink volume is also capped by
 
 
 Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD (On-Screen Display)
-overlay by default. Add `--no-osd` to suppress it:
+overlay when the OSD is enabled (`[osd] enabled = true`). Add `--no-osd` to suppress it:
 
 ```bash
 ashell msg volume-up --no-osd

@@ -192,7 +192,7 @@ audio_sources_more_cmd = "pavucontrol -t 4"
 wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueberry"
-battery_format = "IconAndPercentage"  # (default), "Icon", "Percentage", "IconAndPercentage", "Time", "IconAndTime", "Name", "IconAndName", "PercentageAndTime", "IconAndPercentageAndTime"
+battery_format = "IconAndPercentage"  # (default), "Icon", "Percentage", "Time", "IconAndTime", "Name", "IconAndName", "PercentageAndTime", "IconAndPercentageAndTime"
 # battery_hide_when_full = false  # (default)
 # peripheral_indicators = "All"   # (default) or { Specific = ["Keyboard", "Mouse", "Headphones", "Gamepad"] }
 peripheral_battery_format = "Icon"  # (default), "Percentage", "IconAndPercentage", "Time", "IconAndTime", "Name", "IconAndName", "PercentageAndTime", "IconAndPercentageAndTime"
@@ -209,7 +209,7 @@ max_volume = 100   # (default) max volume level, range 1..=200 (>100 enables ove
 # remove_airplane_btn = false   # (default) set true to hide airplane mode button
 # remove_idle_btn = false       # (default) set true to hide idle inhibitor button
 # remove_dnd_btn = false        # (default) set true to hide do not disturb button
-indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "Brightness" ]
+indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery" ]
 # indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "PeripheralBattery", "Brightness" ]
 
 [[settings.CustomButton]]
@@ -262,8 +262,8 @@ surface = "transparent"  # (default) or "solid"
 [appearance.modules.default]
 # radius = "lg"            # (default) same values as bar.radius
 # padding = "none"         # (default) same values as bar.padding
-# border = { width = 0, color = "background.strong" }  # (default)
-# background = "background"  # (default) hex or palette reference
+# border = { width = 0, color = "background.strong" }  # (effective default: no border)
+# background = "background"  # (effective default) hex or palette reference
 
 [appearance.modules.group]
 # radius, padding, border, background: fall back to [appearance.modules.default]
