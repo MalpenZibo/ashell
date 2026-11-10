@@ -1,3 +1,5 @@
+#[cfg(feature = "audio")]
+pub mod audio;
 #[cfg(feature = "bluetooth")]
 pub mod bluetooth;
 #[cfg(feature = "brightness")]
