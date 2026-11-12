@@ -259,6 +259,7 @@ impl Settings {
                 config.vpn_more_cmd,
                 config.remove_airplane_btn,
                 config.network_indicator_format,
+                config.network_backend,
             )),
             bluetooth: BluetoothSettings::new(BluetoothSettingsConfig::new(
                 config.bluetooth_more_cmd,
@@ -605,6 +606,7 @@ impl Settings {
                         config.vpn_more_cmd,
                         config.remove_airplane_btn,
                         config.network_indicator_format,
+                        config.network_backend,
                     ),
                 ));
                 self.bluetooth.update(bluetooth::Message::ConfigReloaded(

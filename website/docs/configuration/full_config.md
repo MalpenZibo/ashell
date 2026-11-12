@@ -201,6 +201,7 @@ peripheral_battery_format = "Icon"  # (default), "Percentage", "IconAndPercentag
 audio_indicator_format = "Icon"        # (default), "IconAndPercentage", "Percentage", etc.
 microphone_indicator_format = "Icon"   # (default)
 network_indicator_format = "Icon"      # (default), "IconAndPercentage", "Percentage", "Name", "IconAndName" (Name/IconAndName show the SSID/interface/VPN name)
+network_backend = "auto"               # "auto" (default) or "none"
 bluetooth_indicator_format = "Icon"    # (default)
 brightness_indicator_format = "Icon"   # (default)
 # keyboard_backlight_slider = false     # (default) set true to show the built-in keyboard backlight slider

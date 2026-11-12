@@ -670,6 +670,14 @@ pub enum SettingsFormat {
     IconAndPercentageAndTime,
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum NetworkBackend {
+    #[default]
+    Auto,
+    #[serde(rename = "none")]
+    Disabled,
+}
+
 #[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
 pub enum PeripheralIndicators {
     #[default]
@@ -699,6 +707,7 @@ pub struct SettingsModuleConfig {
     pub audio_indicator_format: SettingsFormat,
     pub microphone_indicator_format: SettingsFormat,
     pub network_indicator_format: SettingsFormat,
+    pub network_backend: NetworkBackend,
     pub bluetooth_indicator_format: SettingsFormat,
     pub brightness_indicator_format: SettingsFormat,
     #[serde(default, deserialize_with = "empty_string_as_none")]
@@ -745,6 +754,7 @@ impl Default for SettingsModuleConfig {
             audio_indicator_format: SettingsFormat::Icon,
             microphone_indicator_format: SettingsFormat::Icon,
             network_indicator_format: SettingsFormat::Icon,
+            network_backend: NetworkBackend::Auto,
             bluetooth_indicator_format: SettingsFormat::Icon,
             brightness_indicator_format: SettingsFormat::Icon,
             audio_sinks_more_cmd: Default::default(),
@@ -2415,6 +2425,21 @@ mod tests {
         assert_eq!(appearance.bar.border.width, 0.0);
         assert_eq!(appearance.bar.border.color, BACKGROUND_STRONG);
         assert_eq!(appearance.modules, ModulesAppearance::default());
+    }
+
+    #[test]
+    fn network_backend_defaults_to_auto_and_parses_none() {
+        assert_eq!(
+            parse("").unwrap().settings.network_backend,
+            NetworkBackend::Auto
+        );
+        assert_eq!(
+            parse("[settings]\nnetwork_backend = \"none\"")
+                .unwrap()
+                .settings
+                .network_backend,
+            NetworkBackend::Disabled
+        );
     }
 
     #[test]
