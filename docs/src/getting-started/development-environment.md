@@ -68,7 +68,7 @@ ashell uses [flexi_logger](https://docs.rs/flexi_logger) and writes logs into `$
 - In debug builds, logs are also printed to stdout when `logging.target = "file"`.
 - The log level is controlled by the `logging.level` field in the config file (default: `"warn"`).
 - `logging.target` selects the destination: `"file"` (default), `"stdout"` or `"stderr"`; `logging.directory` overrides the log directory when the target is `"file"`.
-- The log level follows the [env_logger syntax](https://docs.rs/env_logger/latest/env_logger/#enabling-logging), e.g., `"debug"`, `"info"`, `"ashell=debug,iced=warn"`.
+- The log level follows the [flexi_logger spec](https://docs.rs/flexi_logger/latest/flexi_logger/struct.LogSpecification.html), e.g., `"debug"`, `"info"`, `"ashell=debug,iced=warn"`.
 
 To watch logs in real time:
 
@@ -99,7 +99,7 @@ ashell msg load-config <file>
 The `set-*` commands set a concrete state instead of toggling,
 e.g. `ashell msg set-visibility false`.
 
-Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD overlay. Add `--no-osd` to suppress it.
+Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD overlay when `[osd] enabled = true` (off by default). Add `--no-osd` to suppress it.
 
 ## Signal Handling
 
