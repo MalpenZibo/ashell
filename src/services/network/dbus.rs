@@ -1,5 +1,5 @@
 use crate::services::network::{
-    NetworkBackend, NetworkData, NetworkEvent, PskOutcome, WifiSecurity,
+    NetworkBackend, NetworkData, NetworkEvent, PskOutcome, Redacted, WifiSecurity,
 };
 use ashell_services::rfkill;
 
@@ -251,7 +251,7 @@ impl NetworkDbus<'_> {
 
         Ok(match psk {
             Some(psk) if !psk.is_empty() => PskOutcome::Password {
-                psk,
+                psk: Redacted::new(psk),
                 security,
                 hidden,
             },

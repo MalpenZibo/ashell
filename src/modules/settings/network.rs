@@ -12,7 +12,7 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
             AccessPointData, ActiveConnectionInfo, KnownConnection, NetworkCommand, NetworkEvent,
-            NetworkService, PskOutcome, Vpn, dbus::ConnectivityState, frequency_band,
+            NetworkService, PskOutcome, Redacted, Vpn, dbus::ConnectivityState, frequency_band,
         },
     },
     theme::use_theme,
@@ -306,7 +306,7 @@ impl NetworkSettings {
                         .find(|ap| ap.ssid == ssid)
                         .cloned();
                     if let Some(ap) = ap {
-                        let password = (!password.is_empty()).then_some(password);
+                        let password = (!password.is_empty()).then_some(Redacted::new(password));
                         Action::Command(
                             service
                                 .command(NetworkCommand::SelectAccessPoint {
