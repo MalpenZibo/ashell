@@ -38,7 +38,7 @@ yay -S ashell-git
 
 Ashell is available in nixpkgs:
 
-- **nixpkgs unstable**: version 0.8.0
+- **nixpkgs unstable**: version 0.11.0
 - **nixpkgs 25.11 (stable)**: version 0.6.0
 
 #### nix profile (flake)

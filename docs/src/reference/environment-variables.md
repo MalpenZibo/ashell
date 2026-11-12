@@ -32,7 +32,7 @@ The config path can be overridden with the `--config-path` CLI flag. The path is
 
 ## Logging
 
-ashell uses [flexi_logger](https://docs.rs/flexi_logger) which reads the log level from the config file's `logging.level` field. The format follows [env_logger syntax](https://docs.rs/env_logger/latest/env_logger/#enabling-logging):
+ashell uses [flexi_logger](https://docs.rs/flexi_logger) which reads the log level from the config file's `logging.level` field. The format follows the [flexi_logger spec](https://docs.rs/flexi_logger/latest/flexi_logger/struct.LogSpecification.html):
 
 ```toml
 # In config.toml
