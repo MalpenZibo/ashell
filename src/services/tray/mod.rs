@@ -11,14 +11,14 @@ use iced::{
         channel::mpsc::{self, Sender},
         future::{self, BoxFuture, Either, select},
         stream::{
-            self, AbortHandle, Aborted, BoxStream, FuturesUnordered, SelectAll, abortable, pending,
+            self, AbortHandle, Aborted, BoxStream, FuturesUnordered, SelectAll, abortable,
             select_all,
         },
     },
     stream::channel,
     widget::image,
 };
-use log::{debug, error, info, trace, warn};
+use log::{debug, info, trace, warn};
 use std::{
     any::TypeId,
     collections::HashMap,
@@ -44,6 +44,9 @@ const ITEM_RETRY_DELAYS: [Duration; 3] = [
     Duration::from_secs(5),
 ];
 
+/// Retry delay for a failed watcher connection or event stream.
+const RETRY_DELAY: Duration = Duration::from_secs(5);
+
 /// The object answered but has no such property.
 fn is_missing_property(err: &zbus::Error) -> bool {
     matches!(
@@ -62,6 +65,27 @@ fn is_no_menu_path(path: &str) -> bool {
 
 fn retry_delay(attempt: usize) -> Option<Duration> {
     ITEM_RETRY_DELAYS.get(attempt).copied()
+}
+
+/// Log the first failure of a streak at `warn`, later ones at `debug`.
+fn failed(failing: &mut bool, message: std::fmt::Arguments) {
+    if std::mem::replace(failing, true) {
+        debug!("{message}");
+    } else {
+        warn!("{message}");
+    }
+}
+
+/// No watcher owns the well-known name, so waiting for an owner change is
+/// better than polling.
+fn is_no_watcher(err: &anyhow::Error) -> bool {
+    matches!(
+        err.downcast_ref::<zbus::Error>(),
+        Some(zbus::Error::FDO(e)) if matches!(
+            **e,
+            zbus::fdo::Error::ServiceUnknown(_) | zbus::fdo::Error::NameHasNoOwner(_)
+        )
+    )
 }
 
 fn pixmap_to_icon(icons: Vec<dbus::Icon>) -> Option<TrayIcon> {
@@ -669,7 +693,11 @@ impl TrayService {
         Ok(UnboundedReceiverStream::new(rx))
     }
 
-    async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
+    async fn start_listening(
+        state: State,
+        failing: &mut bool,
+        output: &mut Sender<ServiceEvent<Self>>,
+    ) -> State {
         match state {
             State::Init => match StatusNotifierWatcher::start_server().await {
                 Ok(conn) => {
@@ -685,14 +713,20 @@ impl TrayService {
                             reload: true,
                         },
                         Err(err) => {
-                            error!("Failed to watch the tray watcher: {err}");
+                            failed(
+                                failing,
+                                format_args!("Failed to watch the tray watcher: {err}"),
+                            );
 
                             State::Error
                         }
                     }
                 }
                 Err(err) => {
-                    error!("Failed to connect to system bus: {err}");
+                    failed(
+                        failing,
+                        format_args!("Failed to connect to system bus: {err}"),
+                    );
 
                     State::Error
                 }
@@ -731,6 +765,8 @@ impl TrayService {
                 .await;
                 let mut events = match events {
                     Ok((events, data)) => {
+                        *failing = false;
+
                         if let Some(data) = data {
                             info!("Tray service initialized");
 
@@ -744,8 +780,6 @@ impl TrayService {
                         events
                     }
                     Err(err) => {
-                        // Typically no watcher right now: wait for one.
-                        error!("Failed to listen for tray events: {err}");
                         if reload {
                             let _ = output
                                 .send(ServiceEvent::Init(TrayService {
@@ -754,14 +788,45 @@ impl TrayService {
                                 }))
                                 .await;
                         }
-                        return match watcher_owner.next().await {
-                            Some(_) => State::Active {
+
+                        // No watcher on the bus: nothing changes until one
+                        // appears, so wait for the owner change instead of
+                        // polling and re-registering every few seconds.
+                        if is_no_watcher(&err) {
+                            *failing = false;
+                            debug!("No tray watcher on the bus, waiting for one: {err}");
+
+                            return match watcher_owner.next().await {
+                                Some(_) => State::Active {
+                                    conn,
+                                    host,
+                                    watcher_owner,
+                                    reload: true,
+                                },
+                                None => State::Error,
+                            };
+                        }
+
+                        failed(
+                            failing,
+                            format_args!("Failed to listen for tray events: {err}"),
+                        );
+
+                        // Retry on the same connection, but wake up early if
+                        // the watcher owner changes.
+                        let retry = tokio::select! {
+                            _ = tokio::time::sleep(RETRY_DELAY) => true,
+                            owner = watcher_owner.next() => owner.is_some(),
+                        };
+                        return if retry {
+                            State::Active {
                                 conn,
                                 host,
                                 watcher_owner,
                                 reload: true,
-                            },
-                            None => State::Error,
+                            }
+                        } else {
+                            State::Error
                         };
                     }
                 };
@@ -797,17 +862,17 @@ impl TrayService {
                             };
                         }
                         Either::Right(None) => {
-                            error!("Tray watcher owner stream ended");
+                            failed(failing, format_args!("Tray watcher owner stream ended"));
                             break State::Error;
                         }
                     }
                 }
             }
             State::Error => {
-                error!("Tray service error");
+                debug!("Tray service error, retrying in {RETRY_DELAY:?}");
 
-                let _ = pending::<u8>().next().await;
-                State::Error
+                tokio::time::sleep(RETRY_DELAY).await;
+                State::Init
             }
         }
     }
@@ -887,9 +952,10 @@ impl ReadOnlyService for TrayService {
         Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
+                let mut failing = false;
 
                 loop {
-                    state = TrayService::start_listening(state, &mut output).await;
+                    state = TrayService::start_listening(state, &mut failing, &mut output).await;
                 }
             })
         })
@@ -955,7 +1021,10 @@ impl Service for TrayService {
 
 #[cfg(test)]
 mod tests {
-    use super::{ItemStatus, is_missing_property, is_no_menu_path, pixmap_to_icon, retry_delay};
+    use super::{
+        ItemStatus, is_missing_property, is_no_menu_path, is_no_watcher, pixmap_to_icon,
+        retry_delay,
+    };
     use crate::services::tray::dbus::Icon;
     use std::time::Duration;
 
@@ -1067,5 +1136,19 @@ mod tests {
         assert_eq!(retry_delay(2), Some(Duration::from_secs(5)));
         assert_eq!(retry_delay(3), None);
         assert_eq!(retry_delay(usize::MAX), None);
+    }
+
+    #[test]
+    fn missing_watcher_errors_are_recognized() {
+        for err in [
+            zbus::fdo::Error::ServiceUnknown("org.kde.StatusNotifierWatcher".into()),
+            zbus::fdo::Error::NameHasNoOwner("org.kde.StatusNotifierWatcher".into()),
+        ] {
+            let err = anyhow::Error::new(zbus::Error::FDO(Box::new(err)));
+            assert!(is_no_watcher(&err));
+        }
+
+        let err = anyhow::Error::new(zbus::Error::Failure("connection closed".into()));
+        assert!(!is_no_watcher(&err));
     }
 }
