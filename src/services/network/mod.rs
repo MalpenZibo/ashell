@@ -17,6 +17,33 @@ use zbus::OwnedObjectPath;
 pub mod dbus;
 pub mod iwd_dbus;
 
+/// A value that is never printed by `Debug`.
+///
+/// Wrap secrets in this and keep `#[derive(Debug)]` on the containing type:
+/// a future variant cannot leak by forgetting a manual `Debug` impl.
+#[derive(Clone)]
+pub struct Redacted<T>(T);
+
+impl<T> Redacted<T> {
+    pub const fn new(value: T) -> Self {
+        Self(value)
+    }
+
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+
+    pub fn as_inner(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> std::fmt::Debug for Redacted<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<redacted>")
+    }
+}
+
 /// Trait defining the interface for a network backend.
 /// This allows abstracting the specific D-Bus implementation (like IWD or `NetworkManager`).
 pub trait NetworkBackend: Send + Sync {
@@ -103,7 +130,7 @@ impl WifiSecurity {
 #[derive(Debug, Clone)]
 pub enum PskOutcome {
     Password {
-        psk: String,
+        psk: Redacted<String>,
         security: WifiSecurity,
         /// The QR code needs `H:true` or scanners won't find the network.
         hidden: bool,
@@ -128,7 +155,7 @@ pub enum NetworkCommand {
     SetAirplaneMode(bool),
     SelectAccessPoint {
         access_point: AccessPointData,
-        password: Option<String>,
+        password: Option<Redacted<String>>,
         connect_once: bool,
     },
     ToggleVpn(Vpn),
@@ -764,7 +791,11 @@ impl Service for NetworkService {
             } => Task::perform(
                 async move {
                     if let Err(err) = bc
-                        .select_access_point(&access_point, password, connect_once)
+                        .select_access_point(
+                            &access_point,
+                            password.map(Redacted::into_inner),
+                            connect_once,
+                        )
                         .await
                     {
                         error!(
@@ -835,5 +866,83 @@ impl Service for NetworkService {
                 }
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn access_point() -> AccessPointData {
+        AccessPointData {
+            ssid: "HomeNet".to_string(),
+            strength: 80,
+            max_bitrate: 1000,
+            frequency: 5180,
+            state: dbus::DeviceState::Activated,
+            public: false,
+            working: false,
+            path: OwnedObjectPath::try_from("/org/freedesktop/NetworkManager/AccessPoint/1")
+                .unwrap(),
+            device_path: OwnedObjectPath::try_from("/org/freedesktop/NetworkManager/Devices/1")
+                .unwrap(),
+        }
+    }
+
+    #[test]
+    fn command_debug_redacts_password() {
+        let command = NetworkCommand::SelectAccessPoint {
+            access_point: access_point(),
+            password: Some(Redacted::new("correct horse battery staple".to_string())),
+            connect_once: false,
+        };
+
+        let debug = format!("{command:?}");
+
+        assert!(debug.contains("HomeNet"));
+        assert!(debug.contains("Some(<redacted>)"));
+        assert!(!debug.contains("correct horse battery staple"));
+    }
+
+    #[test]
+    fn command_debug_without_password_keeps_normal_shape() {
+        let command = NetworkCommand::SelectAccessPoint {
+            access_point: access_point(),
+            password: None,
+            connect_once: true,
+        };
+
+        let debug = format!("{command:?}");
+
+        assert!(debug.contains("SelectAccessPoint"));
+        assert!(debug.contains("password: None"));
+        assert!(debug.contains("connect_once: true"));
+        assert!(!debug.contains("<redacted>"));
+    }
+
+    #[test]
+    fn psk_outcome_debug_redacts_psk() {
+        let outcome = PskOutcome::Password {
+            psk: Redacted::new("correct horse battery staple".to_string()),
+            security: WifiSecurity::Wpa,
+            hidden: false,
+        };
+
+        let debug = format!("{outcome:?}");
+
+        assert!(debug.contains("Password"));
+        assert!(debug.contains("<redacted>"));
+        assert!(!debug.contains("correct horse battery staple"));
+    }
+
+    #[test]
+    fn psk_outcome_debug_without_password_keeps_normal_shape() {
+        let outcome = PskOutcome::Open { hidden: true };
+
+        let debug = format!("{outcome:?}");
+
+        assert!(debug.contains("Open"));
+        assert!(debug.contains("hidden: true"));
+        assert!(!debug.contains("<redacted>"));
     }
 }
