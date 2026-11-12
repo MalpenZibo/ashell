@@ -553,7 +553,10 @@ impl NetworkSettings {
                             } else {
                                 Message::ToggleVPNMenu
                             },
-                            Some(Message::OpenMore),
+                            self.config
+                                .vpn_more_cmd
+                                .as_ref()
+                                .map(|_| Message::VpnMore(id)),
                             if !actives.is_empty() {
                                 Some((SubMenu::Vpn, sub_menu, Message::ToggleVPNMenu))
                             } else {
