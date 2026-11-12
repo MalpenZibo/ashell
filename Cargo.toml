@@ -17,7 +17,7 @@ inotify = { version = "0.11.1", default-features = false, features = [
 log = { version = "0.4", features = [] }
 serde = { version = "1.0", default-features = false }
 tokio = { version = "1", default-features = false }
-zbus = { version = "6", default-features = false, features = ["tokio", "proxy", "service"] }
+zbus = { version = "6", default-features = false, features = ["tokio","proxy","service"] }
 
 [package]
 name = "ashell"
@@ -86,12 +86,8 @@ iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_
   "canvas",
 ] }
 iced_anim = "0.3"
-chrono = { workspace = true, features = [
-  "clock",
-  "serde",
-  "unstable-locales",
-] }
-hyprland = { git = "https://github.com/romanstingler/hyprland-rs-next", rev = "7c2f69f8be78d89b58720bce7cad03b82e99baa3" }
+chrono = { workspace = true, features = ["clock", "serde", "unstable-locales"] }
+hyprland = { git = "https://github.com/romanstingler/hyprland-rs-next", rev = "7d5efed08c7ba28f134d31ff5fe57dba54ea6477" }
 serde = { workspace = true, features = ["derive"] }
 sysinfo = { version = "0.39", features = ["linux-netdevs"] }
 tokio = { workspace = true, features = ["fs", "io-util", "net", "process"] }
