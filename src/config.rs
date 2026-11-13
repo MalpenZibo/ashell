@@ -671,10 +671,10 @@ pub enum SettingsFormat {
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+#[serde(rename_all = "lowercase")]
 pub enum NetworkBackend {
     #[default]
     Auto,
-    #[serde(rename = "none")]
     Disabled,
 }
 
@@ -2428,13 +2428,13 @@ mod tests {
     }
 
     #[test]
-    fn network_backend_defaults_to_auto_and_parses_none() {
+    fn network_backend_defaults_to_auto_and_parses_disabled() {
         assert_eq!(
             parse("").unwrap().settings.network_backend,
             NetworkBackend::Auto
         );
         assert_eq!(
-            parse("[settings]\nnetwork_backend = \"none\"")
+            parse("[settings]\nnetwork_backend = \"disabled\"")
                 .unwrap()
                 .settings
                 .network_backend,

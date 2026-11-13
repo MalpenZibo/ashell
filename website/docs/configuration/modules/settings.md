@@ -384,15 +384,15 @@ present, ashell logs once and waits for one to appear instead of retrying every
 few seconds. NetworkManager is preferred when both are available, which is also
 the case when NetworkManager uses IWD as its Wi-Fi backend.
 
-Set `network_backend = "none"` to disable the network service completely. This
+Set `network_backend = "disabled"` to disable the network service completely. This
 is useful on hosts that use systemd-networkd, dhcpcd or another tool, or when
 you manage networking elsewhere and do not want ashell to connect to the bus.
-With `none`, the network indicator and menu are not backed by a service.
+With `disabled`, the network indicator and menu are not backed by a service.
 
 ```toml
 [settings]
 network_backend = "auto"  # default
-# network_backend = "none"
+# network_backend = "disabled"
 ```
 
 ### Bluetooth Format

@@ -240,7 +240,7 @@ battery_health = true                  # battery health and charge cycles
 audio_indicator_format = "Icon"
 microphone_indicator_format = "Icon"
 network_indicator_format = "Icon"
-network_backend = "auto"               # "auto" (default) or "none"
+network_backend = "auto"               # "auto" (default) or "disabled"
 bluetooth_indicator_format = "Icon"
 brightness_indicator_format = "Icon"
 
