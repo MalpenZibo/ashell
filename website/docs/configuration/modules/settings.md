@@ -373,6 +373,28 @@ network_indicator_format = "IconAndPercentage"
 # network_indicator_format = "IconAndName"
 ```
 
+### Network Backend
+
+With the `network_backend` option you can control which backend ashell uses for
+the network module.
+
+The default value is `auto`: ashell checks whether NetworkManager or IWD owns
+its D-Bus name and initializes the first one it finds. If neither service is
+present, ashell logs once and waits for one to appear instead of retrying every
+few seconds. NetworkManager is preferred when both are available, which is also
+the case when NetworkManager uses IWD as its Wi-Fi backend.
+
+Set `network_backend = "disabled"` to disable the network service completely. This
+is useful on hosts that use systemd-networkd, dhcpcd or another tool, or when
+you manage networking elsewhere and do not want ashell to connect to the bus.
+With `disabled`, the network indicator and menu are not backed by a service.
+
+```toml
+[settings]
+network_backend = "auto"  # default
+# network_backend = "disabled"
+```
+
 ### Bluetooth Format
 
 With the `bluetooth_indicator_format` option you can customize the bluetooth indicator format.

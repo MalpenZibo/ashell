@@ -7,7 +7,7 @@ use crate::{
         spinning_icon::spinning_icon,
         styled_button, toggler,
     },
-    config::SettingsFormat,
+    config::{NetworkBackend, SettingsFormat},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
@@ -124,6 +124,7 @@ pub struct NetworkSettingsConfig {
     pub vpn_more_cmd: Option<String>,
     pub remove_airplane_btn: bool,
     pub indicator_format: SettingsFormat,
+    pub backend: NetworkBackend,
 }
 
 impl NetworkSettingsConfig {
@@ -132,12 +133,14 @@ impl NetworkSettingsConfig {
         vpn_more_cmd: Option<String>,
         remove_airplane_btn: bool,
         indicator_format: SettingsFormat,
+        backend: NetworkBackend,
     ) -> Self {
         Self {
             wifi_more_cmd,
             vpn_more_cmd,
             remove_airplane_btn,
             indicator_format,
+            backend,
         }
     }
 }
@@ -170,6 +173,7 @@ impl NetworkSettings {
 
     pub fn update(&mut self, message: Message) -> Action {
         match message {
+            Message::Event(_) if self.config.backend == NetworkBackend::Disabled => Action::None,
             Message::Event(event) => match event {
                 ServiceEvent::Init(service) => {
                     self.service = Some(service);
@@ -354,7 +358,11 @@ impl NetworkSettings {
                 }
             }
             Message::ConfigReloaded(config) => {
+                let disabled = config.backend == NetworkBackend::Disabled;
                 self.config = config;
+                if disabled {
+                    self.service = None;
+                }
                 Action::None
             }
             Message::ShareActiveWifi => {
@@ -466,7 +474,7 @@ impl NetworkSettings {
 
                 Some((
                     quick_setting_button(
-                        active_connection.map_or_else(|| StaticIcon::Wifi0, |(_, _, _, icon)| icon),
+                        active_connection.map_or(StaticIcon::Wifi0, |(_, _, _, icon)| icon),
                         t!("settings-network-wifi"),
                         active_connection.map(|(name, _, _, _)| name.to_string()),
                         service.wifi_enabled,
@@ -805,7 +813,11 @@ impl NetworkSettings {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        NetworkService::subscribe().map(Message::Event)
+        if self.config.backend == NetworkBackend::Disabled {
+            Subscription::none()
+        } else {
+            NetworkService::subscribe().map(Message::Event)
+        }
     }
 
     pub fn airplane_mode_icon(active: bool) -> StaticIcon {
