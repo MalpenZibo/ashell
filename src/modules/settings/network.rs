@@ -474,7 +474,7 @@ impl NetworkSettings {
 
                 Some((
                     quick_setting_button(
-                        active_connection.map_or_else(|| StaticIcon::Wifi0, |(_, _, _, icon)| icon),
+                        active_connection.map_or(StaticIcon::Wifi0, |(_, _, _, icon)| icon),
                         t!("settings-network-wifi"),
                         active_connection.map(|(name, _, _, _)| name.to_string()),
                         service.wifi_enabled,
