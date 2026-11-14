@@ -136,7 +136,7 @@ dependencies = [
 
 [[package]]
 name = "ashell"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "allsorts",
  "anyhow",
@@ -180,7 +180,7 @@ dependencies = [
 
 [[package]]
 name = "ashell-i18n"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "chrono",
  "i18n-embed",
@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "ashell-services"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "freedesktop-icons",

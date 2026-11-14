@@ -1,0 +1,427 @@
+---
+sidebar_position: 1
+---
+
+# General
+
+These are all the appearance options not related to the color palette.
+
+## Font
+
+You can change the font used by setting the `font_name` field. This configuration
+is optional—if not set, the `iced` library will use the default font.
+
+```toml
+[appearance]
+font_name = "Comic Sans MS"
+```
+
+:::warning
+
+Changing the font requires killing and restarting ashell process. The font configuration does not support hot-reloading
+
+:::
+
+:::tip Finding the exact font name
+
+The `font_name` must match the font's family name exactly (e.g. `"Terminus (TTF)"`,
+not `"Terminus"`). To list available fonts and their exact names, run:
+
+```bash
+fc-list | cut -d: -f2 | sort -u
+```
+
+:::
+
+## Font Weight
+
+If the font in `font_name` ships several weights as separate files (Light,
+Regular, Bold, ...), the `font_weight` field picks which one ashell uses.
+The default is `"normal"`.
+
+Allowed values: `"thin"` (100), `"extralight"` (200), `"light"` (300),
+`"normal"` (400), `"medium"` (500), `"semibold"` (600), `"bold"` (700),
+`"extrabold"` (800), `"black"` (900).
+
+```toml
+[appearance]
+font_name = "Open Sans"
+font_weight = "light"
+```
+
+Use the family name shared by all weights in `font_name`. `fc-list` also prints
+per-weight names such as `"Open Sans Light"`, but ashell does not recognize
+them and falls back to the default font.
+
+`font_weight` only applies together with `font_name`; without it the option is
+ignored and a warning is logged. Like `font_name`, changing `font_weight`
+requires restarting ashell.
+
+:::info How the face is picked
+
+ashell picks the face of `font_name` whose declared weight is closest to
+`font_weight`, so you don't need to set it for a font that ships a single face.
+If the font has no face with that exact weight (for example, Terminus TTF's
+Regular face reports weight 500/Medium), ashell uses the closest available face
+and logs a warning. Text that requests a different weight (e.g. Bold) will then
+look the same as regular text.
+
+Variable fonts, which pack every weight into one file, expose only their
+default weight, so `font_weight` cannot select other weights from them.
+
+This is also why ashell **cannot use bitmap fonts** (`.bdf`/`.pcf`), which are
+the format of the `terminus-font` package on Arch Linux — only TrueType (`.ttf`)
+and OpenType (`.otf`/`.otc`) fonts are supported.
+
+:::
+
+## Scaling Factor
+
+You can change the scaling factor of the status bar using the `scale_factor` field.
+
+The value should be a float greater than `0.0` and less than or equal to `2.0`.
+The default value is `1.0`.
+
+```toml
+[appearance]
+scale_factor = 1.5
+```
+
+## Status Bar
+
+The look of the status bar is configured under the `[appearance.bar]` section.
+
+### Surface
+
+The `surface` field controls where the background color is painted:
+
+- `transparent`: This is the default. The bar itself is see-through and each
+  module group is painted with the background color, giving the "islands" look.
+- `solid`: The bar is painted with the background color as a single continuous
+  surface.
+
+```toml
+[appearance.bar]
+surface = "solid"
+```
+
+### Radius
+
+The `radius` field rounds the corners of the solid bar surface and the bar
+border. It also applies to the border with `surface = "transparent"`. Values are
+steps of the radius scale: `none` (square), `sm`, `md`, `lg`, `xl`.
+
+It uses CSS `border-radius` shorthand: a single value applies to all corners, two
+values are `[top-left+bottom-right, top-right+bottom-left]`, and four values are
+`[top-left, top-right, bottom-right, bottom-left]`.
+
+```toml
+[appearance.bar]
+surface = "solid"
+radius = "md"                       # all corners
+# radius = ["none", "none", "md", "md"]  # square top, rounded bottom
+```
+
+### Margin
+
+The `margin` field insets the bar from the screen edges, turning it into a
+floating bar. Values are steps of the spacing scale: `none` (default), `xxs`,
+`xs`, `sm`, `md`, `lg`, `xl`, `xxl`; or pixels as a float: `10`, `16.5`, `20.0`, etc.
+
+It uses CSS `margin` shorthand: a single value applies to all edges, two values
+are `[vertical, horizontal]`, and four values are `[top, right, bottom, left]`.
+
+```toml
+[appearance.bar]
+margin = "sm"              # all edges
+# margin = ["xs", 20.0]    # vertical, horizontal
+```
+
+Margins are always in screen pixels and are **not** affected by
+`scale_factor`: the compositor applies them outside the bar, so a scale token
+like `sm` is the same distance at any scale. Changing `scale_factor` resizes the
+bar itself but leaves the gap around it unchanged.
+
+### Padding
+
+The `padding` field insets the bar *content* from the edges of the bar itself.
+It accepts the same values and CSS shorthand as `margin`, and defaults to `xxs`.
+
+The difference from `margin` is where the space lives. `margin` moves the whole
+bar away from the screen edge, so the gap belongs to the compositor: a solid bar
+stops spanning the full width, and the bar no longer receives clicks or scroll
+events at the screen edge. `padding` keeps the bar where it is and moves only
+its content, so a solid bar keeps its full-width background and the whole bar
+stays reachable by throwing the pointer at the screen edge.
+
+```toml
+[appearance.bar]
+padding = "xxs"            # (default) all edges
+# padding = ["xxs", "sm"]  # vertical, horizontal
+# padding = 6              # pixels
+```
+
+Padding is drawn inside the bar, so it scales with `scale_factor` like the rest
+of the interface. `margin` is applied by the compositor and is always in screen
+pixels.
+
+### Border
+
+The `border` field draws a border around the bar, with both surfaces. With
+`transparent` it outlines the whole bar area around the islands. It follows the
+bar `radius`.
+
+- `width`: in pixels. Defaults to `0` (no border).
+- `color`: a [color](#colors). Defaults to `background.strong`.
+
+```toml
+[appearance.bar]
+border = { width = 1, color = "background.strong" }
+# border = { width = 2, color = "#414868" }
+```
+
+### Colors
+
+Style colors (`border.color`, `background`, `text_color`) accept a hex color or
+a reference to the [palette](./palette.md), so they follow theme changes:
+
+| Reference | Color |
+| --- | --- |
+| `background` | The background color |
+| `background.weakest` … `background.strongest` | Background levels: `weakest`, `weaker`, `weak`, `neutral`, `strong`, `stronger`, `strongest` |
+| `primary`, `primary.weak`, `primary.strong` | The primary color |
+| `success`, `warning`, `danger` (also `.weak` / `.strong`) | The status colors |
+| `text` | The text color |
+
+```toml
+border = { width = 1, color = "primary.weak" }
+# border = { width = 1, color = "#414868" }
+```
+
+### Opacity
+
+The `opacity` field sets the opacity of the surfaces ashell draws. The value
+should be a float between `0.0` (fully transparent) and `1.0` (fully opaque,
+the default).
+
+It applies to the backgrounds a surface paints, so text and icons stay fully
+opaque and readable whatever opacity you pick.
+
+A single value covers every surface:
+
+```toml
+[appearance]
+opacity = 0.8
+```
+
+A table sets a `default` and overrides it per surface. Every key is optional,
+and anything you leave out falls back to `default`:
+
+```toml
+[appearance.opacity]
+default = 0.8
+bar = 1.0             # opaque, so it stays readable over the wallpaper
+menu = 0.9            # menus sit over arbitrary windows
+osd = 0.6
+notifications = 0.9
+```
+
+| Key | Surface |
+| --- | --- |
+| `default` | Every surface without its own override (`1.0` when omitted) |
+| `bar` | The status bar |
+| `menu` | Every menu opened from the bar, the notification centre included |
+| `osd` | The volume and brightness OSD |
+| `notifications` | Toast notifications |
+
+## Module Islands
+
+Each module, or [group of modules](../modules/index.md), sits in an island: the
+pill behind it with `surface = "transparent"`. Islands are styled under
+`[appearance.modules]`:
+
+- `default`: every island.
+- `group`: the islands of module groups. Unset fields fall back to `default`.
+- One table per module, named after its settings section (`system_info`,
+  `media_player`, …), or `custom.<name>` for a custom module. Unset fields fall
+  back to `default`.
+
+| Field | `default` | `group` | module | Description |
+| --- | :---: | :---: | :---: | --- |
+| `radius` | ✓ | ✓ | ✓ | Corner radius, same values and shorthand as [`bar.radius`](#radius). Defaults to `lg` |
+| `padding` | ✓ | ✓ | ✓ | Space inside the island, same values and shorthand as [`bar.padding`](#padding). Defaults to `none` |
+| `border` | ✓ | ✓ | ✓ | `{ width, color }`, like [`bar.border`](#border). No border by default |
+| `background` | ✓ | ✓ | ✓ | A [color](#colors). Defaults to `background` |
+| `spacing` | | ✓ | ✓ | Same values as `bar.margin`. For a group, the space between its modules, defaulting to `none`. For a module, the space between its own elements, see [below](#module-spacing) |
+| `text_color` | | | ✓ | Text color of the module, a [color](#colors). Also applies inside a group |
+| `font_size` | | | ✓ | Size of the module's main text, see [below](#module-font-size). Also applies inside a group |
+
+For modules and groups, `border` falls back to `default.border` as a whole table.
+Setting a `border` table replaces that default: omitted `width` and `color` use
+`0` and `background.strong`, respectively. For example, `border = { width = 2 }`
+uses `background.strong` even if `default.border.color` is `primary`. Set both
+fields to retain a custom default color while changing the width.
+
+A module inside a group sits in the group's island, so its own `radius`,
+`padding`, `border` and `background` only apply when it is on its own.
+
+With `surface = "solid"` the bar paints the background, so islands are not
+drawn unless their style sets a `border` or `background`. This lets you put
+islands on top of a solid bar.
+
+```toml
+[modules]
+right = [ "SystemInfo", [ "Tempo", "Privacy", "Settings" ] ]
+
+[appearance.modules.default]
+radius = "lg"
+border = { width = 1, color = "background.strong" }
+
+[appearance.modules.group]
+radius = "md"
+padding = ["none", "xxs"]
+background = "background.weak"
+spacing = "xs"
+
+[appearance.modules.system_info]
+radius = "md"
+border = { width = 1, color = "#414868" }
+text_color = "primary"
+spacing = "xs"
+
+[appearance.modules.workspaces]
+font_size = "sm"
+
+[appearance.modules.custom.my_custom_module]
+background = "primary.weak"
+```
+
+### Module Spacing
+
+A module's `spacing` is the space between the elements it shows. When unset,
+each module keeps its own value:
+
+| Module | Space between | Default |
+| --- | --- | --- |
+| `custom.<name>` | The icon and the text of a button | `xs` |
+| `media_player` | The icon, the text and the visualizer | `xs` |
+| `privacy` | The icons | `xs` |
+| `settings` | The indicators | `xs` |
+| `system_info` | The indicators | `xxs` |
+| `tempo` | The weather and the time | `sm` |
+| `tray` | The icons | `none` |
+| `updates` | The icon and the count | `xxs` |
+| `workspaces` | The workspaces | `xxs` |
+
+The other modules show a single element, so `spacing` has no effect on them.
+It also applies inside a group.
+
+### Module Font Size
+
+A module's `font_size` sets the size of its main text and of its icons, as a
+step of the font scale:
+
+| Step | `xxs` | `xs` | `sm` | `md` | `lg` | `xl` | `xxl` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Size (px) | 8 | 10 | 12 | 14 | 16 | 20 | 32 |
+
+When unset, each module keeps its own sizes. Secondary texts, like the weather
+next to the time, keep theirs.
+
+| Module | Follows `font_size` | Default |
+| --- | --- | --- |
+| `custom.<name>` | The icon and the text | `md` |
+| `keyboard_layout` | The layout | `md` |
+| `keyboard_submap` | The submap | `md` |
+| `media_player` | The icon and the title | `md` for the icon, `sm` for the title |
+| `notifications` | The icon | `md` |
+| `privacy` | The icons | `md` |
+| `settings` | The icons and texts of the indicators | `md` |
+| `system_info` | The icons and the values | `md` |
+| `tempo` | The time | `md` |
+| `tray` | The icons | `lg` |
+| `updates` | The icon and the count; the spinner shown while checking keeps its size in proportion | `md` |
+| `window_title` | The title | `sm` |
+| `workspaces` | The names and icons; the buttons grow with them | `xs` |
+
+The bar gets taller when the text of a module in `[modules]` no longer fits:
+above `xs` for `workspaces`, above `lg` for the other modules. The corners of the bar, the
+islands and the workspaces grow with it to keep their shape, and a module is
+at least as wide as the bar is tall, so the island of a single icon stays round.
+
+## Menu Backdrop
+
+The `backdrop` effect darkens whatever is behind an open menu, making it stand
+out from the content around it. The value should be a float between `0.0`
+(disabled) and `1.0` (fully darkened).
+
+It is drawn by ashell and involves no blur — see [Blur](#blur) for that.
+
+**Default value:** `menu.backdrop`: `0.0` (disabled)
+
+```toml
+[appearance.menu]
+backdrop = 0.3
+```
+
+## Blur
+
+The `blur` field asks the compositor to blur the wallpaper behind ashell's
+translucent surfaces — the bar (the island pills when `bar.surface` is
+`transparent`, the whole bar when it is `solid`), menus, the OSD and toast
+notifications — using the `ext-background-effect-v1` Wayland protocol. It is a
+no-op on compositors that do not support that protocol.
+
+| Value | Behaviour |
+| --- | --- |
+| `"auto"` (default) | Ask for blur on each surface whose `opacity` is below `1.0` |
+| `"always"` | Ask for blur regardless of opacity |
+| `"never"` | Never ask |
+
+`"auto"` exists because blurring a fully opaque surface cannot be seen: it asks
+for the effect exactly when the effect can show. Use `"never"` if you want
+translucent surfaces without blur.
+
+### Example
+
+```toml
+[appearance]
+opacity = 0.8
+blur = "auto"
+```
+
+### Compositor setup
+
+Supporting the protocol is not enough on its own — most compositors also want
+blur turned on somewhere in their own config before they will draw it.
+
+On niri, add a layer rule matching ashell's namespaces:
+
+```kdl
+layer-rule {
+    match namespace="^ashell-"
+    background-effect {
+        blur true
+    }
+}
+```
+
+On Hyprland, enable blur globally:
+
+```conf
+decoration {
+    blur {
+        enabled = true
+    }
+}
+```
+
+No `layerrule = blur` is needed: once a surface uses the protocol Hyprland
+follows the region ashell publishes and ignores the layer rule. But with
+`decoration:blur:enabled = false` nothing is drawn even though the protocol is
+advertised, so `blur` will look like it does nothing.
+
+Note that `"never"` means "blur nothing", not "leave it to the compositor": on a
+compositor that supports the protocol ashell always publishes a region, and an
+empty one takes precedence over a rule like the ones above. If you configured
+blur in your compositor and want to keep it, use `"auto"` or `"always"`.

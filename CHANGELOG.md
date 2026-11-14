@@ -1,5 +1,132 @@
 # Changelog
 
+## [0.12.0] - 2026-11-14
+
+### Changes
+
+### 🚀 Features
+
+- feat(ipc): add set-\* commands for forcing a state, keep toggles parameterless [@dacrab](https://github.com/dacrab) ([#1128](https://github.com/MalpenZibo/ashell/issues/1128))
+- feat(appearance): apply per-module font size [@MalpenZibo](https://github.com/MalpenZibo) ([#1120](https://github.com/MalpenZibo/ashell/issues/1120))
+- feat(appearance): apply per-module spacing [@MalpenZibo](https://github.com/MalpenZibo) ([#1119](https://github.com/MalpenZibo/ashell/issues/1119))
+- feat(system\_info): group the menu into cards [@MatthewDeSouza](https://github.com/MatthewDeSouza) ([#1105](https://github.com/MalpenZibo/ashell/issues/1105))
+- feat(appearance): render bar border and module island styles [@sulabi](https://github.com/sulabi) ([#1032](https://github.com/MalpenZibo/ashell/issues/1032))
+- feat(tempo): follow the clock's 12/24-hour format for weather times [@MatthewDeSouza](https://github.com/MatthewDeSouza) ([#1063](https://github.com/MalpenZibo/ashell/issues/1063))
+- add optional countdown bar for toast timeout [@romanstingler](https://github.com/romanstingler) ([#1079](https://github.com/MalpenZibo/ashell/issues/1079))
+- pause toast countdown on hover [@romanstingler](https://github.com/romanstingler) ([#1073](https://github.com/MalpenZibo/ashell/issues/1073))
+- feat: Full StatusNotifierItem (SNI) tray implementation [@miramir](https://github.com/miramir) ([#970](https://github.com/MalpenZibo/ashell/issues/970))
+- feat(i18n): add Ukrainian (uk-UA) locale [@romanstingler](https://github.com/romanstingler) ([#1054](https://github.com/MalpenZibo/ashell/issues/1054))
+- add configurable history limit with automatic eviction [@romanstingler](https://github.com/romanstingler) ([#1052](https://github.com/MalpenZibo/ashell/issues/1052))
+- add font\_weight option [@romanstingler](https://github.com/romanstingler) ([#975](https://github.com/MalpenZibo/ashell/issues/975))
+- Feat/russian locale [@miramir](https://github.com/miramir) ([#1042](https://github.com/MalpenZibo/ashell/issues/1042))
+- feat(config): add style options for borders, module islands and groups [@MalpenZibo](https://github.com/MalpenZibo) ([#1029](https://github.com/MalpenZibo/ashell/issues/1029))
+- add GitHub issue templates for bug reports and feature requests [@romanstingler](https://github.com/romanstingler) ([#1040](https://github.com/MalpenZibo/ashell/issues/1040))
+- feat(notifications): focus the sender's window on click [@MalpenZibo](https://github.com/MalpenZibo) ([#1027](https://github.com/MalpenZibo/ashell/issues/1027))
+- add Wi-Fi QR code sharing via NetworkManager [@romanstingler](https://github.com/romanstingler) ([#992](https://github.com/MalpenZibo/ashell/issues/992))
+- add support for notification action buttons [@romanstingler](https://github.com/romanstingler) ([#977](https://github.com/MalpenZibo/ashell/issues/977))
+- feat(ipc command): LoadConfig command for config switching [@sulabi](https://github.com/sulabi) ([#957](https://github.com/MalpenZibo/ashell/issues/957))
+- add temporary connection support for open networks [@romanstingler](https://github.com/romanstingler) ([#973](https://github.com/MalpenZibo/ashell/issues/973))
+- add click-to-focus player window with menu close [@romanstingler](https://github.com/romanstingler) ([#936](https://github.com/MalpenZibo/ashell/issues/936))
+- add do not disturb mode with toggle and suppression [@romanstingler](https://github.com/romanstingler) ([#930](https://github.com/MalpenZibo/ashell/issues/930))
+- feat(settings): add battery\_health option to hide health and cycles [@MalpenZibo](https://github.com/MalpenZibo) ([#1030](https://github.com/MalpenZibo/ashell/issues/1030))
+- feat(settings): battery details submenu with health and charge cycles [@MalpenZibo](https://github.com/MalpenZibo) ([#1028](https://github.com/MalpenZibo/ashell/issues/1028))
+- Add battery health and charge cycles to tooltip [@romanstingler](https://github.com/romanstingler) ([#1012](https://github.com/MalpenZibo/ashell/issues/1012))
+- feat(custom\_module): tooltips [@LukeCarrier](https://github.com/LukeCarrier) ([#914](https://github.com/MalpenZibo/ashell/issues/914))
+- add indicator controls for direct playback on mediaplayer [@romanstingler](https://github.com/romanstingler) ([#898](https://github.com/MalpenZibo/ashell/issues/898))
+
+### 🐞 Bug fixes
+
+- fix: allow on-screen keyboard input in Wi-Fi password dialogs [@mvanhorn](https://github.com/mvanhorn) ([#1116](https://github.com/MalpenZibo/ashell/issues/1116))
+- probe backend and stop the no-backend retry storm [@romanstingler](https://github.com/romanstingler) ([#1144](https://github.com/MalpenZibo/ashell/issues/1144))
+- route VPN more action to vpn\_more\_cmd [@romanstingler](https://github.com/romanstingler) ([#1142](https://github.com/MalpenZibo/ashell/issues/1142))
+- prevent wifi passwords from leaking in debug output [@romanstingler](https://github.com/romanstingler) ([#1141](https://github.com/MalpenZibo/ashell/issues/1141))
+- Fix/tray retry the watcher instead of parking forever [@romanstingler](https://github.com/romanstingler) ([#1135](https://github.com/MalpenZibo/ashell/issues/1135))
+- fix(privacy): watch every /dev/video\* node for webcam use [@nikcani](https://github.com/nikcani) ([#1122](https://github.com/MalpenZibo/ashell/issues/1122))
+- fix(appearance): match md to the default text size [@MalpenZibo](https://github.com/MalpenZibo) ([#1137](https://github.com/MalpenZibo/ashell/issues/1137))
+- fix(brightness): stop step changes at the lowest usable level [@dacrab](https://github.com/dacrab) ([#1127](https://github.com/MalpenZibo/ashell/issues/1127))
+- fix(power): fall back to loginctl when a built-in command is missing [@dacrab](https://github.com/dacrab) ([#1132](https://github.com/MalpenZibo/ashell/issues/1132))
+- fix(xdg\_icons): resolve absolute IconName file paths [@romanstingler](https://github.com/romanstingler) ([#1131](https://github.com/MalpenZibo/ashell/issues/1131))
+- Fix/tray icon refresh [@romanstingler](https://github.com/romanstingler) ([#1134](https://github.com/MalpenZibo/ashell/issues/1134))
+- fix(tray): prefer IconName over IconPixmap [@romanstingler](https://github.com/romanstingler) ([#1130](https://github.com/MalpenZibo/ashell/issues/1130))
+- Fix/tray survive item failures [@romanstingler](https://github.com/romanstingler) ([#1129](https://github.com/MalpenZibo/ashell/issues/1129))
+- improve French locale wording and pluralization [@romanstingler](https://github.com/romanstingler) ([#1058](https://github.com/MalpenZibo/ashell/issues/1058))
+- fix(network): recognize saved Wi-Fi networks reliably [@mickleon](https://github.com/mickleon) ([#1114](https://github.com/MalpenZibo/ashell/issues/1114))
+- fix(tempo): place the AM/PM marker where the clock puts it [@MatthewDeSouza](https://github.com/MatthewDeSouza) ([#1101](https://github.com/MalpenZibo/ashell/issues/1101))
+- support Hyprland 0.57 workspace identity [@romanstingler](https://github.com/romanstingler) ([#1108](https://github.com/MalpenZibo/ashell/issues/1108))
+- Look tray icon names up in the item's IconThemePath [@romanstingler](https://github.com/romanstingler) ([#1096](https://github.com/MalpenZibo/ashell/issues/1096))
+- fix(tray): key method-registered items by the service owner [@mickleon](https://github.com/mickleon) ([#1095](https://github.com/MalpenZibo/ashell/issues/1095))
+- follow foreign StatusNotifierWatcher and close menus on reload [@romanstingler](https://github.com/romanstingler) ([#1091](https://github.com/MalpenZibo/ashell/issues/1091))
+- fix(tray): tint symbolic SVG icons with the theme text color [@juanmhidalgo](https://github.com/juanmhidalgo) ([#1088](https://github.com/MalpenZibo/ashell/issues/1088))
+- fix(tray): keep icon pixmaps out of zbus's property cache [@MalpenZibo](https://github.com/MalpenZibo) ([#1081](https://github.com/MalpenZibo/ashell/issues/1081))
+- fix(rfkill): use the kernel rfkill interface instead of the rfkill binary [@romanstingler](https://github.com/romanstingler) ([#1080](https://github.com/MalpenZibo/ashell/issues/1080))
+- perf(system\_info): refresh only the temperature sensor in use [@MalpenZibo](https://github.com/MalpenZibo) ([#1082](https://github.com/MalpenZibo/ashell/issues/1082))
+- fix(notifications): honor rowstride in image-data hints [@romanstingler](https://github.com/romanstingler) ([#1085](https://github.com/MalpenZibo/ashell/issues/1085))
+- fix: stop the pipewire thread and move IPC reads off the executor [@dacrab](https://github.com/dacrab) ([#1070](https://github.com/MalpenZibo/ashell/issues/1070))
+- perf(compositor): cache the Hyprland config-provider detection [@dacrab](https://github.com/dacrab) ([#1069](https://github.com/MalpenZibo/ashell/issues/1069))
+- fix(notifications): harden the notification daemon [@dacrab](https://github.com/dacrab) ([#1068](https://github.com/MalpenZibo/ashell/issues/1068))
+- fix(config): make config hot reload robust [@dacrab](https://github.com/dacrab) ([#1067](https://github.com/MalpenZibo/ashell/issues/1067))
+- fix(i18n): correct Russian locale translations and formatting [@romanstingler](https://github.com/romanstingler) ([#1055](https://github.com/MalpenZibo/ashell/issues/1055))
+- refine German locale translations for accuracy and consistency [@romanstingler](https://github.com/romanstingler) ([#1059](https://github.com/MalpenZibo/ashell/issues/1059))
+- prevent blocking reads from stalling IPC subscription [@romanstingler](https://github.com/romanstingler) ([#1057](https://github.com/MalpenZibo/ashell/issues/1057))
+- use private per-user fallback directory for logs [@romanstingler](https://github.com/romanstingler) ([#1056](https://github.com/MalpenZibo/ashell/issues/1056))
+- cache icon theme resolution to avoid repeated gsettings spawns [@romanstingler](https://github.com/romanstingler) ([#1051](https://github.com/MalpenZibo/ashell/issues/1051))
+- move system info sampling to dedicated threads [@romanstingler](https://github.com/romanstingler) ([#1049](https://github.com/MalpenZibo/ashell/issues/1049))
+- detect second-level specifiers for 1s refresh interval [@romanstingler](https://github.com/romanstingler) ([#1044](https://github.com/MalpenZibo/ashell/issues/1044))
+- fix(settings): ignore pointer events on collapsed sub-menus [@impervius](https://github.com/impervius) ([#1041](https://github.com/MalpenZibo/ashell/issues/1041))
+- use private runtime dir for IPC socket and cava config [@romanstingler](https://github.com/romanstingler) ([#1039](https://github.com/MalpenZibo/ashell/issues/1039))
+- update package metadata and docs for cross-distro dependency declarations [@romanstingler](https://github.com/romanstingler) ([#1037](https://github.com/MalpenZibo/ashell/issues/1037))
+- harden socket privacy with private directory validation [@romanstingler](https://github.com/romanstingler) ([#1034](https://github.com/MalpenZibo/ashell/issues/1034))
+- prevent panic when truncating version strings [@romanstingler](https://github.com/romanstingler) ([#1016](https://github.com/MalpenZibo/ashell/issues/1016))
+- sort unpaired and disconnected devices by name [@romanstingler](https://github.com/romanstingler) ([#1015](https://github.com/MalpenZibo/ashell/issues/1015))
+- round temperature values before casting to integer [@romanstingler](https://github.com/romanstingler) ([#1014](https://github.com/MalpenZibo/ashell/issues/1014))
+- stop launcher custom buttons toggling active state [@romanstingler](https://github.com/romanstingler) ([#1013](https://github.com/MalpenZibo/ashell/issues/1013))
+- use multi-battery pack estimate for time calculations [@romanstingler](https://github.com/romanstingler) ([#1011](https://github.com/MalpenZibo/ashell/issues/1011))
+
+### 📚 Documentation
+
+- docs: update configuration and installation documentation [@romanstingler](https://github.com/romanstingler) ([#1139](https://github.com/MalpenZibo/ashell/issues/1139))
+- clarify missing tray icon troubleshooting [@romanstingler](https://github.com/romanstingler) ([#1092](https://github.com/MalpenZibo/ashell/issues/1092))
+- docs: remove Portal D-Bus interface from reference table and grep command [@romanstingler](https://github.com/romanstingler) ([#1087](https://github.com/MalpenZibo/ashell/issues/1087))
+- docs(agents): sync the project layout with the current source tree [@dacrab](https://github.com/dacrab) ([#1066](https://github.com/MalpenZibo/ashell/issues/1066))
+- docs(i18n): add wording-source guidance for desktop and weather translations [@romanstingler](https://github.com/romanstingler) ([#1060](https://github.com/MalpenZibo/ashell/issues/1060))
+- update make check description in AGENTS.md [@romanstingler](https://github.com/romanstingler) ([#1046](https://github.com/MalpenZibo/ashell/issues/1046))
+- document git-sourced dependencies and their pinning [@romanstingler](https://github.com/romanstingler) ([#1045](https://github.com/MalpenZibo/ashell/issues/1045))
+- docs: bring the developer docs in line with the current code [@MalpenZibo](https://github.com/MalpenZibo) ([#1021](https://github.com/MalpenZibo/ashell/issues/1021))
+- docs: put installation before configuration in the sidebar [@MalpenZibo](https://github.com/MalpenZibo) ([#1020](https://github.com/MalpenZibo/ashell/issues/1020))
+- docs: add ready-made palettes for popular color schemes [@MalpenZibo](https://github.com/MalpenZibo) ([#1019](https://github.com/MalpenZibo/ashell/issues/1019))
+
+### 🧰 Maintenance
+
+- chore(deps): bump libz-sys to 1.1.31 [@romanstingler](https://github.com/romanstingler) ([#1143](https://github.com/MalpenZibo/ashell/issues/1143))
+- chore: update dependencies for hyprland and windows-sys [@romanstingler](https://github.com/romanstingler) ([#1140](https://github.com/MalpenZibo/ashell/issues/1140))
+- chore: follow-up to the dead code removal [@MalpenZibo](https://github.com/MalpenZibo) ([#1136](https://github.com/MalpenZibo/ashell/issues/1136))
+- refactor: remove dead code across services and UI [@dacrab](https://github.com/dacrab) ([#1125](https://github.com/MalpenZibo/ashell/issues/1125))
+- refactor(modules): unify module press handling [@dacrab](https://github.com/dacrab) ([#1083](https://github.com/MalpenZibo/ashell/issues/1083))
+- bump dependencies [@romanstingler](https://github.com/romanstingler) ([#1097](https://github.com/MalpenZibo/ashell/issues/1097))
+- refactor(services): move logind into ashell-services [@MalpenZibo](https://github.com/MalpenZibo) ([#1089](https://github.com/MalpenZibo/ashell/issues/1089))
+- refactor(services): move the idle inhibitor into ashell-services [@MalpenZibo](https://github.com/MalpenZibo) ([#1090](https://github.com/MalpenZibo/ashell/issues/1090))
+- refactor(i18n): move localization into the ashell-i18n crate [@MalpenZibo](https://github.com/MalpenZibo) ([#1047](https://github.com/MalpenZibo/ashell/issues/1047))
+- refactor(services): move the xdg icon lookup into ashell-services [@MalpenZibo](https://github.com/MalpenZibo) ([#1078](https://github.com/MalpenZibo/ashell/issues/1078))
+- refactor(services): move brightness into ashell-services [@MalpenZibo](https://github.com/MalpenZibo) ([#1076](https://github.com/MalpenZibo/ashell/issues/1076))
+- refactor(services): move privacy into ashell-services [@MalpenZibo](https://github.com/MalpenZibo) ([#1077](https://github.com/MalpenZibo/ashell/issues/1077))
+- refactor: dedupe scroll handling and identical match arms [@dacrab](https://github.com/dacrab) ([#1084](https://github.com/MalpenZibo/ashell/issues/1084))
+- refactor(services): move upower into ashell-services [@MalpenZibo](https://github.com/MalpenZibo) ([#993](https://github.com/MalpenZibo/ashell/issues/993))
+- upgrade to zbus 6 [@romanstingler](https://github.com/romanstingler) ([#1075](https://github.com/MalpenZibo/ashell/issues/1075))
+- update dependencies [@romanstingler](https://github.com/romanstingler) ([#1074](https://github.com/MalpenZibo/ashell/issues/1074))
+- update clock only on minute change when seconds hidden [@romanstingler](https://github.com/romanstingler) ([#1050](https://github.com/MalpenZibo/ashell/issues/1050))
+- Refactor/ashell services crate [@MalpenZibo](https://github.com/MalpenZibo) ([#988](https://github.com/MalpenZibo/ashell/issues/988))
+- replace logs textarea with file upload field in bug report [@romanstingler](https://github.com/romanstingler) ([#1043](https://github.com/MalpenZibo/ashell/issues/1043))
+- add GitHub issue templates for bug reports and feature requests [@romanstingler](https://github.com/romanstingler) ([#1040](https://github.com/MalpenZibo/ashell/issues/1040))
+- ci(installers): test that the generated packages install [@romanstingler](https://github.com/romanstingler) ([#1038](https://github.com/MalpenZibo/ashell/issues/1038))
+
+### 🔧 Dependency updates
+
+- build(deps): bump tokio from 1.54.0 to 1.54.1 in the cargo group across 1 directory @[dependabot[bot]](https://github.com/apps/dependabot) ([#1093](https://github.com/MalpenZibo/ashell/issues/1093))
+
+### Contributors
+
+❤️ A big thanks to [@dacrab](https://github.com/dacrab), [@impervius](https://github.com/impervius), [@juanmhidalgo](https://github.com/juanmhidalgo), [@LukeCarrier](https://github.com/LukeCarrier), [@MatthewDeSouza](https://github.com/MatthewDeSouza), [@mickleon](https://github.com/mickleon), [@miramir](https://github.com/miramir), [@mvanhorn](https://github.com/mvanhorn), [@nikcani](https://github.com/nikcani), [@romanstingler](https://github.com/romanstingler), [@sulabi](https://github.com/sulabi) and [@claude](https://github.com/claude)
+
 ## [0.11.0] - 2026-10-02
 
 ### Changes

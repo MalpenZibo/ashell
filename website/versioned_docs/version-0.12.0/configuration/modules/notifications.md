@@ -1,0 +1,185 @@
+---
+sidebar_position: 5
+---
+
+# Notifications
+
+This module displays a notification indicator in the status bar and provides a menu to view and interact with notifications.
+
+The notification indicator shows a bell icon when there are no notifications, and a bell with a badge when notifications are present.
+
+## Notification Daemon
+
+Enabling this module makes ashell register itself as the system notification daemon by claiming the `org.freedesktop.Notifications` DBus name. This means:
+
+- **dunst, mako, and other notification daemons cannot run alongside ashell** while this module is enabled. Only one process can hold the DBus name at a time. Starting another daemon after ashell will take over the name and ashell will stop receiving notifications.
+- **Notifications are stored in memory only** and are lost when ashell exits.
+
+### Toast popups
+
+By default, ashell shows transient toast popups when notifications arrive. Toasts appear in a configurable corner of the screen, stack vertically up to `toast_limit`, and auto-dismiss after the timeout. Clicking a toast invokes the notification's default action (if one exists) and dismisses it.
+
+The toast surface spans the full output height and uses a Wayland input region so that only the area occupied by actual toast cards accepts pointer input — the rest of the surface is fully click-through.
+
+The `expire_timeout` hint sent by applications is respected: a value of `-1` falls back to `toast_timeout`, `0` means the toast never auto-dismisses, and any positive value (in milliseconds) is used directly.
+
+Moving the pointer over a toast pauses the countdown so a notification cannot disappear while you are reading it. The pause applies to every toast on screen, not only the one under the pointer, so the stack stays intact. Each toast resumes with the time it had left when the pointer arrives elsewhere.
+
+If you prefer no popups and only the panel indicator, set `toast = false`.
+
+### Focusing the app
+
+On Wayland an app cannot bring its own window to the front when you click one of its notifications. So when a click invokes the notification's default action, ashell asks the compositor to focus the app's window: the most recently focused window of the process that sent the notification or, when it has none (Flatpak or XWayland apps), of the app named by the notification's `desktop-entry` hint or app name. The action buttons don't focus it. This works on Hyprland and Niri.
+
+## Do Not Disturb
+
+Do not disturb suppresses toast popups without dropping notifications: they are
+still collected and shown in the menu, and notifications with `Critical`
+urgency still pop up as toasts.
+
+While it is active the bar indicator switches to a crossed-out bell icon.
+
+You can toggle it in three ways:
+
+- **Right-click the notification indicator** in the status bar
+- **The bell button** in the notifications menu header
+- **The "Do Not Disturb" quick setting** in the [Settings](settings.md) menu
+  (can be hidden with `remove_dnd_btn`; it is only shown when this module is
+  part of the bar layout)
+
+The state is not persisted across restarts, ashell always starts with do not
+disturb off.
+
+## Notification Menu
+
+Click the notification indicator to open the notifications menu. The menu displays all active notifications with the following features:
+
+- **Individual notifications**: Shows the app icon, name, summary, and optional body text and timestamp
+- **Clear button**: Removes all notifications at once
+- **Do not disturb button**: Toggles do not disturb (see above)
+- **Grouped mode** (optional): Organizes notifications by application with expandable groups
+- **Clicking a notification**: Invokes its default action (if provided by the app), closes it and the menu
+- **Action buttons**: Any other actions the app provides (for example `notify-send -A "Reply"`) appear as buttons below the notification, on toasts and in the menu. Clicking one invokes that action and closes the notification. This applies to grouped notifications too
+
+## Configuration
+
+### format
+
+The format string used to display notification timestamps. Uses chrono strftime format.
+
+**Type:** `string`
+**Default:** `"%H:%M"`
+
+### show_timestamps
+
+Whether to display timestamps for each notification in the menu.
+
+**Type:** `boolean`
+**Default:** `true`
+
+### show_bodies
+
+Whether to display the body text of notifications in the menu.
+
+**Type:** `boolean`
+**Default:** `true`
+
+### grouped
+
+Whether to group notifications by application in the menu.
+
+When enabled, notifications are grouped by app name and each group can be
+expanded or collapsed independently. The group header shows the app name,
+icon, and count of notifications. When collapsed, only the most recent
+notification from each group is previewed. When expanded, all notifications
+in the group are shown.
+
+Clicking on a notification in the menu will invoke its default action (if
+one exists) and close it.
+
+**Type:** `boolean`
+**Default:** `false`
+
+### toast
+
+Whether to show transient toast popups when notifications arrive.
+
+**Type:** `boolean`
+**Default:** `true`
+
+### toast_position
+
+The corner or edge of the screen where toast notifications appear.
+
+**Type:** `string` — one of `"TopLeft"`, `"TopRight"`, `"TopCenter"`, `"BottomLeft"`, `"BottomRight"`, `"BottomCenter"`
+**Default:** `"TopRight"`
+
+### toast_timeout
+
+How long (in milliseconds) a toast is shown before auto-dismissing when the application does not specify a timeout (`expire_timeout = -1`). The countdown is paused while the pointer is over the toasts.
+
+**Type:** `integer`
+**Default:** `5000`
+
+### toast_limit
+
+Maximum number of toasts that can be visible at the same time. When this limit is reached, the oldest toast is removed to make room for a new one.
+
+Setting it to `0` suppresses toasts entirely (any visible ones are cleared when the next notification arrives), the same effect as `toast = false`.
+
+**Type:** `integer`
+**Default:** `5`
+
+### toast_max_height
+
+Maximum height (in pixels) of each individual toast card. Cards with less content will be shorter; this value caps how tall a single card can grow.
+
+**Type:** `integer`
+**Default:** `150`
+
+### history_limit
+
+Maximum number of notifications kept in the menu. When a new notification arrives and the history is full, the oldest one is removed and closed, so the app that sent it sees it as expired.
+
+Values outside `1..=1000` are clamped. Notifications still shown as a toast are never removed, so the history can hold more entries than the limit while toasts are on screen.
+
+**Type:** `integer`
+**Default:** `200`
+
+### toast_timeout_bar
+
+Show a thin bar under each toast that shrinks over the toast's remaining lifetime, so you can see how long it has left before it auto-dismisses. The bar is drawn in the theme's accent color.
+
+It appears on toasts only, never in the notification menu, and only on toasts that actually expire: a critical notification, or one sent with `expire_timeout = 0`, is persistent and has nothing to count down. It pauses along with the timeout while the pointer is over the toasts.
+
+The bar always animates while it shrinks. It does not follow the `[animations] enabled` setting, which defaults to `false`. To animate, the toasts are redrawn every frame while a bar is shrinking, which costs a few percent of one CPU core for as long as a toast is on screen. This is why the bar is off by default.
+
+**Type:** `boolean`
+**Default:** `false`
+
+### blocklist
+
+Notification app names to ignore.
+
+Each entry is treated as a regular expression and matched against the notification `app_name`. If any pattern matches, the notification is dropped before it appears in the menu or as a toast.
+
+**Type:** `array of strings`
+**Default:** `[]`
+
+### Example
+
+```toml
+[notifications]
+format = "%m/%d %H:%M"
+show_timestamps = true
+show_bodies = false
+grouped = true
+toast = true
+toast_position = "TopRight"
+toast_timeout = 4000
+toast_limit = 5
+toast_max_height = 150
+history_limit = 200
+toast_timeout_bar = false
+blocklist = ["blueman", "^org\\.gnome\\."]
+```
