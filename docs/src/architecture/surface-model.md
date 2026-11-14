@@ -29,14 +29,14 @@ For each monitor output, ashell creates a main bar surface, plus a menu surface 
 │  │  (Overlay layer, on demand)      │   │
 │  │  Namespace: "ashell-menu-layer"  │   │
 │  │  Exclusive zone: no              │   │
-│  │  Keyboard: None/OnDemand/Excl.   │   │
+│  │  Keyboard: None ↔ OnDemand       │   │
 │  └──────────────────────────────────┘   │
 │                                          │
 └─────────────────────────────────────────┘
 ```
 
 - **Main surface**: Always present, displays the bar content. Uses an exclusive zone so windows don't overlap it. Its keyboard interactivity is switched to `OnDemand` while a menu is open if `enable_esc_key` is set, so Escape can close the menu.
-- **Menu surface**: Created on the Overlay layer when a menu opens, anchored to all four edges, and destroyed when the menu closes. It requests `OnDemand` keyboard interactivity when `enable_esc_key` is set, and `Exclusive` while a dialog (e.g. the password prompt) needs keyboard input.
+- **Menu surface**: Created on the Overlay layer when a menu opens, anchored to all four edges, and destroyed when the menu closes. It requests `OnDemand` keyboard interactivity when `enable_esc_key` is set or a dialog (e.g. the password prompt) needs keyboard input, allowing on-screen keyboards to remain interactive. Otherwise it uses `None`; releasing dialog keyboard input also resets it to `None`. Focusing the input widget within iced does not guarantee immediate compositor focus of the surface: a click or tap may be required, depending on the compositor.
 
 Two additional overlay surfaces are created on demand and are not tied to a specific output: the toast surface for notifications (`"ashell-toast-layer"`) and the OSD surface (`"ashell-osd-layer"`).
 
