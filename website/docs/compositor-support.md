@@ -17,6 +17,7 @@ feature set, including compositor-specific concepts.
 - **Hyprland**
 - **Niri**
 - **MangoWC**
+- **Wayfire 0.9+** (requires the `ipc`, `ipc-rules`, and `vswitch` plugins enabled in `wayfire.ini`, with `ipc` listed first; detected via the `WAYFIRE_SOCKET` environment variable). Keyboard layout needs Wayfire 0.10+.
 
 ## Generic Wayland fallback
 
@@ -33,17 +34,17 @@ backs.
 
 ## Feature matrix
 
-| Feature | Hyprland | Niri | MangoWC | Generic Wayland |
-| --- | :---: | :---: | :---: | :---: |
-| Active window * | ✅ | ✅ | ✅ | ✅ |
-| Workspaces: list, click and scroll to switch | ✅ | ✅ | ✅ | ✅ |
-| Workspaces: empty/occupied distinction ** | ✅ | ✅ | ✅ | ❌ |
-| Workspaces: urgent highlight | ❌ | ✅ | ✅ | ✅ |
-| Workspaces: window icons *** | ✅ | ✅ | ❌ | ❌ |
-| Special workspaces | ✅ | ❌ | ❌ | ❌ |
-| Virtual desktops **** | ✅ | ❌ | ❌ | ❌ |
-| Keyboard layout | ✅ | ✅ | ✅ | ❌ |
-| Keyboard submap | ✅ | ❌ | ✅ | ❌ |
+| Feature | Hyprland | Niri | MangoWC | Wayfire | Generic Wayland |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| Active window * | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Workspaces: list, click and scroll to switch | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Workspaces: empty/occupied distinction ** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Workspaces: urgent highlight | ❌ | ✅ | ✅ | ❌ | ✅ |
+| Workspaces: window icons *** | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Special workspaces | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Virtual desktops **** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Keyboard layout | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Keyboard submap | ✅ | ❌ | ✅ | ❌ | ❌ |
 
 A ❌ means the backend (or the underlying protocol) does not expose that
 feature; the corresponding module, or that part of it, is simply unavailable on
