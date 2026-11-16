@@ -98,16 +98,22 @@ Instances of the same item share the service's data, never their options.
 
 ### Modules
 
-A zone uses data; a module provides it. A module is what an item and a panel
-come from: it offers items to put in a zone's rows, at rest or in the details,
-and one or more panels to open. One module can feed many zones, and one zone
-can hold items of many modules: the built-in `clock` zone holds the time and
-the unread dot, which come from two of them.
+A zone uses data; a module provides it. A module offers:
+
+- **items**, to put in any zone's rows, at rest or in the details;
+- **panels**, one or more, for a zone or an item to open.
+
+One module can feed many zones, and one zone can hold items of many modules:
+the built-in `clock` zone holds the time and the unread dot of the
+notifications, which come from two of them.
+
+A module is not a service. The settings module offers the volume, the
+network and the battery, each from a service of its own, and one service can
+feed more than one module.
 
 A module's own options, about what it does and where its data comes from, go
 in a table of its own, never in the layout. Panels are the modules' own: a
-panel the user puts together is not planned. How the modules split is not
-settled yet (see [Not decided yet](#not-decided-yet)).
+panel the user puts together is not planned.
 
 ## Syntax
 
@@ -568,8 +574,11 @@ ashell have no counterpart and go away:
   they land in (`window_list`, `workspace_list`, `media_details`) shrink as
   best they can, for example to icons; how is not decided.
 - **Modules.** Which modules there are, which items and panels each offers,
-  and what goes in each one's table. The starting point is the data and the
-  commands of today's ashell, gathered by what they are about:
+  and what goes in each one's table. Whether modules also offer ready-made
+  zones, as shorthands, in place of the built-in ones; if they do, whether
+  such a zone holds only its module's items, since today's `clock` holds the
+  unread dot and `status` the privacy indicator. The starting point is the
+  data and the commands of today's ashell, gathered by what they are about:
 
   | About | Today |
   | --- | --- |
@@ -690,7 +699,7 @@ could follow this table.
 | `outputs` | `[monitor."<monitor>"] bars` |
 | `modules.left`, `center`, `right` | the bar's `start`, `center`, `end` |
 | a group, `[["Tempo", "Privacy", "Settings"]]` | a group, `[["clock", "privacy", "status"]]` |
-| a module (`Tempo`, `Settings`…) | a built-in zone (`clock`, `status`…) |
+| a module (`Tempo`, `Settings`…) | a built-in zone (`clock`, `status`…), and the module its items come from |
 | `appearance.bar.surface` | the bar's `background` |
 | `appearance.modules.*.grouping` | `shape` on the nodes |
 | `settings.indicators` | `items` of `[zone.status]` |
