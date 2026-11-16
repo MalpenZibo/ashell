@@ -57,6 +57,14 @@ jobs:
         run: cp -r docs/book website/build/dev-guide
         working-directory: .
 
+      - name: Install Zola
+        run: curl -sSfL https://github.com/getzola/zola/releases/download/v0.23.6/zola-v0.23.6-x86_64-unknown-linux-gnu.tar.gz | sudo tar -xz -C /usr/local/bin
+        working-directory: .
+
+      - name: Build experimental site into website build
+        run: zola --root experimental/website build --output-dir website/build/experimental
+        working-directory: .
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
