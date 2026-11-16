@@ -1,7 +1,7 @@
 [package]
 name = "ashell-i18n"
 description = "Localization for ashell: locale, unit system and Fluent catalog loading"
-version = "0.11.0"
+version = "0.12.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
