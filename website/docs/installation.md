@@ -4,6 +4,8 @@ sidebar_position: 2
 
 # 🛠️ Installation
 
+Ashell works on both `x86-64` and `aarch64` (ARM64) systems.
+
 You can install Ashell using the following methods:
 
 ## Packages

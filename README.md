@@ -58,6 +58,8 @@
 Refer to the [Installation](https://malpenzibo.github.io/ashell/docs/installation)
 page for more details.
 
+ashell works on both `x86-64` and `aarch64` (ARM64) systems.
+
 ## ⚙️ Configuration
 
 ashell comes with a default configuration that should work out of the box.
