@@ -101,7 +101,9 @@ Instances of the same item share the service's data, never their options.
 A zone uses data; a module provides it. A module offers:
 
 - **items**, to put in any zone's rows, at rest or in the details;
-- **panels**, one or more, for a zone or an item to open.
+- **panels**, one or more, for a zone or an item to open;
+- **actions**, by name, for its items' gestures to run (see
+  [Interactions](#interactions)): `next_timezone`, `toggle_dnd`.
 
 One module can feed many zones, and one zone can hold items of many modules:
 the built-in `clock` zone holds the time and the unread dot of the
@@ -276,6 +278,7 @@ reported, and the first in that order is kept. `hover`, `panels` and
 | `item` | an id from the catalogue | which item; required |
 | `show` | `always`, `notable`, `never` | when it is visible (semantics not settled, see below) |
 | `open` | a panel name, `none` | a click on this item, over its zone's |
+| `right_click`, `middle_click`, `scroll_up`, `scroll_down` | an action | see [Interactions](#interactions) |
 | other keys | the item's own options | presentation details |
 
 ## Behaviour
@@ -467,6 +470,47 @@ off, close enough for a thick neck, whatever the group's panels.
 The pointer on the split-off row counts as on the group: the row stays while
 the pointer goes from the zone to it.
 
+### Interactions
+
+A click opens a panel, with `open`. The other gestures run an action, and
+are written on an item, the same for every item:
+
+| Key | Gesture |
+| --- | --- |
+| `right_click` | the right button |
+| `middle_click` | the middle button |
+| `scroll_up`, `scroll_down` | the wheel, or the touchpad gathered into steps: an action runs once a step, not once an event |
+
+An action is one of:
+
+- an action of the item's module, by name: `"cycle_format"`,
+  `"next_timezone"`, `"toggle_dnd"`, `"volume_up"`;
+- a panel to open, `{ open = "calendar" }`;
+- a command to run, `{ run = "pavucontrol" }`, which covers the custom
+  modules and the "more" commands of today's ashell;
+- `"none"`, to switch off a default.
+
+Every item comes with its own defaults, today's ashell's, and the file
+writes only what differs:
+
+```toml
+[zone.clock]
+items = [
+  { item = "clock", formats = ["%R", "%T"] },           # right click cycles them, the wheel the time zones
+  { item = "date", scroll_up = "none", scroll_down = "none" },
+]
+```
+
+- A gesture with nothing bound does nothing: only `open` falls back to the
+  zone's. Zones have `open` and the details on hover, no other gestures.
+- An item made of parts, the workspaces or the tray's icons, handles a click
+  on a part itself (it goes to that workspace, it activates that app); the
+  gestures written on it are for the item as a whole.
+- Turning the wheel the other way is binding the actions the other way
+  round, `scroll_up = "previous_workspace"`: no option of its own.
+- Hovering shows a zone's details (see [Details](#details-hover)); there are
+  no tooltips on items: what ashell's tooltips tell goes in the details.
+
 ### Bars and monitors
 
 A bar is a copy, one to one, on every monitor that has it, and a monitor has
@@ -611,8 +655,11 @@ ashell have no counterpart and go away:
   | launcher: terminal | the prototype's `[launcher]` |
   | custom: command, interval, icons | `[[CustomModule]]` |
 
-- **Interactions.** Right click, scroll and hover on an item (ashell has all
-  three: `OpenMore`, workspace and media scrolling, the indicators' tooltips).
+- **Actions.** Each module's list of actions, and the items' default
+  gestures. Whether an action's name is also its IPC command
+  (`msg tempo next_timezone`).
+- **Vertical details.** Details as a column rather than a row, for what
+  needs more room than a row has, as a list of connected devices.
 - **Transients.** Where OSD, toasts, alerts and messages go. The proposal:
   each kind of event has a destination, decided on the event's side so two
   groups cannot compete for the same kind.
@@ -757,5 +804,6 @@ need a screen.
    space, with a fade, as the visibility rules are settled.
 8. **The other modules**, as their services move to `ashell-services`.
 
-Satellites, transients, interactions beyond the click and the rest of the "not decided"
-list come in once they are decided here.
+Interactions come in with the modules whose actions they run. Satellites,
+transients and the rest of the "not decided" list come in once they are
+decided here.
