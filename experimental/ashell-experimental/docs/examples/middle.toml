@@ -1,0 +1,9 @@
+# A middle ground: the morphing island, with the tray at the end opening its menu
+# as a detached panel.
+
+[bar.main]
+hover  = true
+panels = "detached"
+
+center = [{ zones = ["workspaces", "window", "media", "clock", "status"], panels = "morph" }]
+end    = ["tray"]

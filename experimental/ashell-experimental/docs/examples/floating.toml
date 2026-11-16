@@ -1,0 +1,11 @@
+# One island as long as the bar, floating off the screen's edges, its panels
+# splitting off it. Its corners and border are the theme's.
+
+[bar.main]
+shape  = true
+padding = "s2"
+panels = "attached"
+
+start  = ["workspaces"]
+center = ["window"]
+end    = [["clock", "privacy", "status"]]

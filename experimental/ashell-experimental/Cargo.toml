@@ -1,0 +1,25 @@
+[package]
+name = "ashell-experimental"
+description = "The experimental ashell: a bar described by its configuration, built on styletto"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+env_logger = "0.11"
+futures.workspace = true
+guido.workspace = true
+inotify = { version = "0.11", default-features = false, features = ["stream"] }
+log.workspace = true
+serde.workspace = true
+styletto.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+toml = { version = "0.9", features = ["preserve_order"] }
+
+[dev-dependencies]
+guido = { workspace = true, features = ["testing"] }
+image = { version = "0.25", default-features = false, features = ["png"] }

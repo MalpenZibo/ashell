@@ -1,0 +1,15 @@
+# One island in the centre that turns into its panels, and the
+# bubble of what runs hot splitting off it.
+
+[bar.main]
+hover  = true
+panels = "attached"
+
+center = [
+  { zones = ["workspaces", "window", "tray", "media", "clock", "updates", "status"], panels = "morph" },
+  "hot",
+]
+
+[zone.hot]
+items = [{ item = "system", show = "notable" }]
+open  = "system"
