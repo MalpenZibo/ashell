@@ -232,23 +232,13 @@ pub fn is_available() -> bool {
 }
 
 pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<()> {
-    log::warn!("Wayfire backend: starting listener");
     let mut stream = connect().await?;
     watch_events(&mut stream).await?;
-    log::warn!("Wayfire backend: event subscription established");
 
     // Publish a snapshot up front; a transient failure must not kill the
     // listener and leave the bar empty until the next event.
     match fetch_full_state().await {
-        Ok(state) => {
-            log::warn!(
-                "Wayfire backend: initial state has {} monitors, {} workspaces, active ids {:?}",
-                state.monitors.len(),
-                state.workspaces.len(),
-                state.active_workspace_ids
-            );
-            send_state(tx, &state);
-        }
+        Ok(state) => send_state(tx, &state),
         Err(e) => log::warn!("Wayfire initial state refresh failed: {e}"),
     }
 
@@ -279,15 +269,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
         ) {}
 
         match fetch_full_state().await {
-            Ok(state) => {
-                log::warn!(
-                    "Wayfire backend: refreshed state has {} monitors, {} workspaces, active ids {:?}",
-                    state.monitors.len(),
-                    state.workspaces.len(),
-                    state.active_workspace_ids
-                );
-                send_state(tx, &state);
-            }
+            Ok(state) => send_state(tx, &state),
             Err(e) => log::warn!("Wayfire state refresh failed: {e}"),
         }
     }
@@ -328,11 +310,6 @@ async fn connect() -> Result<UnixStream> {
     let path = socket_path().ok_or_else(|| {
         anyhow!("Wayfire IPC socket not found (WAYFIRE_SOCKET unset, no wayfire-*.socket in XDG_RUNTIME_DIR)")
     })?;
-    log::warn!(
-        "Wayfire backend: connecting to IPC socket {}",
-        path.display()
-    );
-
     let std_stream = StdUnixStream::connect(&path)?;
     std_stream.set_nonblocking(true)?;
     UnixStream::from_std(std_stream).context("Failed to convert Wayfire socket")
@@ -429,14 +406,6 @@ async fn focused_output() -> Result<WfOutput> {
 
 async fn fetch_full_state() -> Result<CompositorState> {
     let outputs = list_outputs().await?;
-    log::warn!(
-        "Wayfire backend: list-outputs returned {} outputs: {:?}",
-        outputs.len(),
-        outputs
-            .iter()
-            .map(|o| (o.name.clone(), o.workspace.x, o.workspace.y, o.grid()))
-            .collect::<Vec<_>>()
-    );
 
     let focused_output_id = focused_output()
         .await
@@ -454,7 +423,6 @@ async fn fetch_full_state() -> Result<CompositorState> {
             Vec::new()
         }
     };
-    log::warn!("Wayfire backend: list-views returned {} views", views.len());
 
     let focused_resp = call_method("window-rules/get-focused-view", &serde_json::json!({})).await?;
     let focused_view = take_info(focused_resp).and_then(|info| {
