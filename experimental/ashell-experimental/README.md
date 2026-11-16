@@ -62,9 +62,8 @@ cargo test -p ashell-experimental snapshots -- --ignored --nocapture
 - `src/config`: the configuration, parsed and resolved into one plain tree;
 - `src/bar`: the bar, its islands, its panels and its details.
 
-[`docs/bar-model.md`](docs/bar-model.md) is the model the bar follows, and
-[`docs/configuration-spec.md`](docs/configuration-spec.md) the spec it
-started from, for the parts the model has not settled yet.
+[`docs/bar-model.md`](docs/bar-model.md) is the model the bar follows, with
+the proposals for the parts it has not settled yet.
 
 ## License
 

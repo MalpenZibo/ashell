@@ -5,12 +5,10 @@ Status: in progress, started 2026-10-23.
 This document fixes the structure of the configuration for a GUIdo-based
 ashell built on styletto, one that can express both today's ashell (islands
 along a bar, menus that drop down) and the island prototype (one island that morphs).
-It starts from [`configuration-spec.md`](configuration-spec.md) and replaces
-its layout part with the decisions taken since. Parts not discussed yet are
-listed under [Not decided yet](#not-decided-yet); until they are, the older
-spec is the reference for them.
+Parts not decided yet are listed, with the proposals to start from, under
+[Not decided yet](#not-decided-yet).
 
-It is meant to be implemented step by step in a new crate, from scratch: see
+It is implemented step by step in `ashell-experimental`: see
 [Implementation plan](#implementation-plan).
 
 ## Principles
@@ -19,8 +17,9 @@ It is meant to be implemented step by step in a new crate, from scratch: see
   configuration files, not two modes in the code. Every middle ground is a
   combination of the same options.
 - **Three separate levels.** How it looks (`[appearance]`), what is there and
-  where (`[bar.*]`, `[monitor.*]`, `[zone.*]`, items), and how it works (feature tables such as
-  `[clock]` or `[power]`) never mix in the same table.
+  where (`[bar.*]`, `[monitor.*]`, `[zone.*]`, items), and how it works (the
+  modules' own tables, such as `[power]`; see [Modules](#modules)) never mix
+  in the same table.
 - **Short when it can be, long when it must.** Every level of the layout has a
   short form and a long one (see [Syntax](#syntax)).
 - **Options flow down.** An option written on an outer level is the default for
@@ -97,6 +96,19 @@ zone, which opens the calendar).
 
 Instances of the same item share the service's data, never their options.
 
+### Modules
+
+A zone uses data; a module provides it. A module is what an item and a panel
+come from: it offers items to put in a zone's rows, at rest or in the details,
+and one or more panels to open. One module can feed many zones, and one zone
+can hold items of many modules: the built-in `clock` zone holds the time and
+the unread dot, which come from two of them.
+
+A module's own options, about what it does and where its data comes from, go
+in a table of its own, never in the layout. Panels are the modules' own: a
+panel the user puts together is not planned. How the modules split is not
+settled yet (see [Not decided yet](#not-decided-yet)).
+
 ## Syntax
 
 Every level has a short form and a long form:
@@ -137,7 +149,9 @@ end    = [["clock", "privacy", "status"]]
 A place holds as many islands as it has groups: `end = ["system", ["clock",
 "privacy", "status"]]` is two islands at the end.
 
-The island prototype, one island in the centre and the bubble of what runs hot:
+The island prototype, one island in the centre and, beside it, a group of
+its own for what runs hot, shown only then (as a satellite it would split
+off the island instead, see [Not decided yet](#not-decided-yet)):
 
 ```toml
 [bar.main]
@@ -199,8 +213,8 @@ end   = { shape = true, start = ["media"], end = [["clock", "status"]] }
 
 ## Keys
 
-Only the keys decided so far. Others from the older spec (`layer`,
-`reserve`, `backdrop`…) are expected to stay but are not settled here.
+Only the keys decided so far. Others (`layer`, `reserve`, `backdrop`…) are
+expected to come but are not settled: see [Not decided yet](#not-decided-yet).
 
 ### `[bar.<name>]`
 
@@ -480,11 +494,14 @@ services.
 
 ### Surfaces
 
-Each bar is one layer-shell surface per output, full width, transparent,
-taking input only on its shapes. It is as tall as the tallest view; while a
-panel is open it extends to the bottom of the screen, so a click anywhere
-outside closes the panel, and shrinks back once the panel has closed. The
-reserved space does not change with it. (Done this way in ashell-poc.)
+Each bar is one layer-shell surface per output, transparent, as big as the
+compositor gives, for good: a panel needs room up to the far edge, and a size
+asked for anew may be more than the compositor gives, which cuts the bar off
+for a frame. Its buffer goes only where something is drawn, and it takes
+input only on its shapes. While a panel is open the whole surface takes
+input, so a click anywhere outside closes the panel, and it takes the
+keyboard, so <kbd>Esc</kbd> closes it too. The reserved space is the bar's
+padding and a group, and never changes.
 
 ## Appearance
 
@@ -508,12 +525,101 @@ ashell have no counterpart and go away:
 - **Visibility.** What `always`, `notable` and `never` mean exactly; whether
   `notable` stays one rule per item or becomes a named condition the user
   picks (`bluetooth` is visible while on in ashell, while connected in the prototype;
-  `network` always in ashell, only on trouble in the prototype). See point 2 of the
-  analysis.
+  `network` always in ashell, only on trouble in the prototype). The proposal
+  to start from, to be checked item by item against ashell's
+  `modules/settings` and the prototype's `compact::status`:
+
+  | Item | Shows | `notable` when | Parameters |
+  | --- | --- | --- | --- |
+  | `workspaces`, `workspace_list` | compact workspaces; the list with names and windows | always | |
+  | `window`, `window_list` | the focused window; the windows of the workspace | a window is focused; there are windows | |
+  | `launcher_button` | the launcher's button | always | |
+  | `clock`, `date` | the time; the date | always | |
+  | `weather`, `forecast` | sky and temperature; the next hours | there is data | |
+  | `notifications`, `notices` | an unread dot; the latest notifications | there are unread ones; there are some | |
+  | `media`, `media_details` | the track; track, progress and controls | a player plays; there is a player | |
+  | `tray` | the tray's icons | there are icons | |
+  | `updates` | the number of updates | above a threshold | `notable_above` (40) |
+  | `system`, `cpu`, `memory`, `temperature`, `disk` | a summary; one metric | past a threshold | `notable_above`, per metric for `system` |
+  | `privacy` | microphone, camera, screen share in use | something is in use | |
+  | `airplane`, `dnd`, `idle_inhibitor`, `vpn` | each one's state | it is on | |
+  | `power_profile` | the power profile | it is not balanced | |
+  | `bluetooth` | Bluetooth | a device is connected | |
+  | `microphone`, `volume` | each one's state | it is muted | |
+  | `brightness` | the brightness | never on its own | |
+  | `network` | the connection | there is none, or it is limited | |
+  | `battery`, `peripheral_battery` | the battery; the devices' | below a threshold, or charging for `battery` | `notable_below` (20) |
+  | `keyboard_layout`, `keyboard_submap` | the layout; the submap | more than one layout; a submap is active | |
+
+- **Item options.** Beyond `item`, `show` and `open`, read today and kept for
+  the item: a `style` of the item's own (`battery` as `ring` or
+  `icon-percentage`), the `notable_*` parameters, options such as `format`,
+  and an `[item.<id>]` table for the options shared by every instance, which
+  those written in a list win over. `open` could also take `{ run =
+  "<command>" }`. Presentation formats of today's ashell
+  (`battery_format`, the `*_indicator_format`, the workspaces'
+  `indicator_format`, the media player's `indicator_fields`) would become
+  styles or options of their items. Custom modules would be
+  `custom:<name>` items.
+- **Zone options.** A `hover` of its own; `extends`, to start from another
+  zone's values; `{ from = "<zone>" }` in a row, to insert another zone's
+  items with the options written beside it, as the prototype's status
+  details show the status items, all visible. Items too wide for the row
+  they land in (`window_list`, `workspace_list`, `media_details`) shrink as
+  best they can, for example to icons; how is not decided.
+- **Modules.** Which modules there are, which items and panels each offers,
+  and what goes in each one's table. The starting point is the data and the
+  commands of today's ashell, gathered by what they are about:
+
+  | About | Today |
+  | --- | --- |
+  | time and date: format, formats to cycle, time zones | `tempo.clock_format`, `tempo.formats`, `tempo.timezones` |
+  | weather: location, units | `tempo.weather_location`, `tempo.wind_speed_unit`, the prototype's `[weather]` |
+  | updates: `check_cmd`, `update_cmd`, interval | `[updates]` of ashell and the prototype |
+  | power: `lock`, `suspend`, `hibernate`, `reboot`, `shutdown`, `logout` | `settings.*_cmd`, the prototype's `[power]` |
+  | audio: volume step, maximum volume, extra commands | `settings.volume_step`, `settings.max_volume`, `settings.audio_*_cmd` |
+  | network and Bluetooth: extra commands | `settings.wifi_more_cmd`, `vpn_more_cmd`, `bluetooth_more_cmd` |
+  | workspaces: which ones, names, maximum, inverted scrolling | `[workspaces]` |
+  | window: title or class, truncation | `[window_title]` |
+  | system: interval, sensors, disks | `[system_info]` |
+  | notifications: history, blocklist, grouping | `[notifications]` |
+  | launcher: terminal | the prototype's `[launcher]` |
+  | custom: command, interval, icons | `[[CustomModule]]` |
+
 - **Interactions.** Right click, scroll and hover on an item (ashell has all
   three: `OpenMore`, workspace and media scrolling, the indicators' tooltips).
-- **Transients.** Where OSD, toasts, alerts and messages go; the older spec's
-  `[transients]` table is the starting point.
+- **Transients.** Where OSD, toasts, alerts and messages go. The proposal:
+  each kind of event has a destination, decided on the event's side so two
+  groups cannot compete for the same kind.
+
+  ```toml
+  [transients]
+  osd       = { to = "group:main" }
+  workspace = { to = "group:main" }
+  alert     = { to = "group:main" }
+  toast     = { to = "screen", position = "top-right", stack = 5 }
+  message   = { to = "off" }
+  ```
+
+  | Kind | What | In the prototype |
+  | --- | --- | --- |
+  | `osd` | volume, brightness, microphone | `Transient::Volume`, `Brightness`, `Microphone` |
+  | `workspace` | a workspace switch | `Transient::Workspace` |
+  | `toast` | a notification that just arrived | `Transient::Toast` |
+  | `alert` | a critical battery and the like | `Transient::Alert` |
+  | `message` | short confirmations (an IPC command, a copy) | `Transient::Message` |
+
+  `to` is `group:<name>`, `screen` or `off`; `position` (the four corners,
+  `top-center`, `bottom-center`) and `stack` (how many at once, then queued)
+  go with `screen` only, and `duration_ms` overrides the default duration.
+  Inside a group the event takes the resting row's place for its duration,
+  with the prototype's priorities (`Transient::priority`): alert, urgent
+  toast, toast, message, OSD. On the screen it is an island of its own, with
+  no zones: today's ashell OSD and toasts. With several bars or monitors it
+  goes to the group of that name on the active monitor, as the prototype's
+  `Islands::focused()`; whether groups of the same name on different bars
+  need telling apart is open. A group that does not exist is reported, and
+  the event goes to the top centre of the screen.
 - **Satellites.** A temporary node that grows out of a node it belongs to,
   as the prototype's bubble of what runs hot out of its island. What is settled:
   - It is written on the node it comes out of, under the side it takes, so
@@ -537,7 +643,7 @@ ashell have no counterpart and go away:
     else, a `morph` panel or a transient, it merges back into it, as in
     the prototype.
 
-  It waits on the visibility rules (step 3).
+  It waits on the visibility rules (step 7).
 - **The island's border in the theme.** styletto draws every island with a
   hairline border and has no `[appearance]` key for it. A theme-wide
   `border` (none, hairline, bold…) is the likely home, so the bar, its groups
@@ -559,31 +665,71 @@ ashell have no counterpart and go away:
   (`workspace_colors`). Two parts, for later: a categorical series in styletto
   (`tints`, from the theme's accents or the seed's roles), and a `color_by =
   "monitor" | "workspace" | "none"` option on the `workspaces` item.
-- **Bar keys** carried over from the older spec (`elsewhere`, `layer`,
-  `reserve`, `backdrop`), and `active` monitors.
+- **Bar keys** still to come: `layer` (`bottom`, `top`, `overlay`; `top`
+  today), `reserve` (the space taken from windows, `auto` for the bar's
+  padding and a group, or pixels, if floating shapes on some compositors
+  need it), `backdrop` (0 to 1, how much the screen dims while a panel is
+  open), `elsewhere` (`none`, or `on-demand` for a bar that comes to the
+  other monitors only when called, as the launcher), and `active` monitors.
+- **Appearance per surface.** Partial `[appearance]` tables over the whole,
+  for the bar, the panels, the on-screen transients or one group by name
+  (`[appearance.surfaces.panel]`, `[appearance.surfaces."group:main"]`), as
+  styletto lets each surface `provide_ui` its own `Ui`. Only the `Ui` choices
+  (`density`, `shape`, `material`, `motion`, `fonts` and the colours of each
+  side); the colours' source stays one.
+
+## From today's configuration
+
+The configuration is new and deliberately incompatible, so nothing migrates
+by itself; an `ashell migrate` that writes the new file from the old one
+could follow this table.
+
+| ashell today | Here |
+| --- | --- |
+| `position` | the bar's `position` |
+| `outputs` | `[monitor."<monitor>"] bars` |
+| `modules.left`, `center`, `right` | the bar's `start`, `center`, `end` |
+| a group, `[["Tempo", "Privacy", "Settings"]]` | a group, `[["clock", "privacy", "status"]]` |
+| a module (`Tempo`, `Settings`…) | a built-in zone (`clock`, `status`…) |
+| `appearance.bar.surface` | the bar's `background` |
+| `appearance.modules.*.grouping` | `shape` on the nodes |
+| `settings.indicators` | `items` of `[zone.status]` |
+| `settings.battery_hide_when_full` | `show = "notable"` on `battery` |
+| `system_info.indicators` | `items` of `[zone.system]` |
+| `settings.remove_*_btn` | the `settings` panel's content: none |
+| `appearance.*_color`, `font_name`, `opacity`, `blur` | styletto's `[appearance]` (see [Appearance](#appearance)) |
+| `animations.enabled` | `[appearance] motion` |
+| `layer`, `appearance.menu.backdrop` | the bar's `layer` and `backdrop`, not decided |
+| `osd.enabled`, `notifications.toast`, `toast_position`, `toast_limit` | transients, not decided |
+| the formats of the indicators | the items' styles and options, not decided |
+| the modules' data and commands (`tempo`, `updates`, `settings.*_cmd`…) | the modules' tables, not decided |
+| `[[CustomModule]]` | `custom:<name>` items, not decided |
 
 ## Implementation plan
 
-For a new crate written from scratch against this document. Each step ends
-with something that runs, and with tests for what does not need a screen.
+Each step ends with something that runs, and with tests for what does not
+need a screen.
 
-1. **Config, parsed.** Types for bar, node, zone and item with their
-   short and long forms, hand-written deserializers with errors that name the
-   level and the expected forms, options flowing down resolved into one plain
-   tree. Built-in zone defaults. Tests on both presets of the examples above.
-2. **A bar on screen.** One surface per output, the nodes laid out, the
-   islands where they are asked for and the background, a handful of items with
-   real data (clock, workspaces, battery). `[appearance]` through `provide_ui`.
-3. **Visibility rolling up.** Items that hide, zones and groups that take no
-   space, with a fade.
-4. **Panels, `dropdown`, `attached` and `detached`.** A click on a zone opens
-   its panel under that zone; the surface extends while it is open; a click
-   outside closes it.
-5. **Panels, `morph`.** The group turns into the panel; growth away from the
-   edge in `start` and `end`; neighbours stepping aside.
-6. **Details on hover.** The zone's second row: in the group's island, or
-   split off what holds the group (see [Details](#details-hover)).
-7. **The item catalogue**, item by item, as the visibility rules are settled.
+1. **Config, parsed.** Done. Types for bar, node, zone and item with their
+   short and long forms, hand-written readers with problems that name where
+   they are, options flowing down resolved into one plain tree. Built-in zone
+   defaults. Tests on the examples in [`examples`](examples).
+2. **A bar on screen.** Done but for the items: one surface per output, the
+   nodes laid out, the islands where they are asked for and the background,
+   `[appearance]` through `provide_ui`. Zones and panels are placeholders
+   sized like the real ones.
+3. **Panels, `dropdown`, `attached` and `detached`.** Done. A click on a zone
+   opens its panel under that zone; a click outside or <kbd>Esc</kbd>
+   closes it.
+4. **Panels, `morph`.** Done. The group turns into the panel; growth away
+   from the edge in `start` and `end`; neighbours stepping aside.
+5. **Details on hover.** Done. The zone's second row: in the group's island,
+   or split off what holds the group (see [Details](#details-hover)).
+6. **The first modules.** Items and panels with real data, from the services
+   of `ashell-services`, in place of the placeholders.
+7. **Visibility rolling up.** Items that hide, zones and groups that take no
+   space, with a fade, as the visibility rules are settled.
+8. **The other modules**, as their services move to `ashell-services`.
 
 Satellites, transients, interactions beyond the click and the rest of the "not decided"
 list come in once they are decided here.

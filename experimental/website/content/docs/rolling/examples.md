@@ -54,7 +54,7 @@ end    = [["clock", "privacy", "status"]]
 
 ## An island that morphs
 
-One island in the centre that turns into its panels, and the bubble of what runs hot splitting off it.
+One island in the centre that turns into its panels, and beside it a group of its own for what runs hot, shown only then once items have their data.
 
 ```toml
 [bar.main]
