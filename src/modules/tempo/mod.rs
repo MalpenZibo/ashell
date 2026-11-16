@@ -3,6 +3,7 @@ pub mod weather;
 
 use std::time::Duration;
 
+use ashell_services::weather::{Weather, WeatherData};
 use chrono::{
     DateTime, Local, Locale, NaiveDate,
     format::{Fixed, Item, Numeric, StrftimeItems},
@@ -10,19 +11,19 @@ use chrono::{
 use iced::{
     Element, Length, Row, Subscription,
     alignment::Vertical,
-    futures::SinkExt,
+    futures::{SinkExt, StreamExt},
     stream::channel,
     widget::{container, text},
 };
-use log::{debug, warn};
+use log::error;
+use std::pin::pin;
 
-use self::weather::{Location, WeatherData, fetch_location, fetch_weather_data};
 use crate::{
     components::MenuSize,
     config::{ModuleName, TempoModuleConfig, WeatherIndicator},
     theme::use_theme,
 };
-use ashell_i18n::{chrono_locale, language_subtag, unit_system};
+use ashell_i18n::{chrono_locale, unit_system};
 
 pub use self::weather::weather_icon;
 
@@ -160,7 +161,6 @@ pub enum Message {
     Update,
     ChangeSelectDate(Option<NaiveDate>),
     UpdateWeather(Box<WeatherData>),
-    UpdateLocation(Location),
     CycleFormat,
     CycleTimezone(TimezoneDirection),
     SetTimezone(usize),
@@ -183,7 +183,6 @@ pub struct Tempo {
     date: DateTime<Local>,
     selected_date: Option<NaiveDate>,
     weather_data: Option<WeatherData>,
-    location: Option<Location>,
     current_format_index: usize,
     current_timezone_index: usize,
     location_visible: bool,
@@ -196,7 +195,6 @@ impl Tempo {
             date: Local::now(),
             selected_date: None,
             weather_data: None,
-            location: None,
             current_format_index: 0,
             current_timezone_index: 0,
             location_visible: true,
@@ -253,11 +251,6 @@ impl Tempo {
 
                 Action::None
             }
-            Message::UpdateLocation(location) => {
-                self.location = Some(location);
-
-                Action::None
-            }
             Message::CycleFormat => {
                 if !self.config.formats.is_empty() {
                     self.current_format_index =
@@ -304,7 +297,6 @@ impl Tempo {
 
                 if location_changed {
                     self.weather_data = None;
-                    self.location = None;
                 }
 
                 self.config = new_config;
@@ -342,27 +334,25 @@ impl Tempo {
             return None;
         }
         let temp = unit_system().temperature_symbol();
-        self.weather_data
-            .as_ref()
-            .zip(self.location.as_ref())
-            .map(|(data, _)| {
-                Row::new()
-                    .push(
-                        weather_icon(data.current.weather_code, data.current.is_day > 0)
-                            .width(Length::Fixed(font_size.sm)),
-                    )
-                    .push(
-                        (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
-                            .then(|| {
-                                text(format!("{}{temp}", data.current.temperature_2m))
-                                    .align_y(Vertical::Center)
-                                    .size(font_size.sm)
-                            }),
-                    )
-                    .align_y(Vertical::Center)
-                    .spacing(space.xxs)
-                    .into()
-            })
+        self.weather_data.as_ref().map(|data| {
+            Row::new()
+                .push(
+                    weather_icon(data.current.code, data.current.is_day)
+                        .width(Length::Fixed(font_size.sm)),
+                )
+                .push(
+                    (self.config.weather_indicator == WeatherIndicator::IconAndTemperature).then(
+                        || {
+                            text(format!("{}{temp}", data.current.temperature))
+                                .align_y(Vertical::Center)
+                                .size(font_size.sm)
+                        },
+                    ),
+                )
+                .align_y(Vertical::Center)
+                .spacing(space.xxs)
+                .into()
+        })
     }
 
     pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
@@ -404,52 +394,23 @@ impl Tempo {
             )
         });
 
-        let weather_sub = self.config.weather_location.clone().map(|location| {
-            let wind_unit = self.config.resolved_wind_speed_unit();
-            let key = (location, unit_system(), wind_unit, language_subtag());
-            Subscription::run_with(key, |(location, units, wind_unit, lang)| {
-                let location = location.clone();
-                let units = *units;
-                let wind_unit = *wind_unit;
-                let lang = lang.clone();
+        let weather_sub = self.weather_query().map(|query| {
+            Subscription::run_with(query, |query| {
+                let query = query.clone();
                 channel(100, async move |mut output| {
-                    let mut failed_attempt: u64 = 0;
-
-                    loop {
-                        let loc = match fetch_location(&location, &lang).await {
-                            Ok(loc) => {
-                                debug!("Location fetched successfully: {:?}", loc);
-                                let (lat, lon) = (loc.latitude, loc.longitude);
-                                output.send(Message::UpdateLocation(loc)).await.ok();
-                                Some((lat, lon))
-                            }
-                            Err(e) => {
-                                warn!("Failed to fetch location: {:?}", e);
-                                None
-                            }
-                        };
-
-                        if let Some((lat, lon)) = loc {
-                            match fetch_weather_data(lat, lon, units, wind_unit).await {
-                                Ok(weather_data) => {
-                                    failed_attempt = 0;
-                                    debug!("Weather data fetched successfully: {:?}", weather_data);
-                                    output
-                                        .send(Message::UpdateWeather(Box::new(weather_data)))
-                                        .await
-                                        .ok();
-
-                                    tokio::time::sleep(Duration::from_secs(60 * 30)).await;
-                                    continue;
-                                }
-                                Err(e) => {
-                                    warn!("Failed to fetch weather data: {:?}", e);
-                                }
-                            }
+                    let weather = match Weather::connect(query).await {
+                        Ok(weather) => weather,
+                        Err(err) => {
+                            error!("Failed to start the weather service: {err}");
+                            return;
                         }
+                    };
 
-                        failed_attempt += 1;
-                        tokio::time::sleep(Duration::from_secs(60 * failed_attempt)).await;
+                    let mut updates = pin!(weather.updates());
+                    while let Some(update) = updates.next().await {
+                        if let Some(data) = update {
+                            let _ = output.send(Message::UpdateWeather(Box::new(data))).await;
+                        }
                     }
                 })
             })

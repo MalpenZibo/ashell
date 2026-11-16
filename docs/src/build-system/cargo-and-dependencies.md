@@ -49,7 +49,7 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 |-------|---------|---------|
 | `toml` | 1 | TOML config file parsing |
 | `serde` | 1.0 | Serialization/deserialization |
-| `serde_json` | 1 | JSON parsing (custom modules, compositor IPC, weather) |
+| `serde_json` | 1 | JSON parsing (custom modules, compositor IPC) |
 | `serde_with` | 3.12 | Advanced serde derivation |
 | `clap` | 4.5 | CLI argument parsing |
 | `inotify` | 0.11.1 | File change watching |
@@ -67,7 +67,7 @@ The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell
 | `log` | 0.4 | Logging facade |
 | `flexi_logger` | 0.31 | Logging implementation |
 | `signal-hook-tokio` | 0.4 | Unix signal handling (SIGUSR1) |
-| `reqwest` | 0.13 | HTTP client (weather data, media artwork) |
+| `reqwest` | 0.13 | HTTP client (media artwork) |
 | `url` | 2.5.7 | URL parsing |
 | `shellexpand` | 3 | Tilde/env var expansion in paths |
 | `libc` | 0.2.182 | System call interfaces |

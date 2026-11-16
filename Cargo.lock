@@ -195,6 +195,7 @@ name = "ashell-services"
 version = "0.12.1"
 dependencies = [
  "anyhow",
+ "chrono",
  "freedesktop-icons",
  "futures",
  "inotify",
@@ -203,7 +204,9 @@ dependencies = [
  "log",
  "pin-project-lite",
  "pipewire",
+ "reqwest",
  "serde",
+ "serde_json",
  "tokio",
  "udev",
  "wayland-client",

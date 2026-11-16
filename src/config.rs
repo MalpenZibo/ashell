@@ -587,14 +587,6 @@ impl WindSpeedUnit {
             Self::Ms => "m/s",
         }
     }
-
-    pub fn api_param(self) -> &'static str {
-        match self {
-            Self::Kmh => "kmh",
-            Self::Mph => "mph",
-            Self::Ms => "ms",
-        }
-    }
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
@@ -611,20 +603,6 @@ pub enum WeatherLocation {
     Current,
     City(String),
     Coordinates(f32, f32),
-}
-
-impl std::hash::Hash for WeatherLocation {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        std::mem::discriminant(self).hash(state);
-        match self {
-            WeatherLocation::Current => {}
-            WeatherLocation::City(city) => city.hash(state),
-            WeatherLocation::Coordinates(lat, lon) => {
-                lat.to_bits().hash(state);
-                lon.to_bits().hash(state);
-            }
-        }
-    }
 }
 
 impl Default for TempoModuleConfig {

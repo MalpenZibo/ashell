@@ -104,7 +104,7 @@ Scope examples: `fix(brightness)`, `feat(system_info)`, `fix(network)`
 ## Architecture patterns
 
 - **Elm architecture:** `App` struct holds all state. `Message` enum drives updates. `update()` returns `Task<Message>` for async work.
-- **Services** are backend abstractions (D-Bus, IPC). Two traits: `ReadOnlyService` and `Service` (mutable). Services moved to `ashell-services` expose a plain API with no trait (a cloneable handle with `execute(command)` and an updates `Stream` that starts with the current state); a module in `src/services/` wraps each one into the iced traits.
+- **Services** are backend abstractions (D-Bus, IPC). Two traits: `ReadOnlyService` and `Service` (mutable). Services moved to `ashell-services` expose a plain API with no trait (a cloneable handle with `execute(command)` and an updates `Stream` that starts with the current state); a module in `src/services/` wraps each one into the iced traits. Weather is the exception: its query comes from the Tempo config, so `modules/tempo` subscribes to its stream directly.
 - **Modules** are UI components (workspaces, clock, settings). Each implements `view()` returning iced `Element`.
 - **Compositor abstraction:** the `CompositorChoice` enum routes to per-backend modules (Hyprland, Niri, generic Wayland), each exposing `is_available`/`run_listener`/`execute_command`, auto-detected at runtime.
 - **Config hot-reload:** inotify file watcher triggers `ConfigChanged` message on config file changes.
