@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.1] - 2026-11-16
+
+### Changes
+
+### 🐞 Bug fixes
+
+- fix(release): commit the member manifests bumped by set-version [@MalpenZibo](https://github.com/MalpenZibo) ([#1150](https://github.com/MalpenZibo/ashell/issues/1150))
+- fix(release): keep crate versions in step with the lockfile [@romanstingler](https://github.com/romanstingler) ([#1149](https://github.com/MalpenZibo/ashell/issues/1149))
+
+### Contributors
+
+❤️ A big thanks to [@romanstingler](https://github.com/romanstingler)
+
 ## [0.12.0] - 2026-11-14
 
 ### Changes
