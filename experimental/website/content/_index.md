@@ -34,7 +34,8 @@ text = "Built with [GUIdo](https://github.com/MalpenZibo/guido), a UI toolkit fo
 
 ashell-experimental is where new ideas for ashell take shape, beside the
 stable one. There are no releases: it is built from `main`, and these pages follow
-`main`. The layout, the islands, the panels and the details are in place;
-the zones and the panels still show placeholders sized like the real thing.
+`main`. The layout, the islands, the panels and the details are in place,
+and the time, the weather and the calendar have their data; the other zones
+and panels still show placeholders sized like the real thing.
 
 Looking for a status bar to use every day? The [stable ashell](https://malpenzibo.github.io/ashell/) is ready to go.

@@ -65,9 +65,11 @@ the gap between the ends. A group that grows in the centre stays centred.
 
 ## What shows
 
-{% <note kind="info" title="Not drawn yet"> %}
-Items are placeholders for now and always show: what follows is read from
-the file, and is how the bar will behave once items have their data.
+{% <note kind="info" title="Not all drawn yet"> %}
+Only the items of [`tempo`](@/docs/rolling/configuration/tempo.md) have
+their data and hide as their `show` says; the others are placeholders and
+always show. A zone or a group with nothing visible still takes its room
+for now: what follows is how the bar will behave once that is in place.
 {% </note> %}
 
 An item with nothing to show takes no room, even with `show = "always"`.

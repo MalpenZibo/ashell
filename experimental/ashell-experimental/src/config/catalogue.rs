@@ -130,8 +130,8 @@ items! {
     LauncherButton = "launcher_button", Always, Launcher;
     Clock = "clock", Always, Calendar;
     Date = "date", Always, Calendar;
-    Weather = "weather", Notable, Calendar;
-    Forecast = "forecast", Notable, Calendar;
+    Weather = "weather", Always, Calendar;
+    Forecast = "forecast", Always, Calendar;
     Notifications = "notifications", Notable, Notifications;
     Notices = "notices", Notable, Notifications;
     Media = "media", Notable, Media;
@@ -163,6 +163,69 @@ items! {
 impl ItemId {
     pub fn parse(name: &str) -> Option<Self> {
         Self::ALL.iter().copied().find(|item| item.name() == name)
+    }
+
+    /// What its gestures can be bound to, by name.
+    pub fn actions(self) -> &'static [&'static str] {
+        match self {
+            ItemId::Clock => &[CYCLE_FORMAT, NEXT_TIMEZONE, PREVIOUS_TIMEZONE],
+            ItemId::Date => &[NEXT_TIMEZONE, PREVIOUS_TIMEZONE],
+            _ => &[],
+        }
+    }
+
+    pub fn default_gestures(self) -> Gestures {
+        let named = |name| Some(Action::Named(name));
+        match self {
+            ItemId::Clock => Gestures {
+                right_click: named("cycle_format"),
+                scroll_up: named(NEXT_TIMEZONE),
+                scroll_down: named(PREVIOUS_TIMEZONE),
+                ..Gestures::default()
+            },
+            ItemId::Date => Gestures {
+                scroll_up: named(NEXT_TIMEZONE),
+                scroll_down: named(PREVIOUS_TIMEZONE),
+                ..Gestures::default()
+            },
+            _ => Gestures::default(),
+        }
+    }
+}
+
+pub const CYCLE_FORMAT: &str = "cycle_format";
+pub const NEXT_TIMEZONE: &str = "next_timezone";
+pub const PREVIOUS_TIMEZONE: &str = "previous_timezone";
+
+/// What a gesture on an item does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Action {
+    /// One of the item's [`actions`](ItemId::actions).
+    Named(&'static str),
+    Open(Panel),
+    Run(String),
+    None,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Gestures {
+    pub right_click: Option<Action>,
+    pub middle_click: Option<Action>,
+    pub scroll_up: Option<Action>,
+    pub scroll_down: Option<Action>,
+}
+
+impl Gestures {
+    pub const KEYS: [&str; 4] = ["right_click", "middle_click", "scroll_up", "scroll_down"];
+
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut Option<Action>> {
+        match key {
+            "right_click" => Some(&mut self.right_click),
+            "middle_click" => Some(&mut self.middle_click),
+            "scroll_up" => Some(&mut self.scroll_up),
+            "scroll_down" => Some(&mut self.scroll_down),
+            _ => None,
+        }
     }
 }
 

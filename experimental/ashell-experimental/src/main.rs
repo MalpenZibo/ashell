@@ -1,6 +1,8 @@
 mod app;
 mod bar;
 mod config;
+mod i18n;
+mod modules;
 
 #[tokio::main]
 async fn main() {

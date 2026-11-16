@@ -8,7 +8,8 @@ zone shows its details. Both are set on a node, or on the bar for all of
 them, and flow down.
 
 {% <note kind="info" title="Placeholders"> %}
-The panels are placeholders for now, sized like the real ones: how they open
+The panels are placeholders for now, sized like the real ones, but for the
+[calendar](@/docs/rolling/configuration/tempo.md#the-calendar): how they open
 and close is what is in place.
 {% </note> %}
 

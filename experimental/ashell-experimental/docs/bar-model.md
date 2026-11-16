@@ -816,7 +816,8 @@ need a screen.
    or split off what holds the group (see [Details](#details-hover)).
 6. **The first modules.** Items and panels with real data, from the services
    of `ashell-services`, in place of the placeholders, translated from the
-   start through `ashell-i18n`.
+   start through `ashell-i18n`. Begun with `tempo`: its items, their
+   gestures and the calendar.
 7. **Visibility rolling up.** Items that hide, zones and groups that take no
    space, with a fade, as the visibility rules are settled.
 8. **The other modules**, as their services move to `ashell-services`.

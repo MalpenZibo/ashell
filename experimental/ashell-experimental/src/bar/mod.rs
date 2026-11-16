@@ -1,4 +1,5 @@
 mod group;
+mod items;
 mod placeholder;
 mod places;
 #[cfg(test)]
@@ -14,6 +15,7 @@ use styletto::foundations::tokens::{Space, radius, size};
 use styletto::primitives::island;
 
 use crate::config::{Background, Bar, Holds, Host, Node, Padding, Panel, Place, Position};
+use crate::modules::Modules;
 
 const DETAILS_DWELL: Duration = Duration::from_millis(260);
 const ZONE_SWITCH: Duration = Duration::from_millis(90);
@@ -390,6 +392,7 @@ impl State {
 #[derive(Clone)]
 struct Ctx {
     state: State,
+    modules: Modules,
     refs: Rc<Refs>,
     groups: Rc<HashMap<NodeId, Placed>>,
     position: Position,
@@ -398,13 +401,25 @@ struct Ctx {
     reserved: f32,
 }
 
+/// As wide as its module draws it, or its placeholder.
+fn panel_width(panel: Panel) -> f32 {
+    Modules::panel_width(panel).unwrap_or_else(placeholder::panel_width)
+}
+
+/// What a panel shows: its module's view, or its placeholder.
+fn panel_view(panel: Panel, modules: Modules) -> Container {
+    modules
+        .panel(panel)
+        .unwrap_or_else(|| placeholder::panel(panel))
+}
+
 /// How far to shift the panel sideways so that it sits under the clicked zone.
 fn under_zone(opened: Opened, middle: f32, ctx: &Ctx) -> f32 {
     let zone = ctx.refs.zones[&(opened.group, opened.zone)]
         .layout_rect()
         .get_untracked();
     let screen = ctx.refs.bar.layout_rect().get_untracked().width;
-    let width = placeholder::panel_width();
+    let width = panel_width(opened.panel);
 
     // Inside the ends of the shape round the group, when it is wide enough
     // to hold the panel, else inside the bar's.
@@ -499,6 +514,7 @@ fn view_with(bar: &Bar, state: State) -> Container {
 
     let ctx = Ctx {
         state,
+        modules: expect_context::<Modules>(),
         refs: Rc::new(refs),
         groups: Rc::new(groups),
         position: bar.position,

@@ -3,9 +3,9 @@ use styletto::components::button::{pill, pill_text};
 use styletto::foundations::control::Size;
 use styletto::foundations::tokens::{radius, size};
 use styletto::primitives::text::{caption, heading};
-use styletto::{centered_row, ui};
+use styletto::ui;
 
-use crate::config::{Item, Panel};
+use crate::config::Panel;
 
 pub fn panel_width() -> f32 {
     size::S100.px()
@@ -13,15 +13,6 @@ pub fn panel_width() -> f32 {
 
 pub fn zone<F: Fn() + 'static>(name: &str, click: F) -> impl Widget + use<F> {
     pill().on_click(click).child(pill_text(name.to_string()))
-}
-
-pub fn details(items: &[Item]) -> Container {
-    container().layout(centered_row(size::S1.px())).children(
-        items
-            .iter()
-            .map(|item| pill().child(pill_text(item.id.name().to_string())))
-            .collect::<Vec<_>>(),
-    )
 }
 
 pub fn panel(panel: Panel) -> Container {

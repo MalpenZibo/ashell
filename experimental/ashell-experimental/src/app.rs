@@ -8,10 +8,14 @@ use styletto::ui::Ui;
 
 use crate::bar;
 use crate::config::{self, Config};
+use crate::modules::Modules;
 
 pub fn run() {
+    crate::i18n::init();
+
     App::new().run(|_| {
         let config = config::watched();
+        provide_context(Modules::new(config));
         // A wallpaper is read again only when the appearance changes.
         let appearance = create_memo(move || config.with(|config| config.appearance.clone()));
         let ui = create_memo(move || appearance.with(|appearance| appearance.ui(None)));

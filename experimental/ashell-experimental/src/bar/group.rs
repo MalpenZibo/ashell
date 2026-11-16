@@ -1,16 +1,24 @@
 use std::rc::Rc;
 
 use guido::prelude::*;
+use styletto::foundations::control::Size;
 use styletto::foundations::motion::{arriving, fading};
 use styletto::foundations::tokens::{radius, size};
 use styletto::primitives::island::{self, island};
 use styletto::{centered_row, foundations::motion};
 
+use super::items::{self, Opens};
 use super::{
     Ctx, GROUP, Host, NodeId, Opened, Outline, Placed, Refs, State, at_rest, group_height,
-    host_rect, hosting, hosting_details, placeholder, under_zone,
+    host_rect, hosting, hosting_details, panel_view, panel_width, placeholder, under_zone,
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
+use crate::modules::Modules;
+
+/// Opens a panel under a zone of a group.
+fn opens(state: State, group: NodeId, zone: usize) -> Opens {
+    Rc::new(move |panel| state.toggle(Opened { group, zone, panel }))
+}
 
 const CONTENT_OUT_MS: f32 = 120.0;
 const DROP_MS: f32 = 220.0;
@@ -103,6 +111,7 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
 
             dropdown(
                 opened.panel,
+                place.modules,
                 Translate::new(x, side * (edge + gap)),
                 Translate::new(x, side * edge),
             )
@@ -136,8 +145,11 @@ pub(super) fn split_off(opened: Opened, host: Host, outline: Outline, ctx: &Ctx)
     let from = Translate::new(left + width / 2.0 - middle, -side * (rect.height / 2.0));
     let to = Translate::new(x, side * gap);
 
-    rimmed(panel_shape(opened.panel, to, from, width), outline)
-        .align_self(ctx.position.hung(Place::Center))
+    rimmed(
+        panel_shape(opened.panel, ctx.modules, to, from, width),
+        outline,
+    )
+    .align_self(ctx.position.hung(Place::Center))
 }
 
 /// The details of the groups in one list of nodes that have no shape of
@@ -155,7 +167,7 @@ pub(super) fn split_details(
 ) -> Container {
     let enter = || motion::easing(350.0).delay(150.0);
     let leave = || motion::easing(100.0);
-    let (state, side) = (ctx.state, ctx.position.side());
+    let (state, side, modules) = (ctx.state, ctx.position.side(), ctx.modules);
     let (refs, groups) = (ctx.refs.clone(), ctx.groups.clone());
 
     let Some(first) = state.details.get_untracked() else {
@@ -211,9 +223,17 @@ pub(super) fn split_details(
             move || [last.get()],
             |&shown| shown,
             move |(group, zone)| {
-                let details = placeholder::details(&groups[&group].group.zones()[zone].details)
-                    .height(group_height())
-                    .padding([0.0, size::S1.px()]);
+                let shown = &groups[&group].group.zones()[zone];
+                let details = items::details(
+                    &shown.details,
+                    shown.open,
+                    modules,
+                    opens(state, group, zone),
+                )
+                .height(group_height())
+                // As far in as a zone's text is in a group's row, past the
+                // pill ends.
+                .padding([0.0, size::S1.px() + Size::Sm.inline()]);
 
                 arriving(details).width(natural())
             },
@@ -248,7 +268,7 @@ pub(super) fn split_details(
 }
 
 fn shape(group: &Rc<Node>, shown: Memo<Shown>, ctx: &Ctx) -> Container {
-    let (id, state, position) = (group.id, ctx.state, ctx.position);
+    let (id, state, position, modules) = (group.id, ctx.state, ctx.position, ctx.modules);
     let refs = ctx.refs.clone();
 
     let details_here = create_memo(move || {
@@ -267,9 +287,11 @@ fn shape(group: &Rc<Node>, shown: Memo<Shown>, ctx: &Ctx) -> Container {
                     let open = create_memo(move || inside && details_here.get().is_some());
                     let group = group.clone();
 
-                    let rest = rest(&group, state, &refs);
-                    let details =
-                        move || open.get().then(|| details(&group, details_here, position));
+                    let rest = rest(&group, state, &refs, modules);
+                    let details = move || {
+                        open.get()
+                            .then(|| details(&group, state, details_here, position, modules))
+                    };
                     let column =
                         container().layout(Flex::column().cross_alignment(CrossAlignment::Center));
 
@@ -278,7 +300,7 @@ fn shape(group: &Rc<Node>, shown: Memo<Shown>, ctx: &Ctx) -> Container {
                         Position::Bottom => column.child(details).child(rest),
                     }
                 }
-                Shown::Panel(panel) => placeholder::panel(panel),
+                Shown::Panel(panel) => panel_view(panel, modules),
             }
         }
     };
@@ -299,7 +321,7 @@ fn shape(group: &Rc<Node>, shown: Memo<Shown>, ctx: &Ctx) -> Container {
     }
 }
 
-fn rest(group: &Node, state: State, refs: &Refs) -> Container {
+fn rest(group: &Node, state: State, refs: &Refs, modules: Modules) -> Container {
     let (id, hover) = (group.id, group.hover);
     let height = if group.shape {
         island::inner(GROUP)
@@ -318,18 +340,23 @@ fn rest(group: &Node, state: State, refs: &Refs) -> Container {
                 .enumerate()
                 .map(|(index, zone)| {
                     let (open, has_details) = (zone.open, !zone.details.is_empty());
-                    let mut pill =
-                        container()
-                            .widget_ref(refs.zones[&(id, index)])
-                            .child(placeholder::zone(&zone.name, move || {
-                                if let Open::Panel(panel) = open {
-                                    state.toggle(Opened {
-                                        group: id,
-                                        zone: index,
-                                        panel,
-                                    });
-                                }
-                            }));
+                    let click = move || {
+                        if let Open::Panel(panel) = open {
+                            state.toggle(Opened {
+                                group: id,
+                                zone: index,
+                                panel,
+                            });
+                        }
+                    };
+                    let content =
+                        items::zone(&zone.items, open, modules, opens(state, id, index), click)
+                            .unwrap_or_else(|| {
+                                container().child(placeholder::zone(&zone.name, click))
+                            });
+                    let mut pill = container()
+                        .widget_ref(refs.zones[&(id, index)])
+                        .child(content);
 
                     if hover {
                         pill = pill
@@ -353,7 +380,14 @@ fn rest(group: &Node, state: State, refs: &Refs) -> Container {
         )
 }
 
-fn details(group: &Rc<Node>, zone: Memo<Option<usize>>, position: Position) -> Container {
+fn details(
+    group: &Rc<Node>,
+    state: State,
+    zone: Memo<Option<usize>>,
+    position: Position,
+    modules: Modules,
+) -> Container {
+    let id = group.id;
     let enter = || motion::easing(350.0);
     let leave = || motion::easing(150.0);
     let group = group.clone();
@@ -372,8 +406,15 @@ fn details(group: &Rc<Node>, zone: Memo<Option<usize>>, position: Position) -> C
         .overflow(Overflow::Hidden);
 
     rising(row, enter(), leave(), away).child(move || {
-        zone.get()
-            .map(|zone| swapped_in(placeholder::details(&group.zones()[zone].details)))
+        zone.get().map(|index| {
+            let zone = &group.zones()[index];
+            swapped_in(items::details(
+                &zone.details,
+                zone.open,
+                modules,
+                opens(state, id, index),
+            ))
+        })
     })
 }
 
@@ -420,8 +461,14 @@ fn span(left: f32, width: f32, reach: f32) -> (f32, f32) {
     (left + inset, width - 2.0 * inset)
 }
 
-fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Container {
-    let content = placeholder::panel(panel).opacity(
+fn panel_shape(
+    panel: Panel,
+    modules: Modules,
+    to: Translate,
+    from: Translate,
+    width: f32,
+) -> Container {
+    let content = panel_view(panel, modules).opacity(
         1.0.transition(fading(
             motion::easing(200.0).delay(260.0),
             motion::easing(100.0),
@@ -434,7 +481,7 @@ fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Cont
     island::paint(container())
         .width(
             natural()
-                .at_most(placeholder::panel_width())
+                .at_most(panel_width(panel))
                 .transition(retracting())
                 .entering_from(natural().at_most(width))
                 .exiting_to(natural().at_most(width)),
@@ -456,9 +503,9 @@ fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Cont
         .child(content)
 }
 
-fn dropdown(panel: Panel, to: Translate, rim: Translate) -> Container {
+fn dropdown(panel: Panel, modules: Modules, to: Translate, rim: Translate) -> Container {
     island::edge(island::paint(container()))
-        .width(natural().at_most(placeholder::panel_width()))
+        .width(natural().at_most(panel_width(panel)))
         .height(
             at_least(0.0)
                 .transition(dropping())
@@ -469,7 +516,7 @@ fn dropdown(panel: Panel, to: Translate, rim: Translate) -> Container {
         .corners(radius::LARGE.corners())
         .takes_input(true)
         .translate(to.transition(dropping()).entering_from(rim).exiting_to(rim))
-        .child(placeholder::panel(panel))
+        .child(panel_view(panel, modules))
 }
 
 fn dropping<T>() -> impl Fn(Segment<T>) -> Transition + 'static {

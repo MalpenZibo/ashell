@@ -7,6 +7,7 @@ use styletto::provide_ui;
 
 use super::{NodeId, Opened, State, placed, view_with};
 use crate::config::{self, Bar, Panel};
+use crate::modules::Modules;
 
 const WIDTH: u32 = 1440;
 const HEIGHT: u32 = 700;
@@ -29,15 +30,16 @@ struct Scene {
 
 impl Scene {
     fn new(text: &str) -> Option<Self> {
+        crate::i18n::init();
         let Some(mut app) = Headless::new() else {
             eprintln!("no GPU adapter; nothing drawn");
             return None;
         };
         let output = app.connect_output("eDP-1");
 
-        let mut config = config::parse(text).expect("valid TOML").config;
+        let config = config::parse(text).expect("valid TOML").config;
         let ui = config.appearance.ui(None);
-        let bar = config.bars.swap_remove(0);
+        let bar = config.bars[0].clone();
         let state = State::new();
 
         let drawn = bar.clone();
@@ -49,6 +51,7 @@ impl Scene {
                 .anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT),
             move || {
                 provide_ui(ui);
+                provide_context(Modules::new(create_signal(config.clone()).read_only()));
 
                 view_with(&drawn, state)
             },
