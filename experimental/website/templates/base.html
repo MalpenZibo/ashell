@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ config.title }}{% endblock %}</title>
+  <meta name="description" content="{% block description %}{{ config.description }}{% endblock %}">
+  <link rel="icon" type="image/svg+xml" href="{{ get_url(path='img/favicon.svg') }}">
+  <link rel="stylesheet" href="{{ get_url(path='style.css', cachebust=true) }}">
+  <script>
+    // Before the first paint, so a chosen theme does not flash.
+    try {
+      const theme = localStorage.getItem("theme");
+      if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+    } catch (_) {}
+  </script>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  {%- set docs_version = <docs.default_version /> | trim %}
+  <header class="navbar">
+    <div class="navbar-inner">
+      <a class="brand" href="{{ config.base_url }}/">
+        <img src="{{ get_url(path='img/logo.svg') }}" alt="" width="32" height="32">
+        <span class="brand-name">ashell</span>
+        <span class="badge">experimental</span>
+      </a>
+
+      <input type="checkbox" id="menu-toggle" class="menu-toggle" aria-label="Menu">
+      <label for="menu-toggle" class="menu-button" aria-hidden="true"><span></span></label>
+
+      <nav class="nav-links">
+        <a href="{{ get_url(path='@/docs/' ~ docs_version ~ '/_index.md') }}">Getting Started</a>
+        <a href="{{ get_url(path='@/docs/' ~ docs_version ~ '/configuration/_index.md') }}">Configuration</a>
+        <a href="{{ get_url(path='@/gallery/_index.md') }}">Gallery</a>
+        <a href="{{ config.extra.stable_site }}">Stable ashell</a>
+        <span class="nav-spacer"></span>
+        <button class="search-button" type="button" aria-label="Search">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>Search</span><kbd>/</kbd>
+        </button>
+        <a class="icon-link" href="{{ config.extra.repository }}" title="GitHub">{{ <icon.github /> }}</a>
+        <button class="theme-toggle" type="button" title="Switch between dark and light" aria-label="Switch between dark and light">
+          <svg class="sun" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></g></svg>
+          <svg class="moon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1Z"/></svg>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  {% block content %}{% endblock %}
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-col">
+        <h4>Docs</h4>
+        <a href="{{ get_url(path='@/docs/' ~ docs_version ~ '/_index.md') }}">Get Started</a>
+        <a href="{{ get_url(path='@/docs/' ~ docs_version ~ '/configuration/_index.md') }}">Configuration</a>
+        <a href="{{ get_url(path='@/docs/' ~ docs_version ~ '/examples.md') }}">Examples</a>
+      </div>
+      <div class="footer-col">
+        <h4>Community</h4>
+        <a href="{{ config.extra.matrix }}">Matrix Chat{{ <icon.external /> }}</a>
+        <a href="{{ config.extra.repository }}/issues">Issues{{ <icon.external /> }}</a>
+      </div>
+      <div class="footer-col">
+        <h4>More</h4>
+        <a href="{{ config.extra.stable_site }}">Stable ashell{{ <icon.external /> }}</a>
+        <a href="{{ config.extra.experimental_tree }}">GitHub{{ <icon.external /> }}</a>
+      </div>
+    </div>
+    <p class="copyright">Copyright © {{ now() | date(format="%Y") }} Ashell. Built with Zola.</p>
+  </footer>
+
+  <dialog id="search-dialog" class="search-dialog" aria-label="Search the docs"
+    data-index="{{ get_url(path='search_index.en.json') }}"
+    data-lunr="{{ get_url(path='elasticlunr.min.js') }}"
+    data-version="{{ docs_version }}">
+    <div class="search-box">
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <ul id="search-results" class="search-results"></ul>
+    </div>
+  </dialog>
+
+  <script>
+    document.querySelector(".theme-toggle").addEventListener("click", () => {
+      const root = document.documentElement;
+      const dark = root.dataset.theme
+        ? root.dataset.theme === "dark"
+        : matchMedia("(prefers-color-scheme: dark)").matches;
+      root.dataset.theme = dark ? "light" : "dark";
+      try { localStorage.setItem("theme", root.dataset.theme); } catch (_) {}
+    });
+  </script>
+  <script src="{{ get_url(path='search.js', cachebust=true) }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

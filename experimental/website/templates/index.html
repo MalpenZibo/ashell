@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block body_class %}home{% endblock %}
+
+{% block content %}
+{%- set docs_version = <docs.default_version /> | trim -%}
+<main>
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-logo">
+        <img src="{{ get_url(path='img/logo.svg') }}" alt="" class="hero-mark">
+        <img src="{{ get_url(path='img/ashell_text.svg') }}" alt="ashell" class="hero-word light-only">
+        <img src="{{ get_url(path='img/ashell_text_dark.svg') }}" alt="ashell" class="hero-word dark-only">
+      </div>
+      <p class="hero-kicker"><span class="badge">experimental</span> rolling release</p>
+      <p class="hero-tagline">{{ section.extra.tagline }}</p>
+      <div class="hero-buttons">
+        <a class="button primary" href="{{ get_url(path='@/docs/' ~ docs_version ~ '/_index.md') }}">Get Started</a>
+        <a class="button" href="{{ get_url(path='@/gallery/_index.md') }}">Gallery</a>
+      </div>
+    </div>
+  </section>
+
+  {% include "partials/screens.html" %}
+
+  <section class="features">
+    {% for feature in section.extra.features %}
+    <article class="feature">
+      <h3>{{ feature.title }}</h3>
+      <p>{{ feature.text | markdown(inline=true) | safe }}</p>
+    </article>
+    {% endfor %}
+  </section>
+
+  {% if section.content %}
+  <section class="home-notes prose">
+    {{ section.content | safe }}
+  </section>
+  {% endif %}
+</main>
+{% endblock %}

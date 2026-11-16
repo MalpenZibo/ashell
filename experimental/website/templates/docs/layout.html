@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title if page is defined else section.title }} · {{ config.title }}{% endblock %}
+{% block description %}{{ (page.description if page is defined else section.description) or config.description }}{% endblock %}
+{% block body_class %}docs-page{% endblock %}
+
+{% block content %}
+{#- What a docs page and a docs section share. `item` is the page or the
+    section shown; the version is the folder under content/docs it is in. -#}
+{%- if page is defined %}{% set item = page %}{% else %}{% set item = section %}{% endif -%}
+{%- set docs_version = <docs.default_version /> | trim -%}
+{%- set version = item.relative_path | split(pat="/") | nth(n=1) -%}
+{%- set file = item.relative_path | replace(from="docs/" ~ version ~ "/", to="") -%}
+{%- set data = load_data(path="versions.toml") -%}
+{%- set versions = data.versions -%}
+{%- set this_version = [v for v in versions if v.name == version] | first -%}
+{%- set root = get_section(path="docs/" ~ version ~ "/_index.md") -%}
+
+{#- The docs in sidebar order, to step through: the first page, its pages,
+    then each subsection and its pages. -#}
+{%- set_global order = [root, ...root.pages] -%}
+{%- for path in root.subsections -%}
+  {%- set sub = get_section(path=path) -%}
+  {%- set_global order = [...order, sub, ...sub.pages] -%}
+{%- endfor -%}
+{%- set_global at = -1 -%}
+{%- for entry in order %}{% if entry.path == item.path %}{% set_global at = loop.index0 %}{% endif %}{% endfor -%}
+
+<div class="docs">
+  <aside class="sidebar">
+    <label class="version-switch">
+      <span>Version</span>
+      <select onchange="location.href = this.value">
+        {%- for v in versions %}
+        <option value="{{ <docs.version_url name={v.name} file={file} /> | trim }}"{% if v.name == version %} selected{% endif %}>{{ v.label }}</option>
+        {%- endfor %}
+      </select>
+    </label>
+
+    <input type="checkbox" id="side-toggle" class="side-toggle">
+    <label for="side-toggle" class="side-button">{{ item.extra.sidebar or item.title }}</label>
+
+    <nav class="side-nav">
+      <ul>
+        <li>{{ <docs.side_link item={root} current={item.path} /> }}</li>
+        {%- for p in root.pages %}
+        <li>{{ <docs.side_link item={p} current={item.path} /> }}</li>
+        {%- endfor %}
+      </ul>
+      {%- for path in root.subsections %}
+      {%- set sub = get_section(path=path) %}
+      <p class="side-group">{{ sub.extra.group or sub.title }}</p>
+      <ul>
+        <li>{{ <docs.side_link item={sub} current={item.path} /> }}</li>
+        {%- for p in sub.pages %}
+        <li>{{ <docs.side_link item={p} current={item.path} /> }}</li>
+        {%- endfor %}
+      </ul>
+      {%- endfor %}
+    </nav>
+  </aside>
+
+  <main class="docs-main">
+    {%- if this_version.kind == "rolling" %}
+    <div class="version-banner rolling">
+      These docs follow the <strong>rolling</strong> release: they describe <code>main</code> as it is today, and change with it.
+    </div>
+    {%- elif version != docs_version %}
+    <div class="version-banner old">
+      These are the docs of <strong>{{ this_version.label }}</strong>.
+      The newest release is <a href="{{ <docs.version_url name={docs_version} file={file} /> | trim }}">{{ docs_version }}</a>.
+    </div>
+    {%- endif %}
+
+    <article class="prose">
+      <h1>{{ item.title }}</h1>
+      {{ item.content | safe }}
+    </article>
+
+    <nav class="pager">
+      {%- if at > 0 %}{% set prev = order[at - 1] %}
+      <a class="pager-prev" href="{{ prev.permalink }}"><span>Previous</span>{{ prev.extra.sidebar or prev.title }}</a>
+      {%- else %}<span></span>{% endif %}
+      {%- if at >= 0 and at + 1 < order | length %}{% set next = order[at + 1] %}
+      <a class="pager-next" href="{{ next.permalink }}"><span>Next</span>{{ next.extra.sidebar or next.title }}</a>
+      {%- endif %}
+    </nav>
+
+    <p class="edit-link"><a href="{{ config.extra.repository }}/edit/main/experimental/website/content/{{ item.relative_path }}">Edit this page</a></p>
+  </main>
+
+  {%- if item.toc | length > 0 %}
+  <aside class="toc">
+    <p>On this page</p>
+    <ul>
+      {%- for h in item.toc %}
+      <li><a href="#{{ h.id }}">{{ h.title }}</a>
+        {%- if h.children | length > 0 %}
+        <ul>{% for c in h.children %}<li><a href="#{{ c.id }}">{{ c.title }}</a></li>{% endfor %}</ul>
+        {%- endif %}
+      </li>
+      {%- endfor %}
+    </ul>
+  </aside>
+  {%- endif %}
+</div>
+{% endblock %}
