@@ -70,6 +70,7 @@ Items are placeholders for now and always show: what follows is read from
 the file, and is how the bar will behave once items have their data.
 {% </note> %}
 
+An item with nothing to show takes no room, even with `show = "always"`.
 A zone with no visible items takes no room. A group with no visible zones
 disappears, island and all, and so does a node with nothing visible inside.
 That is how a group shows only when something happens: give it items that

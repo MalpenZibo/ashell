@@ -282,6 +282,12 @@ reported, and the first in that order is kept. `hover`, `panels` and
 
 ### Visibility rolls up
 
+An item with nothing to show takes no space, whatever its `show`: its data
+has not come yet, its service or device is missing (no battery, no Bluetooth
+adapter, no weather configured), or what it tells of is not there (no window
+focused, nothing using the microphone). This is not something `show` decides:
+`always` means always while there is something to show.
+
 A zone with no visible items takes no space. A group with no visible zones
 disappears, shape included, and so does a node with no visible nodes inside.
 This is what makes a group appear only when something happens: give it items
@@ -531,31 +537,41 @@ ashell have no counterpart and go away:
 - **Visibility.** What `always`, `notable` and `never` mean exactly; whether
   `notable` stays one rule per item or becomes a named condition the user
   picks (`bluetooth` is visible while on in ashell, while connected in the prototype;
-  `network` always in ashell, only on trouble in the prototype). The proposal
-  to start from, to be checked item by item against ashell's
-  `modules/settings` and the prototype's `compact::status`:
+  `network` always in ashell, only on trouble in the prototype). An empty
+  item never shows (see [Visibility rolls up](#visibility-rolls-up)), so
+  `notable` is only about an item that has something to show and says
+  whether it is worth showing. The proposal to start from, to be checked
+  item by item against ashell's `modules/settings` and the prototype's
+  `compact::status`; a `notable` left blank is still to be thought out, or
+  makes no sense for the item and is then the same as `always`:
 
-  | Item | Shows | `notable` when | Parameters |
-  | --- | --- | --- | --- |
-  | `workspaces`, `workspace_list` | compact workspaces; the list with names and windows | always | |
-  | `window`, `window_list` | the focused window; the windows of the workspace | a window is focused; there are windows | |
-  | `launcher_button` | the launcher's button | always | |
-  | `clock`, `date` | the time; the date | always | |
-  | `weather`, `forecast` | sky and temperature; the next hours | there is data | |
-  | `notifications`, `notices` | an unread dot; the latest notifications | there are unread ones; there are some | |
-  | `media`, `media_details` | the track; track, progress and controls | a player plays; there is a player | |
-  | `tray` | the tray's icons | there are icons | |
-  | `updates` | the number of updates | above a threshold | `notable_above` (40) |
-  | `system`, `cpu`, `memory`, `temperature`, `disk` | a summary; one metric | past a threshold | `notable_above`, per metric for `system` |
-  | `privacy` | microphone, camera, screen share in use | something is in use | |
-  | `airplane`, `dnd`, `idle_inhibitor`, `vpn` | each one's state | it is on | |
-  | `power_profile` | the power profile | it is not balanced | |
-  | `bluetooth` | Bluetooth | a device is connected | |
-  | `microphone`, `volume` | each one's state | it is muted | |
-  | `brightness` | the brightness | never on its own | |
-  | `network` | the connection | there is none, or it is limited | |
-  | `battery`, `peripheral_battery` | the battery; the devices' | below a threshold, or charging for `battery` | `notable_below` (20) |
-  | `keyboard_layout`, `keyboard_submap` | the layout; the submap | more than one layout; a submap is active | |
+  | Item | Shows | Empty when | `notable` when | Parameters |
+  | --- | --- | --- | --- | --- |
+  | `workspaces`, `workspace_list` | compact workspaces; the list with names and windows | never | | |
+  | `window` | the focused window | no window is focused | | |
+  | `window_list` | the windows of the workspace | there are none | | |
+  | `launcher_button` | the launcher's button | never | | |
+  | `clock`, `date` | the time; the date | never | | |
+  | `weather` | sky and temperature | no weather yet, or none configured | it rains, snows or storms | |
+  | `forecast` | the next hours | no weather yet, or none configured | rain, snow or a storm is coming in them | |
+  | `notifications` | an unread dot | nothing is unread | | |
+  | `notices` | the latest notifications | there are none | | |
+  | `media` | the track | no player | a player plays | |
+  | `media_details` | track, progress and controls | no player | | |
+  | `tray` | the tray's icons | no icons | | |
+  | `updates` | the number of updates | not checked yet | above a threshold | `notable_above` (40) |
+  | `system`, `cpu`, `memory`, `temperature`, `disk` | a summary; one metric | not read yet, or no such sensor | past a threshold | `notable_above`, per metric for `system` |
+  | `privacy` | microphone, camera, screen share in use | nothing is in use | | |
+  | `airplane`, `dnd`, `idle_inhibitor`, `vpn` | each one's state | its service is missing | it is on | |
+  | `power_profile` | the power profile | no profiles daemon | it is not balanced | |
+  | `bluetooth` | Bluetooth | no adapter | a device is connected | |
+  | `microphone`, `volume` | each one's state | no device | it is muted | |
+  | `brightness` | the brightness | no backlight | | |
+  | `network` | the connection | never | there is none, or it is limited | |
+  | `battery` | the battery | no battery | below a threshold, or charging | `notable_below` (20) |
+  | `peripheral_battery` | the devices' batteries | no device reports one | below a threshold | `notable_below` (20) |
+  | `keyboard_layout` | the layout | never | there is more than one | |
+  | `keyboard_submap` | the active submap | none is active | | |
 
 - **Item options.** Beyond `item`, `show` and `open`, read today and kept for
   the item: a `style` of the item's own (`battery` as `ring` or
@@ -735,7 +751,8 @@ need a screen.
 5. **Details on hover.** Done. The zone's second row: in the group's island,
    or split off what holds the group (see [Details](#details-hover)).
 6. **The first modules.** Items and panels with real data, from the services
-   of `ashell-services`, in place of the placeholders.
+   of `ashell-services`, in place of the placeholders, translated from the
+   start through `ashell-i18n`.
 7. **Visibility rolling up.** Items that hide, zones and groups that take no
    space, with a fade, as the visibility rules are settled.
 8. **The other modules**, as their services move to `ashell-services`.

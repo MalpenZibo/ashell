@@ -86,9 +86,11 @@ The items, with when they show and what they open by default:
 | `battery` | always | `settings` |
 | `keyboard_layout`, `keyboard_submap` | notable | the zone's |
 
-`notable` is when there is something worth seeing: a window with a title, a
-player playing, an update waiting. What it means item by item is still being
-settled.
+An item with nothing to show never shows, whatever its `show`: no window
+focused, no battery, the weather not fetched yet. `notable` is about an item
+that has something to show, and shows it only when it is worth seeing: a
+player playing, many updates waiting. What it means item by item is still
+being settled.
 
 ## Panels
 
