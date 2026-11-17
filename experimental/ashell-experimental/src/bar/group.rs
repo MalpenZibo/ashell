@@ -98,13 +98,14 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
                 Position::Top => from.y + from.height - (group.y + group.height),
                 Position::Bottom => group.y - from.y,
             };
-            let edge = group.height + past.max(0.0);
+            let edge = past.max(0.0);
 
             dropdown(
                 opened.panel,
                 Translate::new(x, side * (edge + gap)),
                 Translate::new(x, side * edge),
             )
+            .align_self(place.position.hung(Place::Center))
         },
     );
 
@@ -128,11 +129,14 @@ pub(super) fn split_off(opened: Opened, host: Host, outline: Outline, ctx: &Ctx)
     let group = ctx.refs.nodes[&opened.group].layout_rect().get_untracked();
     let gap = Neck::panel(ctx.gap).gap;
 
+    // Out of the middle of the host at rest: the click that opens the panel
+    // closes the details it may have grown with.
     let (left, width) = span(group.x, group.width);
-    let from = Translate::new(left + width / 2.0 - middle, side * (rect.height / 2.0));
-    let to = Translate::new(x, side * (rect.height + gap));
+    let from = Translate::new(left + width / 2.0 - middle, -side * (rect.height / 2.0));
+    let to = Translate::new(x, side * gap);
 
     rimmed(panel_shape(opened.panel, to, from, width), outline)
+        .align_self(ctx.position.hung(Place::Center))
 }
 
 /// The details of the groups in one list of nodes that have no shape of
@@ -172,7 +176,7 @@ pub(super) fn split_details(
         }
     });
 
-    let align = ctx.position.at(place);
+    let align = ctx.position.hung(place);
     let zone_rect = move |zone: (NodeId, usize)| refs.zones[&zone].layout_rect().get_untracked();
     let x = {
         let zone_rect = zone_rect.clone();
@@ -185,8 +189,8 @@ pub(super) fn split_details(
             }
         }
     };
-    let away = side * (host.height + Neck::details(ctx.gap).gap);
-    let inside = side * (host.height / 2.0);
+    let away = side * Neck::details(ctx.gap).gap;
+    let inside = -side * (host.height / 2.0);
     let sliver = move |zone| {
         let under = zone_rect(zone);
         Length::exact(span(under.x, under.width).1)

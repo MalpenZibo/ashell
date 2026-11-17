@@ -141,6 +141,18 @@ impl Position {
         }
     }
 
+    /// Hanging from the far side of the box, the side away from the bar's
+    /// edge, at `place` along it: what comes out of the box follows its
+    /// edge on every layout, so its own translate carries only its motion.
+    fn hung(self, place: Place) -> Alignment {
+        let far = match self {
+            Position::Top => Position::Bottom,
+            Position::Bottom => Position::Top,
+        };
+
+        far.at(place).to(self.at(place))
+    }
+
     /// `near` and `far` from the bar's edge, in order down the screen.
     fn near_first<T>(self, near: T, far: T) -> (T, T) {
         match self {
@@ -608,9 +620,7 @@ fn hosts(holder: Container, host: Host, outline: Outline, ctx: &Ctx) -> Containe
         outline,
         ctx,
         move |opened| groups[&opened.group].opens_from() == host,
-        move |opened| {
-            group::split_off(opened, host, outline, &place).align_self(place.position.alignment())
-        },
+        move |opened| group::split_off(opened, host, outline, &place),
     );
 
     let place = ctx.clone();
@@ -666,9 +676,11 @@ fn background(ctx: &Ctx) -> Container {
         .width(fill())
         .height(ctx.reserved);
 
+    // As tall as the strip, so what comes out of it hangs from its edge, and
+    // with the surface's room for it.
     let layer = container()
         .width(fill())
-        .height(fill())
+        .align_self(ctx.position.at(Place::Start))
         .layout(ZStack::new().align(ctx.position.at(Place::Start)));
 
     hosts(
