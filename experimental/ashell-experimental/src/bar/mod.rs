@@ -463,7 +463,7 @@ fn view_with(bar: &Bar, state: State) -> Container {
 /// come out of `holder` have their neck again.
 fn hosting(
     holder: Container,
-    merge: bool,
+    merge: Merge,
     ctx: &Ctx,
     opens_here: impl Fn(&Opened) -> bool + 'static,
     panel: impl Fn(Opened) -> Container + 'static,
@@ -473,8 +473,8 @@ fn hosting(
     let open = create_memo(move || state.opened.get().filter(|opened| opens_here(opened)));
     let detached = create_signal(0usize);
 
-    let holder = if merge {
-        merged(holder, move || {
+    let holder = if merge != Merge::Off {
+        merged(holder, merge, move || {
             let panels = if detached.get() > 0 {
                 Panels::Detached
             } else {
@@ -505,6 +505,7 @@ fn hosting(
 fn hosting_details(
     holder: Container,
     ctx: &Ctx,
+    merge: Merge,
     shows_here: impl Fn(NodeId, &Placed) -> bool + 'static,
     host: impl Fn() -> Rect + 'static,
 ) -> Container {
@@ -524,13 +525,13 @@ fn hosting_details(
     holder.children(keyed(
         move || list.get().into_iter().collect::<Vec<_>>(),
         |&list| list,
-        move |_| group::split_details(shown, host(), &place),
+        move |_| group::split_details(shown, host(), merge == Merge::Borderless, &place),
     ))
 }
 
 /// `holder` as what the panels and details of the groups `host` takes come
 /// out of.
-fn hosts(holder: Container, host: Host, merge: bool, ctx: &Ctx) -> Container {
+fn hosts(holder: Container, host: Host, merge: Merge, ctx: &Ctx) -> Container {
     let (place, groups) = (ctx.clone(), ctx.groups.clone());
     let holder = hosting(
         holder,
@@ -540,7 +541,9 @@ fn hosts(holder: Container, host: Host, merge: bool, ctx: &Ctx) -> Container {
         move |opened| {
             let rect = host_rect(host, &place);
 
-            group::split_off(opened, rect, &place).align_self(place.position.alignment())
+            let bordered = merge == Merge::Borderless;
+
+            group::split_off(opened, rect, bordered, &place).align_self(place.position.alignment())
         },
     );
 
@@ -548,47 +551,64 @@ fn hosts(holder: Container, host: Host, merge: bool, ctx: &Ctx) -> Container {
     hosting_details(
         holder,
         ctx,
+        merge,
         move |_, placed| placed.group.host == host,
         move || host_rect(host, &place),
     )
 }
 
-fn merged<M>(holder: Container, reach: impl IntoSignal<f32, M>) -> Container {
-    holder
-        .merge_children(reach)
-        .border(stroke::HAIRLINE, ui().colors.line)
+/// How the shapes in a holder merge: not at all; into one outline with a
+/// border all round it; or into one outline that keeps only the borders of
+/// the shapes that have one, fading them out along the necks.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Merge {
+    Off,
+    Outlined,
+    Borderless,
+}
+
+impl Merge {
+    fn when(merges: bool, merge: Merge) -> Merge {
+        if merges { merge } else { Merge::Off }
+    }
+}
+
+fn merged<M>(holder: Container, merge: Merge, reach: impl IntoSignal<f32, M>) -> Container {
+    let holder = holder.merge_children(reach);
+
+    if merge == Merge::Outlined {
+        holder.border(stroke::HAIRLINE, ui().colors.line)
+    } else {
+        holder
+    }
 }
 
 /// Draws the bar's solid background, from edge to edge. The panels and
 /// details of the groups with no shape come out of it.
 fn background(ctx: &Ctx) -> Container {
-    let (bar_ref, height) = (ctx.refs.bar, ctx.reserved);
-
-    // Merging also draws a border round it, so only if something comes out
-    // of it.
-    let merge = ctx
+    let merges = ctx
         .groups
         .values()
         .any(|placed| placed.group.host == Host::Background);
 
-    // Bigger than the surface at both ends and towards the screen's edge: the
-    // surface cuts those sides, so the border drawn round the merged shapes
-    // shows only on the inner one. That border is drawn inside the fill, so
-    // the fill is taller by its width, leaving the bar all background.
-    let beyond = merge_distance() * 2.0;
-    let border = if merge { stroke::HAIRLINE } else { 0.0 };
-    let side = ctx.position.side();
+    // No border of its own: the panels and details that come out of it have
+    // theirs, which fade out along the necks.
     let fill = group::shape_fill(container())
-        .width(move || natural().at_least(bar_ref.layout_rect().get().width + 2.0 * beyond))
-        .height(natural().at_least(height + border + beyond))
-        .translate(Translate::new(-beyond, -side * beyond));
+        .width(fill())
+        .height(ctx.reserved);
 
     let layer = container()
         .width(guido::prelude::fill())
         .height(guido::prelude::fill())
         .layout(ZStack::new().align(ctx.position.at(Place::Start)));
 
-    hosts(layer, Host::Background, merge, ctx).child(fill)
+    hosts(
+        layer,
+        Host::Background,
+        Merge::when(merges, Merge::Borderless),
+        ctx,
+    )
+    .child(fill)
 }
 
 impl Place {
@@ -692,7 +712,7 @@ fn node_shape(content: Container, id: NodeId, wide: bool, ctx: &Ctx) -> Containe
         holder.width(move || shape_ref.layout_rect().get().width)
     };
 
-    hosts(holder, Host::Shape(id), true, ctx)
+    hosts(holder, Host::Shape(id), Merge::Outlined, ctx)
         .child(shape)
         .shadow(merged_shadow())
 }

@@ -7,7 +7,7 @@ use styletto::primitives::island::{self, island};
 use styletto::{centered_row, foundations::motion, ui};
 
 use super::{
-    Ctx, GROUP, Host, Neck, NodeId, Opened, Refs, State, group_height, host_rect, hosting,
+    Ctx, GROUP, Host, Merge, Neck, NodeId, Opened, Refs, State, group_height, host_rect, hosting,
     hosting_details, merge_distance, merged_shadow, placeholder, under_zone,
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
@@ -82,13 +82,13 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
 
     let holder = hosting(
         holder,
-        merge,
+        Merge::when(merge, Merge::Outlined),
         ctx,
         move |opened| opened.group == id && opens_here,
         move |opened| {
             let group = shape_ref.layout_rect().get_untracked();
             if merge {
-                return split_off(opened, group, &place);
+                return split_off(opened, group, false, &place);
             }
 
             // From the edge of what hosts it, past the group's own if that
@@ -114,6 +114,7 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
     let holder = hosting_details(
         holder,
         ctx,
+        Merge::Off,
         move |group, placed| group == id && placed.group.host == Host::None,
         move || shape_ref.layout_rect().get_untracked(),
     )
@@ -126,7 +127,8 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
     }
 }
 
-pub(super) fn split_off(opened: Opened, host: Rect, ctx: &Ctx) -> Container {
+/// `bordered`: with a border of its own, for a holder that draws none.
+pub(super) fn split_off(opened: Opened, host: Rect, bordered: bool, ctx: &Ctx) -> Container {
     let middle = host.x + host.width / 2.0;
     let x = under_zone(opened, middle, ctx);
     let side = ctx.position.side();
@@ -136,7 +138,9 @@ pub(super) fn split_off(opened: Opened, host: Rect, ctx: &Ctx) -> Container {
     let from = Translate::new(left + width / 2.0 - middle, side * (host.height / 2.0));
     let away = host.height + Neck::of(ctx.groups[&opened.group].group.panels).gap;
 
-    panel_shape(opened.panel, Translate::new(x, side * away), from, width)
+    let shape = panel_shape(opened.panel, Translate::new(x, side * away), from, width);
+
+    with_border(shape, bordered)
 }
 
 /// The details of the groups in one list of nodes that have no shape of
@@ -149,6 +153,7 @@ pub(super) fn split_off(opened: Opened, host: Rect, ctx: &Ctx) -> Container {
 pub(super) fn split_details(
     shown: Memo<Option<(NodeId, usize)>>,
     host: Rect,
+    bordered: bool,
     ctx: &Ctx,
 ) -> Container {
     let enter = || motion::easing(350.0).delay(150.0);
@@ -204,7 +209,7 @@ pub(super) fn split_details(
             },
         ));
 
-    shape_fill(container())
+    with_border(shape_fill(container()), bordered)
         .width(
             at_least(0.0)
                 .transition(sliding())
@@ -504,6 +509,14 @@ fn retracting<T>() -> impl Fn(Segment<T>) -> Transition + 'static {
         motion::spring(),
         motion::easing(RETRACT_MS).delay(CONTENT_OUT_MS),
     )
+}
+
+fn with_border(shape: Container, bordered: bool) -> Container {
+    if bordered {
+        shape.border(stroke::HAIRLINE, ui().colors.line)
+    } else {
+        shape
+    }
 }
 
 pub(super) fn shape_fill(container: Container) -> Container {

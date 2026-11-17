@@ -35,7 +35,9 @@ group's neighbours do not move.
 
 `attached` and `detached` come out of the nearest island round the zone: the
 group's, or else that of the nearest node round it that has one, or else the
-background. The border runs round the island and the panel as one outline.
+background. The border runs round the island and the panel as one outline;
+the background has none, so out of it only the panel has a border, fading
+out along the neck.
 Closing, the panel's content fades first, then its shape sinks back.
 
 `morph` grows the group itself: in `center` it grows on both sides, in `start`

@@ -399,7 +399,9 @@ own:
   island's edge facing the screen (under it for a top bar), starting as a
   sliver as wide as the group and growing to its own size, joined to the
   island while it grows; on close it goes the same way back. The border runs
-  round the island and the panel as one outline.
+  round the island and the panel as one outline. The background has no
+  border: out of it only the panel has one, fading out along the neck. A
+  border comes only with a shape.
 - Closing, the panel's content fades first and its shape then sinks back,
   easing.
 
