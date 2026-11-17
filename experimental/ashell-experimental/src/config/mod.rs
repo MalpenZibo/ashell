@@ -65,6 +65,9 @@ pub struct Bar {
     pub position: Position,
     pub background: Background,
     pub padding: Padding,
+    /// How far the panels and details stand off what they come out of: close,
+    /// a neck joins them; far, it breaks as they arrive.
+    pub gap: Space,
     /// Always placed.
     pub root: Node,
 }
@@ -204,15 +207,14 @@ impl Place {
 #[serde(rename_all = "lowercase")]
 pub enum Panels {
     Morph,
-    Attached,
-    Detached,
+    Merge,
     #[default]
     Dropdown,
 }
 
 impl Panels {
     pub fn merges(self) -> bool {
-        matches!(self, Panels::Attached | Panels::Detached)
+        self == Panels::Merge
     }
 }
 

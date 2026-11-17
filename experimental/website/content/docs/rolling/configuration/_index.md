@@ -73,10 +73,10 @@ everything inside it; written on an inner level they apply there and below:
 ```toml
 [bar.main]
 hover  = true        # every zone shows its details...
-panels = "attached"  # ...and every group's panels split off
+panels = "merge"     # ...and every group's panels split off
 
 end = [
-  { zones = ["tray"], panels = "detached" },  # but this group's stand apart
+  { zones = ["tray"], panels = "dropdown" },  # but this group's drop down
   ["clock", "status"],
 ]
 ```

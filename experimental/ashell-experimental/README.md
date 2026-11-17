@@ -34,7 +34,7 @@ empty or missing file is a complete bar.
 [bar.main]
 shape   = true      # one island as long as the bar
 padding = "s2"      # floating off the screen's edges
-panels  = "attached"
+panels  = "merge"
 hover   = true
 
 start  = ["workspaces"]

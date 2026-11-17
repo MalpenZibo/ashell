@@ -42,7 +42,7 @@ end = ["system", ["clock", "status"]]   # two groups: system alone, and clock wi
 | `start`, `center`, `end` | nodes | | Placed: the nodes at each place. |
 | `shape` | `true`, `false` | see [Islands](@/docs/rolling/configuration/islands.md) | An island round this node, or none. |
 | `hover` | `true`, `false` | the outer node's | Its zones show their details on hover. |
-| `panels` | `dropdown`, `attached`, `detached`, `morph` | the outer node's | How its groups open their panels. |
+| `panels` | `dropdown`, `merge`, `morph` | the outer node's | How its groups open their panels. |
 
 A node holds one of `zones`, `nodes` or the places. One with more than one is
 reported, and the first in that order is kept.

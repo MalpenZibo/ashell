@@ -17,7 +17,7 @@ One island as long as the bar, floating off the screen's edges, its panels split
 [bar.main]
 shape  = true
 padding = "s2"
-panels = "attached"
+panels = "merge"
 
 start  = ["workspaces"]
 center = ["window"]
@@ -59,7 +59,7 @@ One island in the centre that turns into its panels, and beside it a group of it
 ```toml
 [bar.main]
 hover  = true
-panels = "attached"
+panels = "merge"
 
 center = [
   { zones = ["workspaces", "window", "tray", "media", "clock", "updates", "status"], panels = "morph" },
@@ -73,12 +73,13 @@ open  = "system"
 
 ## A middle ground
 
-The island that morphs, with the tray at the end opening its menu as a detached panel.
+The island that morphs, with the tray at the end opening its menu as a panel that stands apart.
 
 ```toml
 [bar.main]
 hover  = true
-panels = "detached"
+panels = "merge"
+gap    = "s4"
 
 center = [{ zones = ["workspaces", "window", "media", "clock", "status"], panels = "morph" }]
 end    = ["tray"]

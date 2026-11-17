@@ -13,7 +13,7 @@ background = "transparent"
 shape      = true
 padding    = "s2"
 hover      = true
-panels     = "attached"
+panels     = "merge"
 
 start  = ["workspaces"]
 center = [["window", "clock"]]
@@ -30,7 +30,8 @@ end    = [["privacy", "status"]]
 | `background` | `transparent`, `solid` | `transparent` | A flat fill from edge to edge, in the island's colour and material. |
 | `padding` | space steps | `s2` | Between the screen's edges and the outermost shapes. |
 | `hover` | `true`, `false` | `false` | Zones show their details while the pointer rests on them. |
-| `panels` | `dropdown`, `attached`, `detached`, `morph` | `dropdown` | How groups open their panels: see [Panels](@/docs/rolling/configuration/panels.md). |
+| `panels` | `dropdown`, `merge`, `morph` | `dropdown` | How groups open their panels: see [Panels](@/docs/rolling/configuration/panels.md). |
+| `gap` | space steps | `s2` | How far panels and details stand off what they come out of. Below `s4` a neck joins them; from `s4` they stand apart: see [Panels](@/docs/rolling/configuration/panels.md). |
 
 `shape`, `hover` and `panels` are defaults for every node of the bar, which
 can say otherwise for itself.

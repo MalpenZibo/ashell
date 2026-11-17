@@ -57,6 +57,7 @@ const BAR_KEYS: &[&str] = &[
     "background",
     "shape",
     "padding",
+    "gap",
     "hover",
     "panels",
     "start",
@@ -152,6 +153,10 @@ impl Reader {
             .get("padding")
             .and_then(|value| self.padding(&format!("{at}.padding"), value))
             .unwrap_or(Padding::all(size::S2));
+        let gap = table
+            .get("gap")
+            .and_then(|value| self.space(&format!("{at}.gap"), value))
+            .unwrap_or(size::S2);
 
         self.next_id = 0;
         let inherited = Inherited {
@@ -175,6 +180,7 @@ impl Reader {
             position,
             background,
             padding,
+            gap,
             root: Self::holding(id, Holds::Placed(places), shape, inherited),
         }
     }
@@ -768,7 +774,7 @@ mod tests {
         let bar = read(
             r#"
             [bar.main]
-            panels = "attached"
+            panels = "merge"
             hover = true
             start = ["workspaces"]
             center = { hover = false, nodes = [{ zones = ["window"], panels = "morph" }, "clock"] }
@@ -778,13 +784,13 @@ mod tests {
         .bars[0]
             .clone();
 
-        assert_eq!(place(&bar, 0)[0].panels, Panels::Attached);
+        assert_eq!(place(&bar, 0)[0].panels, Panels::Merge);
         assert!(place(&bar, 0)[0].hover);
 
         let row = inner(&place(&bar, 1)[0]);
         assert_eq!(row[0].panels, Panels::Morph);
         assert!(!row[0].hover);
-        assert_eq!(row[1].panels, Panels::Attached);
+        assert_eq!(row[1].panels, Panels::Merge);
         assert!(!row[1].hover);
     }
 
@@ -883,7 +889,7 @@ center = [\"clock\"]
             r#"
             [bar.main]
             shape = false
-            panels = "attached"
+            panels = "merge"
             center = [{ zones = "window", panels = "morph" }, "clock"]
             "#,
         );
@@ -900,12 +906,12 @@ center = [\"clock\"]
             r#"
             [bar.main]
             shape = true
-            center = [{ zones = "window", panels = "attached" }, { zones = "clock", panels = "morph" }]
+            center = [{ zones = "window", panels = "merge" }, { zones = "clock", panels = "morph" }]
             "#,
         );
 
         let bar = &parsed.config.bars[0];
-        assert_eq!(place(bar, 1)[0].panels, Panels::Attached);
+        assert_eq!(place(bar, 1)[0].panels, Panels::Merge);
         assert_eq!(place(bar, 1)[1].panels, Panels::Dropdown);
         assert_eq!(parsed.problems.len(), 1, "{:?}", parsed.problems);
     }
@@ -917,12 +923,12 @@ center = [\"clock\"]
             [bar.main]
             background = "solid"
             shape = false
-            panels = "attached"
+            panels = "merge"
             center = ["clock"]
             "#,
         );
         assert!(parsed.problems.is_empty(), "{:?}", parsed.problems);
-        assert_eq!(place(&parsed.config.bars[0], 1)[0].panels, Panels::Attached);
+        assert_eq!(place(&parsed.config.bars[0], 1)[0].panels, Panels::Merge);
     }
 
     #[test]

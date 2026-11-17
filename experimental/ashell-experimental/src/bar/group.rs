@@ -7,7 +7,7 @@ use styletto::primitives::island::{self, island};
 use styletto::{centered_row, foundations::motion};
 
 use super::{
-    Ctx, GROUP, Host, Merge, Neck, NodeId, Opened, Placed, Refs, State, at_rest, group_height,
+    Ctx, GROUP, Host, Neck, NodeId, Opened, Outline, Placed, Refs, State, at_rest, group_height,
     host_rect, hosting, hosting_details, merge_distance, placeholder, under_zone,
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
@@ -79,17 +79,17 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
 
     let holder = hosting(
         holder,
-        Merge::when(casts, Merge::Outlined),
+        Outline::when(casts, Outline::Shared),
         ctx,
         move |opened| opened.group == id && opens_here,
         move |opened| {
             if merge {
-                return split_off(opened, Host::Shape(id), Merge::Outlined, &place);
+                return split_off(opened, Host::Shape(id), Outline::Shared, &place);
             }
 
             let group = at_rest(shape_ref.layout_rect().get_untracked(), place.position);
             let x = under_zone(opened, group.x + group.width / 2.0, &place);
-            let (side, gap) = (place.position.side(), Neck::of(panels).gap);
+            let (side, gap) = (place.position.side(), Neck::panel(place.gap).gap);
 
             // From the edge of what hosts it, past the group's own if that
             // reaches further.
@@ -110,7 +110,7 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
 
     hosting_details(
         holder,
-        Merge::Off,
+        Outline::Own,
         ctx,
         move |group, placed| group == id && placed.group.host == Host::None,
         move || shape_ref.layout_rect().get_untracked(),
@@ -118,21 +118,21 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
     .child(shape)
 }
 
-/// `merge`: how the holder it comes out in merges, which says what it draws
-/// of its edge (see `rimmed`).
-pub(super) fn split_off(opened: Opened, host: Host, merge: Merge, ctx: &Ctx) -> Container {
+/// `outline`: how the holder it comes out in outlines what merges in it,
+/// which says what it draws of its edge (see `rimmed`).
+pub(super) fn split_off(opened: Opened, host: Host, outline: Outline, ctx: &Ctx) -> Container {
     let rect = host_rect(host, ctx);
     let middle = rect.x + rect.width / 2.0;
     let x = under_zone(opened, middle, ctx);
     let side = ctx.position.side();
     let group = ctx.refs.nodes[&opened.group].layout_rect().get_untracked();
-    let gap = Neck::of(ctx.groups[&opened.group].group.panels).gap;
+    let gap = Neck::panel(ctx.gap).gap;
 
     let (left, width) = span(group.x, group.width);
     let from = Translate::new(left + width / 2.0 - middle, side * (rect.height / 2.0));
     let to = Translate::new(x, side * (rect.height + gap));
 
-    rimmed(panel_shape(opened.panel, to, from, width), merge)
+    rimmed(panel_shape(opened.panel, to, from, width), outline)
 }
 
 /// The details of the groups in one list of nodes that have no shape of
@@ -145,7 +145,7 @@ pub(super) fn split_off(opened: Opened, host: Host, merge: Merge, ctx: &Ctx) -> 
 pub(super) fn split_details(
     shown: Memo<Option<(NodeId, usize)>>,
     host: Rect,
-    merge: Merge,
+    outline: Outline,
     ctx: &Ctx,
 ) -> Container {
     let enter = || motion::easing(350.0).delay(150.0);
@@ -185,7 +185,7 @@ pub(super) fn split_details(
             }
         }
     };
-    let away = side * (host.height + Neck::details().gap);
+    let away = side * (host.height + Neck::details(ctx.gap).gap);
     let inside = side * (host.height / 2.0);
     let sliver = move |zone| {
         let under = zone_rect(zone);
@@ -209,7 +209,7 @@ pub(super) fn split_details(
             },
         ));
 
-    rimmed(island::paint(container()), merge)
+    rimmed(island::paint(container()), outline)
         .width(
             at_least(0.0)
                 .transition(sliding())
@@ -448,7 +448,7 @@ fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Cont
 }
 
 fn dropdown(panel: Panel, to: Translate, rim: Translate) -> Container {
-    rimmed(island::paint(container()), Merge::Off)
+    rimmed(island::paint(container()), Outline::Own)
         .width(natural().at_most(placeholder::panel_width()))
         .height(
             at_least(0.0)
@@ -491,10 +491,10 @@ fn retracting<T>() -> impl Fn(Segment<T>) -> Transition + 'static {
 /// A shape that comes out of a holder: on its own, with the island's border
 /// and shadow; merged into an outline the holder draws, with neither; merged
 /// into one that keeps the shapes' borders, with its border.
-fn rimmed(shape: Container, merge: Merge) -> Container {
-    match merge {
-        Merge::Off => island::edge(shape),
-        Merge::Outlined => shape,
-        Merge::Borderless => island::border(shape),
+fn rimmed(shape: Container, outline: Outline) -> Container {
+    match outline {
+        Outline::Own => island::edge(shape),
+        Outline::Shared => shape,
+        Outline::Members => island::border(shape),
     }
 }

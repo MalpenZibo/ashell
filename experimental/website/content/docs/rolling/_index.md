@@ -32,7 +32,7 @@ day.
 [bar.main]
 shape   = true       # one island as long as the bar
 padding = "s2"       # floating off the screen's edges
-panels  = "attached" # panels split off it, joined by a neck
+panels  = "merge"    # panels split off it, joined by a neck
 hover   = true       # zones show their details on hover
 
 start  = ["workspaces"]

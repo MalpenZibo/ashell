@@ -116,11 +116,16 @@ end    = [["privacy", "status"]]
     )
 }
 
+/// `config` with its panels and details standing apart.
+fn apart(config: &str) -> String {
+    config.replace("[bar.main]", "[bar.main]\ngap = \"s4\"")
+}
+
 const STRIP: &str = r#"
 [bar.main]
 background = "solid"
 shape      = false
-panels     = "attached"
+panels     = "merge"
 hover      = true
 start  = ["workspaces"]
 center = [["window", "clock"]]
@@ -138,7 +143,7 @@ end    = [["privacy", "status"]]
 
 const CLUSTERS: &str = r#"
 [bar.main]
-panels = "attached"
+panels = "merge"
 start  = { nodes = ["workspaces"], shape = true }
 center = { nodes = ["clock", "window"], shape = true }
 end    = { nodes = [["privacy", "status"]], shape = true }
@@ -146,7 +151,7 @@ end    = { nodes = [["privacy", "status"]], shape = true }
 
 const HALVES: &str = r#"
 [bar.main]
-panels = "attached"
+panels = "merge"
 hover  = true
 start  = { shape = true, start = ["workspaces"], end = ["window"] }
 end    = { shape = true, start = ["media"], end = [["clock", "status"]] }
@@ -162,14 +167,14 @@ end    = [["privacy", "status"]]
 
 const HALVES_CLOCK_LEFT: &str = r#"
 [bar.main]
-panels = "attached"
+panels = "merge"
 start  = { shape = true, start = ["workspaces"], end = ["clock"] }
 end    = { shape = true, start = ["media"], end = ["status"] }
 "#;
 
 const ISLANDS: &str = r#"
 [bar.main]
-panels = "attached"
+panels = "merge"
 start  = ["workspaces"]
 center = [["window", "clock"]]
 end    = [["privacy", "status"]]
@@ -258,12 +263,12 @@ fn snapshots() {
     open_and_close("floating", FLOATING, "status", Panel::Settings);
 
     let calendar = |name, config: &str| open_and_close(name, config, "clock", Panel::Calendar);
-    calendar("floating-center", &floating("attached", true));
+    calendar("floating-center", &floating("merge", true));
     calendar("islands-center", ISLANDS);
-    calendar("floating-detached", &floating("detached", true));
+    calendar("floating-apart", &apart(&floating("merge", true)));
     calendar("floating-unmerged", &floating("dropdown", true));
     calendar("strip", STRIP);
-    calendar("floating-flush", &floating("attached", false));
+    calendar("floating-flush", &floating("merge", false));
     calendar("flat", FLAT);
 
     open_and_close("clusters", CLUSTERS, "clock", Panel::Calendar);
@@ -272,10 +277,10 @@ fn snapshots() {
     open_and_close("bare", BARE, "clock", Panel::Calendar);
 
     let status = |name, config: &str| details(name, config, "status");
-    status("details-strip", &floating("attached", true));
+    status("details-strip", &floating("merge", true));
     status(
         "details-strip-bottom",
-        &floating("attached", true).replace("[bar.main]", "[bar.main]\nposition = \"bottom\""),
+        &floating("merge", true).replace("[bar.main]", "[bar.main]\nposition = \"bottom\""),
     );
     status("details-clusters", CLUSTERS);
     status("details-background", STRIP);
@@ -288,17 +293,18 @@ fn snapshots() {
     details_then_panel("details-then-panel-end", ISLANDS, "status", Panel::Settings);
     details_then_panel(
         "details-then-dropdown",
-        &ISLANDS.replace("attached", "dropdown"),
+        &ISLANDS.replace("merge", "dropdown"),
         "clock",
         Panel::Calendar,
     );
     details_moving(
         "details-moving",
-        &floating("attached", true),
+        &floating("merge", true),
         "window",
         "clock",
     );
     status("details-bare", BARE);
+    status("details-apart", &apart(STRIP));
     details_moving("details-across", STRIP, "workspaces", "status");
 }
 

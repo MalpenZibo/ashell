@@ -164,7 +164,7 @@ off the island instead, see [Not decided yet](#not-decided-yet)):
 ```toml
 [bar.main]
 hover  = true
-panels = "attached"
+panels = "merge"
 
 center = [
   { zones = ["workspaces", "window", "tray", "media", "clock", "updates", "status"], panels = "morph" },
@@ -177,12 +177,13 @@ open  = "system"
 ```
 
 A middle ground: the morphing island, with the tray at the end opening its menu
-as a detached panel:
+as a panel that stands apart:
 
 ```toml
 [bar.main]
 hover  = true
-panels = "detached"
+panels = "merge"
+gap    = "s4"
 
 center = [{ zones = ["workspaces", "window", "media", "clock", "status"], panels = "morph" }]
 end    = ["tray"]
@@ -195,7 +196,7 @@ its panels splitting off it; the groups on it have none of their own:
 [bar.main]
 shape  = true
 padding = "s2"
-panels = "attached"
+panels = "merge"
 
 start  = ["workspaces"]
 center = ["window"]
@@ -236,6 +237,7 @@ file with none has one, `main`, with the defaults.
 | `shape` | `true`, `false` | unset | `true`: an island as long as the bar, the root's; `false`: no island anywhere, unless a node inside says so; unset: an island round each group (see [Islands and background](#islands-and-background)) |
 | `background` | `transparent`, `solid` | `transparent` | the surface's own background, in the island's colour and material: flat, edge to edge, with no corners and no border. The panels and details of the groups with no island round them come out of it |
 | `padding` | styletto space steps, `s0`…`s10`: one for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`, as CSS writes them | `s2` | between the screen's edges and the outermost shapes, and on the side away from the edge between them and the background's. `s0` puts them against the edges. The background always runs from edge to edge; there is no margin outside it |
+| `gap` | a styletto space step, `s0`…`s10` | `s2` | how far the panels and details stand off what they come out of. Below `s4` a neck joins them; from `s4` it breaks as they arrive (see [Panels](#panels-panels)) |
 | `hover`, `panels` | as on a node | | the defaults for every node |
 
 ### `[monitor."<monitor>"]`
@@ -257,7 +259,7 @@ description (`"Dell U2720Q"`), which stays the same through a dock. See
 | `start`, `center`, `end` | nodes | | placed: the nodes at each place |
 | `shape` | `true`, `false` | see [Islands and background](#islands-and-background) | an island round this node or not; the default for the nodes inside |
 | `hover` | `true`, `false` | `false` | zones show their details on hover |
-| `panels` | `morph`, `attached`, `detached`, `dropdown` | `dropdown` | how the groups inside open panels (see below) |
+| `panels` | `morph`, `merge`, `dropdown` | `dropdown` | how the groups inside open panels (see below) |
 
 A node holds one of `zones`, `nodes` or the places; one with more than one is
 reported, and the first in that order is kept. `hover`, `panels` and
@@ -303,7 +305,7 @@ Two things can be behind the zones, and they are kept apart:
 - **The background** (`background = "solid"`) is the surface's: a flat fill
   in the island's colour and material, from edge to edge of the bar, with no
   corners, no border and no shadow. A group with no island round it opens its
-  `attached` and `detached` panels and its details out of it, as out of an
+  `merge` panels and its details out of it, as out of an
   island: with no island anywhere, it is the classic strip along the edge,
   panels and all. `padding` moves what is drawn on it away from its edges;
   the background itself stays at the screen's edges, and is as tall as the
@@ -360,13 +362,12 @@ Satellites, groups that split off a node and merge back, are not decided yet
 | Value | What a click does | Today |
 | --- | --- | --- |
 | `morph` | the group itself turns into the panel and back | the prototype |
-| `attached` | the panel is a shape of its own that splits off the group, stays joined to it by a neck, and merges back on close | ashell's menus, merging instead of appearing |
-| `detached` | the same, kept off (`S3`) by more than the shapes then reach for each other, so the neck breaks as it arrives: it stands apart once out | the prototype's satellite, kept apart |
+| `merge` | the panel is a shape of its own that splits off the group, merged with it, and merges back on close. With the bar's `gap` below `s4` it stays joined by a neck; from `s4` the neck breaks as it arrives and it stands apart once out | ashell's menus, merging instead of appearing; apart, the prototype's satellite |
 | `dropdown` | the panel drops down from the group's edge, merging with nothing | ashell's menus |
 
-One value says the whole behaviour, so how far a panel stands and whether it
-merges are not knobs of their own: set apart, a gap and a merge distance give
-in-between looks, such as a neck that barely shows.
+Whether a merged panel stays joined is the bar's `gap`, one for the whole bar
+rather than a value per panel: the shapes that merge in one island reach for
+each other as far as one distance, so one bar has one way of coming out.
 
 `morph`:
 
@@ -376,8 +377,7 @@ in-between looks, such as a neck that barely shows.
 - Its neighbours in the list step aside while it is open (fade and slide
   away, then come back).
 
-`attached`, `detached` and `dropdown` all open the panel as a shape of its
-own:
+`merge` and `dropdown` both open the panel as a shape of its own:
 
 - It is centred under the zone that opened it, wherever the group is: a group
   with several zones that open panels (`["clock", "privacy", "status"]`) opens
@@ -391,7 +391,7 @@ own:
   `open`, such as a tray icon, will need: centred under the item.
 - The group's neighbours do not move.
 
-`attached` and `detached`:
+`merge`:
 
 - The panel comes out of the nearest island round the zone that opened it:
   the group's, or else that of the nearest node round it that has one, or
@@ -419,7 +419,7 @@ own:
 A panel needs an island for what it does, and drops down as with `dropdown`
 when there is none, the file being told so:
 
-- `attached` and `detached` need an island round the zone to come out of,
+- `merge` needs an island round the zone to come out of,
   the group's or a node's round it, or else the background. With `shape =
   false` on the bar and no background there is none.
 - `morph` needs the group's own island to turn into: a node's island round it
@@ -427,12 +427,13 @@ when there is none, the file being told so:
   only while it is open is a direction for later (see
   [Not decided yet](#not-decided-yet)).
 
-How far the shapes reach for each other is the merge distance, `S8` (32 px).
-At that distance an `attached` panel, kept `S2` past its group, stays joined to
-it by a neck. While a `detached` panel is out, until it has gone back, the
-shapes round it reach `S4` (16 px) instead: kept `S3`, past half of that,
-its neck breaks as it arrives, and the details split off the same island
-keep the usual reach.
+A panel stands `gap` past what it comes out of. Two shapes that far apart
+keep a neck while the gap is less than half of how far they reach for each
+other, and swell towards each other until the gap is as far as they reach.
+With a gap below `S4` they reach the merge distance, `S8` (32 px): the panel
+stays joined by a neck, thick for the default `s2`. From `S4` they reach a
+third more than the gap: the panel comes out joined, the neck breaks as it
+arrives, and once apart they hardly swell.
 The sliver it starts and ends as is kept a merge distance inside the group's
 ends, so letting it go on close leaves no bulge to snap away.
 
@@ -451,13 +452,13 @@ second row of items. Where it shows depends on the shape round the group:
   The zones stay where they are.
 - **It has none**: the row is a small island of its own that splits off what
   holds the group, the nearest node's island round it, the background, or
-  the group's place when there is none, as an `attached` or `detached` panel does, and goes back
+  the group's place when there is none, as a `merge` panel does, and goes back
   the same way. The island round the group keeps its height, and nothing is
   drawn without a shape under it.
 
 The split-off row is drawn as a group's island would be: as tall as a group,
 with pill corners. It comes out of what holds it and goes back into it as an
-`attached` panel does, from and to a sliver under the zone, so nothing is left
+`merge` panel does, from and to a sliver under the zone, so nothing is left
 to snap away when it is gone; its row fades in once it is out, without
 squeezing while the island grows, and fades out first. There is one per
 list of nodes: going from one zone to
@@ -466,8 +467,9 @@ changes its row, as an island does, rather than going back and coming out
 again. It comes out from under the zone. In `start` its
 start edge is on the zone's, in `end` its end edge, so it stays on the screen
 whatever its width; in `center` it is centred on the zone. The place is the
-one the group is in, the nearest round it. It stands `S1`
-off, close enough for a thick neck, whatever the group's panels.
+one the group is in, the nearest round it. It stands half the bar's `gap`
+off while that keeps a neck, for a thick one, whatever the group's panels;
+with a `gap` that breaks the neck it stands as far off as a panel, apart too.
 
 The pointer on the split-off row counts as on the group: the row stays while
 the pointer goes from the zone to it.
@@ -704,11 +706,9 @@ ashell have no counterpart and go away:
     is at the edge, and it moves to make room.
   - In `center` the row stays centred on its own nodes: a satellite leaves it
     lopsided while it is out.
-  - With shapes round them it splits off its node, as panels do: `split =
-    "attached"`, the default, stays joined by a neck, as the prototype's bubble, and
-    `split = "detached"` breaks it as it arrives. With no shapes it fades.
-    `split` goes beside the side: `satellites = { end = ["hot"], split =
-    "detached" }`.
+  - With shapes round them it splits off its node, as panels do: joined by a
+    neck, as the prototype's bubble, or apart, as the bar's `gap` says. With
+    no shapes it fades.
   - It comes out when it has something to show, by the visibility rules: at
     least one of its items visible, so a `show = "notable"` item brings it out
     when there is something to note, and one with every item `always` is out
@@ -792,7 +792,7 @@ need a screen.
    nodes laid out, the islands where they are asked for and the background,
    `[appearance]` through `provide_ui`. Zones and panels are placeholders
    sized like the real ones.
-3. **Panels, `dropdown`, `attached` and `detached`.** Done. A click on a zone
+3. **Panels, `dropdown` and `merge`.** Done. A click on a zone
    opens its panel under that zone; a click outside or <kbd>Esc</kbd>
    closes it.
 4. **Panels, `morph`.** Done. The group turns into the panel; growth away

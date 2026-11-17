@@ -10,10 +10,10 @@ use std::time::Duration;
 
 use guido::prelude::*;
 use styletto::foundations::control::Size;
-use styletto::foundations::tokens::{radius, size};
+use styletto::foundations::tokens::{Space, radius, size};
 use styletto::primitives::island;
 
-use crate::config::{Background, Bar, Holds, Host, Node, Padding, Panel, Panels, Place, Position};
+use crate::config::{Background, Bar, Holds, Host, Node, Padding, Panel, Place, Position};
 
 const DETAILS_DWELL: Duration = Duration::from_millis(260);
 const ZONE_SWITCH: Duration = Duration::from_millis(90);
@@ -36,7 +36,8 @@ fn merge_distance() -> f32 {
 
 /// How far a shape stands off what it comes out of, and how far the two
 /// reach for each other. Between two edges `gap` apart guido's smooth minimum
-/// keeps a neck only while `gap < reach / 2`, as thick as `reach / 4 - gap / 2`.
+/// keeps a neck only while `gap < reach / 2`, as thick as `reach / 4 - gap / 2`,
+/// and swells them towards each other until `gap` is `reach`.
 #[derive(Clone, Copy, Debug)]
 struct Neck {
     gap: f32,
@@ -44,33 +45,40 @@ struct Neck {
 }
 
 impl Neck {
-    /// A panel and its group: a `detached` one stands further off and its
-    /// shapes reach less, so its neck breaks as it arrives; the others are
-    /// joined.
-    fn of(panels: Panels) -> Self {
-        match panels {
-            Panels::Detached => Self {
-                gap: size::S3.px(),
-                reach: size::S4.px(),
-            },
-            Panels::Morph | Panels::Attached | Panels::Dropdown => Self {
-                gap: size::S2.px(),
-                reach: merge_distance(),
-            },
+    /// A panel, the bar's `gap` off what it comes out of.
+    fn panel(gap: Space) -> Self {
+        Self {
+            gap: gap.px(),
+            reach: reach(gap),
         }
     }
 
-    /// The details split off what holds their group, with a thick neck.
-    fn details() -> Self {
-        Self {
-            gap: size::S1.px(),
-            reach: merge_distance(),
-        }
+    /// The details: while joined, half as far off as a panel, for a thicker
+    /// neck; once apart, as far.
+    fn details(gap: Space) -> Self {
+        let Self { gap, reach } = Self::panel(gap);
+        let gap = if gap < reach / 2.0 { gap / 2.0 } else { gap };
+
+        Self { gap, reach }
     }
 
     #[cfg(test)]
     fn joined(self) -> bool {
         self.gap < self.reach / 2.0
+    }
+}
+
+/// How far the shapes of a bar reach for each other: the merge distance while
+/// `gap` keeps a neck with it; past that, just more than `gap`, so a shape
+/// comes out joined, its neck breaks as it arrives, and it swells little once
+/// apart.
+fn reach(gap: Space) -> f32 {
+    let gap = gap.px();
+
+    if gap < merge_distance() / 2.0 {
+        merge_distance()
+    } else {
+        gap * 4.0 / 3.0
     }
 }
 
@@ -382,12 +390,6 @@ impl State {
     }
 }
 
-/// One more in `count` until the scope this runs in is disposed.
-fn counted(count: RwSignal<usize>) {
-    count.update(|n| *n += 1);
-    on_cleanup(move || count.update(|n| *n -= 1));
-}
-
 #[derive(Clone)]
 struct Ctx {
     state: State,
@@ -395,6 +397,7 @@ struct Ctx {
     groups: Rc<HashMap<NodeId, Placed>>,
     position: Position,
     padding: Padding,
+    gap: Space,
     reserved: f32,
 }
 
@@ -503,6 +506,7 @@ fn view_with(bar: &Bar, state: State) -> Container {
         groups: Rc::new(groups),
         position: bar.position,
         padding: bar.padding,
+        gap: bar.gap,
         reserved: reserved(bar) as f32,
     };
 
@@ -541,32 +545,20 @@ fn view_with(bar: &Bar, state: State) -> Container {
 /// Adds to `holder` the open panel, if `opens_here` says it comes out of
 /// `holder`. It is added first, so the shape added after it covers it.
 ///
-/// With `merge`, the shapes in `holder` merge into one. While a `detached`
-/// panel is out they merge only when very close, so its neck breaks as it
-/// moves away. Once it has gone they merge as before, and the details that
-/// come out of `holder` have their neck again.
+/// Unless `outline` is `Own`, the shapes in `holder` merge into one, reaching as far as the
+/// bar's gap says (see `reach`).
 fn hosting(
     holder: Container,
-    merge: Merge,
+    outline: Outline,
     ctx: &Ctx,
     opens_here: impl Fn(&Opened) -> bool + 'static,
     panel: impl Fn(Opened) -> Container + 'static,
 ) -> Container {
-    let (state, groups) = (ctx.state, ctx.groups.clone());
-
+    let state = ctx.state;
     let open = create_memo(move || state.opened.get().filter(|opened| opens_here(opened)));
-    let detached = create_signal(0usize);
 
-    let holder = if merge != Merge::Off {
-        merged(holder, merge, move || {
-            let panels = if detached.get() > 0 {
-                Panels::Detached
-            } else {
-                Panels::Attached
-            };
-
-            Neck::of(panels).reach
-        })
+    let holder = if outline != Outline::Own {
+        merged(holder, outline, reach(ctx.gap))
     } else {
         holder
     };
@@ -574,13 +566,7 @@ fn hosting(
     holder.children(keyed(
         move || open.get().into_iter().collect::<Vec<_>>(),
         |opened| (opened.group, opened.zone, opened.panel),
-        move |opened| {
-            if groups[&opened.group].group.panels == Panels::Detached {
-                counted(detached);
-            }
-
-            panel(opened).out_of_flow(true)
-        },
+        move |opened| panel(opened).out_of_flow(true),
     ))
 }
 
@@ -588,7 +574,7 @@ fn hosting(
 /// `holder`: a small shape coming out of `host`, one for each list of nodes.
 fn hosting_details(
     holder: Container,
-    merge: Merge,
+    outline: Outline,
     ctx: &Ctx,
     shows_here: impl Fn(NodeId, &Placed) -> bool + 'static,
     host: impl Fn() -> Rect + 'static,
@@ -609,55 +595,57 @@ fn hosting_details(
     holder.children(keyed(
         move || list.get().into_iter().collect::<Vec<_>>(),
         |&list| list,
-        move |_| group::split_details(shown, host(), merge, &place).out_of_flow(true),
+        move |_| group::split_details(shown, host(), outline, &place).out_of_flow(true),
     ))
 }
 
 /// `holder` as what the panels and details of the groups `host` takes come
 /// out of.
-fn hosts(holder: Container, host: Host, merge: Merge, ctx: &Ctx) -> Container {
+fn hosts(holder: Container, host: Host, outline: Outline, ctx: &Ctx) -> Container {
     let (place, groups) = (ctx.clone(), ctx.groups.clone());
     let holder = hosting(
         holder,
-        merge,
+        outline,
         ctx,
         move |opened| groups[&opened.group].opens_from() == host,
         move |opened| {
-            group::split_off(opened, host, merge, &place).align_self(place.position.alignment())
+            group::split_off(opened, host, outline, &place).align_self(place.position.alignment())
         },
     );
 
     let place = ctx.clone();
     hosting_details(
         holder,
-        merge,
+        outline,
         ctx,
         move |_, placed| placed.group.host == host,
         move || host_rect(host, &place),
     )
 }
 
-/// How the shapes in a holder merge: not at all; into one outline with a
-/// border all round it and the shadow, which the shapes then cast none of;
-/// or into one outline that keeps only the borders of the shapes that have
-/// one, fading them out along the necks.
+/// How the shapes in a holder are outlined.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Merge {
-    Off,
-    Outlined,
-    Borderless,
+enum Outline {
+    /// Each its own: they don't merge.
+    Own,
+    /// One, round the shapes merged: its border and its shadow, which the
+    /// shapes then cast none of.
+    Shared,
+    /// The borders of the shapes merged that have one, fading out along the
+    /// necks.
+    Members,
 }
 
-impl Merge {
-    fn when(merges: bool, merge: Merge) -> Merge {
-        if merges { merge } else { Merge::Off }
+impl Outline {
+    fn when(merges: bool, outline: Outline) -> Outline {
+        if merges { outline } else { Outline::Own }
     }
 }
 
-fn merged<M>(holder: Container, merge: Merge, reach: impl IntoSignal<f32, M>) -> Container {
+fn merged<M>(holder: Container, outline: Outline, reach: impl IntoSignal<f32, M>) -> Container {
     let holder = holder.merge_children(reach);
 
-    if merge == Merge::Outlined {
+    if outline == Outline::Shared {
         island::edge(holder)
     } else {
         holder
@@ -686,7 +674,7 @@ fn background(ctx: &Ctx) -> Container {
     hosts(
         layer,
         Host::Background,
-        Merge::when(merges, Merge::Borderless),
+        Outline::when(merges, Outline::Members),
         ctx,
     )
     .child(paint)
@@ -789,7 +777,7 @@ fn node_shape(content: Container, id: NodeId, wide: bool, ctx: &Ctx) -> Containe
     let holder = container().layout(ZStack::new().align(ctx.position.alignment()));
     let holder = if wide { holder.width(fill()) } else { holder };
 
-    hosts(holder, Host::Shape(id), Merge::Outlined, ctx).child(shape)
+    hosts(holder, Host::Shape(id), Outline::Shared, ctx).child(shape)
 }
 
 fn keyboard_follows(surface: SurfaceHandle, open: Memo<bool>) {
@@ -810,8 +798,10 @@ mod tests {
 
     use guido::prelude::Rect;
 
+    use styletto::foundations::tokens::size;
+
     use super::{Neck, at_rest, group_height};
-    use crate::config::{Panels, Position};
+    use crate::config::Position;
 
     #[test]
     fn a_shape_at_rest_keeps_the_end_against_the_bar() {
@@ -838,19 +828,19 @@ mod tests {
     }
 
     #[test]
-    fn attached_panels_and_details_keep_a_neck_and_detached_ones_lose_it() {
+    fn a_gap_below_s4_keeps_a_neck_and_one_from_s4_breaks_it() {
         for density in [Density::Compact, Density::Default, Density::Comfortable] {
             let ((), scope) = with_owner(|| {
                 provide_ui(Ui::default().with_density(density));
 
-                for panels in [Panels::Attached, Panels::Dropdown, Panels::Morph] {
-                    assert!(Neck::of(panels).joined(), "{panels:?} at {density:?}");
+                for gap in [size::S0, size::S0_5, size::S1, size::S2, size::S3] {
+                    assert!(Neck::panel(gap).joined(), "{gap:?} at {density:?}");
+                    assert!(Neck::details(gap).joined(), "{gap:?} at {density:?}");
                 }
-                assert!(Neck::details().joined(), "details at {density:?}");
-                assert!(
-                    !Neck::of(Panels::Detached).joined(),
-                    "detached at {density:?}"
-                );
+                for gap in [size::S4, size::S6, size::S8, size::S10] {
+                    assert!(!Neck::panel(gap).joined(), "{gap:?} at {density:?}");
+                    assert!(!Neck::details(gap).joined(), "{gap:?} at {density:?}");
+                }
             });
             dispose_owner(scope);
         }

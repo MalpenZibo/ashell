@@ -3,7 +3,7 @@
 
 [bar.main]
 hover  = true
-panels = "attached"
+panels = "merge"
 
 center = [
   { zones = ["workspaces", "window", "tray", "media", "clock", "updates", "status"], panels = "morph" },
