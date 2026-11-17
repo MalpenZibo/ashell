@@ -298,4 +298,91 @@ fn snapshots() {
         "window",
         "clock",
     );
+    status("details-bare", BARE);
+    details_moving("details-across", STRIP, "workspaces", "status");
+}
+
+/// The details as a pointer moves, with the events in the order guido sends
+/// them: the moves as it walks the tree, then every leave, then every enter.
+mod details_follow_the_pointer {
+    use std::time::Duration;
+
+    use super::{STRIP, Scene, zone_of};
+
+    fn showing(bar: &mut Scene, zone: (usize, usize)) {
+        bar.state.hovered(zone.0, true);
+        bar.state.details.set(Some(zone));
+        bar.run(Duration::from_millis(50));
+    }
+
+    #[test]
+    fn they_close_when_the_pointer_moves_on_to_a_zone_of_another_group_with_none() {
+        let Some(mut bar) = Scene::new(STRIP) else {
+            return;
+        };
+        let (clock, privacy) = (zone_of(&bar.bar, "clock"), zone_of(&bar.bar, "privacy"));
+        showing(&mut bar, clock);
+
+        bar.state.moved_off(privacy.0);
+        bar.state.hovered(clock.0, false);
+        bar.state.hovered(privacy.0, true);
+        for _ in 0..30 {
+            bar.state.moved_off(privacy.0);
+            bar.step();
+        }
+
+        assert_eq!(bar.state.details.get_untracked(), None);
+    }
+
+    #[test]
+    fn they_come_for_a_zone_reached_from_another_group_in_one_move() {
+        let Some(mut bar) = Scene::new(STRIP) else {
+            return;
+        };
+        let (workspaces, window) = (zone_of(&bar.bar, "workspaces"), zone_of(&bar.bar, "window"));
+        bar.state.hovered(workspaces.0, true);
+
+        bar.state.moved_on(window);
+        bar.state.moved_out(workspaces);
+        bar.state.hovered(workspaces.0, false);
+        bar.state.hovered(window.0, true);
+        bar.run(Duration::from_millis(400));
+
+        assert_eq!(bar.state.details.get_untracked(), Some(window));
+    }
+
+    #[test]
+    fn they_move_to_the_next_zone_of_the_group_in_one_move() {
+        let Some(mut bar) = Scene::new(STRIP) else {
+            return;
+        };
+        let (window, clock) = (zone_of(&bar.bar, "window"), zone_of(&bar.bar, "clock"));
+        showing(&mut bar, window);
+
+        bar.state.moved_on(clock);
+        bar.state.moved_out(window);
+        bar.run(Duration::from_millis(200));
+
+        assert_eq!(bar.state.details.get_untracked(), Some(clock));
+    }
+
+    #[test]
+    fn they_close_once_the_pointer_has_left_and_stay_if_it_comes_back() {
+        let Some(mut bar) = Scene::new(STRIP) else {
+            return;
+        };
+        let clock = zone_of(&bar.bar, "clock");
+        showing(&mut bar, clock);
+
+        bar.state.moved_out(clock);
+        bar.state.hovered(clock.0, false);
+        bar.run(Duration::from_millis(200));
+        bar.state.hovered(clock.0, true);
+        bar.run(Duration::from_millis(500));
+        assert_eq!(bar.state.details.get_untracked(), Some(clock));
+
+        bar.state.hovered(clock.0, false);
+        bar.run(Duration::from_millis(500));
+        assert_eq!(bar.state.details.get_untracked(), None);
+    }
 }

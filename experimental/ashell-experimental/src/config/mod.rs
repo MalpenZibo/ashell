@@ -1,11 +1,12 @@
 pub mod catalogue;
 mod layout;
 
-use std::path::PathBuf;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 
 use futures::StreamExt;
 use guido::prelude::*;
-use inotify::{Inotify, WatchMask};
+use inotify::{EventMask, Inotify, WatchDescriptor, WatchMask, Watches};
 use serde::Deserialize;
 use styletto::foundations::tokens::Space;
 use styletto::theme::config::UiConfig;
@@ -310,26 +311,18 @@ pub fn watched() -> Signal<Config> {
 
 async fn watch(config: WriteSignal<Config>) -> std::io::Result<()> {
     let path = path().ok_or_else(|| std::io::Error::other("no $XDG_CONFIG_HOME nor $HOME"))?;
-    // A symlink is watched where it is, for the link deleted or replaced, and
-    // where it points, for the file edited.
-    let target = std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
-
-    let inotify = Inotify::init()?;
-    let mut watched = Vec::new();
-    for file in [&path, &target] {
-        let (Some(folder), Some(name)) = (file.parent(), file.file_name()) else {
-            continue;
-        };
+    if let Some(folder) = path.parent() {
         std::fs::create_dir_all(folder)?;
-        let watch = inotify.watches().add(
-            folder,
-            WatchMask::CLOSE_WRITE
-                | WatchMask::MOVED_TO
-                | WatchMask::DELETE
-                | WatchMask::MOVED_FROM,
-        )?;
-        watched.push((watch, name.to_os_string()));
     }
+
+    // A symlink is watched where it is, for the link made, deleted or
+    // replaced, and where it points, for the file edited; pointed elsewhere,
+    // it is watched there.
+    let inotify = Inotify::init()?;
+    let mut watches = inotify.watches();
+    let link = watch_file(&mut watches, &path)?;
+    let mut target = pointed_to(&path);
+    let mut pointed = watch_file(&mut watches, &target)?;
 
     // The events that come together are read together: an editor that moves
     // the file away and writes it again makes the bars once, from the new
@@ -340,18 +333,67 @@ async fn watch(config: WriteSignal<Config>) -> std::io::Result<()> {
         let mut touched = false;
         for event in events {
             let event = event?;
-            touched |= watched
-                .iter()
-                .any(|(watch, name)| event.wd == *watch && event.name.as_deref() == Some(name));
+            let is = |watched: &Option<Watched>| {
+                watched.as_ref().is_some_and(|(watch, name)| {
+                    event.wd == *watch && event.name.as_deref() == Some(name)
+                })
+            };
+            // A file made is read once written; a link made, now.
+            let made = event.mask.contains(EventMask::CREATE);
+            touched |= (is(&pointed) && !made) || (is(&link) && (!made || path.is_symlink()));
+        }
+        if !touched {
+            continue;
+        }
+
+        let now = pointed_to(&path);
+        if now != target {
+            let next = watch_file(&mut watches, &now).unwrap_or_else(|err| {
+                log::warn!("{}: not watched: {err}", now.display());
+                None
+            });
+            let watch =
+                |watched: &Option<Watched>| watched.as_ref().map(|(watch, _)| watch.clone());
+            if let Some(old) = watch(&pointed)
+                && Some(&old) != watch(&link).as_ref()
+                && Some(&old) != watch(&next).as_ref()
+            {
+                let _ = watches.remove(old);
+            }
+            (target, pointed) = (now, next);
         }
 
         // A file deleted or moved away reads as the default bar. The bars are
         // made again only if what is read differs.
-        if touched && let Some(read) = reload() {
+        if let Some(read) = reload() {
             log::info!("configuration read again");
             config.set(read);
         }
     }
 
     Ok(())
+}
+
+type Watched = (WatchDescriptor, OsString);
+
+/// Watches the folder `file` is in for it.
+fn watch_file(watches: &mut Watches, file: &Path) -> std::io::Result<Option<Watched>> {
+    let (Some(folder), Some(name)) = (file.parent(), file.file_name()) else {
+        return Ok(None);
+    };
+    let watch = watches.add(
+        folder,
+        WatchMask::CLOSE_WRITE
+            | WatchMask::CREATE
+            | WatchMask::MOVED_TO
+            | WatchMask::DELETE
+            | WatchMask::MOVED_FROM,
+    )?;
+
+    Ok(Some((watch, name.to_os_string())))
+}
+
+/// The file a symlink points to, or the file itself.
+fn pointed_to(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }

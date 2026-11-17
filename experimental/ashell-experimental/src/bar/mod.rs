@@ -202,13 +202,27 @@ pub struct Opened {
     pub panel: Panel,
 }
 
+/// What the details are waiting to do.
+///
+/// guido calls `on_pointer_move` as it walks the tree and `on_hover` once the
+/// walk is done, so the move onto a zone comes before the leave of what the
+/// pointer came from: each event replaces or drops only what is its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Plan {
+    /// Show a zone's details, once the pointer has stayed on it.
+    Show((NodeId, usize)),
+    /// Close a group's details, the pointer on one of its zones with none.
+    Hide(NodeId),
+    /// Close the details shown, unless the pointer is back in their group.
+    Close,
+}
+
 #[derive(Clone, Copy)]
 pub struct State {
     pub opened: RwSignal<Option<Opened>>,
     pub details: RwSignal<Option<(NodeId, usize)>>,
     inside: RwSignal<Option<NodeId>>,
-    /// The next change of the details, waiting its time.
-    pending: RwSignal<Option<TimerHandle>>,
+    pending: RwSignal<Option<(TimerHandle, Plan)>>,
 }
 
 impl State {
@@ -232,12 +246,13 @@ impl State {
         self.opened.set(None);
     }
 
+    /// On a zone with details. Its details come once the pointer stays on it.
     pub fn moved_on(&self, zone: (NodeId, usize)) {
         self.entered(zone.0);
-        self.moved();
 
         let shown = self.details.get_untracked();
         if shown == Some(zone) {
+            self.cancel();
             return;
         }
 
@@ -245,42 +260,38 @@ impl State {
             Some((group, _)) if group == zone.0 => ZONE_SWITCH,
             _ => DETAILS_DWELL,
         };
-
-        let state = *self;
-        let pending = set_timeout(wait, move || {
-            if state.opened.get_untracked().is_none() {
-                state.details.set(Some(zone));
-            }
-        });
-        self.pending.set(Some(pending));
+        self.plan(Plan::Show(zone), wait);
     }
 
-    /// On a zone of `group` with no details: those shown there go.
+    /// On a zone of `group` with no details: those shown there go, and so do
+    /// another group's.
     pub fn moved_off(&self, group: NodeId) {
         self.entered(group);
-        self.moved();
-        if !self.shows(group) {
-            return;
-        }
 
-        let state = *self;
-        let pending = set_timeout(ZONE_SWITCH, move || {
-            if state.shows(group) {
-                state.details.set(None);
+        match self.details.get_untracked() {
+            Some((shown, _)) if shown == group => {
+                if self.planned() != Some(Plan::Hide(group)) {
+                    self.plan(Plan::Hide(group), ZONE_SWITCH);
+                }
             }
-        });
-        self.pending.set(Some(pending));
+            Some(_) => {
+                if self.planned() != Some(Plan::Close) {
+                    self.plan(Plan::Close, DETAILS_CLOSE);
+                }
+            }
+            None => {
+                if matches!(self.planned(), Some(Plan::Show(_))) {
+                    self.cancel();
+                }
+            }
+        }
     }
 
-    fn shows(&self, group: NodeId) -> bool {
-        self.details
-            .get_untracked()
-            .is_some_and(|(g, _)| g == group)
-    }
-
-    pub fn moved(&self) {
-        if let Some(pending) = self.pending.get_untracked() {
-            pending.cancel();
+    /// Off `zone`: its details no longer come.
+    pub fn moved_out(&self, zone: (NodeId, usize)) {
+        if self.planned() == Some(Plan::Show(zone)) {
+            self.cancel();
+            self.settle();
         }
     }
 
@@ -300,17 +311,74 @@ impl State {
         if self.inside.get_untracked() == Some(group) {
             self.inside.set(None);
         }
-        self.moved();
+        if matches!(self.planned(), Some(Plan::Show((g, _))) if g == group) {
+            self.cancel();
+        }
+
+        self.settle();
+    }
+
+    /// With nothing planned, the details shown close unless the pointer is
+    /// in their group.
+    fn settle(&self) {
+        let away = self
+            .details
+            .get_untracked()
+            .is_some_and(|(group, _)| self.inside.get_untracked() != Some(group));
+
+        if away && self.planned().is_none() {
+            self.plan(Plan::Close, DETAILS_CLOSE);
+        }
+    }
+
+    fn shows(&self, group: NodeId) -> bool {
+        self.details
+            .get_untracked()
+            .is_some_and(|(g, _)| g == group)
+    }
+
+    fn planned(&self) -> Option<Plan> {
+        self.pending.get_untracked().map(|(_, plan)| plan)
+    }
+
+    fn plan(&self, plan: Plan, wait: Duration) {
+        self.cancel();
 
         let state = *self;
-        let pending = set_timeout(DETAILS_CLOSE, move || {
-            let back = state.inside.get_untracked() == Some(group);
-
-            if !back && state.shows(group) {
-                state.details.set(None);
-            }
+        let timer = set_timeout(wait, move || {
+            state.pending.set(None);
+            state.carry_out(plan);
         });
-        self.pending.set(Some(pending));
+        self.pending.set(Some((timer, plan)));
+    }
+
+    fn cancel(&self) {
+        if let Some((timer, _)) = self.pending.get_untracked() {
+            timer.cancel();
+            self.pending.set(None);
+        }
+    }
+
+    fn carry_out(&self, plan: Plan) {
+        match plan {
+            Plan::Show(zone) => {
+                if self.opened.get_untracked().is_none() {
+                    self.details.set(Some(zone));
+                }
+            }
+            Plan::Hide(group) => {
+                if self.shows(group) {
+                    self.details.set(None);
+                }
+            }
+            Plan::Close => {
+                if let Some((group, _)) = self.details.get_untracked()
+                    && self.inside.get_untracked() != Some(group)
+                {
+                    self.details.set(None);
+                }
+            }
+        }
     }
 }
 

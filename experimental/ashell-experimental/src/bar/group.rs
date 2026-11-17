@@ -156,11 +156,19 @@ pub(super) fn split_details(
     let Some(first) = state.details.get_untracked() else {
         return container();
     };
-    let place = groups[&first.0].list.1;
+    let list = groups[&first.0].list;
+    let place = list.1;
     let last = create_signal(first);
-    create_effect(move || {
-        if let Some(zone) = shown.get() {
-            last.set(zone);
+    // Only the zones of its list: leaving, it stays where it was while the
+    // details move to another list.
+    create_effect({
+        let groups = groups.clone();
+        move || {
+            if let Some(zone) = shown.get()
+                && groups[&zone.0].list == list
+            {
+                last.set(zone);
+            }
         }
     });
 
@@ -325,7 +333,7 @@ fn rest(group: &Node, state: State, refs: &Refs) -> Container {
                             })
                             .on_hover(move |inside| {
                                 if !inside {
-                                    state.moved();
+                                    state.moved_out((id, index));
                                 }
                             });
                     }
@@ -440,7 +448,7 @@ fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Cont
 }
 
 fn dropdown(panel: Panel, to: Translate, rim: Translate) -> Container {
-    island::edge(island::paint(container()))
+    rimmed(island::paint(container()), Merge::Off)
         .width(natural().at_most(placeholder::panel_width()))
         .height(
             at_least(0.0)
@@ -480,11 +488,13 @@ fn retracting<T>() -> impl Fn(Segment<T>) -> Transition + 'static {
     )
 }
 
-/// A shape that comes out of a holder: with a border of its own where the
-/// holder merges into an outline that keeps the shapes' borders.
+/// A shape that comes out of a holder: on its own, with the island's border
+/// and shadow; merged into an outline the holder draws, with neither; merged
+/// into one that keeps the shapes' borders, with its border.
 fn rimmed(shape: Container, merge: Merge) -> Container {
     match merge {
+        Merge::Off => island::edge(shape),
+        Merge::Outlined => shape,
         Merge::Borderless => island::border(shape),
-        Merge::Off | Merge::Outlined => shape,
     }
 }
