@@ -10,9 +10,8 @@ use std::time::Duration;
 
 use guido::prelude::*;
 use styletto::foundations::control::Size;
-use styletto::foundations::tokens::{radius, size, stroke};
+use styletto::foundations::tokens::{radius, size};
 use styletto::primitives::island;
-use styletto::ui;
 
 use crate::config::{Background, Bar, Holds, Host, Node, Padding, Panel, Panels, Place, Position};
 
@@ -577,7 +576,7 @@ fn merged<M>(holder: Container, merge: Merge, reach: impl IntoSignal<f32, M>) ->
     let holder = holder.merge_children(reach);
 
     if merge == Merge::Outlined {
-        holder.border(stroke::HAIRLINE, ui().colors.line)
+        island::border(holder)
     } else {
         holder
     }
@@ -593,7 +592,7 @@ fn background(ctx: &Ctx) -> Container {
 
     // No border of its own: the panels and details that come out of it have
     // theirs, which fade out along the necks.
-    let fill = group::shape_fill(container())
+    let fill = island::paint(container())
         .width(fill())
         .height(ctx.reserved);
 
@@ -697,7 +696,7 @@ fn node_shape(content: Container, id: NodeId, wide: bool, ctx: &Ctx) -> Containe
     let shape_ref = ctx.refs.nodes[&id];
 
     // Not eased: it takes the width of what it holds, which is eased already.
-    let shape = group::shape_fill(container())
+    let shape = island::paint(container())
         .widget_ref(shape_ref)
         .width(if wide { fill() } else { natural() })
         .height(natural())

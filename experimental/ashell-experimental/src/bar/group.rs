@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
 use guido::prelude::*;
-use styletto::foundations::motion::arriving;
-use styletto::foundations::tokens::{radius, size, stroke};
+use styletto::foundations::motion::{arriving, fading};
+use styletto::foundations::tokens::{radius, size};
 use styletto::primitives::island::{self, island};
-use styletto::{centered_row, foundations::motion, ui};
+use styletto::{centered_row, foundations::motion};
 
 use super::{
     Ctx, GROUP, Host, Merge, Neck, NodeId, Opened, Refs, State, group_height, host_rect, hosting,
@@ -209,7 +209,7 @@ pub(super) fn split_details(
             },
         ));
 
-    with_border(shape_fill(container()), bordered)
+    with_border(island::paint(container()), bordered)
         .width(
             at_least(0.0)
                 .transition(sliding())
@@ -286,7 +286,6 @@ fn shape(group: &Rc<Node>, shown: Memo<Shown>, ctx: &Ctx) -> Container {
             _ => radius::LARGE.corners(),
         })
         .width(natural().transition(motion::spring()))
-        .backdrop_blur(blur_behind())
         .layout(ZStack::new().align(position.alignment()))
     } else {
         // Its zone for the compositor only: drawn here, the blur would show
@@ -376,35 +375,22 @@ fn details(group: &Rc<Node>, zone: Memo<Option<usize>>, position: Position) -> C
     })
 }
 
-fn coming_and_going<T>(
-    enter: Transition,
-    leave: Transition,
-) -> impl Fn(Segment<T>) -> Transition + 'static {
-    move |s| {
-        if s.is_exit() {
-            leave.clone()
-        } else {
-            enter.clone()
-        }
-    }
-}
-
 /// Comes in and goes out fading, coming into focus and sliding from `away`.
 fn rising(content: Container, enter: Transition, leave: Transition, away: Translate) -> Container {
     content
         .opacity(
-            1.0.transition(coming_and_going(enter.clone(), leave.clone()))
+            1.0.transition(fading(enter.clone(), leave.clone()))
                 .entering_from(0.0)
                 .exiting_to(0.0),
         )
         .blur(
-            0.0.transition(coming_and_going(enter.clone(), leave.clone()))
+            0.0.transition(fading(enter.clone(), leave.clone()))
                 .entering_from(3.0)
                 .exiting_to(3.0),
         )
         .translate(
             Translate::NONE
-                .transition(coming_and_going(enter, leave))
+                .transition(fading(enter, leave))
                 .entering_from(away)
                 .exiting_to(away),
         )
@@ -434,7 +420,7 @@ fn span(left: f32, width: f32) -> (f32, f32) {
 
 fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Container {
     let content = placeholder::panel(panel).opacity(
-        1.0.transition(coming_and_going(
+        1.0.transition(fading(
             motion::easing(200.0).delay(260.0),
             motion::easing(100.0),
         ))
@@ -443,7 +429,7 @@ fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Cont
     );
 
     // An exact width would be cut to what holds it.
-    shape_fill(container())
+    island::paint(container())
         .width(
             natural()
                 .at_most(placeholder::panel_width())
@@ -469,7 +455,7 @@ fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Cont
 }
 
 fn dropdown(panel: Panel, to: Translate, rim: Translate) -> Container {
-    shape_fill(container())
+    island::edge(island::paint(container()))
         .width(natural().at_most(placeholder::panel_width()))
         .height(
             at_least(0.0)
@@ -479,15 +465,13 @@ fn dropdown(panel: Panel, to: Translate, rim: Translate) -> Container {
         )
         .overflow(Overflow::Hidden)
         .corners(radius::LARGE.corners())
-        .border(stroke::HAIRLINE, ui().colors.line)
-        .shadow(island::shadow(Color::TRANSPARENT))
         .takes_input(true)
         .translate(to.transition(dropping()).entering_from(rim).exiting_to(rim))
         .child(placeholder::panel(panel))
 }
 
 fn dropping<T>() -> impl Fn(Segment<T>) -> Transition + 'static {
-    coming_and_going(motion::spring(), motion::easing(DROP_MS))
+    fading(motion::spring(), motion::easing(DROP_MS))
 }
 
 /// Out as a spring, back with an easing after the row has faded, and from one
@@ -505,7 +489,7 @@ fn sliding<T>() -> impl Fn(Segment<T>) -> Transition + 'static {
 }
 
 fn retracting<T>() -> impl Fn(Segment<T>) -> Transition + 'static {
-    coming_and_going(
+    fading(
         motion::spring(),
         motion::easing(RETRACT_MS).delay(CONTENT_OUT_MS),
     )
@@ -513,30 +497,8 @@ fn retracting<T>() -> impl Fn(Segment<T>) -> Transition + 'static {
 
 fn with_border(shape: Container, bordered: bool) -> Container {
     if bordered {
-        shape.border(stroke::HAIRLINE, ui().colors.line)
+        island::border(shape)
     } else {
         shape
     }
-}
-
-pub(super) fn shape_fill(container: Container) -> Container {
-    let t = ui();
-
-    container
-        .background(t.colors.island)
-        .backdrop_blur(blur_behind())
-}
-
-/// The blur behind what the bar draws. The compositor is asked for it even
-/// with a solid material: a compositor rule blurs all of a surface that
-/// declares no blur.
-pub(super) fn blur_behind() -> BackdropBlur {
-    let radius = ui().material.blur();
-    let sources = if radius > 0.0 {
-        BackdropSources::all()
-    } else {
-        BackdropSources::COMPOSITOR
-    };
-
-    BackdropBlur::new(radius).sources(sources)
 }
