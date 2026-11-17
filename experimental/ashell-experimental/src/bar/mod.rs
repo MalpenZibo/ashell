@@ -357,10 +357,21 @@ struct Refs {
     zones: HashMap<(NodeId, usize), WidgetRef>,
 }
 
-/// The area of the surface that panels and details come out of.
+/// The area of the surface that panels and details come out of, as the last
+/// layout left it.
 fn host_rect(host: Host, ctx: &Ctx) -> Rect {
-    let rect = |widget: &WidgetRef| widget.layout_rect().get_untracked();
+    host_area(host, ctx, |widget| widget.layout_rect().get_untracked())
+}
 
+/// The same area, followed: what reads it moves with what it comes out of,
+/// as a panel does with an island shrinking back once its details have gone.
+fn following(host: Host, ctx: &Ctx) -> impl Fn() -> Rect + Clone + 'static {
+    let ctx = ctx.clone();
+
+    move || host_area(host, &ctx, |widget| widget.layout_rect().get())
+}
+
+fn host_area(host: Host, ctx: &Ctx, rect: impl Fn(&WidgetRef) -> Rect) -> Rect {
     match host {
         Host::Shape(id) => rect(&ctx.refs.nodes[&id]),
         Host::Background | Host::None => {
@@ -541,11 +552,9 @@ fn hosts(holder: Container, host: Host, merge: Merge, ctx: &Ctx) -> Container {
         ctx,
         move |opened| groups[&opened.group].opens_from() == host,
         move |opened| {
-            let rect = host_rect(host, &place);
-
             let bordered = merge == Merge::Borderless;
 
-            group::split_off(opened, rect, bordered, &place).align_self(place.position.alignment())
+            group::split_off(opened, host, bordered, &place).align_self(place.position.alignment())
         },
     );
 

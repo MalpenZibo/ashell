@@ -226,6 +226,22 @@ fn details(name: &str, config: &str, zone: &str) {
     bar.record(&format!("{name}-close"), Duration::from_millis(600));
 }
 
+/// The details shown, then a click on the zone: the details go as the panel
+/// comes out, and the panel follows the island shrinking back.
+fn details_then_panel(name: &str, config: &str, zone: &str, panel: Panel) {
+    let Some(mut bar) = Scene::new(config) else {
+        eprintln!("no GPU adapter; nothing drawn");
+        return;
+    };
+
+    let (group, zone) = zone_of(&bar.bar, zone);
+    bar.state.details.set(Some((group, zone)));
+    bar.run(Duration::from_millis(600));
+
+    bar.state.toggle(Opened { group, zone, panel });
+    bar.record(&format!("{name}-open"), Duration::from_millis(900));
+}
+
 fn details_moving(name: &str, config: &str, from: &str, to: &str) {
     let Some(mut bar) = Scene::new(config) else {
         eprintln!("no GPU adapter; nothing drawn");
@@ -274,6 +290,13 @@ fn snapshots() {
     status("details-halves", HALVES);
     status("details-pushed", PUSHED);
     details("details-pushed-window", PUSHED, "window");
+    details_then_panel("details-then-panel", ISLANDS, "clock", Panel::Calendar);
+    details_then_panel(
+        "details-then-dropdown",
+        &ISLANDS.replace("attached", "dropdown"),
+        "clock",
+        Panel::Calendar,
+    );
     details_moving(
         "details-moving",
         &floating("attached", true),

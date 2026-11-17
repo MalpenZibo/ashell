@@ -7,8 +7,8 @@ use styletto::primitives::island::{self, island};
 use styletto::{centered_row, foundations::motion};
 
 use super::{
-    Ctx, GROUP, Host, Merge, Neck, NodeId, Opened, Refs, State, group_height, host_rect, hosting,
-    hosting_details, merge_distance, merged_shadow, placeholder, under_zone,
+    Ctx, GROUP, Host, Merge, Neck, NodeId, Opened, Refs, State, following, group_height, host_rect,
+    hosting, hosting_details, merge_distance, merged_shadow, placeholder, under_zone,
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
 
@@ -86,27 +86,36 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
         ctx,
         move |opened| opened.group == id && opens_here,
         move |opened| {
-            let group = shape_ref.layout_rect().get_untracked();
             if merge {
-                return split_off(opened, group, false, &place);
+                return split_off(opened, Host::Shape(id), false, &place);
             }
 
-            // From the edge of what hosts it, past the group's own if that
-            // reaches further.
-            let from = host_rect(host, &place);
-            let past = match place.position {
-                Position::Top => from.y + from.height - (group.y + group.height),
-                Position::Bottom => group.y - from.y,
-            };
-            let edge = group.height + past.max(0.0);
+            let group = shape_ref.layout_rect().get_untracked();
             let x = under_zone(opened, group.x + group.width / 2.0, &place);
-            let side = place.position.side();
-            let gap = Neck::of(panels).gap;
+            let (side, gap) = (place.position.side(), Neck::of(panels).gap);
+
+            // From the edge of what hosts it, past the group's own if that
+            // reaches further, wherever the two are now: the group's island
+            // shrinks back as its details go.
+            let (position, host_now) = (place.position, following(host, &place));
+            let edge = move || {
+                let (from, group) = (host_now(), shape_ref.layout_rect().get());
+                let past = match position {
+                    Position::Top => from.y + from.height - (group.y + group.height),
+                    Position::Bottom => group.y - from.y,
+                };
+
+                group.height + past.max(0.0)
+            };
+            let rim = {
+                let edge = edge.clone();
+                move || Translate::new(x, side * edge())
+            };
 
             dropdown(
                 opened.panel,
-                Translate::new(x, side * (edge + gap)),
-                Translate::new(x, side * edge),
+                move || Translate::new(x, side * (edge() + gap)),
+                rim,
             )
         },
     );
@@ -128,19 +137,27 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
 }
 
 /// `bordered`: with a border of its own, for a holder that draws none.
-pub(super) fn split_off(opened: Opened, host: Rect, bordered: bool, ctx: &Ctx) -> Container {
-    let middle = host.x + host.width / 2.0;
+pub(super) fn split_off(opened: Opened, host: Host, bordered: bool, ctx: &Ctx) -> Container {
+    let rect = host_rect(host, ctx);
+    let middle = rect.x + rect.width / 2.0;
     let x = under_zone(opened, middle, ctx);
     let side = ctx.position.side();
     let group = ctx.refs.nodes[&opened.group].layout_rect().get_untracked();
+    let gap = Neck::of(ctx.groups[&opened.group].group.panels).gap;
 
     let (left, width) = span(group.x, group.width);
-    let from = Translate::new(left + width / 2.0 - middle, side * (host.height / 2.0));
-    let away = host.height + Neck::of(ctx.groups[&opened.group].group.panels).gap;
+    let sliver = left + width / 2.0 - middle;
 
-    let shape = panel_shape(opened.panel, Translate::new(x, side * away), from, width);
+    // Against the edge of what it comes out of wherever that edge is now: an
+    // island shrinks back as its details go.
+    let now = following(host, ctx);
+    let inside = {
+        let now = now.clone();
+        move || Translate::new(sliver, side * (now().height / 2.0))
+    };
+    let away = move || Translate::new(x, side * (now().height + gap));
 
-    with_border(shape, bordered)
+    with_border(panel_shape(opened.panel, away, inside, width), bordered)
 }
 
 /// The details of the groups in one list of nodes that have no shape of
@@ -418,7 +435,12 @@ fn span(left: f32, width: f32) -> (f32, f32) {
     (left + inset, width - 2.0 * inset)
 }
 
-fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Container {
+fn panel_shape(
+    panel: Panel,
+    to: impl Fn() -> Translate + 'static,
+    from: impl Fn() -> Translate + Clone + 'static,
+    width: f32,
+) -> Container {
     let content = placeholder::panel(panel).opacity(
         1.0.transition(fading(
             motion::easing(200.0).delay(260.0),
@@ -447,14 +469,18 @@ fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Cont
         .takes_input(true)
         .translate(
             to.transition(retracting())
-                .entering_from(from)
+                .entering_from(from())
                 .exiting_to(from),
         )
         // Not clipped: a shape that clips would not merge.
         .child(content)
 }
 
-fn dropdown(panel: Panel, to: Translate, rim: Translate) -> Container {
+fn dropdown(
+    panel: Panel,
+    to: impl Fn() -> Translate + 'static,
+    rim: impl Fn() -> Translate + Clone + 'static,
+) -> Container {
     island::edge(island::paint(container()))
         .width(natural().at_most(placeholder::panel_width()))
         .height(
@@ -466,7 +492,11 @@ fn dropdown(panel: Panel, to: Translate, rim: Translate) -> Container {
         .overflow(Overflow::Hidden)
         .corners(radius::LARGE.corners())
         .takes_input(true)
-        .translate(to.transition(dropping()).entering_from(rim).exiting_to(rim))
+        .translate(
+            to.transition(dropping())
+                .entering_from(rim())
+                .exiting_to(rim),
+        )
         .child(placeholder::panel(panel))
 }
 
