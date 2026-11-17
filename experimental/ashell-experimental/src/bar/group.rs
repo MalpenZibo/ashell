@@ -7,8 +7,8 @@ use styletto::primitives::island::{self, island};
 use styletto::{centered_row, foundations::motion};
 
 use super::{
-    Ctx, GROUP, Host, Merge, Neck, NodeId, Opened, Refs, State, following, group_height, host_rect,
-    hosting, hosting_details, merge_distance, merged_shadow, placeholder, under_zone,
+    Ctx, GROUP, Host, Merge, Neck, NodeId, Opened, Refs, State, group_height, host_rect, hosting,
+    hosting_details, merge_distance, merged_shadow, placeholder, under_zone,
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
 
@@ -95,27 +95,19 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
             let (side, gap) = (place.position.side(), Neck::of(panels).gap);
 
             // From the edge of what hosts it, past the group's own if that
-            // reaches further, wherever the two are now: the group's island
-            // shrinks back as its details go.
-            let (position, host_now) = (place.position, following(host, &place));
-            let edge = move || {
-                let (from, group) = (host_now(), shape_ref.layout_rect().get());
-                let past = match position {
-                    Position::Top => from.y + from.height - (group.y + group.height),
-                    Position::Bottom => group.y - from.y,
-                };
-
-                group.height + past.max(0.0)
+            // reaches further. The group as tall as at rest: the click that
+            // opens the panel closes its details.
+            let from = host_rect(host, &place);
+            let past = match place.position {
+                Position::Top => from.y + from.height - (group.y + group.height),
+                Position::Bottom => group.y - from.y,
             };
-            let rim = {
-                let edge = edge.clone();
-                move || Translate::new(x, side * edge())
-            };
+            let edge = group_height() + past.max(0.0);
 
             dropdown(
                 opened.panel,
-                move || Translate::new(x, side * (edge() + gap)),
-                rim,
+                Translate::new(x, side * (edge + gap)),
+                Translate::new(x, side * edge),
             )
         },
     );
@@ -145,19 +137,19 @@ pub(super) fn split_off(opened: Opened, host: Host, bordered: bool, ctx: &Ctx) -
     let group = ctx.refs.nodes[&opened.group].layout_rect().get_untracked();
     let gap = Neck::of(ctx.groups[&opened.group].group.panels).gap;
 
-    let (left, width) = span(group.x, group.width);
-    let sliver = left + width / 2.0 - middle;
-
-    // Against the edge of what it comes out of wherever that edge is now: an
-    // island shrinks back as its details go.
-    let now = following(host, ctx);
-    let inside = {
-        let now = now.clone();
-        move || Translate::new(sliver, side * (now().height / 2.0))
+    // A group's own island as tall as at rest: the click that opens the panel
+    // closes the details it grows with.
+    let height = if host == Host::Shape(opened.group) {
+        group_height()
+    } else {
+        rect.height
     };
-    let away = move || Translate::new(x, side * (now().height + gap));
 
-    with_border(panel_shape(opened.panel, away, inside, width), bordered)
+    let (left, width) = span(group.x, group.width);
+    let from = Translate::new(left + width / 2.0 - middle, side * (height / 2.0));
+    let to = Translate::new(x, side * (height + gap));
+
+    with_border(panel_shape(opened.panel, to, from, width), bordered)
 }
 
 /// The details of the groups in one list of nodes that have no shape of
@@ -435,12 +427,7 @@ fn span(left: f32, width: f32) -> (f32, f32) {
     (left + inset, width - 2.0 * inset)
 }
 
-fn panel_shape(
-    panel: Panel,
-    to: impl Fn() -> Translate + 'static,
-    from: impl Fn() -> Translate + Clone + 'static,
-    width: f32,
-) -> Container {
+fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Container {
     let content = placeholder::panel(panel).opacity(
         1.0.transition(fading(
             motion::easing(200.0).delay(260.0),
@@ -469,18 +456,14 @@ fn panel_shape(
         .takes_input(true)
         .translate(
             to.transition(retracting())
-                .entering_from(from())
+                .entering_from(from)
                 .exiting_to(from),
         )
         // Not clipped: a shape that clips would not merge.
         .child(content)
 }
 
-fn dropdown(
-    panel: Panel,
-    to: impl Fn() -> Translate + 'static,
-    rim: impl Fn() -> Translate + Clone + 'static,
-) -> Container {
+fn dropdown(panel: Panel, to: Translate, rim: Translate) -> Container {
     island::edge(island::paint(container()))
         .width(natural().at_most(placeholder::panel_width()))
         .height(
@@ -492,11 +475,7 @@ fn dropdown(
         .overflow(Overflow::Hidden)
         .corners(radius::LARGE.corners())
         .takes_input(true)
-        .translate(
-            to.transition(dropping())
-                .entering_from(rim())
-                .exiting_to(rim),
-        )
+        .translate(to.transition(dropping()).entering_from(rim).exiting_to(rim))
         .child(placeholder::panel(panel))
 }
 

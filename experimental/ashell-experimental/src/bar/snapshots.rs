@@ -227,7 +227,7 @@ fn details(name: &str, config: &str, zone: &str) {
 }
 
 /// The details shown, then a click on the zone: the details go as the panel
-/// comes out, and the panel follows the island shrinking back.
+/// comes out, and the panel ends against the island as it is at rest.
 fn details_then_panel(name: &str, config: &str, zone: &str, panel: Panel) {
     let Some(mut bar) = Scene::new(config) else {
         eprintln!("no GPU adapter; nothing drawn");
@@ -291,6 +291,7 @@ fn snapshots() {
     status("details-pushed", PUSHED);
     details("details-pushed-window", PUSHED, "window");
     details_then_panel("details-then-panel", ISLANDS, "clock", Panel::Calendar);
+    details_then_panel("details-then-panel-end", ISLANDS, "status", Panel::Settings);
     details_then_panel(
         "details-then-dropdown",
         &ISLANDS.replace("attached", "dropdown"),
