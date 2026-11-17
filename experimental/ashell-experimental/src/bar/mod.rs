@@ -494,7 +494,7 @@ fn hosting(
                 counted(detached);
             }
 
-            panel(opened)
+            panel(opened).out_of_flow(true)
         },
     ))
 }
@@ -524,7 +524,10 @@ fn hosting_details(
     holder.children(keyed(
         move || list.get().into_iter().collect::<Vec<_>>(),
         |&list| list,
-        move |_| group::split_details(shown, host(), merge == Merge::Borderless, &place),
+        move |_| {
+            group::split_details(shown, host(), merge == Merge::Borderless, &place)
+                .out_of_flow(true)
+        },
     ))
 }
 
@@ -705,11 +708,7 @@ fn node_shape(content: Container, id: NodeId, wide: bool, ctx: &Ctx) -> Containe
         .child(content);
 
     let holder = container().layout(ZStack::new().align(ctx.position.alignment()));
-    let holder = if wide {
-        holder.width(fill())
-    } else {
-        holder.width(move || shape_ref.layout_rect().get().width)
-    };
+    let holder = if wide { holder.width(fill()) } else { holder };
 
     hosts(holder, Host::Shape(id), Merge::Outlined, ctx)
         .child(shape)

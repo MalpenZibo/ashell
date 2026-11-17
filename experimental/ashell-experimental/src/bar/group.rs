@@ -61,10 +61,10 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
             }
         });
 
-    // As wide as the group: a split panel overflows it, so the neighbours do
-    // not move, and merges with the group as its sibling.
+    // As wide as the group: what comes out of it is out of flow, so a panel
+    // overflows it without moving the neighbours, and merges with the group
+    // as its sibling.
     let holder = container()
-        .width(move || shape_ref.layout_rect().get().width)
         .layout(ZStack::new().align(ctx.position.alignment()))
         .opacity(
             (move || {
