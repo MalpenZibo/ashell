@@ -7,16 +7,10 @@ use styletto::primitives::island::{self, island};
 use styletto::{centered_row, foundations::motion, ui};
 
 use super::{
-    Ctx, GROUP, Host, NodeId, Opened, Refs, State, details_gap, group_height, host_rect, hosting,
-    hosting_details, merged_shadow, panel_gap, placeholder, under_zone,
+    Ctx, GROUP, Host, Neck, NodeId, Opened, Refs, State, group_height, host_rect, hosting,
+    hosting_details, merge_distance, merged_shadow, placeholder, under_zone,
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
-
-/// Between two edges `gap` apart guido's smooth minimum keeps a neck only
-/// while `gap < distance / 2`, as thick as `distance / 4 - gap / 2`.
-pub(super) fn merge_distance() -> f32 {
-    size::S8.px()
-}
 
 const CONTENT_OUT_MS: f32 = 120.0;
 const DROP_MS: f32 = 220.0;
@@ -37,7 +31,7 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
     let panels = group.panels;
     let merge = panels.merges();
     let morph = panels == Panels::Morph;
-    let opens_here = placed.opens_from() == Host::Own && !morph;
+    let opens_here = placed.opens_from() == Host::Shape(id) && !morph;
     let groups = ctx.groups.clone();
 
     let shown = create_memo(move || match state.opened.get() {
@@ -45,7 +39,7 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
         _ => Shown::Rest,
     });
 
-    let shape_ref = ctx.refs.groups[&id];
+    let shape_ref = ctx.refs.nodes[&id];
 
     // Merging with what comes out of it, the island's shadow is the merged
     // outline's.
@@ -99,7 +93,7 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
 
             // From the edge of what hosts it, past the group's own if that
             // reaches further.
-            let from = host_rect(host, id, &place);
+            let from = host_rect(host, &place);
             let past = match place.position {
                 Position::Top => from.y + from.height - (group.y + group.height),
                 Position::Bottom => group.y - from.y,
@@ -107,7 +101,7 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
             let edge = group.height + past.max(0.0);
             let x = under_zone(opened, group.x + group.width / 2.0, &place);
             let side = place.position.side();
-            let gap = panel_gap(panels);
+            let gap = Neck::of(panels).gap;
 
             dropdown(
                 opened.panel,
@@ -136,11 +130,11 @@ pub(super) fn split_off(opened: Opened, host: Rect, ctx: &Ctx) -> Container {
     let middle = host.x + host.width / 2.0;
     let x = under_zone(opened, middle, ctx);
     let side = ctx.position.side();
-    let group = ctx.refs.groups[&opened.group].layout_rect().get_untracked();
+    let group = ctx.refs.nodes[&opened.group].layout_rect().get_untracked();
 
     let (left, width) = span(group.x, group.width);
     let from = Translate::new(left + width / 2.0 - middle, side * (host.height / 2.0));
-    let away = host.height + panel_gap(ctx.groups[&opened.group].group.panels);
+    let away = host.height + Neck::of(ctx.groups[&opened.group].group.panels).gap;
 
     panel_shape(opened.panel, Translate::new(x, side * away), from, width)
 }
@@ -161,7 +155,6 @@ pub(super) fn split_details(
     let leave = || motion::easing(100.0);
     let (state, side) = (ctx.state, ctx.position.side());
     let (refs, groups) = (ctx.refs.clone(), ctx.groups.clone());
-    let top = ctx.position == Position::Top;
 
     let Some(first) = state.details.get_untracked() else {
         return container();
@@ -174,13 +167,7 @@ pub(super) fn split_details(
         }
     });
 
-    let align = match (place, top) {
-        (Place::Start, true) => Alignment::TOP_START,
-        (Place::Start, false) => Alignment::BOTTOM_START,
-        (Place::End, true) => Alignment::TOP_END,
-        (Place::End, false) => Alignment::BOTTOM_END,
-        (Place::Center, _) => ctx.position.alignment(),
-    };
+    let align = ctx.position.at(place);
     let zone_rect = move |zone: (NodeId, usize)| refs.zones[&zone].layout_rect().get_untracked();
     let x = {
         let zone_rect = zone_rect.clone();
@@ -193,7 +180,7 @@ pub(super) fn split_details(
             }
         }
     };
-    let away = side * (host.height + details_gap());
+    let away = side * (host.height + Neck::details().gap);
     let inside = side * (host.height / 2.0);
     let sliver = move |zone| {
         let under = zone_rect(zone);
@@ -366,10 +353,8 @@ fn details(group: &Rc<Node>, zone: Memo<Option<usize>>, position: Position) -> C
     let group = group.clone();
     let away = Translate::new(0.0, -position.side() * size::S1.px());
     let s2 = size::S2.px();
-    let padding = match position {
-        Position::Top => [0.0, s2, s2, s2],
-        Position::Bottom => [s2, s2, 0.0, s2],
-    };
+    let (top, bottom) = position.near_first(0.0, s2);
+    let padding = [top, s2, bottom, s2];
 
     let row = container()
         .padding(padding)

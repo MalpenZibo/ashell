@@ -404,7 +404,11 @@ impl Reader {
 
         Node {
             panels,
-            host: if shape { Host::Own } else { inherited.host },
+            host: if shape {
+                Host::Shape(id)
+            } else {
+                inherited.host
+            },
             ..Self::holding(id, Holds::Zones(zones), shape, inherited)
         }
     }
@@ -485,7 +489,7 @@ impl Reader {
                 details: table
                     .get("details")
                     .map(|items| self.items(&format!("{at}.details"), items)),
-                open: self.choose(&at, table, "open", Open::parse),
+                open: self.get(&at, table, "open"),
             };
             self.zones.insert(name.clone(), zone);
         }
@@ -517,7 +521,7 @@ impl Reader {
                 if let Some(show) = self.get(at, table, "show") {
                     item.show = show;
                 }
-                if let Some(open) = self.choose(at, table, "open", Open::parse) {
+                if let Some(open) = self.get(at, table, "open") {
                     item.open = Some(open);
                 }
                 item.options = table
@@ -616,16 +620,6 @@ impl Reader {
             .try_into()
             .map_err(|err: toml::de::Error| self.warn(&at, err.message()))
             .ok()
-    }
-
-    fn choose<T>(
-        &mut self,
-        at: &str,
-        table: &Table,
-        key: &str,
-        parse: impl Fn(&str) -> Option<T>,
-    ) -> Option<T> {
-        self.choice(&format!("{at}.{key}"), table.get(key), parse)
     }
 
     fn choice<T>(
@@ -949,7 +943,10 @@ center = [\"clock\"]
             place(&bar, place_index)[0].host
         };
 
-        assert_eq!(host("[bar.main]\ncenter = [\"clock\"]\n", 1), Host::Own);
+        assert_eq!(
+            host("[bar.main]\ncenter = [\"clock\"]\n", 1),
+            Host::Shape(1)
+        );
 
         let parsed = read("[bar.main]\nshape = true\ncenter = [\"clock\"]\n");
         let bar = &parsed.config.bars[0];
@@ -1175,6 +1172,21 @@ center = [\"clock\"]
                 "{expected:?} not in:\n{problems}"
             );
         }
+    }
+
+    #[test]
+    fn a_wrong_panel_is_told_the_panels_there_are() {
+        let parsed = read(
+            "[bar.main]\ncenter = \"hot\"\n\n[zone.hot]\nitems = [\"clock\"]\nopen = \"calendr\"\n",
+        );
+
+        let problems = parsed.problems.join("\n");
+        assert!(
+            problems.contains(
+                "zone.hot.open: \"calendr\": expected \"none\" or a panel, one of settings, calendar,"
+            ),
+            "{problems}"
+        );
     }
 
     #[test]

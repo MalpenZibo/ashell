@@ -10,7 +10,8 @@ pub enum Show {
     Never,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Panel {
     Settings,
     Calendar,
@@ -48,10 +49,26 @@ impl Panel {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// `"none"`, or a panel by its name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(try_from = "String")]
 pub enum Open {
     Nothing,
     Panel(Panel),
+}
+
+impl TryFrom<String> for Open {
+    type Error = String;
+
+    fn try_from(name: String) -> Result<Self, String> {
+        Open::parse(&name).ok_or_else(|| {
+            let panels: Vec<_> = Panel::ALL.iter().map(|panel| panel.name()).collect();
+            format!(
+                "\"{name}\": expected \"none\" or a panel, one of {}",
+                panels.join(", ")
+            )
+        })
+    }
 }
 
 impl Open {

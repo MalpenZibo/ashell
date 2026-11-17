@@ -30,14 +30,48 @@ fn edge() -> f32 {
     size::S2.px()
 }
 
-fn details_gap() -> f32 {
-    size::S1.px()
+/// How far shapes reach for each other to merge.
+fn merge_distance() -> f32 {
+    size::S8.px()
 }
 
-fn panel_gap(panels: Panels) -> f32 {
-    match panels {
-        Panels::Detached => size::S3.px(),
-        Panels::Morph | Panels::Attached | Panels::Dropdown => size::S2.px(),
+/// How far a shape stands off what it comes out of, and how far the two
+/// reach for each other. Between two edges `gap` apart guido's smooth minimum
+/// keeps a neck only while `gap < reach / 2`, as thick as `reach / 4 - gap / 2`.
+#[derive(Clone, Copy, Debug)]
+struct Neck {
+    gap: f32,
+    reach: f32,
+}
+
+impl Neck {
+    /// A panel and its group: a `detached` one stands further off and its
+    /// shapes reach less, so its neck breaks as it arrives; the others are
+    /// joined.
+    fn of(panels: Panels) -> Self {
+        match panels {
+            Panels::Detached => Self {
+                gap: size::S3.px(),
+                reach: size::S4.px(),
+            },
+            Panels::Morph | Panels::Attached | Panels::Dropdown => Self {
+                gap: size::S2.px(),
+                reach: merge_distance(),
+            },
+        }
+    }
+
+    /// The details split off what holds their group, with a thick neck.
+    fn details() -> Self {
+        Self {
+            gap: size::S1.px(),
+            reach: merge_distance(),
+        }
+    }
+
+    #[cfg(test)]
+    fn joined(self) -> bool {
+        self.gap < self.reach / 2.0
     }
 }
 
@@ -46,11 +80,6 @@ fn reserved(bar: &Bar) -> u32 {
 }
 
 pub fn surface(bar: &Bar) -> SurfaceConfig {
-    let edge = match bar.position {
-        Position::Top => Edge::Top,
-        Position::Bottom => Edge::Bottom,
-    };
-
     SurfaceConfig::new()
         // As big as the compositor gives, for good: a panel needs room up to
         // the far edge, and a size asked for may be more than it gives, which
@@ -60,7 +89,7 @@ pub fn surface(bar: &Bar) -> SurfaceConfig {
         .buffer(BufferExtent::Content)
         .layer(Layer::Top)
         .exclusive_zone(reserved(bar))
-        .exclusive_edge(edge)
+        .exclusive_edge(bar.position.edge())
         .keyboard_interactivity(KeyboardInteractivity::None)
         .click_through()
         .namespace("ashell-experimental")
@@ -82,10 +111,34 @@ impl Position {
         }
     }
 
-    fn alignment(self) -> Alignment {
+    fn edge(self) -> Edge {
         match self {
-            Position::Top => Alignment::TOP_CENTER,
-            Position::Bottom => Alignment::BOTTOM_CENTER,
+            Position::Top => Edge::Top,
+            Position::Bottom => Edge::Bottom,
+        }
+    }
+
+    fn alignment(self) -> Alignment {
+        self.at(Place::Center)
+    }
+
+    /// Against the bar's edge, at `place` along it.
+    fn at(self, place: Place) -> Alignment {
+        match (self, place) {
+            (Position::Top, Place::Start) => Alignment::TOP_START,
+            (Position::Top, Place::Center) => Alignment::TOP_CENTER,
+            (Position::Top, Place::End) => Alignment::TOP_END,
+            (Position::Bottom, Place::Start) => Alignment::BOTTOM_START,
+            (Position::Bottom, Place::Center) => Alignment::BOTTOM_CENTER,
+            (Position::Bottom, Place::End) => Alignment::BOTTOM_END,
+        }
+    }
+
+    /// `near` and `far` from the bar's edge, in order down the screen.
+    fn near_first<T>(self, near: T, far: T) -> (T, T) {
+        match self {
+            Position::Top => (near, far),
+            Position::Bottom => (far, near),
         }
     }
 }
@@ -112,7 +165,7 @@ impl Placed {
         if self.group.panels.merges() {
             self.group.host
         } else {
-            Host::Own
+            Host::Shape(self.group.id)
         }
     }
 }
@@ -288,7 +341,7 @@ fn under_zone(opened: Opened, middle: f32, ctx: &Ctx) -> f32 {
         ctx.padding.left.px().max(edge()),
         screen - ctx.padding.right.px().max(edge()),
     );
-    let host = host_rect(ctx.groups[&opened.group].group.host, opened.group, ctx);
+    let host = host_rect(ctx.groups[&opened.group].group.host, ctx);
     let within = if host.width >= width {
         (host.x.max(bar.0), (host.x + host.width).min(bar.1))
     } else {
@@ -300,25 +353,20 @@ fn under_zone(opened: Opened, middle: f32, ctx: &Ctx) -> f32 {
 
 struct Refs {
     bar: WidgetRef,
-    groups: HashMap<NodeId, WidgetRef>,
-    /// The shapes of the nodes that are not groups.
-    shapes: HashMap<NodeId, WidgetRef>,
+    /// Every group, and every other node with a shape.
+    nodes: HashMap<NodeId, WidgetRef>,
     zones: HashMap<(NodeId, usize), WidgetRef>,
 }
 
-/// The area of the surface that the panels and details of `group` come out of.
-fn host_rect(host: Host, group: NodeId, ctx: &Ctx) -> Rect {
+/// The area of the surface that panels and details come out of.
+fn host_rect(host: Host, ctx: &Ctx) -> Rect {
     let rect = |widget: &WidgetRef| widget.layout_rect().get_untracked();
 
     match host {
-        Host::Own => rect(&ctx.refs.groups[&group]),
-        Host::Shape(id) => rect(&ctx.refs.shapes[&id]),
+        Host::Shape(id) => rect(&ctx.refs.nodes[&id]),
         Host::Background | Host::None => {
             let bar = rect(&ctx.refs.bar);
-            let y = match ctx.position {
-                Position::Top => 0.0,
-                Position::Bottom => bar.height - ctx.reserved,
-            };
+            let (y, _) = ctx.position.near_first(0.0, bar.height - ctx.reserved);
 
             Rect {
                 x: 0.0,
@@ -350,19 +398,16 @@ fn view_with(bar: &Bar, state: State) -> Container {
 
     let mut refs = Refs {
         bar: create_widget_ref(),
-        groups: HashMap::new(),
-        shapes: HashMap::new(),
+        nodes: HashMap::new(),
         zones: HashMap::new(),
     };
     for node in bar.nodes() {
-        if node.shape && !node.is_group() {
-            refs.shapes.insert(node.id, create_widget_ref());
+        if node.shape || node.is_group() {
+            refs.nodes.insert(node.id, create_widget_ref());
         }
     }
 
     for (&id, placed) in &groups {
-        refs.groups.insert(id, create_widget_ref());
-
         for zone in 0..placed.group.zones().len() {
             refs.zones.insert((id, zone), create_widget_ref());
         }
@@ -385,21 +430,11 @@ fn view_with(bar: &Bar, state: State) -> Container {
         .takes_input(move || open.get())
         .on_click(move || state.close());
 
-    // Room on the inner side for what shapes cast: a surface sized to its
-    // content cuts what is drawn past it.
-    let shadows = bar.nodes().iter().any(|node| node.shape);
-    let cast = island::shadow(Color::TRANSPARENT).outsets();
     let p = bar.padding;
-    let room = |padding: f32, cast: f32| if shadows { padding.max(cast) } else { padding };
-    let (top, bottom) = match bar.position {
-        Position::Top => (p.top.px(), room(p.bottom.px(), cast.bottom)),
-        Position::Bottom => (room(p.top.px(), cast.top), p.bottom.px()),
-    };
-
     let nodes = self::places(bar.places(), true, &ctx);
     let nodes = shaped(nodes, &bar.root, true, &ctx)
         .align_self(bar.position.alignment())
-        .padding([top, p.right.px(), bottom, p.left.px()]);
+        .padding([p.top.px(), p.right.px(), p.bottom.px(), p.left.px()]);
 
     container()
         .width(fill())
@@ -439,7 +474,15 @@ fn hosting(
     let detached = create_signal(0usize);
 
     let holder = if merge {
-        merged(holder, move || reach(detached.get() > 0))
+        merged(holder, move || {
+            let panels = if detached.get() > 0 {
+                Panels::Detached
+            } else {
+                Panels::Attached
+            };
+
+            Neck::of(panels).reach
+        })
     } else {
         holder
     };
@@ -485,16 +528,6 @@ fn hosting_details(
     ))
 }
 
-/// How far the shapes reach for each other: less round a `detached` panel,
-/// so the neck breaks as the panel gets where it goes.
-fn reach(detached: bool) -> f32 {
-    if detached {
-        size::S4.px()
-    } else {
-        group::merge_distance()
-    }
-}
-
 /// `holder` as what the panels and details of the groups `host` takes come
 /// out of.
 fn hosts(holder: Container, host: Host, merge: bool, ctx: &Ctx) -> Container {
@@ -505,7 +538,7 @@ fn hosts(holder: Container, host: Host, merge: bool, ctx: &Ctx) -> Container {
         ctx,
         move |opened| groups[&opened.group].opens_from() == host,
         move |opened| {
-            let rect = host_rect(host, opened.group, &place);
+            let rect = host_rect(host, &place);
 
             group::split_off(opened, rect, &place).align_self(place.position.alignment())
         },
@@ -516,7 +549,7 @@ fn hosts(holder: Container, host: Host, merge: bool, ctx: &Ctx) -> Container {
         holder,
         ctx,
         move |_, placed| placed.group.host == host,
-        move || host_rect(host, 0, &place),
+        move || host_rect(host, &place),
     )
 }
 
@@ -542,7 +575,7 @@ fn background(ctx: &Ctx) -> Container {
     // surface cuts those sides, so the border drawn round the merged shapes
     // shows only on the inner one. That border is drawn inside the fill, so
     // the fill is taller by its width, leaving the bar all background.
-    let beyond = group::merge_distance() * 2.0;
+    let beyond = merge_distance() * 2.0;
     let border = if merge { stroke::HAIRLINE } else { 0.0 };
     let side = ctx.position.side();
     let fill = group::shape_fill(container())
@@ -553,10 +586,7 @@ fn background(ctx: &Ctx) -> Container {
     let layer = container()
         .width(guido::prelude::fill())
         .height(guido::prelude::fill())
-        .layout(ZStack::new().align(match ctx.position {
-            Position::Top => Alignment::TOP_START,
-            Position::Bottom => Alignment::BOTTOM_START,
-        }));
+        .layout(ZStack::new().align(ctx.position.at(Place::Start)));
 
     hosts(layer, Host::Background, merge, ctx).child(fill)
 }
@@ -644,7 +674,7 @@ fn shaped(content: Container, node: &Node, wide: bool, ctx: &Ctx) -> Container {
 }
 
 fn node_shape(content: Container, id: NodeId, wide: bool, ctx: &Ctx) -> Container {
-    let shape_ref = ctx.refs.shapes[&id];
+    let shape_ref = ctx.refs.nodes[&id];
 
     // Not eased: it takes the width of what it holds, which is eased already.
     let shape = group::shape_fill(container())
@@ -682,4 +712,33 @@ fn keyboard_follows(surface: SurfaceHandle, open: Memo<bool>) {
             KeyboardInteractivity::None
         });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use guido::reactive::__internal::{dispose_owner, with_owner};
+    use styletto::provide_ui;
+    use styletto::ui::{Density, Ui};
+
+    use super::Neck;
+    use crate::config::Panels;
+
+    #[test]
+    fn attached_panels_and_details_keep_a_neck_and_detached_ones_lose_it() {
+        for density in [Density::Compact, Density::Default, Density::Comfortable] {
+            let ((), scope) = with_owner(|| {
+                provide_ui(Ui::default().with_density(density));
+
+                for panels in [Panels::Attached, Panels::Dropdown, Panels::Morph] {
+                    assert!(Neck::of(panels).joined(), "{panels:?} at {density:?}");
+                }
+                assert!(Neck::details().joined(), "details at {density:?}");
+                assert!(
+                    !Neck::of(Panels::Detached).joined(),
+                    "detached at {density:?}"
+                );
+            });
+            dispose_owner(scope);
+        }
+    }
 }

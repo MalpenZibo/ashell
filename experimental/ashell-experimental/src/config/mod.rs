@@ -170,10 +170,10 @@ impl Node {
 }
 
 /// What a group's panels and details come out of: the nearest shape at or
-/// round it, its own or a node's, else the bar's background, else nothing.
+/// round it, the group's own or a node's, by the node's id; else the bar's
+/// background, else nothing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Host {
-    Own,
     Shape(usize),
     Background,
     None,
