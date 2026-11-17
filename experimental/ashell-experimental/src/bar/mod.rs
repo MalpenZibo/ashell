@@ -41,16 +41,6 @@ fn panel_gap(panels: Panels) -> f32 {
     }
 }
 
-impl Padding {
-    /// On the side away from the screen's edge.
-    fn inner(self, position: Position) -> f32 {
-        match position {
-            Position::Top => self.bottom.px(),
-            Position::Bottom => self.top.px(),
-        }
-    }
-}
-
 fn reserved(bar: &Bar) -> u32 {
     (bar.padding.top.px() + group_height() + bar.padding.bottom.px()).round() as u32
 }
@@ -170,7 +160,6 @@ pub struct State {
     pub details: RwSignal<Option<(NodeId, usize)>>,
     inside: RwSignal<Option<NodeId>>,
     dwell: RwSignal<Option<TimerHandle>>,
-    out: RwSignal<usize>,
 }
 
 impl State {
@@ -180,7 +169,6 @@ impl State {
             details: create_signal(None),
             inside: create_signal(None),
             dwell: create_signal(None),
-            out: create_signal(0),
         }
     }
 
@@ -196,11 +184,11 @@ impl State {
     }
 
     pub fn moved_on(&self, zone: (NodeId, usize)) {
-        self.inside.set(Some(zone.0));
+        self.entered(zone.0);
+        self.moved();
 
         let shown = self.details.get_untracked();
         if shown == Some(zone) {
-            self.moved();
             return;
         }
 
@@ -208,7 +196,6 @@ impl State {
             Some((group, _)) if group == zone.0 => ZONE_SWITCH,
             _ => DETAILS_DWELL,
         };
-        self.moved();
 
         let state = *self;
         let dwell = set_timeout(wait, move || {
@@ -250,14 +237,6 @@ impl State {
 
     pub fn entered(&self, group: NodeId) {
         self.inside.set(Some(group));
-    }
-
-    /// Counts `shape` as out of the bar until it is disposed, which a removed
-    /// row is once its exit has played.
-    fn out(&self, shape: Container) -> Container {
-        counted(self.out);
-
-        shape
     }
 
     pub fn left(&self, group: NodeId) {
@@ -409,14 +388,10 @@ fn view_with(bar: &Bar, state: State) -> Container {
     let shadows = bar.nodes().iter().any(|node| node.shape);
     let cast = island::shadow(Color::TRANSPARENT).outsets();
     let p = bar.padding;
-    let inner = match (shadows, bar.position) {
-        (false, position) => p.inner(position),
-        (true, Position::Top) => p.inner(Position::Top).max(cast.bottom),
-        (true, Position::Bottom) => p.inner(Position::Bottom).max(cast.top),
-    };
+    let room = |padding: f32, cast: f32| if shadows { padding.max(cast) } else { padding };
     let (top, bottom) = match bar.position {
-        Position::Top => (p.top.px(), inner),
-        Position::Bottom => (inner, p.bottom.px()),
+        Position::Top => (p.top.px(), room(p.bottom.px(), cast.bottom)),
+        Position::Bottom => (room(p.top.px(), cast.top), p.bottom.px()),
     };
 
     let nodes = self::places(bar.places(), true, &ctx);
@@ -438,9 +413,7 @@ fn view_with(bar: &Bar, state: State) -> Container {
             }
         })
         .child(backdrop)
-        .child(
-            (bar.background == Background::Solid).then(|| background(reserved(bar) as f32, &ctx)),
-        )
+        .child((bar.background == Background::Solid).then(|| background(&ctx)))
         .child(nodes)
 }
 
@@ -477,7 +450,7 @@ fn hosting(
                 counted(detached);
             }
 
-            state.out(panel(opened))
+            panel(opened)
         },
     ))
 }
@@ -506,7 +479,7 @@ fn hosting_details(
     holder.children(keyed(
         move || list.get().into_iter().collect::<Vec<_>>(),
         |&list| list,
-        move |_| state.out(group::split_details(shown, host(), &place)),
+        move |_| group::split_details(shown, host(), &place),
     ))
 }
 
@@ -553,8 +526,8 @@ fn merged<M>(holder: Container, reach: impl IntoSignal<f32, M>) -> Container {
 
 /// Draws the bar's solid background, from edge to edge. The panels and
 /// details of the groups with no shape come out of it.
-fn background(height: f32, ctx: &Ctx) -> Container {
-    let bar_ref = ctx.refs.bar;
+fn background(ctx: &Ctx) -> Container {
+    let (bar_ref, height) = (ctx.refs.bar, ctx.reserved);
 
     // Merging also draws a border round it, so only if something comes out
     // of it.
@@ -620,7 +593,7 @@ fn places(places: &[Vec<Node>; 3], wide: bool, ctx: &Ctx) -> Container {
     let row = if wide {
         container().width(fill()).layout(places::PlacesLayout {
             spacing: size::S2.px(),
-            position: ctx.position,
+            cross: ctx.position.cross(),
         })
     } else {
         container().layout(

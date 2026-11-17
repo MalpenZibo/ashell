@@ -293,26 +293,24 @@ impl Reader {
                 // `None` if the node doesn't write `shape`.
                 let shape_requested = self.get(at, table, "shape");
 
-                let mut holds: Vec<&str> = ["zones", "nodes"]
-                    .into_iter()
-                    .chain(PLACES)
-                    .filter(|key| table.contains_key(*key))
-                    .map(|key| if PLACES.contains(&key) { "places" } else { key })
-                    .collect();
-                holds.dedup();
-                if holds.len() > 1 {
-                    self.warn(
-                        at,
-                        format!(
-                            "holds one of `zones`, `nodes` or the places: `{}` is",
-                            holds[0]
-                        ),
-                    );
-                }
-                let Some(&kind) = holds.first() else {
+                let places = PLACES.iter().any(|place| table.contains_key(*place));
+                let mut holds = [
+                    ("zones", table.contains_key("zones")),
+                    ("nodes", table.contains_key("nodes")),
+                    ("places", places),
+                ]
+                .into_iter()
+                .filter_map(|(kind, written)| written.then_some(kind));
+                let Some(kind) = holds.next() else {
                     self.warn(at, "holds nothing: `zones`, `nodes` or the places");
                     return None;
                 };
+                if holds.next().is_some() {
+                    self.warn(
+                        at,
+                        format!("holds one of `zones`, `nodes` or the places: `{kind}` is"),
+                    );
+                }
 
                 let default_shape = kind == "zones" && inherited.shape;
                 let (shape, inherited) =

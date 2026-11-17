@@ -7,7 +7,7 @@ use styletto::primitives::island::{self, island};
 use styletto::{centered_row, foundations::motion, ui};
 
 use super::{
-    Ctx, GROUP, Host, NodeId, Opened, State, details_gap, group_height, host_rect, hosting,
+    Ctx, GROUP, Host, NodeId, Opened, Refs, State, details_gap, group_height, host_rect, hosting,
     hosting_details, merged_shadow, panel_gap, placeholder, under_zone,
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
@@ -34,8 +34,9 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
     let (host, list) = (placed.group.host, placed.list);
 
     let group = placed.group.clone();
-    let merge = group.panels.merges();
-    let morph = group.panels == Panels::Morph;
+    let panels = group.panels;
+    let merge = panels.merges();
+    let morph = panels == Panels::Morph;
     let opens_here = placed.opens_from() == Host::Own && !morph;
     let groups = ctx.groups.clone();
 
@@ -45,14 +46,11 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
     });
 
     let shape_ref = ctx.refs.groups[&id];
-    let zone_refs: Rc<[WidgetRef]> = (0..group.zones().len())
-        .map(|zone| ctx.refs.zones[&(id, zone)])
-        .collect();
 
     // Merging with what comes out of it, the island's shadow is the merged
     // outline's.
     let casts = merge && group.shape;
-    let shape = shape(&group, id, host, state, shown, zone_refs, ctx.position);
+    let shape = shape(&group, shown, ctx);
     let shape = if casts {
         shape.shadow(Shadows::none())
     } else {
@@ -109,7 +107,7 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
             let edge = group.height + past.max(0.0);
             let x = under_zone(opened, group.x + group.width / 2.0, &place);
             let side = place.position.side();
-            let gap = panel_gap(place.groups[&id].group.panels);
+            let gap = panel_gap(panels);
 
             dropdown(
                 opened.panel,
@@ -140,14 +138,11 @@ pub(super) fn split_off(opened: Opened, host: Rect, ctx: &Ctx) -> Container {
     let side = ctx.position.side();
     let group = ctx.refs.groups[&opened.group].layout_rect().get_untracked();
 
-    let (from, width) = Origin::span(group.x, group.width);
-    let origin = Origin {
-        at: Translate::new(from + width / 2.0 - middle, side * (host.height / 2.0)),
-        width,
-    };
+    let (left, width) = span(group.x, group.width);
+    let from = Translate::new(left + width / 2.0 - middle, side * (host.height / 2.0));
     let away = host.height + panel_gap(ctx.groups[&opened.group].group.panels);
 
-    panel_shape(opened.panel, Translate::new(x, side * away), origin)
+    panel_shape(opened.panel, Translate::new(x, side * away), from, width)
 }
 
 /// The details of the groups in one list of nodes that have no shape of
@@ -202,30 +197,13 @@ pub(super) fn split_details(
     let inside = side * (host.height / 2.0);
     let sliver = move |zone| {
         let under = zone_rect(zone);
-        Length::exact(Origin::span(under.x, under.width).1)
+        Length::exact(span(under.x, under.width).1)
     };
     let toward = Translate::new(0.0, -side * size::S1.px());
     let start = Translate::new(x(first), inside);
     let back = x.clone();
 
-    let row = container()
-        .width(natural())
-        .opacity(
-            1.0.transition(coming_and_going(enter(), leave()))
-                .entering_from(0.0)
-                .exiting_to(0.0),
-        )
-        .blur(
-            0.0.transition(coming_and_going(enter(), leave()))
-                .entering_from(3.0)
-                .exiting_to(3.0),
-        )
-        .translate(
-            Translate::NONE
-                .transition(coming_and_going(enter(), leave()))
-                .entering_from(toward)
-                .exiting_to(toward),
-        )
+    let row = rising(container().width(natural()), enter(), leave(), toward)
         .layout(ZStack::new().align(Alignment::CENTER))
         .children(keyed(
             move || [last.get()],
@@ -274,15 +252,10 @@ pub(super) fn split_details(
         .child(row)
 }
 
-fn shape(
-    group: &Rc<Node>,
-    id: NodeId,
-    host: Host,
-    state: State,
-    shown: Memo<Shown>,
-    zone_refs: Rc<[WidgetRef]>,
-    position: Position,
-) -> Container {
+fn shape(group: &Rc<Node>, shown: Memo<Shown>, ctx: &Ctx) -> Container {
+    let (id, state, position) = (group.id, ctx.state, ctx.position);
+    let refs = ctx.refs.clone();
+
     let details_here = create_memo(move || {
         state
             .details
@@ -295,11 +268,11 @@ fn shape(
         move |which: Shown| -> Container {
             match which {
                 Shown::Rest => {
-                    let inside = host == Host::Own;
+                    let inside = group.shape;
                     let open = create_memo(move || inside && details_here.get().is_some());
                     let group = group.clone();
 
-                    let rest = rest(&group, id, state, &zone_refs);
+                    let rest = rest(&group, state, &refs);
                     let details =
                         move || open.get().then(|| details(&group, details_here, position));
                     let column =
@@ -333,8 +306,8 @@ fn shape(
     }
 }
 
-fn rest(group: &Node, id: NodeId, state: State, zone_refs: &[WidgetRef]) -> Container {
-    let hover = group.hover;
+fn rest(group: &Node, state: State, refs: &Refs) -> Container {
+    let (id, hover) = (group.id, group.hover);
     let height = if group.shape {
         island::inner(GROUP)
     } else {
@@ -351,10 +324,10 @@ fn rest(group: &Node, id: NodeId, state: State, zone_refs: &[WidgetRef]) -> Cont
                 .iter()
                 .enumerate()
                 .map(|(index, zone)| {
-                    let open = zone.open;
+                    let (open, has_details) = (zone.open, !zone.details.is_empty());
                     let mut pill =
                         container()
-                            .widget_ref(zone_refs[index])
+                            .widget_ref(refs.zones[&(id, index)])
                             .child(placeholder::zone(&zone.name, move || {
                                 if let Open::Panel(panel) = open {
                                     state.toggle(Opened {
@@ -365,17 +338,15 @@ fn rest(group: &Node, id: NodeId, state: State, zone_refs: &[WidgetRef]) -> Cont
                                 }
                             }));
 
-                    if hover && !zone.details.is_empty() {
+                    if hover {
                         pill = pill
-                            .on_pointer_move(move |_, _| state.moved_on((id, index)))
-                            .on_hover(move |inside| {
-                                if !inside {
-                                    state.moved();
+                            .on_pointer_move(move |_, _| {
+                                if has_details {
+                                    state.moved_on((id, index));
+                                } else {
+                                    state.moved_off(id);
                                 }
-                            });
-                    } else if hover {
-                        pill = pill
-                            .on_pointer_move(move |_, _| state.moved_off(id))
+                            })
                             .on_hover(move |inside| {
                                 if !inside {
                                     state.moved();
@@ -400,34 +371,19 @@ fn details(group: &Rc<Node>, zone: Memo<Option<usize>>, position: Position) -> C
         Position::Bottom => [s2, s2, 0.0, s2],
     };
 
-    container()
+    let row = container()
         .padding(padding)
         .height(
             at_least(0.0)
                 .transition(leave())
                 .exiting_to(Length::exact(0.0)),
         )
-        .overflow(Overflow::Hidden)
-        .opacity(
-            1.0.transition(coming_and_going(enter(), leave()))
-                .entering_from(0.0)
-                .exiting_to(0.0),
-        )
-        .blur(
-            0.0.transition(coming_and_going(enter(), leave()))
-                .entering_from(3.0)
-                .exiting_to(3.0),
-        )
-        .translate(
-            Translate::NONE
-                .transition(coming_and_going(enter(), leave()))
-                .entering_from(away)
-                .exiting_to(away),
-        )
-        .child(move || {
-            zone.get()
-                .map(|zone| swapped_in(placeholder::details(&group.zones()[zone].details)))
-        })
+        .overflow(Overflow::Hidden);
+
+    rising(row, enter(), leave(), away).child(move || {
+        zone.get()
+            .map(|zone| swapped_in(placeholder::details(&group.zones()[zone].details)))
+    })
 }
 
 fn coming_and_going<T>(
@@ -443,6 +399,27 @@ fn coming_and_going<T>(
     }
 }
 
+/// Comes in and goes out fading, coming into focus and sliding from `away`.
+fn rising(content: Container, enter: Transition, leave: Transition, away: Translate) -> Container {
+    content
+        .opacity(
+            1.0.transition(coming_and_going(enter.clone(), leave.clone()))
+                .entering_from(0.0)
+                .exiting_to(0.0),
+        )
+        .blur(
+            0.0.transition(coming_and_going(enter.clone(), leave.clone()))
+                .entering_from(3.0)
+                .exiting_to(3.0),
+        )
+        .translate(
+            Translate::NONE
+                .transition(coming_and_going(enter, leave))
+                .entering_from(away)
+                .exiting_to(away),
+        )
+}
+
 fn swapped_in(content: Container) -> Container {
     let swap = || motion::easing(320.0);
 
@@ -456,23 +433,16 @@ fn swapped_in(content: Container) -> Container {
         )
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct Origin {
-    pub at: Translate,
-    pub width: f32,
+/// The sliver a shape comes out as and goes back as: its ends as far in as
+/// the merge reaches, since nearer an end the merge still swells the shape
+/// there when the panel is let go.
+fn span(left: f32, width: f32) -> (f32, f32) {
+    let inset = merge_distance().min(width / 2.0);
+
+    (left + inset, width - 2.0 * inset)
 }
 
-impl Origin {
-    /// Its ends as far in as the merge reaches: nearer an end, the merge
-    /// still swells the shape there when the panel is let go.
-    pub(super) fn span(left: f32, width: f32) -> (f32, f32) {
-        let inset = merge_distance().min(width / 2.0);
-
-        (left + inset, width - 2.0 * inset)
-    }
-}
-
-fn panel_shape(panel: Panel, to: Translate, origin: Origin) -> Container {
+fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Container {
     let content = placeholder::panel(panel).opacity(
         1.0.transition(coming_and_going(
             motion::easing(200.0).delay(260.0),
@@ -488,8 +458,8 @@ fn panel_shape(panel: Panel, to: Translate, origin: Origin) -> Container {
             natural()
                 .at_most(placeholder::panel_width())
                 .transition(retracting())
-                .entering_from(natural().at_most(origin.width))
-                .exiting_to(natural().at_most(origin.width)),
+                .entering_from(natural().at_most(width))
+                .exiting_to(natural().at_most(width)),
         )
         .height(
             at_least(0.0)
@@ -501,8 +471,8 @@ fn panel_shape(panel: Panel, to: Translate, origin: Origin) -> Container {
         .takes_input(true)
         .translate(
             to.transition(retracting())
-                .entering_from(origin.at)
-                .exiting_to(origin.at),
+                .entering_from(from)
+                .exiting_to(from),
         )
         // Not clipped: a shape that clips would not merge.
         .child(content)

@@ -2,8 +2,6 @@ use guido::prelude::*;
 use guido::tree::{LayoutCtx, WidgetId};
 use guido::widget_prelude::{Constraints, Layout};
 
-use crate::config::Position;
-
 /// The three places of a wide node, as ashell has them: the ends at the ends,
 /// the centre in the middle of the room. An end too long for its half pushes
 /// the centre only as far as it has to, so the centre moves smoothly while a
@@ -13,7 +11,8 @@ use crate::config::Position;
 /// An end that fills reaches the centre.
 pub(super) struct PlacesLayout {
     pub spacing: f32,
-    pub position: Position,
+    /// `End` keeps the three on the bottom edge, anything else on the top.
+    pub cross: CrossAlignment,
 }
 
 impl Layout for PlacesLayout {
@@ -70,9 +69,9 @@ impl Layout for PlacesLayout {
             .height
             .max(center_size.height)
             .max(end_size.height);
-        let y = |child_height: f32| match self.position {
-            Position::Top => origin.1,
-            Position::Bottom => origin.1 + height - child_height,
+        let y = |child_height: f32| match self.cross {
+            CrossAlignment::End => origin.1 + height - child_height,
+            _ => origin.1,
         };
 
         let tree = ctx.tree();
