@@ -20,6 +20,8 @@ pub fn run() {
 
 fn bars(config: Config) {
     let ui = config.appearance.ui(None);
+    // `bar::surface` sizes the reserved space in the configured density.
+    provide_ui(ui);
 
     let surfaces: Rc<RefCell<HashMap<(OutputId, usize), SurfaceHandle>>> = Rc::default();
 

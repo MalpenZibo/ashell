@@ -233,7 +233,7 @@ file with none has one, `main`, with the defaults.
 | --- | --- | --- | --- |
 | `position` | `top`, `bottom` (later `left`, `right`) | `top` | the edge |
 | `start`, `center`, `end` | nodes | `[]` | the root node's places |
-| `shape` | `true`, `false` | `false` | an island as long as the bar, the root's; flows down as the default for the nodes inside (see [Islands and background](#islands-and-background)) |
+| `shape` | `true`, `false` | unset | `true`: an island as long as the bar, the root's; `false`: no island anywhere, unless a node inside says so; unset: an island round each group (see [Islands and background](#islands-and-background)) |
 | `background` | `transparent`, `solid` | `transparent` | the surface's own background, in the island's colour and material: flat, edge to edge, with no corners and no border. The panels and details of the groups with no island round them come out of it |
 | `padding` | styletto space steps, `s0`…`s10`: one for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`, as CSS writes them | `s2` | between the screen's edges and the outermost shapes, and on the side away from the edge between them and the background's. `s0` puts them against the edges. The background always runs from edge to edge; there is no margin outside it |
 | `hover`, `panels` | as on a node | | the defaults for every node |

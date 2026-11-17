@@ -248,6 +248,7 @@ pub fn parse(text: &str) -> Result<Parsed, toml::de::Error> {
 
 pub fn path() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_CONFIG_HOME")
+        .filter(|home| !home.is_empty())
         .map(PathBuf::from)
         .or_else(|| Some(std::env::home_dir()?.join(".config")))?;
 
@@ -302,19 +303,43 @@ pub fn watched() -> Signal<Config> {
 
 async fn watch(mut current: Config, config: WriteSignal<Config>) -> std::io::Result<()> {
     let path = path().ok_or_else(|| std::io::Error::other("no $XDG_CONFIG_HOME nor $HOME"))?;
-    let (Some(folder), Some(name)) = (path.parent(), path.file_name()) else {
-        return Ok(());
-    };
-    std::fs::create_dir_all(folder)?;
+    // A symlink is watched where it is, for the link deleted or replaced, and
+    // where it points, for the file edited.
+    let target = std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
 
     let inotify = Inotify::init()?;
-    inotify
-        .watches()
-        .add(folder, WatchMask::CLOSE_WRITE | WatchMask::MOVED_TO)?;
-    let mut events = inotify.into_event_stream([0; 1024])?;
+    let mut watched = Vec::new();
+    for file in [&path, &target] {
+        let (Some(folder), Some(name)) = (file.parent(), file.file_name()) else {
+            continue;
+        };
+        std::fs::create_dir_all(folder)?;
+        let watch = inotify.watches().add(
+            folder,
+            WatchMask::CLOSE_WRITE
+                | WatchMask::MOVED_TO
+                | WatchMask::DELETE
+                | WatchMask::MOVED_FROM,
+        )?;
+        watched.push((watch, name.to_os_string()));
+    }
 
-    while let Some(event) = events.next().await {
-        if event?.name.as_deref() == Some(name)
+    // The events that come together are read together: an editor that moves
+    // the file away and writes it again makes the bars once, from the new
+    // file, rather than once from the default in between.
+    let mut events = inotify.into_event_stream([0; 1024])?.ready_chunks(16);
+
+    while let Some(events) = events.next().await {
+        let mut touched = false;
+        for event in events {
+            let event = event?;
+            touched |= watched
+                .iter()
+                .any(|(watch, name)| event.wd == *watch && event.name.as_deref() == Some(name));
+        }
+
+        // A file deleted or moved away reads as the default bar.
+        if touched
             && let Some(read) = reload()
             && read != current
         {

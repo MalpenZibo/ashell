@@ -23,7 +23,12 @@
     })
       .then(() => fetch(indexUrl))
       .then((response) => response.json())
-      .then((data) => elasticlunr.Index.load(data));
+      .then((data) => elasticlunr.Index.load(data))
+      .catch((error) => {
+        // Not kept: the next search tries again.
+        index = undefined;
+        throw error;
+      });
     return index;
   };
 
@@ -35,11 +40,19 @@
     const lower = body.toLowerCase();
     const first = terms.map((t) => lower.indexOf(t)).filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? 0;
     const start = Math.max(0, first - 60);
-    let text = escape((start > 0 ? "…" : "") + body.slice(start, start + 160) + "…");
-    for (const term of terms) {
-      if (term) text = text.replace(new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"), "<b>$1</b>");
-    }
-    return text;
+    const text = (start > 0 ? "…" : "") + body.slice(start, start + 160) + "…";
+    const words = terms
+      .filter(Boolean)
+      .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .sort((a, b) => b.length - a.length);
+    if (words.length === 0) return escape(text);
+
+    // Split on the terms before escaping, so a term never matches inside an
+    // entity or inside the <b> put round an earlier one.
+    return text
+      .split(new RegExp(`(${words.join("|")})`, "gi"))
+      .map((part, i) => (i % 2 === 1 ? `<b>${escape(part)}</b>` : escape(part)))
+      .join("");
   };
 
   const select = (i) => {
@@ -57,7 +70,15 @@
       return;
     }
 
-    const results = (await load())
+    let loaded;
+    try {
+      loaded = await load();
+    } catch {
+      list.innerHTML = `<li class="search-empty">The search could not load: try again.</li>`;
+      return;
+    }
+
+    const results = loaded
       .search(term, { bool: "AND", expand: true, fields: { title: { boost: 3 }, description: { boost: 2 }, body: { boost: 1 } } })
       .filter((result) => result.ref.includes(`/docs/${version}/`))
       .slice(0, MAX);
@@ -79,7 +100,7 @@
   const open = () => {
     if (!dialog.open) dialog.showModal();
     input.select();
-    load();
+    load().catch(() => {});
   };
 
   document.querySelectorAll(".search-button").forEach((button) => button.addEventListener("click", open));

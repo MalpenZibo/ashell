@@ -159,7 +159,8 @@ pub struct State {
     pub opened: RwSignal<Option<Opened>>,
     pub details: RwSignal<Option<(NodeId, usize)>>,
     inside: RwSignal<Option<NodeId>>,
-    dwell: RwSignal<Option<TimerHandle>>,
+    /// The next change of the details, waiting its time.
+    pending: RwSignal<Option<TimerHandle>>,
 }
 
 impl State {
@@ -168,7 +169,7 @@ impl State {
             opened: create_signal(None),
             details: create_signal(None),
             inside: create_signal(None),
-            dwell: create_signal(None),
+            pending: create_signal(None),
         }
     }
 
@@ -198,12 +199,12 @@ impl State {
         };
 
         let state = *self;
-        let dwell = set_timeout(wait, move || {
+        let pending = set_timeout(wait, move || {
             if state.opened.get_untracked().is_none() {
                 state.details.set(Some(zone));
             }
         });
-        self.dwell.set(Some(dwell));
+        self.pending.set(Some(pending));
     }
 
     /// On a zone of `group` with no details: those shown there go.
@@ -215,12 +216,12 @@ impl State {
         }
 
         let state = *self;
-        let dwell = set_timeout(ZONE_SWITCH, move || {
+        let pending = set_timeout(ZONE_SWITCH, move || {
             if state.shows(group) {
                 state.details.set(None);
             }
         });
-        self.dwell.set(Some(dwell));
+        self.pending.set(Some(pending));
     }
 
     fn shows(&self, group: NodeId) -> bool {
@@ -230,8 +231,8 @@ impl State {
     }
 
     pub fn moved(&self) {
-        if let Some(dwell) = self.dwell.get_untracked() {
-            dwell.cancel();
+        if let Some(pending) = self.pending.get_untracked() {
+            pending.cancel();
         }
     }
 
@@ -246,13 +247,14 @@ impl State {
         self.moved();
 
         let state = *self;
-        set_timeout(DETAILS_CLOSE, move || {
+        let pending = set_timeout(DETAILS_CLOSE, move || {
             let back = state.inside.get_untracked() == Some(group);
 
             if !back && state.shows(group) {
                 state.details.set(None);
             }
         });
+        self.pending.set(Some(pending));
     }
 }
 

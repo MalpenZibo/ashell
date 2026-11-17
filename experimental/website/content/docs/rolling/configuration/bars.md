@@ -26,7 +26,7 @@ end    = [["privacy", "status"]]
 | --- | ------ | ------- | ------------ |
 | `position` | `top`, `bottom` | `top` | The edge of the screen. |
 | `start`, `center`, `end` | nodes | `[]` | What the bar holds at each place: see [Layout](@/docs/rolling/configuration/layout.md). |
-| `shape` | `true`, `false` | `false` | One island as long as the bar, and the default for the nodes inside: see [Islands](@/docs/rolling/configuration/islands.md). |
+| `shape` | `true`, `false` | unset | `true`: one island as long as the bar. `false`: no island anywhere, unless a node inside says so. Unset: an island round each group. See [Islands](@/docs/rolling/configuration/islands.md). |
 | `background` | `transparent`, `solid` | `transparent` | A flat fill from edge to edge, in the island's colour and material. |
 | `padding` | space steps | `s2` | Between the screen's edges and the outermost shapes. |
 | `hover` | `true`, `false` | `false` | Zones show their details while the pointer rests on them. |

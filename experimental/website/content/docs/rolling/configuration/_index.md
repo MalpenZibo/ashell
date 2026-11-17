@@ -23,11 +23,12 @@ empty or missing file is a complete bar, so write only what differs.
 {% <note kind="tip" title="Reloaded live"> %}
 The file's folder is watched: when the file is written, or saved over by
 renaming, the bars are made again with the new configuration. A save that
-changes nothing does nothing.
+changes nothing does nothing. Deleting the file, or moving it away, gives
+the default bar back. A symlinked file is followed to where it points.
 {% </note> %}
 
 A file that does not parse is logged and ignored, and the bars keep the last
-good configuration, as they do when the file is deleted. Keys that are not
+good configuration. Keys that are not
 known, and values that fall back to a default, are logged as warnings: run
 with `RUST_LOG=info` to see each reload.
 

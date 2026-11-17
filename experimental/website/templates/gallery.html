@@ -67,6 +67,8 @@
     document.querySelector(".viewer-arrow.next").addEventListener("click", () => show(shown + 1));
     thumbs.forEach((thumb, i) => thumb.addEventListener("click", () => show(i)));
     document.addEventListener("keydown", (event) => {
+      // Not while typing, as in the search.
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
       if (event.key === "ArrowLeft") show(shown - 1);
       if (event.key === "ArrowRight") show(shown + 1);
     });

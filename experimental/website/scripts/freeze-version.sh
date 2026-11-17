@@ -2,7 +2,7 @@
 # Freezes the rolling docs as a release: copies content/docs/rolling to
 # content/docs/<version>, points its internal links at the copy, and lists
 # the version in versions.toml as the newest release, which the docs then
-# open on.
+# open on, /docs/ included.
 #
 #   scripts/freeze-version.sh 0.1.0
 set -euo pipefail
@@ -36,5 +36,7 @@ awk -v name="$version" '
   }
 ' "$site/versions.toml" > "$site/versions.toml.new"
 mv "$site/versions.toml.new" "$site/versions.toml"
+
+sed -i "s|^redirect_to = .*|redirect_to = \"docs/$version/\"|" "$docs/_index.md"
 
 echo "Froze the rolling docs as $version."
