@@ -189,6 +189,14 @@ pub enum Place {
 
 impl Place {
     pub const ALL: [Place; 3] = [Place::Start, Place::Center, Place::End];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Place::Start => "start",
+            Place::Center => "center",
+            Place::End => "end",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
@@ -288,12 +296,11 @@ pub fn reload() -> Option<Config> {
 }
 
 pub fn watched() -> Signal<Config> {
-    let current = load();
-    let config = create_signal(current.clone());
+    let config = create_signal(load());
     let writer = config.writer();
 
     create_task(move |_| async move {
-        if let Err(err) = watch(current, writer).await {
+        if let Err(err) = watch(writer).await {
             log::error!("the configuration is not watched, edits need a restart: {err}");
         }
     });
@@ -301,7 +308,7 @@ pub fn watched() -> Signal<Config> {
     config.read_only()
 }
 
-async fn watch(mut current: Config, config: WriteSignal<Config>) -> std::io::Result<()> {
+async fn watch(config: WriteSignal<Config>) -> std::io::Result<()> {
     let path = path().ok_or_else(|| std::io::Error::other("no $XDG_CONFIG_HOME nor $HOME"))?;
     // A symlink is watched where it is, for the link deleted or replaced, and
     // where it points, for the file edited.
@@ -338,13 +345,10 @@ async fn watch(mut current: Config, config: WriteSignal<Config>) -> std::io::Res
                 .any(|(watch, name)| event.wd == *watch && event.name.as_deref() == Some(name));
         }
 
-        // A file deleted or moved away reads as the default bar.
-        if touched
-            && let Some(read) = reload()
-            && read != current
-        {
-            log::info!("configuration changed: making the bars again");
-            current = read.clone();
+        // A file deleted or moved away reads as the default bar. The bars are
+        // made again only if what is read differs.
+        if touched && let Some(read) = reload() {
+            log::info!("configuration read again");
             config.set(read);
         }
     }

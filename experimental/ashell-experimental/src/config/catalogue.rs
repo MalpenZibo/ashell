@@ -1,5 +1,3 @@
-use std::fmt;
-
 use serde::Deserialize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -10,8 +8,7 @@ pub enum Show {
     Never,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Panel {
     Settings,
     Calendar,
@@ -166,12 +163,6 @@ items! {
 impl ItemId {
     pub fn parse(name: &str) -> Option<Self> {
         Self::ALL.iter().copied().find(|item| item.name() == name)
-    }
-}
-
-impl fmt::Display for ItemId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.name())
     }
 }
 

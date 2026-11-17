@@ -7,8 +7,8 @@ use styletto::primitives::island::{self, island};
 use styletto::{centered_row, foundations::motion};
 
 use super::{
-    Ctx, GROUP, Host, Merge, Neck, NodeId, Opened, Refs, State, group_height, host_rect, hosting,
-    hosting_details, merge_distance, merged_shadow, placeholder, under_zone,
+    Ctx, GROUP, Host, Merge, Neck, NodeId, Opened, Placed, Refs, State, at_rest, group_height,
+    host_rect, hosting, hosting_details, merge_distance, placeholder, under_zone,
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
 
@@ -32,7 +32,6 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
     let merge = panels.merges();
     let morph = panels == Panels::Morph;
     let opens_here = placed.opens_from() == Host::Shape(id) && !morph;
-    let groups = ctx.groups.clone();
 
     let shown = create_memo(move || match state.opened.get() {
         Some(opened) if opened.group == id && morph => Shown::Panel(opened.panel),
@@ -53,56 +52,53 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
     let shape = shape
         .widget_ref(shape_ref)
         .takes_input(true)
-        .on_hover(move |inside| {
-            if inside {
-                state.entered(id);
-            } else {
-                state.left(id);
-            }
-        });
+        .on_hover(move |inside| state.hovered(id, inside));
 
     // As wide as the group: what comes out of it is out of flow, so a panel
     // overflows it without moving the neighbours, and merges with the group
     // as its sibling.
-    let holder = container()
-        .layout(ZStack::new().align(ctx.position.alignment()))
-        .opacity(
-            (move || {
-                let away = state.opened.get().is_some_and(|opened| {
-                    let other = &groups[&opened.group];
+    let holder = container().layout(ZStack::new().align(ctx.position.alignment()));
+    // Out of the way of a group in its list whose panel takes its place.
+    let morph_beside = move |other: &Placed| {
+        other.group.panels == Panels::Morph && other.group.id != id && other.list == list
+    };
+    let holder = if ctx.groups.values().any(morph_beside) {
+        let groups = ctx.groups.clone();
+        let away = create_memo(move || {
+            state
+                .opened
+                .get()
+                .is_some_and(|opened| morph_beside(&groups[&opened.group]))
+        });
 
-                    other.group.panels == Panels::Morph && opened.group != id && other.list == list
-                });
-
-                if away { 0.0 } else { 1.0 }
-            })
-            .transition(motion::hover()),
-        );
+        holder.opacity((move || if away.get() { 0.0 } else { 1.0 }).transition(motion::hover()))
+    } else {
+        holder
+    };
     let place = ctx.clone();
 
     let holder = hosting(
         holder,
-        Merge::when(merge, Merge::Outlined),
+        Merge::when(casts, Merge::Outlined),
         ctx,
         move |opened| opened.group == id && opens_here,
         move |opened| {
             if merge {
-                return split_off(opened, Host::Shape(id), false, &place);
+                return split_off(opened, Host::Shape(id), Merge::Outlined, &place);
             }
 
-            let group = shape_ref.layout_rect().get_untracked();
+            let group = at_rest(shape_ref.layout_rect().get_untracked(), place.position);
             let x = under_zone(opened, group.x + group.width / 2.0, &place);
             let (side, gap) = (place.position.side(), Neck::of(panels).gap);
 
             // From the edge of what hosts it, past the group's own if that
-            // reaches further. The group as tall as at rest: the click that
-            // opens the panel closes its details.
+            // reaches further.
             let from = host_rect(host, &place);
             let past = match place.position {
                 Position::Top => from.y + from.height - (group.y + group.height),
                 Position::Bottom => group.y - from.y,
             };
-            let edge = group_height() + past.max(0.0);
+            let edge = group.height + past.max(0.0);
 
             dropdown(
                 opened.panel,
@@ -112,24 +108,19 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
         },
     );
 
-    let holder = hosting_details(
+    hosting_details(
         holder,
-        ctx,
         Merge::Off,
+        ctx,
         move |group, placed| group == id && placed.group.host == Host::None,
         move || shape_ref.layout_rect().get_untracked(),
     )
-    .child(shape);
-
-    if casts {
-        holder.shadow(merged_shadow())
-    } else {
-        holder
-    }
+    .child(shape)
 }
 
-/// `bordered`: with a border of its own, for a holder that draws none.
-pub(super) fn split_off(opened: Opened, host: Host, bordered: bool, ctx: &Ctx) -> Container {
+/// `merge`: how the holder it comes out in merges, which says what it draws
+/// of its edge (see `rimmed`).
+pub(super) fn split_off(opened: Opened, host: Host, merge: Merge, ctx: &Ctx) -> Container {
     let rect = host_rect(host, ctx);
     let middle = rect.x + rect.width / 2.0;
     let x = under_zone(opened, middle, ctx);
@@ -137,19 +128,11 @@ pub(super) fn split_off(opened: Opened, host: Host, bordered: bool, ctx: &Ctx) -
     let group = ctx.refs.nodes[&opened.group].layout_rect().get_untracked();
     let gap = Neck::of(ctx.groups[&opened.group].group.panels).gap;
 
-    // A group's own island as tall as at rest: the click that opens the panel
-    // closes the details it grows with.
-    let height = if host == Host::Shape(opened.group) {
-        group_height()
-    } else {
-        rect.height
-    };
-
     let (left, width) = span(group.x, group.width);
-    let from = Translate::new(left + width / 2.0 - middle, side * (height / 2.0));
-    let to = Translate::new(x, side * (height + gap));
+    let from = Translate::new(left + width / 2.0 - middle, side * (rect.height / 2.0));
+    let to = Translate::new(x, side * (rect.height + gap));
 
-    with_border(panel_shape(opened.panel, to, from, width), bordered)
+    rimmed(panel_shape(opened.panel, to, from, width), merge)
 }
 
 /// The details of the groups in one list of nodes that have no shape of
@@ -162,7 +145,7 @@ pub(super) fn split_off(opened: Opened, host: Host, bordered: bool, ctx: &Ctx) -
 pub(super) fn split_details(
     shown: Memo<Option<(NodeId, usize)>>,
     host: Rect,
-    bordered: bool,
+    merge: Merge,
     ctx: &Ctx,
 ) -> Container {
     let enter = || motion::easing(350.0).delay(150.0);
@@ -173,7 +156,7 @@ pub(super) fn split_details(
     let Some(first) = state.details.get_untracked() else {
         return container();
     };
-    let place = groups[&first.0].place();
+    let place = groups[&first.0].list.1;
     let last = create_signal(first);
     create_effect(move || {
         if let Some(zone) = shown.get() {
@@ -218,7 +201,7 @@ pub(super) fn split_details(
             },
         ));
 
-    with_border(island::paint(container()), bordered)
+    rimmed(island::paint(container()), merge)
         .width(
             at_least(0.0)
                 .transition(sliding())
@@ -241,14 +224,7 @@ pub(super) fn split_details(
                 .exiting_to(move || Translate::new(back(last.get()), inside)),
         )
         .align_self(align)
-        .on_hover(move |inside| {
-            let (group, _) = last.get_untracked();
-            if inside {
-                state.entered(group);
-            } else {
-                state.left(group);
-            }
-        })
+        .on_hover(move |inside| state.hovered(last.get_untracked().0, inside))
         // Not clipped: a shape that clips would not merge.
         .child(row)
 }
@@ -504,10 +480,11 @@ fn retracting<T>() -> impl Fn(Segment<T>) -> Transition + 'static {
     )
 }
 
-fn with_border(shape: Container, bordered: bool) -> Container {
-    if bordered {
-        island::border(shape)
-    } else {
-        shape
+/// A shape that comes out of a holder: with a border of its own where the
+/// holder merges into an outline that keeps the shapes' borders.
+fn rimmed(shape: Container, merge: Merge) -> Container {
+    match merge {
+        Merge::Borderless => island::border(shape),
+        Merge::Off | Merge::Outlined => shape,
     }
 }

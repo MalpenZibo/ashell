@@ -154,10 +154,6 @@ pub struct Placed {
 }
 
 impl Placed {
-    fn place(&self) -> Place {
-        self.list.1
-    }
-
     /// What its panels come out of: what hosts it if they merge with it,
     /// else the group itself.
     fn opens_from(&self) -> Host {
@@ -288,11 +284,19 @@ impl State {
         }
     }
 
-    pub fn entered(&self, group: NodeId) {
+    fn hovered(&self, group: NodeId, inside: bool) {
+        if inside {
+            self.entered(group);
+        } else {
+            self.left(group);
+        }
+    }
+
+    fn entered(&self, group: NodeId) {
         self.inside.set(Some(group));
     }
 
-    pub fn left(&self, group: NodeId) {
+    fn left(&self, group: NodeId) {
         if self.inside.get_untracked() == Some(group) {
             self.inside.set(None);
         }
@@ -357,12 +361,13 @@ struct Refs {
     zones: HashMap<(NodeId, usize), WidgetRef>,
 }
 
-/// The area of the surface that panels and details come out of.
+/// The area of the surface that panels and details come out of, as it is at
+/// rest.
 fn host_rect(host: Host, ctx: &Ctx) -> Rect {
     let rect = |widget: &WidgetRef| widget.layout_rect().get_untracked();
 
     match host {
-        Host::Shape(id) => rect(&ctx.refs.nodes[&id]),
+        Host::Shape(id) => at_rest(rect(&ctx.refs.nodes[&id]), ctx.position),
         Host::Background | Host::None => {
             let bar = rect(&ctx.refs.bar);
             let (y, _) = ctx.position.near_first(0.0, bar.height - ctx.reserved);
@@ -374,6 +379,18 @@ fn host_rect(host: Host, ctx: &Ctx) -> Rect {
                 height: ctx.reserved,
             }
         }
+    }
+}
+
+/// A shape as tall as at rest, against the bar's edge: the click that opens a
+/// panel closes the details it grows with.
+fn at_rest(shape: Rect, position: Position) -> Rect {
+    let (grown, _) = position.near_first(0.0, shape.height - group_height());
+
+    Rect {
+        y: shape.y + grown,
+        height: group_height(),
+        ..shape
     }
 }
 
@@ -503,8 +520,8 @@ fn hosting(
 /// `holder`: a small shape coming out of `host`, one for each list of nodes.
 fn hosting_details(
     holder: Container,
-    ctx: &Ctx,
     merge: Merge,
+    ctx: &Ctx,
     shows_here: impl Fn(NodeId, &Placed) -> bool + 'static,
     host: impl Fn() -> Rect + 'static,
 ) -> Container {
@@ -524,10 +541,7 @@ fn hosting_details(
     holder.children(keyed(
         move || list.get().into_iter().collect::<Vec<_>>(),
         |&list| list,
-        move |_| {
-            group::split_details(shown, host(), merge == Merge::Borderless, &place)
-                .out_of_flow(true)
-        },
+        move |_| group::split_details(shown, host(), merge, &place).out_of_flow(true),
     ))
 }
 
@@ -541,25 +555,24 @@ fn hosts(holder: Container, host: Host, merge: Merge, ctx: &Ctx) -> Container {
         ctx,
         move |opened| groups[&opened.group].opens_from() == host,
         move |opened| {
-            let bordered = merge == Merge::Borderless;
-
-            group::split_off(opened, host, bordered, &place).align_self(place.position.alignment())
+            group::split_off(opened, host, merge, &place).align_self(place.position.alignment())
         },
     );
 
     let place = ctx.clone();
     hosting_details(
         holder,
-        ctx,
         merge,
+        ctx,
         move |_, placed| placed.group.host == host,
         move || host_rect(host, &place),
     )
 }
 
 /// How the shapes in a holder merge: not at all; into one outline with a
-/// border all round it; or into one outline that keeps only the borders of
-/// the shapes that have one, fading them out along the necks.
+/// border all round it and the shadow, which the shapes then cast none of;
+/// or into one outline that keeps only the borders of the shapes that have
+/// one, fading them out along the necks.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Merge {
     Off,
@@ -577,7 +590,7 @@ fn merged<M>(holder: Container, merge: Merge, reach: impl IntoSignal<f32, M>) ->
     let holder = holder.merge_children(reach);
 
     if merge == Merge::Outlined {
-        island::border(holder)
+        island::edge(holder)
     } else {
         holder
     }
@@ -593,13 +606,13 @@ fn background(ctx: &Ctx) -> Container {
 
     // No border of its own: the panels and details that come out of it have
     // theirs, which fade out along the necks.
-    let fill = island::paint(container())
+    let paint = island::paint(container())
         .width(fill())
         .height(ctx.reserved);
 
     let layer = container()
-        .width(guido::prelude::fill())
-        .height(guido::prelude::fill())
+        .width(fill())
+        .height(fill())
         .layout(ZStack::new().align(ctx.position.at(Place::Start)));
 
     hosts(
@@ -608,7 +621,7 @@ fn background(ctx: &Ctx) -> Container {
         Merge::when(merges, Merge::Borderless),
         ctx,
     )
-    .child(fill)
+    .child(paint)
 }
 
 impl Place {
@@ -708,16 +721,7 @@ fn node_shape(content: Container, id: NodeId, wide: bool, ctx: &Ctx) -> Containe
     let holder = container().layout(ZStack::new().align(ctx.position.alignment()));
     let holder = if wide { holder.width(fill()) } else { holder };
 
-    hosts(holder, Host::Shape(id), Merge::Outlined, ctx)
-        .child(shape)
-        .shadow(merged_shadow())
-}
-
-/// The shadow of shapes that merge, cast by the merged outline: cast by one
-/// of them, it is left out only from under that one, and shows through the
-/// others where they are translucent.
-fn merged_shadow() -> Shadows {
-    island::shadow(Color::TRANSPARENT)
+    hosts(holder, Host::Shape(id), Merge::Outlined, ctx).child(shape)
 }
 
 fn keyboard_follows(surface: SurfaceHandle, open: Memo<bool>) {
@@ -736,8 +740,34 @@ mod tests {
     use styletto::provide_ui;
     use styletto::ui::{Density, Ui};
 
-    use super::Neck;
-    use crate::config::Panels;
+    use guido::prelude::Rect;
+
+    use super::{Neck, at_rest, group_height};
+    use crate::config::{Panels, Position};
+
+    #[test]
+    fn a_shape_at_rest_keeps_the_end_against_the_bar() {
+        let ((), scope) = with_owner(|| {
+            provide_ui(Ui::default());
+            let grown = Rect {
+                x: 5.0,
+                y: 10.0,
+                width: 200.0,
+                height: group_height() + 40.0,
+            };
+
+            let top = at_rest(grown, Position::Top);
+            assert_eq!(
+                (top.x, top.y, top.width, top.height),
+                (5.0, 10.0, 200.0, group_height())
+            );
+
+            let bottom = at_rest(grown, Position::Bottom);
+            assert_eq!(bottom.y, 50.0);
+            assert_eq!(bottom.height, group_height());
+        });
+        dispose_owner(scope);
+    }
 
     #[test]
     fn attached_panels_and_details_keep_a_neck_and_detached_ones_lose_it() {

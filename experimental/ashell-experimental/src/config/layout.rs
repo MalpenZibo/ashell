@@ -7,8 +7,8 @@ use toml::{Table, Value};
 
 use super::catalogue::{ItemId, Open, builtin_zone};
 use super::{
-    Background, Bar, Config, Holds, Host, Item, Monitor, Node, Padding, Panels, Parsed, Position,
-    Spec, Zone,
+    Background, Bar, Config, Holds, Host, Item, Monitor, Node, Padding, Panels, Parsed, Place,
+    Position, Spec, Zone,
 };
 
 /// The zones of the one group in each place, when a bar places nothing.
@@ -51,8 +51,6 @@ pub fn read(file: &Table) -> Parsed {
         problems: reader.problems,
     }
 }
-
-const PLACES: [&str; 3] = ["start", "center", "end"];
 
 const BAR_KEYS: &[&str] = &[
     "position",
@@ -165,10 +163,9 @@ impl Reader {
                 Background::Transparent => Host::None,
             },
         };
-        let shape_requested = self.get(at, table, "shape");
         let id = self.id();
-        let (shape, inherited) = self.inherit(at, id, table, inherited, shape_requested, false);
-        let places = if PLACES.iter().any(|place| table.contains_key(*place)) {
+        let (shape, inherited) = self.inherit(at, id, table, inherited, false);
+        let places = if writes_places(table) {
             self.places(at, table, inherited)
         } else {
             DEFAULT_GROUPS.map(|zones| self.default_group(at, zones, inherited))
@@ -259,8 +256,8 @@ impl Reader {
     }
 
     fn places(&mut self, at: &str, table: &Table, inherited: Inherited) -> [Vec<Node>; 3] {
-        PLACES.map(|place| match table.get(place) {
-            Some(value) => self.nodes(&format!("{at}.{place}"), value, inherited),
+        Place::ALL.map(|place| match table.get(place.name()) {
+            Some(value) => self.nodes(&format!("{at}.{}", place.name()), value, inherited),
             None => Vec::new(),
         })
     }
@@ -290,10 +287,7 @@ impl Reader {
             Value::Table(table) => {
                 self.known_keys(at, table, NODE_KEYS);
 
-                // `None` if the node doesn't write `shape`.
-                let shape_requested = self.get(at, table, "shape");
-
-                let places = PLACES.iter().any(|place| table.contains_key(*place));
+                let places = writes_places(table);
                 let mut holds = [
                     ("zones", table.contains_key("zones")),
                     ("nodes", table.contains_key("nodes")),
@@ -313,8 +307,7 @@ impl Reader {
                 }
 
                 let default_shape = kind == "zones" && inherited.shape;
-                let (shape, inherited) =
-                    self.inherit(at, id, table, inherited, shape_requested, default_shape);
+                let (shape, inherited) = self.inherit(at, id, table, inherited, default_shape);
 
                 match kind {
                     "zones" => {
@@ -349,8 +342,7 @@ impl Reader {
 
     /// A group written as its zones alone.
     fn plain_group(&mut self, at: &str, id: usize, zones: Vec<Zone>, inherited: Inherited) -> Node {
-        let (shape, inherited) =
-            self.inherit(at, id, &Table::new(), inherited, None, inherited.shape);
+        let (shape, inherited) = self.inherit(at, id, &Table::new(), inherited, inherited.shape);
 
         self.group(at, id, zones, shape, inherited)
     }
@@ -404,11 +396,6 @@ impl Reader {
 
         Node {
             panels,
-            host: if shape {
-                Host::Shape(id)
-            } else {
-                inherited.host
-            },
             ..Self::holding(id, Holds::Zones(zones), shape, inherited)
         }
     }
@@ -560,9 +547,10 @@ impl Reader {
         id: usize,
         table: &Table,
         inherited: Inherited,
-        shape_requested: Option<bool>,
         default_shape: bool,
     ) -> (bool, Inherited) {
+        // `None` if the node doesn't write `shape`.
+        let shape_requested: Option<bool> = self.get(at, table, "shape");
         let has_shape = shape_requested.unwrap_or(default_shape);
 
         let inherited = Inherited {
@@ -588,9 +576,9 @@ impl Reader {
             Value::Array(values) => values
                 .iter()
                 .enumerate()
-                .map(|(index, value)| self.choice(&format!("{at}[{index}]"), Some(value), space))
+                .map(|(index, value)| self.space(&format!("{at}[{index}]"), value))
                 .collect::<Option<_>>()?,
-            value => vec![self.choice(at, Some(value), space)?],
+            value => vec![self.space(at, value)?],
         };
 
         let [top, right, bottom, left] = match steps[..] {
@@ -622,19 +610,14 @@ impl Reader {
             .ok()
     }
 
-    fn choice<T>(
-        &mut self,
-        at: &str,
-        value: Option<&Value>,
-        parse: impl Fn(&str) -> Option<T>,
-    ) -> Option<T> {
-        let name = self.string(at, value?)?;
-        let parsed = parse(name);
-        if parsed.is_none() {
+    fn space(&mut self, at: &str, value: &Value) -> Option<Space> {
+        let name = self.string(at, value)?;
+        let step = space(name);
+        if step.is_none() {
             self.warn(at, format!("\"{name}\" is not one of the values it takes"));
         }
 
-        parsed
+        step
     }
 
     fn known_keys(&mut self, at: &str, table: &Table, known: &[&str]) {
@@ -680,6 +663,12 @@ impl Reader {
     fn warn(&mut self, at: &str, problem: impl std::fmt::Display) {
         self.problems.push(format!("{at}: {problem}"));
     }
+}
+
+fn writes_places(table: &Table) -> bool {
+    Place::ALL
+        .iter()
+        .any(|place| table.contains_key(place.name()))
 }
 
 fn space(name: &str) -> Option<Space> {

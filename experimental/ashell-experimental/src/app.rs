@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use guido::prelude::*;
 use styletto::provide_ui;
+use styletto::ui::Ui;
 
 use crate::bar;
 use crate::config::{self, Config};
@@ -11,15 +12,17 @@ use crate::config::{self, Config};
 pub fn run() {
     App::new().run(|_| {
         let config = config::watched();
+        // A wallpaper is read again only when the appearance changes.
+        let appearance = create_memo(move || config.with(|config| config.appearance.clone()));
+        let ui = create_memo(move || appearance.with(|appearance| appearance.ui(None)));
 
         // On every change of the configuration the bars made are closed and
         // made again from it.
-        create_effect(move || bars(config.get()));
+        create_effect(move || bars(config.get(), ui.get()));
     });
 }
 
-fn bars(config: Config) {
-    let ui = config.appearance.ui(None);
+fn bars(config: Config, ui: Ui) {
     // `bar::surface` sizes the reserved space in the configured density.
     provide_ui(ui);
 

@@ -5,7 +5,7 @@ use guido::prelude::*;
 use guido::testing::Headless;
 use styletto::provide_ui;
 
-use super::{NodeId, Opened, Placed, State, placed, view_with};
+use super::{NodeId, Opened, State, placed, view_with};
 use crate::config::{self, Bar, Panel};
 
 const WIDTH: u32 = 1440;
@@ -29,7 +29,10 @@ struct Scene {
 
 impl Scene {
     fn new(text: &str) -> Option<Self> {
-        let mut app = Headless::new()?;
+        let Some(mut app) = Headless::new() else {
+            eprintln!("no GPU adapter; nothing drawn");
+            return None;
+        };
         let output = app.connect_output("eDP-1");
 
         let mut config = config::parse(text).expect("valid TOML").config;
@@ -38,6 +41,7 @@ impl Scene {
         let state = State::new();
 
         let drawn = bar.clone();
+        // The whole surface drawn, not only where the bar shows.
         let surface = app.surface(
             SurfaceConfig::new()
                 .width(0)
@@ -179,25 +183,18 @@ end    = [["window"], ["tray", "updates", "keyboard"], ["workspaces", "clock"], 
 "#;
 
 /// The group that has `zone`, and where it is in it.
-fn group_with(bar: &Bar, zone: &str) -> (NodeId, usize, Placed) {
+fn zone_of(bar: &Bar, zone: &str) -> (NodeId, usize) {
     placed(bar)
         .into_iter()
         .find_map(|(id, placed)| {
             let index = placed.group.zones().iter().position(|z| z.name == zone)?;
-            Some((id, index, placed))
+            Some((id, index))
         })
         .expect("a group has the zone")
 }
 
-fn zone_of(bar: &Bar, zone: &str) -> (NodeId, usize) {
-    let (id, index, _) = group_with(bar, zone);
-
-    (id, index)
-}
-
 fn open_and_close(name: &str, config: &str, zone: &str, panel: Panel) {
     let Some(mut bar) = Scene::new(config) else {
-        eprintln!("no GPU adapter; nothing drawn");
         return;
     };
 
@@ -215,7 +212,6 @@ fn open_and_close(name: &str, config: &str, zone: &str, panel: Panel) {
 
 fn details(name: &str, config: &str, zone: &str) {
     let Some(mut bar) = Scene::new(config) else {
-        eprintln!("no GPU adapter; nothing drawn");
         return;
     };
 
@@ -230,7 +226,6 @@ fn details(name: &str, config: &str, zone: &str) {
 /// comes out, and the panel ends against the island as it is at rest.
 fn details_then_panel(name: &str, config: &str, zone: &str, panel: Panel) {
     let Some(mut bar) = Scene::new(config) else {
-        eprintln!("no GPU adapter; nothing drawn");
         return;
     };
 
@@ -244,7 +239,6 @@ fn details_then_panel(name: &str, config: &str, zone: &str, panel: Panel) {
 
 fn details_moving(name: &str, config: &str, from: &str, to: &str) {
     let Some(mut bar) = Scene::new(config) else {
-        eprintln!("no GPU adapter; nothing drawn");
         return;
     };
 
