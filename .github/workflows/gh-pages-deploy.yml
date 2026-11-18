@@ -61,8 +61,10 @@ jobs:
         run: curl -sSfL https://github.com/getzola/zola/releases/download/v0.23.6/zola-v0.23.6-x86_64-unknown-linux-gnu.tar.gz | sudo tar -xz -C /usr/local/bin
         working-directory: .
 
+      # Absolute: Zola looks for what it compiled (style.css, for
+      # get_url's cachebust) under --root joined with --output-dir.
       - name: Build experimental site into website build
-        run: zola --root experimental/website build --output-dir website/build/experimental
+        run: zola --root experimental/website build --output-dir "$GITHUB_WORKSPACE/website/build/experimental"
         working-directory: .
 
       - name: Upload artifact
