@@ -27,14 +27,21 @@ impl Layout for PlacesLayout {
             return Size::zero();
         };
         let max_height = constraints.max_height;
+        let room = |width: f32| Constraints::loose(Size::new(width.max(0.0), max_height));
         let lay_out = |ctx: &mut LayoutCtx, child, width: f32| {
-            let room = Constraints::loose(Size::new(width.max(0.0), max_height));
-            ctx.layout_child(child, room).unwrap_or_default()
+            ctx.layout_child(child, room(width)).unwrap_or_default()
+        };
+        // Read, not placed: the layout that places the end keeps its own
+        // answer, so a settled end is laid out by neither.
+        let content = |ctx: &mut LayoutCtx, child| {
+            ctx.measure_child(child, room(f32::INFINITY))
+                .unwrap_or_default()
+                .width
         };
 
         // The ends' content, which a filling end is with no room to fill.
-        let start_width = lay_out(ctx, start, f32::INFINITY).width;
-        let end_width = lay_out(ctx, end, f32::INFINITY).width;
+        let start_width = content(ctx, start);
+        let end_width = content(ctx, end);
 
         let width = constraints.max_width;
         let (x, center_size) = if width.is_finite() {
