@@ -237,7 +237,7 @@ file with none has one, `main`, with the defaults.
 | `shape` | `true`, `false` | unset | `true`: an island as long as the bar, the root's; `false`: no island anywhere, unless a node inside says so; unset: an island round each group (see [Islands and background](#islands-and-background)) |
 | `background` | `transparent`, `solid` | `transparent` | the surface's own background, in the island's colour and material: flat, edge to edge, with no corners and no border. The panels and details of the groups with no island round them come out of it |
 | `padding` | styletto space steps, `s0`…`s10`: one for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`, as CSS writes them | `s2` | between the screen's edges and the outermost shapes, and on the side away from the edge between them and the background's. `s0` puts them against the edges. The background always runs from edge to edge; there is no margin outside it |
-| `gap` | a styletto space step, `s0`…`s10` | `s2` | how far the panels and details stand off what they come out of. Below `s4` a neck joins them; from `s4` it breaks as they arrive (see [Panels](#panels-panels)) |
+| `gap` | a styletto space step, `s0`…`s10` | `s2` | how far the panels and details stand off what they come out of, a dropdown's included. For those that merge, below `s4` a neck joins them; from `s4` it breaks as they arrive (see [Panels](#panels-panels)) |
 | `hover`, `panels` | as on a node | | the defaults for every node |
 
 ### `[monitor."<monitor>"]`
@@ -398,7 +398,10 @@ each other as far as one distance, so one bar has one way of coming out.
   else the background. It comes out of that
   island's edge facing the screen (under it for a top bar), starting as a
   sliver as wide as the group and growing to its own size, joined to the
-  island while it grows; on close it goes the same way back. The border runs
+  island while it grows; on close it goes the same way back. It hangs from
+  that edge as long as it is out, and follows it as the island changes size:
+  opened from a zone whose details were out, it comes out of the island as
+  the details go back. The border runs
   round the island and the panel as one outline. The background has no
   border: out of it only the panel has one, fading out along the neck. A
   border comes only with a shape.
@@ -454,10 +457,11 @@ second row of items. Where it shows depends on the shape round the group:
   holds the group, the nearest node's island round it, the background, or
   the group's place when there is none, as a `merge` panel does, and goes back
   the same way. The island round the group keeps its height, and nothing is
-  drawn without a shape under it.
+  drawn without a shape under it. With nothing round the group it is an
+  island alone, with the island's border and shadow, as a dropdown has.
 
 The split-off row is drawn as a group's island would be: as tall as a group,
-with pill corners. It comes out of what holds it and goes back into it as an
+with pill corners. It comes out of what holds it and goes back into it as a
 `merge` panel does, from and to a sliver under the zone, so nothing is left
 to snap away when it is gone; its row fades in once it is out, without
 squeezing while the island grows, and fades out first. There is one per
@@ -473,6 +477,12 @@ with a `gap` that breaks the neck it stands as far off as a panel, apart too.
 
 The pointer on the split-off row counts as on the group: the row stays while
 the pointer goes from the zone to it.
+
+The row comes once the pointer stays on a zone a moment, and goes a moment
+after it has left the group. Between zones of the group it changes sooner.
+On a zone with no details the row shown goes, whether it is that group's or
+another's, and the pointer reaching a zone straight from another group
+brings that zone's row without waiting for one more move.
 
 ### Interactions
 

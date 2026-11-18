@@ -24,7 +24,8 @@ empty or missing file is a complete bar, so write only what differs.
 The file's folder is watched: when the file is written, or saved over by
 renaming, the bars are made again with the new configuration. A save that
 changes nothing does nothing. Deleting the file, or moving it away, gives
-the default bar back. A symlinked file is followed to where it points.
+the default bar back. A symlinked file is followed to where it points, and
+to the new file when the link is pointed elsewhere.
 {% </note> %}
 
 A file that does not parse is logged and ignored, and the bars keep the last

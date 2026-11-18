@@ -22,8 +22,10 @@ and close is what is in place.
 
 ### Joined or apart: `gap`
 
-The bar's `gap` (a space step, `s2` by default) is how far a `merge` panel
-and split-off details stand off what they come out of:
+The bar's `gap` (a space step, `s2` by default) is how far panels and
+split-off details stand off what they come out of, a dropdown's from the
+edge included. For a `merge` panel and the details it also says whether
+they stay joined:
 
 - below `s4` they stay joined to it by a neck;
 - from `s4` they come out joined, the neck breaks as they arrive, and they
@@ -51,7 +53,8 @@ group's neighbours do not move.
 group's, or else that of the nearest node round it that has one, or else the
 background. The border runs round the island and the panel as one outline;
 the background has none, so out of it only the panel has a border, fading
-out along the neck.
+out along the neck. While it is out the panel hangs from the island's edge
+and follows it as the island changes size.
 Closing, the panel's content fades first, then its shape sinks back.
 
 `morph` grows the group itself: in `center` it grows on both sides, in `start`
@@ -83,11 +86,16 @@ Where it shows depends on the shape round the group:
 - **It has none**: the row is a small island of its own that splits off what
   holds the group, the nearest island round it or the background, as a
   `merge` panel does, and goes back the same way. With nothing round the
-  group it is an island of its own under the zone.
+  group it is an island of its own under the zone, with the island's border
+  and shadow.
 
 Going from one zone to another of the same list, the split-off row stays out,
 slides under the new zone and changes its row. The pointer on it counts as
 on the group, so the row stays while the pointer goes from the zone to it.
+
+The row comes once the pointer stays on a zone a moment, and goes a moment
+after the pointer has left the group. On a zone with no details the row
+shown goes.
 
 ```toml
 [bar.main]
