@@ -216,10 +216,10 @@ pub struct Opened {
 
 /// What the details are waiting to do.
 ///
-/// Each event replaces or drops only what is its own: the moves that keep
-/// coming on a zone with no details leave alone the close that the leave of
-/// another group asked for, and a leave only what was asked for where the
-/// pointer was.
+/// guido says a move's leaves, then its enters, then the move itself, so
+/// when a move arrives the pointer's group is known, and when a leave does
+/// what is waiting is still for where the pointer was. The moves that keep
+/// coming on a zone with no details leave alone a close already asked for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Plan {
     /// Show a zone's details, once the pointer has stayed on it.
@@ -261,8 +261,6 @@ impl State {
 
     /// On a zone with details. Its details come once the pointer stays on it.
     pub fn moved_on(&self, zone: (NodeId, usize)) {
-        self.entered(zone.0);
-
         let shown = self.details.get_untracked();
         if shown == Some(zone) {
             self.cancel();
@@ -279,8 +277,6 @@ impl State {
     /// On a zone of `group` with no details: those shown there go, and so do
     /// another group's.
     pub fn moved_off(&self, group: NodeId) {
-        self.entered(group);
-
         match self.details.get_untracked() {
             Some((shown, _)) if shown == group => self.plan_once(Plan::Hide(group), ZONE_SWITCH),
             Some(_) => self.plan_once(Plan::Close, DETAILS_CLOSE),
@@ -292,9 +288,9 @@ impl State {
         }
     }
 
-    /// Off `zone`: its details no longer come.
-    pub fn moved_out(&self, zone: (NodeId, usize)) {
-        if self.planned() == Some(Plan::Show(zone)) {
+    /// Off a zone: its details, if they are waiting, no longer come.
+    pub fn moved_out(&self) {
+        if matches!(self.planned(), Some(Plan::Show(_))) {
             self.cancel();
             self.settle();
         }
@@ -316,7 +312,7 @@ impl State {
         if self.inside.get_untracked() == Some(group) {
             self.inside.set(None);
         }
-        if matches!(self.planned(), Some(Plan::Show((g, _))) if g == group) {
+        if matches!(self.planned(), Some(Plan::Show(_))) {
             self.cancel();
         }
 

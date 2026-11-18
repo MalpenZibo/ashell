@@ -342,7 +342,7 @@ fn rest(group: &Node, state: State, refs: &Refs) -> Container {
                             })
                             .on_hover(move |inside| {
                                 if !inside {
-                                    state.moved_out((id, index));
+                                    state.moved_out();
                                 }
                             });
                     }

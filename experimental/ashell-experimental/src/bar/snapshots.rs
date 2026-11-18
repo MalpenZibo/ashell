@@ -312,7 +312,7 @@ fn snapshots() {
 }
 
 /// The details as a pointer moves, with the events in the order guido sends
-/// them: the moves as it walks the tree, then every leave, then every enter.
+/// them for one move: every leave, then every enter, then the move.
 mod details_follow_the_pointer {
     use std::time::Duration;
 
@@ -332,7 +332,7 @@ mod details_follow_the_pointer {
         let (clock, privacy) = (zone_of(&bar.bar, "clock"), zone_of(&bar.bar, "privacy"));
         showing(&mut bar, clock);
 
-        bar.state.moved_off(privacy.0);
+        bar.state.moved_out();
         bar.state.hovered(clock.0, false);
         bar.state.hovered(privacy.0, true);
         for _ in 0..30 {
@@ -351,10 +351,10 @@ mod details_follow_the_pointer {
         let (workspaces, window) = (zone_of(&bar.bar, "workspaces"), zone_of(&bar.bar, "window"));
         bar.state.hovered(workspaces.0, true);
 
-        bar.state.moved_on(window);
-        bar.state.moved_out(workspaces);
+        bar.state.moved_out();
         bar.state.hovered(workspaces.0, false);
         bar.state.hovered(window.0, true);
+        bar.state.moved_on(window);
         bar.run(Duration::from_millis(400));
 
         assert_eq!(bar.state.details.get_untracked(), Some(window));
@@ -368,8 +368,8 @@ mod details_follow_the_pointer {
         let (window, clock) = (zone_of(&bar.bar, "window"), zone_of(&bar.bar, "clock"));
         showing(&mut bar, window);
 
+        bar.state.moved_out();
         bar.state.moved_on(clock);
-        bar.state.moved_out(window);
         bar.run(Duration::from_millis(200));
 
         assert_eq!(bar.state.details.get_untracked(), Some(clock));
@@ -383,7 +383,7 @@ mod details_follow_the_pointer {
         let clock = zone_of(&bar.bar, "clock");
         showing(&mut bar, clock);
 
-        bar.state.moved_out(clock);
+        bar.state.moved_out();
         bar.state.hovered(clock.0, false);
         bar.run(Duration::from_millis(200));
         bar.state.hovered(clock.0, true);
