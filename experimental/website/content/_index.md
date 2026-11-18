@@ -14,8 +14,8 @@ title = "Islands, or none"
 text = "An island around each group, around a whole section, along the whole bar, or nowhere."
 
 [[extra.features]]
-title = "Four ways to open a panel"
-text = "A panel can drop down, split off the island, or stand apart from it, or the island itself can turn into the panel."
+title = "Three ways to open a panel"
+text = "A panel can drop down, or split off the island, joined by a neck or standing apart, or the island itself can turn into the panel."
 
 [[extra.features]]
 title = "Details on hover"

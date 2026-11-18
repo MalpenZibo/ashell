@@ -233,11 +233,11 @@ file with none has one, `main`, with the defaults.
 | Key | Values | Default | Meaning |
 | --- | --- | --- | --- |
 | `position` | `top`, `bottom` (later `left`, `right`) | `top` | the edge |
-| `start`, `center`, `end` | nodes | `[]` | the root node's places |
+| `start`, `center`, `end` | nodes | the default layout | the root node's places. With none of the three written, the default layout: `start = ["workspaces"]`, `center = ["window"]`, `end = [["clock", "privacy", "status"]]`. Writing any one replaces it, and the places not written are empty |
 | `shape` | `true`, `false` | unset | `true`: an island as long as the bar, the root's; `false`: no island anywhere, unless a node inside says so; unset: an island round each group (see [Islands and background](#islands-and-background)) |
 | `background` | `transparent`, `solid` | `transparent` | the surface's own background, in the island's colour and material: flat, edge to edge, with no corners and no border. The panels and details of the groups with no island round them come out of it |
 | `padding` | styletto space steps, `s0`…`s10`: one for every side, `[vertical, horizontal]`, or `[top, right, bottom, left]`, as CSS writes them | `s2` | between the screen's edges and the outermost shapes, and on the side away from the edge between them and the background's. `s0` puts them against the edges. The background always runs from edge to edge; there is no margin outside it |
-| `gap` | a styletto space step, `s0`…`s10` | `s2` | how far the panels and details stand off what they come out of, a dropdown's included. For those that merge, below `s4` a neck joins them; from `s4` it breaks as they arrive (see [Panels](#panels-panels)) |
+| `gap` | a styletto space step, `s0`…`s10` | `s2` | how far the panels and details stand off what they come out of, a dropdown's included. For those that merge, below `s4` a neck joins them, and details then stand half of it off for a thicker one; from `s4` it breaks as they arrive (see [Panels](#panels-panels)) |
 | `hover`, `panels` | as on a node | | the defaults for every node |
 
 ### `[monitor."<monitor>"]`
@@ -258,8 +258,8 @@ description (`"Dell U2720Q"`), which stays the same through a dock. See
 | `nodes` | nodes | | a row: the nodes, in order |
 | `start`, `center`, `end` | nodes | | placed: the nodes at each place |
 | `shape` | `true`, `false` | see [Islands and background](#islands-and-background) | an island round this node or not; the default for the nodes inside |
-| `hover` | `true`, `false` | `false` | zones show their details on hover |
-| `panels` | `morph`, `merge`, `dropdown` | `dropdown` | how the groups inside open panels (see below) |
+| `hover` | `true`, `false` | the outer node's (`false` on the bar) | zones show their details on hover |
+| `panels` | `morph`, `merge`, `dropdown` | the outer node's (`dropdown` on the bar) | how the groups inside open panels (see below) |
 
 A node holds one of `zones`, `nodes` or the places; one with more than one is
 reported, and the first in that order is kept. `hover`, `panels` and
@@ -363,7 +363,7 @@ Satellites, groups that split off a node and merge back, are not decided yet
 | --- | --- | --- |
 | `morph` | the group itself turns into the panel and back | the prototype |
 | `merge` | the panel is a shape of its own that splits off the group, merged with it, and merges back on close. With the bar's `gap` below `s4` it stays joined by a neck; from `s4` the neck breaks as it arrives and it stands apart once out | ashell's menus, merging instead of appearing; apart, the prototype's satellite |
-| `dropdown` | the panel drops down from the group's edge, merging with nothing | ashell's menus |
+| `dropdown` | the panel drops down from the edge of the nearest island round the group, or else of the bar, merging with nothing | ashell's menus |
 
 Whether a merged panel stays joined is the bar's `gap`, one for the whole bar
 rather than a value per panel: the shapes that merge in one island reach for
@@ -433,12 +433,14 @@ when there is none, the file being told so:
 A panel stands `gap` past what it comes out of. Two shapes that far apart
 keep a neck while the gap is less than half of how far they reach for each
 other, and swell towards each other until the gap is as far as they reach.
-With a gap below `S4` they reach the merge distance, `S8` (32 px): the panel
+With a gap below `S4` they reach the merge distance, `S8` (32 px at the
+default density): the panel
 stays joined by a neck, thick for the default `s2`. From `S4` they reach a
 third more than the gap: the panel comes out joined, the neck breaks as it
 arrives, and once apart they hardly swell.
-The sliver it starts and ends as is kept a merge distance inside the group's
-ends, so letting it go on close leaves no bulge to snap away.
+The sliver it starts and ends as is kept as far inside the group's ends as
+the shapes reach for each other, so letting it go on close leaves no bulge to
+snap away.
 
 Panels are the existing ones (`settings`, `calendar`, `notifications`,
 `media`, `system`, `tray`, `updates`, `launcher`): this document decides only
@@ -455,7 +457,7 @@ second row of items. Where it shows depends on the shape round the group:
   The zones stay where they are.
 - **It has none**: the row is a small island of its own that splits off what
   holds the group, the nearest node's island round it, the background, or
-  the group's place when there is none, as a `merge` panel does, and goes back
+  the group's own row when there is none, as a `merge` panel does, and goes back
   the same way. The island round the group keeps its height, and nothing is
   drawn without a shape under it. With nothing round the group it is an
   island alone, with the island's border and shadow, as a dropdown has.
@@ -570,7 +572,8 @@ Each bar is one layer-shell surface per output, transparent, as big as the
 compositor gives, for good: a panel needs room up to the far edge, and a size
 asked for anew may be more than the compositor gives, which cuts the bar off
 for a frame. Its buffer goes only where something is drawn, and it takes
-input only on its shapes. While a panel is open the whole surface takes
+input only on its groups and on the panels and details that come out of
+them. While a panel is open the whole surface takes
 input, so a click anywhere outside closes the panel, and it takes the
 keyboard, so <kbd>Esc</kbd> closes it too. The reserved space is the bar's
 padding and a group, and never changes.

@@ -27,7 +27,8 @@ split-off details stand off what they come out of, a dropdown's from the
 edge included. For a `merge` panel and the details it also says whether
 they stay joined:
 
-- below `s4` they stay joined to it by a neck;
+- below `s4` they stay joined to it by a neck, and the details stand half
+  the gap off, for a thicker one;
 - from `s4` they come out joined, the neck breaks as they arrive, and they
   stand apart once out.
 

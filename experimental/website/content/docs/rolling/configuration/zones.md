@@ -39,7 +39,8 @@ name is a zone built from scratch.
 [zone.clock]
 details = ["forecast"]          # the clock, with only the forecast on hover
 
-[zone.hot]                      # a zone of its own
+[zone.hot]                      # a zone of its own, placed by naming it
+                                # in a node, as end = [["hot", "status"]]
 items = [{ item = "system", show = "notable" }]
 open  = "system"
 ```

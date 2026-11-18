@@ -4,8 +4,11 @@ weight = 6
 +++
 
 `[appearance]` is [styletto](https://github.com/MalpenZibo/styletto)'s own
-table: the colours, fonts and feel of everything the bar draws. Its names
-match in any case; one that matches nothing is logged and left out.
+table: the colours, fonts and feel of everything the bar draws. Theme,
+flavour, accent and colour names match in any case, and one that matches
+nothing is logged and left out. The other values are written in lower case,
+as listed: one that is not among them is logged, and the whole
+`[appearance]` table falls back to its defaults.
 
 ```toml
 [appearance]

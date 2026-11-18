@@ -28,10 +28,12 @@ the default bar back. A symlinked file is followed to where it points, and
 to the new file when the link is pointed elsewhere.
 {% </note> %}
 
-A file that does not parse is logged and ignored, and the bars keep the last
-good configuration. Keys that are not
-known, and values that fall back to a default, are logged as warnings: run
-with `RUST_LOG=info` to see each reload.
+A file that does not parse is logged and ignored: the bars keep the last
+good configuration, or show the default bar at startup. Keys that are not
+known in the layout tables (`[bar.*]`, the nodes, `[zone.*]`,
+`[monitor.*]`), and values that fall back to a default, are logged as
+warnings; an item's other keys are kept as its options. Run with
+`RUST_LOG=info` to see each reload.
 
 ## Three levels
 
