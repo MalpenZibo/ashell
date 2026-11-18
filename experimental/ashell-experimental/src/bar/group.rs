@@ -7,8 +7,8 @@ use styletto::primitives::island::{self, island};
 use styletto::{centered_row, foundations::motion};
 
 use super::{
-    Ctx, GROUP, Host, Neck, NodeId, Opened, Outline, Placed, Refs, State, at_rest, group_height,
-    host_rect, hosting, hosting_details, merge_distance, placeholder, under_zone,
+    Ctx, GROUP, Host, NodeId, Opened, Outline, Placed, Refs, State, at_rest, group_height,
+    host_rect, hosting, hosting_details, placeholder, under_zone,
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
 
@@ -76,20 +76,21 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
         holder
     };
     let place = ctx.clone();
+    let outline = Outline::when(casts, Outline::Shared);
 
     let holder = hosting(
         holder,
-        Outline::when(casts, Outline::Shared),
+        outline,
         ctx,
         move |opened| opened.group == id && opens_here,
         move |opened| {
             if merge {
-                return split_off(opened, Host::Shape(id), Outline::Shared, &place);
+                return split_off(opened, Host::Shape(id), outline, &place);
             }
 
             let group = at_rest(shape_ref.layout_rect().get_untracked(), place.position);
             let x = under_zone(opened, group.x + group.width / 2.0, &place);
-            let (side, gap) = (place.position.side(), Neck::panel(place.gap).gap);
+            let (side, gap) = (place.position.side(), place.neck.panel);
 
             // From the edge of what hosts it, past the group's own if that
             // reaches further.
@@ -127,11 +128,11 @@ pub(super) fn split_off(opened: Opened, host: Host, outline: Outline, ctx: &Ctx)
     let x = under_zone(opened, middle, ctx);
     let side = ctx.position.side();
     let group = ctx.refs.nodes[&opened.group].layout_rect().get_untracked();
-    let gap = Neck::panel(ctx.gap).gap;
+    let gap = ctx.neck.panel;
 
-    // Out of the middle of the host at rest: the click that opens the panel
-    // closes the details it may have grown with.
-    let (left, width) = span(group.x, group.width);
+    // Half the host at rest back from the edge it hangs from: its middle once
+    // the details it may have grown with are back.
+    let (left, width) = span(group.x, group.width, ctx.neck.reach);
     let from = Translate::new(left + width / 2.0 - middle, -side * (rect.height / 2.0));
     let to = Translate::new(x, side * gap);
 
@@ -189,11 +190,16 @@ pub(super) fn split_details(
             }
         }
     };
-    let away = side * Neck::details(ctx.gap).gap;
+    // Alone, with no neck to make thick, as far off as a panel.
+    let gap = match outline {
+        Outline::Own => ctx.neck.panel,
+        Outline::Shared | Outline::Members => ctx.neck.details,
+    };
+    let (away, reach) = (side * gap, ctx.neck.reach);
     let inside = -side * (host.height / 2.0);
     let sliver = move |zone| {
         let under = zone_rect(zone);
-        Length::exact(span(under.x, under.width).1)
+        Length::exact(span(under.x, under.width, reach).1)
     };
     let toward = Translate::new(0.0, -side * size::S1.px());
     let start = Translate::new(x(first), inside);
@@ -285,11 +291,10 @@ fn shape(group: &Rc<Node>, shown: Memo<Shown>, ctx: &Ctx) -> Container {
         .width(natural().transition(motion::spring()))
         .layout(ZStack::new().align(position.alignment()))
     } else {
-        // Its zone for the compositor only: drawn here, the blur would show
-        // as a box on what holds the group.
+        // Nothing behind the zones, not even a blur: what holds the group
+        // draws it, and with nothing round the group there is none.
         container()
             .width(natural())
-            .backdrop_blur(BackdropBlur::new(0.0).sources(BackdropSources::COMPOSITOR))
             .child(move || content(shown.get()))
     }
 }
@@ -407,10 +412,10 @@ fn swapped_in(content: Container) -> Container {
 }
 
 /// The sliver a shape comes out as and goes back as: its ends as far in as
-/// the merge reaches, since nearer an end the merge still swells the shape
+/// the merge `reach`es, since nearer an end the merge still swells the shape
 /// there when the panel is let go.
-fn span(left: f32, width: f32) -> (f32, f32) {
-    let inset = merge_distance().min(width / 2.0);
+fn span(left: f32, width: f32, reach: f32) -> (f32, f32) {
+    let inset = reach.min(width / 2.0);
 
     (left + inset, width - 2.0 * inset)
 }
@@ -452,7 +457,7 @@ fn panel_shape(panel: Panel, to: Translate, from: Translate, width: f32) -> Cont
 }
 
 fn dropdown(panel: Panel, to: Translate, rim: Translate) -> Container {
-    rimmed(island::paint(container()), Outline::Own)
+    island::edge(island::paint(container()))
         .width(natural().at_most(placeholder::panel_width()))
         .height(
             at_least(0.0)

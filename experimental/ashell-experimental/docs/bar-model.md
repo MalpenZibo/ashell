@@ -474,6 +474,8 @@ whatever its width; in `center` it is centred on the zone. The place is the
 one the group is in, the nearest round it. It stands half the bar's `gap`
 off while that keeps a neck, for a thick one, whatever the group's panels;
 with a `gap` that breaks the neck it stands as far off as a panel, apart too.
+Alone, with nothing round the group to merge with, it stands as far off as a
+panel as well.
 
 The pointer on the split-off row counts as on the group: the row stays while
 the pointer goes from the zone to it.

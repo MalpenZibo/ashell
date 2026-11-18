@@ -60,13 +60,20 @@ const BAR_KEYS: &[&str] = &[
     "gap",
     "hover",
     "panels",
-    "start",
-    "center",
-    "end",
+    Place::Start.name(),
+    Place::Center.name(),
+    Place::End.name(),
 ];
 
 const NODE_KEYS: &[&str] = &[
-    "zones", "nodes", "start", "center", "end", "shape", "hover", "panels",
+    "zones",
+    "nodes",
+    "shape",
+    "hover",
+    "panels",
+    Place::Start.name(),
+    Place::Center.name(),
+    Place::End.name(),
 ];
 
 fn one_per_edge(
@@ -618,7 +625,7 @@ impl Reader {
 
     fn space(&mut self, at: &str, value: &Value) -> Option<Space> {
         let name = self.string(at, value)?;
-        let step = space(name);
+        let step = step(name);
         if step.is_none() {
             self.warn(at, format!("\"{name}\" is not one of the values it takes"));
         }
@@ -677,7 +684,7 @@ fn writes_places(table: &Table) -> bool {
         .any(|place| table.contains_key(place.name()))
 }
 
-fn space(name: &str) -> Option<Space> {
+fn step(name: &str) -> Option<Space> {
     Some(match name {
         "s0" => size::S0,
         "s0_5" => size::S0_5,

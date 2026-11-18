@@ -34,51 +34,43 @@ fn merge_distance() -> f32 {
     size::S8.px()
 }
 
-/// How far a shape stands off what it comes out of, and how far the two
-/// reach for each other. Between two edges `gap` apart guido's smooth minimum
-/// keeps a neck only while `gap < reach / 2`, as thick as `reach / 4 - gap / 2`,
-/// and swells them towards each other until `gap` is `reach`.
+/// How far what comes out of a bar's shapes stands off them, and how far the
+/// shapes reach for each other, from the bar's `gap`. Between two edges `gap`
+/// apart guido's smooth minimum keeps a neck only while `gap < reach / 2`, as
+/// thick as `reach / 4 - gap / 2`, and swells them towards each other until
+/// `gap` is `reach`.
 #[derive(Clone, Copy, Debug)]
 struct Neck {
-    gap: f32,
+    /// A panel's gap, a dropdown's too.
+    panel: f32,
+    /// The details' where they merge: while joined, half a panel's, for a
+    /// thicker neck; once apart, a panel's. Alone they take a panel's.
+    details: f32,
+    /// The merge distance while the gap keeps a neck with it; past that, just
+    /// more than the gap, so a shape comes out joined, its neck breaks as it
+    /// arrives, and it swells little once apart.
     reach: f32,
 }
 
 impl Neck {
-    /// A panel, the bar's `gap` off what it comes out of.
-    fn panel(gap: Space) -> Self {
+    fn of(gap: Space) -> Self {
+        let panel = gap.px();
+        let joined = panel < merge_distance() / 2.0;
+
         Self {
-            gap: gap.px(),
-            reach: reach(gap),
+            panel,
+            details: if joined { panel / 2.0 } else { panel },
+            reach: if joined {
+                merge_distance()
+            } else {
+                panel * 4.0 / 3.0
+            },
         }
     }
 
-    /// The details: while joined, half as far off as a panel, for a thicker
-    /// neck; once apart, as far.
-    fn details(gap: Space) -> Self {
-        let Self { gap, reach } = Self::panel(gap);
-        let gap = if gap < reach / 2.0 { gap / 2.0 } else { gap };
-
-        Self { gap, reach }
-    }
-
     #[cfg(test)]
-    fn joined(self) -> bool {
-        self.gap < self.reach / 2.0
-    }
-}
-
-/// How far the shapes of a bar reach for each other: the merge distance while
-/// `gap` keeps a neck with it; past that, just more than `gap`, so a shape
-/// comes out joined, its neck breaks as it arrives, and it swells little once
-/// apart.
-fn reach(gap: Space) -> f32 {
-    let gap = gap.px();
-
-    if gap < merge_distance() / 2.0 {
-        merge_distance()
-    } else {
-        gap * 4.0 / 3.0
+    fn joined(self, gap: f32) -> bool {
+        gap < self.reach / 2.0
     }
 }
 
@@ -224,9 +216,10 @@ pub struct Opened {
 
 /// What the details are waiting to do.
 ///
-/// guido calls `on_pointer_move` as it walks the tree and `on_hover` once the
-/// walk is done, so the move onto a zone comes before the leave of what the
-/// pointer came from: each event replaces or drops only what is its own.
+/// Each event replaces or drops only what is its own: the moves that keep
+/// coming on a zone with no details leave alone the close that the leave of
+/// another group asked for, and a leave only what was asked for where the
+/// pointer was.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Plan {
     /// Show a zone's details, once the pointer has stayed on it.
@@ -289,16 +282,8 @@ impl State {
         self.entered(group);
 
         match self.details.get_untracked() {
-            Some((shown, _)) if shown == group => {
-                if self.planned() != Some(Plan::Hide(group)) {
-                    self.plan(Plan::Hide(group), ZONE_SWITCH);
-                }
-            }
-            Some(_) => {
-                if self.planned() != Some(Plan::Close) {
-                    self.plan(Plan::Close, DETAILS_CLOSE);
-                }
-            }
+            Some((shown, _)) if shown == group => self.plan_once(Plan::Hide(group), ZONE_SWITCH),
+            Some(_) => self.plan_once(Plan::Close, DETAILS_CLOSE),
             None => {
                 if matches!(self.planned(), Some(Plan::Show(_))) {
                     self.cancel();
@@ -341,24 +326,26 @@ impl State {
     /// With nothing planned, the details shown close unless the pointer is
     /// in their group.
     fn settle(&self) {
-        let away = self
-            .details
-            .get_untracked()
-            .is_some_and(|(group, _)| self.inside.get_untracked() != Some(group));
-
-        if away && self.planned().is_none() {
+        if self.away() && self.planned().is_none() {
             self.plan(Plan::Close, DETAILS_CLOSE);
         }
     }
 
-    fn shows(&self, group: NodeId) -> bool {
+    /// Whether details are shown and the pointer is not in their group.
+    fn away(&self) -> bool {
         self.details
             .get_untracked()
-            .is_some_and(|(g, _)| g == group)
+            .is_some_and(|(group, _)| self.inside.get_untracked() != Some(group))
     }
 
     fn planned(&self) -> Option<Plan> {
         self.pending.get_untracked().map(|(_, plan)| plan)
+    }
+
+    fn plan_once(&self, plan: Plan, wait: Duration) {
+        if self.planned() != Some(plan) {
+            self.plan(plan, wait);
+        }
     }
 
     fn plan(&self, plan: Plan, wait: Duration) {
@@ -387,14 +374,16 @@ impl State {
                 }
             }
             Plan::Hide(group) => {
-                if self.shows(group) {
+                if self
+                    .details
+                    .get_untracked()
+                    .is_some_and(|(g, _)| g == group)
+                {
                     self.details.set(None);
                 }
             }
             Plan::Close => {
-                if let Some((group, _)) = self.details.get_untracked()
-                    && self.inside.get_untracked() != Some(group)
-                {
+                if self.away() {
                     self.details.set(None);
                 }
             }
@@ -409,7 +398,7 @@ struct Ctx {
     groups: Rc<HashMap<NodeId, Placed>>,
     position: Position,
     padding: Padding,
-    gap: Space,
+    neck: Neck,
     reserved: f32,
 }
 
@@ -518,7 +507,7 @@ fn view_with(bar: &Bar, state: State) -> Container {
         groups: Rc::new(groups),
         position: bar.position,
         padding: bar.padding,
-        gap: bar.gap,
+        neck: Neck::of(bar.gap),
         reserved: reserved(bar) as f32,
     };
 
@@ -557,8 +546,8 @@ fn view_with(bar: &Bar, state: State) -> Container {
 /// Adds to `holder` the open panel, if `opens_here` says it comes out of
 /// `holder`. It is added first, so the shape added after it covers it.
 ///
-/// Unless `outline` is `Own`, the shapes in `holder` merge into one, reaching as far as the
-/// bar's gap says (see `reach`).
+/// Unless `outline` is `Own`, the shapes in `holder` merge into one, reaching
+/// as far as the bar's gap says (see `Neck`).
 fn hosting(
     holder: Container,
     outline: Outline,
@@ -569,10 +558,11 @@ fn hosting(
     let state = ctx.state;
     let open = create_memo(move || state.opened.get().filter(|opened| opens_here(opened)));
 
-    let holder = if outline != Outline::Own {
-        merged(holder, outline, reach(ctx.gap))
-    } else {
-        holder
+    let reach = ctx.neck.reach;
+    let holder = match outline {
+        Outline::Own => holder,
+        Outline::Shared => island::edge(holder.merge_children(reach)),
+        Outline::Members => holder.merge_children(reach),
     };
 
     holder.children(keyed(
@@ -652,16 +642,6 @@ impl Outline {
     }
 }
 
-fn merged<M>(holder: Container, outline: Outline, reach: impl IntoSignal<f32, M>) -> Container {
-    let holder = holder.merge_children(reach);
-
-    if outline == Outline::Shared {
-        island::edge(holder)
-    } else {
-        holder
-    }
-}
-
 /// Draws the bar's solid background, from edge to edge. The panels and
 /// details of the groups with no shape come out of it.
 fn background(ctx: &Ctx) -> Container {
@@ -678,10 +658,11 @@ fn background(ctx: &Ctx) -> Container {
 
     // As tall as the strip, so what comes out of it hangs from its edge, and
     // with the surface's room for it.
+    let start = ctx.position.at(Place::Start);
     let layer = container()
         .width(fill())
-        .align_self(ctx.position.at(Place::Start))
-        .layout(ZStack::new().align(ctx.position.at(Place::Start)));
+        .align_self(start)
+        .layout(ZStack::new().align(start));
 
     hosts(
         layer,
@@ -804,13 +785,11 @@ fn keyboard_follows(surface: SurfaceHandle, open: Memo<bool>) {
 
 #[cfg(test)]
 mod tests {
+    use guido::prelude::Rect;
     use guido::reactive::__internal::{dispose_owner, with_owner};
+    use styletto::foundations::tokens::size;
     use styletto::provide_ui;
     use styletto::ui::{Density, Ui};
-
-    use guido::prelude::Rect;
-
-    use styletto::foundations::tokens::size;
 
     use super::{Neck, at_rest, group_height};
     use crate::config::Position;
@@ -846,12 +825,14 @@ mod tests {
                 provide_ui(Ui::default().with_density(density));
 
                 for gap in [size::S0, size::S0_5, size::S1, size::S2, size::S3] {
-                    assert!(Neck::panel(gap).joined(), "{gap:?} at {density:?}");
-                    assert!(Neck::details(gap).joined(), "{gap:?} at {density:?}");
+                    let neck = Neck::of(gap);
+                    assert!(neck.joined(neck.panel), "{gap:?} at {density:?}");
+                    assert!(neck.joined(neck.details), "{gap:?} at {density:?}");
                 }
                 for gap in [size::S4, size::S6, size::S8, size::S10] {
-                    assert!(!Neck::panel(gap).joined(), "{gap:?} at {density:?}");
-                    assert!(!Neck::details(gap).joined(), "{gap:?} at {density:?}");
+                    let neck = Neck::of(gap);
+                    assert!(!neck.joined(neck.panel), "{gap:?} at {density:?}");
+                    assert!(!neck.joined(neck.details), "{gap:?} at {density:?}");
                 }
             });
             dispose_owner(scope);

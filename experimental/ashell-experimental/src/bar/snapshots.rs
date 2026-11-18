@@ -116,9 +116,9 @@ end    = [["privacy", "status"]]
     )
 }
 
-/// `config` with its panels and details standing apart.
-fn apart(config: &str) -> String {
-    config.replace("[bar.main]", "[bar.main]\ngap = \"s4\"")
+/// `config` with `line` added to its bar.
+fn with(config: &str, line: &str) -> String {
+    config.replace("[bar.main]", &format!("[bar.main]\n{line}"))
 }
 
 const STRIP: &str = r#"
@@ -265,7 +265,10 @@ fn snapshots() {
     let calendar = |name, config: &str| open_and_close(name, config, "clock", Panel::Calendar);
     calendar("floating-center", &floating("merge", true));
     calendar("islands-center", ISLANDS);
-    calendar("floating-apart", &apart(&floating("merge", true)));
+    calendar(
+        "floating-apart",
+        &with(&floating("merge", true), "gap = \"s4\""),
+    );
     calendar("floating-unmerged", &floating("dropdown", true));
     calendar("strip", STRIP);
     calendar("floating-flush", &floating("merge", false));
@@ -280,7 +283,7 @@ fn snapshots() {
     status("details-strip", &floating("merge", true));
     status(
         "details-strip-bottom",
-        &floating("merge", true).replace("[bar.main]", "[bar.main]\nposition = \"bottom\""),
+        &with(&floating("merge", true), "position = \"bottom\""),
     );
     status("details-clusters", CLUSTERS);
     status("details-background", STRIP);
@@ -304,7 +307,7 @@ fn snapshots() {
         "clock",
     );
     status("details-bare", BARE);
-    status("details-apart", &apart(STRIP));
+    status("details-apart", &with(STRIP, "gap = \"s4\""));
     details_moving("details-across", STRIP, "workspaces", "status");
 }
 

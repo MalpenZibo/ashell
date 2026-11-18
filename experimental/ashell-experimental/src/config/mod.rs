@@ -194,7 +194,7 @@ pub enum Place {
 impl Place {
     pub const ALL: [Place; 3] = [Place::Start, Place::Center, Place::End];
 
-    pub fn name(self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
             Place::Start => "start",
             Place::Center => "center",
@@ -324,7 +324,7 @@ async fn watch(config: WriteSignal<Config>) -> std::io::Result<()> {
     let mut watches = inotify.watches();
     let link = watch_file(&mut watches, &path)?;
     let mut target = pointed_to(&path);
-    let mut pointed = watch_file(&mut watches, &target)?;
+    let mut pointed = Some(watch_file(&mut watches, &target)?);
 
     // The events that come together are read together: an editor that moves
     // the file away and writes it again makes the bars once, from the new
@@ -335,14 +335,11 @@ async fn watch(config: WriteSignal<Config>) -> std::io::Result<()> {
         let mut touched = false;
         for event in events {
             let event = event?;
-            let is = |watched: &Option<Watched>| {
-                watched.as_ref().is_some_and(|(watch, name)| {
-                    event.wd == *watch && event.name.as_deref() == Some(name)
-                })
-            };
+            let is = |(wd, name): &Watched| event.wd == *wd && event.name.as_deref() == Some(name);
             // A file made is read once written; a link made, now.
             let made = event.mask.contains(EventMask::CREATE);
-            touched |= (is(&pointed) && !made) || (is(&link) && (!made || path.is_symlink()));
+            touched |= (pointed.as_ref().is_some_and(is) && !made)
+                || (is(&link) && (!made || path.is_symlink()));
         }
         if !touched {
             continue;
@@ -350,15 +347,13 @@ async fn watch(config: WriteSignal<Config>) -> std::io::Result<()> {
 
         let now = pointed_to(&path);
         if now != target {
-            let next = watch_file(&mut watches, &now).unwrap_or_else(|err| {
-                log::warn!("{}: not watched: {err}", now.display());
-                None
-            });
-            let watch =
-                |watched: &Option<Watched>| watched.as_ref().map(|(watch, _)| watch.clone());
-            if let Some(old) = watch(&pointed)
-                && Some(&old) != watch(&link).as_ref()
-                && Some(&old) != watch(&next).as_ref()
+            let next = watch_file(&mut watches, &now)
+                .inspect_err(|err| log::warn!("{}: not watched: {err}", now.display()))
+                .ok();
+            let wd = |watched: &Option<Watched>| watched.as_ref().map(|(wd, _)| wd.clone());
+            if let Some(old) = wd(&pointed)
+                && old != link.0
+                && Some(&old) != wd(&next).as_ref()
             {
                 let _ = watches.remove(old);
             }
@@ -379,11 +374,14 @@ async fn watch(config: WriteSignal<Config>) -> std::io::Result<()> {
 type Watched = (WatchDescriptor, OsString);
 
 /// Watches the folder `file` is in for it.
-fn watch_file(watches: &mut Watches, file: &Path) -> std::io::Result<Option<Watched>> {
+fn watch_file(watches: &mut Watches, file: &Path) -> std::io::Result<Watched> {
     let (Some(folder), Some(name)) = (file.parent(), file.file_name()) else {
-        return Ok(None);
+        return Err(std::io::Error::other(format!(
+            "{} is no file",
+            file.display()
+        )));
     };
-    let watch = watches.add(
+    let wd = watches.add(
         folder,
         WatchMask::CLOSE_WRITE
             | WatchMask::CREATE
@@ -392,10 +390,58 @@ fn watch_file(watches: &mut Watches, file: &Path) -> std::io::Result<Option<Watc
             | WatchMask::MOVED_FROM,
     )?;
 
-    Ok(Some((watch, name.to_os_string())))
+    Ok((wd, name.to_os_string()))
 }
 
-/// The file a symlink points to, or the file itself.
+/// The file a symlink points to, through every link on the way, or the file
+/// itself. Where it points even while nothing is there: a file deleted and
+/// written again, as a checkout does, is still watched where it comes back.
 fn pointed_to(path: &Path) -> PathBuf {
-    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    let mut file = path.to_path_buf();
+    // As many links as the kernel follows.
+    for _ in 0..40 {
+        let Ok(next) = std::fs::read_link(&file) else {
+            break;
+        };
+        file = match file.parent() {
+            Some(folder) => folder.join(next),
+            None => next,
+        };
+    }
+
+    // Its folder resolved, which is there even when the file is not.
+    match (file.parent().map(std::fs::canonicalize), file.file_name()) {
+        (Some(Ok(folder)), Some(name)) => folder.join(name),
+        _ => file,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::os::unix::fs::symlink;
+
+    use super::pointed_to;
+
+    #[test]
+    fn a_link_is_followed_to_where_it_points_even_with_nothing_there() {
+        let dir = std::env::temp_dir().join(format!("ashell-pointed-{}", std::process::id()));
+        let (config, dotfiles) = (dir.join("config"), dir.join("dotfiles"));
+        std::fs::create_dir_all(&config).unwrap();
+        std::fs::create_dir_all(&dotfiles).unwrap();
+
+        let file = config.join("bar.toml");
+        let dir = std::fs::canonicalize(&dir).unwrap();
+        let dotfiles = dir.join("dotfiles");
+        assert_eq!(pointed_to(&file), dir.join("config/bar.toml"));
+
+        // Relative, through a second link, and to a file not written yet.
+        symlink("../dotfiles/link.toml", &file).unwrap();
+        symlink("bar.toml", dotfiles.join("link.toml")).unwrap();
+        assert_eq!(pointed_to(&file), dotfiles.join("bar.toml"));
+
+        std::fs::write(dotfiles.join("bar.toml"), "").unwrap();
+        assert_eq!(pointed_to(&file), dotfiles.join("bar.toml"));
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
