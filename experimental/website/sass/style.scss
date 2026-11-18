@@ -3,6 +3,8 @@
 // toggle's choice.
 
 :root {
+  // The bar's and the menu's background, over what shows through them.
+  --glass: color-mix(in srgb, var(--bg) 88%, transparent);
   --bg: #ffffff;
   --surface: #f4f5fa;
   --surface-2: #e9ebf5;
@@ -158,9 +160,18 @@ pre {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
+
+  // The bar's glass on a layer of its own, not on the bar: a blur on the bar
+  // would keep the menu under it from blurring the page.
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+  }
 }
 
 .navbar-inner {
@@ -212,19 +223,19 @@ pre {
   display: inline-flex;
   align-items: center;
   color: var(--text);
-}
-
-.theme-toggle {
-  border: 0;
-  background: none;
   padding: 6px;
   border-radius: 8px;
-  cursor: pointer;
 
   &:hover {
     color: var(--primary);
     background: var(--surface);
   }
+}
+
+.theme-toggle {
+  border: 0;
+  background: none;
+  cursor: pointer;
 
   .moon { display: none; }
 }
@@ -243,10 +254,9 @@ pre {
 }
 
 @media (max-width: 860px) {
+  // The menu drops over the page from under the bar, which keeps its height.
   .navbar-inner {
-    flex-wrap: wrap;
-    height: auto;
-    min-height: 60px;
+    position: relative;
   }
 
   .menu-button {
@@ -266,6 +276,7 @@ pre {
       height: 2px;
       background: var(--text);
       content: "";
+      transition: transform 0.2s ease, top 0.2s ease, background-color 0.2s ease;
     }
 
     span { top: 17px; }
@@ -273,21 +284,87 @@ pre {
     span::after { top: 7px; left: 0; }
   }
 
-  .nav-links {
+  // Open, the three lines turn into a cross.
+  .menu-toggle:checked + .menu-button span {
+    background: transparent;
+
+    &::before { top: 0; transform: rotate(45deg); }
+    &::after { top: 0; transform: rotate(-45deg); }
+  }
+
+  // The bar's glass and the menu are one layer from the top, so the page
+  // blurs through them as one: closed, only the bar's height of it shows,
+  // and opening unrolls the rest down over the page. The links one per row,
+  // then the search as wide as there is room, with GitHub and the theme
+  // beside it.
+  .navbar::before {
     display: none;
-    flex-basis: 100%;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 8px 0 16px;
+  }
+
+  .nav-links {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: -1;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px 8px;
+    padding: 72px 16px 16px;
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 16px 32px rgb(0 0 0 / 0.25);
+    clip-path: inset(0 0 calc(100% - 60px) 0);
+    transition: clip-path 0.25s ease;
+
+    > a:not(.icon-link) {
+      grid-column: 1 / -1;
+    }
+
+    // Out of reach of the keyboard while rolled up.
+    > * {
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.15s ease, visibility 0s linear 0.25s;
+    }
+  }
+
+  .menu-toggle:checked ~ .nav-links {
+    // Past the bottom edge, for the shadow.
+    clip-path: inset(0 0 -48px 0);
+
+    > * {
+      visibility: visible;
+      opacity: 1;
+      transition: opacity 0.2s ease 0.05s, visibility 0s;
+    }
+  }
+
+  // The bar's own line goes while the menu's is under it.
+  .navbar:has(.menu-toggle:checked) {
+    border-bottom-color: transparent;
+  }
+
+  .search-button {
+    width: 100%;
   }
 
   .nav-spacer {
     display: none;
   }
+}
 
-  .menu-toggle:checked ~ .nav-links {
-    display: flex;
+@media (max-width: 860px) and (prefers-reduced-motion: reduce) {
+  .nav-links,
+  .nav-links > *,
+  .menu-toggle:checked ~ .nav-links,
+  .menu-toggle:checked ~ .nav-links > *,
+  .menu-button span,
+  .menu-button span::before,
+  .menu-button span::after {
+    transition: none;
   }
 }
 
