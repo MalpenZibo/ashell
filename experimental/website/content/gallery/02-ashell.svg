@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f334d"/>
+      <stop offset="0.55" stop-color="#1e2030"/>
+      <stop offset="1" stop-color="#3b4261"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect x="16" y="14" width="170" height="40" rx="20.0" fill="#1b1d2b" stroke="#3b4261" stroke-width="1.5"/>
+  <circle cx="44" cy="34" r="6" fill="#444a73"/>
+  <circle cx="66" cy="34" r="6" fill="#82aaff"/>
+  <circle cx="88" cy="34" r="6" fill="#444a73"/>
+  <circle cx="110" cy="34" r="6" fill="#444a73"/>
+  <circle cx="132" cy="34" r="6" fill="#444a73"/>
+  <rect x="650.0" y="14" width="300" height="40" rx="20.0" fill="#1b1d2b" stroke="#3b4261" stroke-width="1.5"/>
+  <rect x="690.0" y="28.0" width="220" height="12" rx="6.0" fill="#444a73"/>
+  <rect x="1180" y="14" width="404" height="40" rx="20.0" fill="#1b1d2b" stroke="#3b4261" stroke-width="1.5"/>
+  <rect x="1210" y="28.0" width="120" height="12" rx="6.0" fill="#444a73"/>
+  <rect x="1350" y="28.0" width="90" height="12" rx="6.0" fill="#444a73"/>
+  <rect x="1460" y="27.0" width="100" height="14" rx="7.0" fill="#c3e88d"/>
+  <rect x="1180" y="66" width="404" height="300" rx="24" fill="#1b1d2b" stroke="#3b4261" stroke-width="1.5"/>
+  <rect x="1204" y="90" width="356" height="48" rx="14" fill="#222436"/>
+  <rect x="1204" y="156" width="356" height="48" rx="14" fill="#222436"/>
+  <rect x="1204" y="222" width="356" height="48" rx="14" fill="#222436"/>
+  <rect x="1204" y="288" width="356" height="48" rx="14" fill="#222436"/>
+  <text x="800.0" y="830" text-anchor="middle" font-family="sans-serif" font-size="34" fill="#c8d3f5" opacity="0.85">An island per group</text>
+  <text x="800.0" y="868" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#828bb8">Concept, not a screenshot</text>
+</svg>

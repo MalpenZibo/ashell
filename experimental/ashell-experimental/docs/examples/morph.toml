@@ -1,0 +1,15 @@
+# One island in the centre that turns into its panels, and beside it a
+# group of its own for what runs hot, shown only then.
+
+[bar.main]
+hover  = true
+panels = "merge"
+
+center = [
+  { zones = ["workspaces", "window", "tray", "media", "clock", "updates", "status"], panels = "morph" },
+  "hot",
+]
+
+[zone.hot]
+items = [{ item = "system", show = "notable" }]
+open  = "system"

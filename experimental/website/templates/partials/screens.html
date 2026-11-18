@@ -1,0 +1,18 @@
+{#- The landing's images: the gallery's first four. -#}
+{%- set gallery = get_section(path="gallery/_index.md") -%}
+{%- set exts = ["png", "jpg", "jpeg", "webp", "avif", "gif", "svg"] -%}
+{%- set images = [a for a in gallery.assets | sort if a | split(pat=".") | last | lower in exts] -%}
+{%- if images | length > 0 %}
+<section class="screens">
+  {%- for asset in images[:4] %}
+  {%- set name = asset | split(pat="/") | last %}
+  {%- set caption = gallery.extra.captions | get(key=name, default="") %}
+  <figure class="screen{% if loop.first %} screen-main{% endif %}">
+    <a href="{{ get_url(path='@/gallery/_index.md') }}#{{ name }}">
+      <img src="{{ get_url(path=asset) }}" alt="{{ caption or name }}" loading="lazy">
+    </a>
+    {%- if caption %}<figcaption>{{ caption }}</figcaption>{% endif %}
+  </figure>
+  {%- endfor %}
+</section>
+{%- endif %}

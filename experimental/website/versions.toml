@@ -1,0 +1,11 @@
+# The versions of the docs, newest first; each is content/docs/<name>/.
+# `scripts/freeze-version.sh <version>` copies the rolling docs into a new
+# one and adds it here, under rolling.
+#
+# kind: "rolling" follows main and changes with it; "release" is frozen.
+# The first release is the one the docs open on, rolling while there is none.
+
+[[versions]]
+name = "rolling"
+label = "Rolling (main)"
+kind = "rolling"

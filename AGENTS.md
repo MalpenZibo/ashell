@@ -54,9 +54,11 @@ src/
 crates/
 ├── ashell-i18n/         # localization: locale/unit system, catalog loading, t!() macro
 └── ashell-services/     # UI-agnostic services (no iced dependency), e.g. bluetooth, brightness, idle_inhibitor, logind, privacy, upower
+experimental/            # ashell-experimental (Guido + styletto) and its Zola site; a Cargo workspace of its own
 ```
 
 The repo is a Cargo workspace: the root package is the `ashell` binary, the crates in `crates/` are library members.
+`experimental/` is outside it, with its own `Cargo.toml` and `Cargo.lock`: ashell's `make check` and CI do not build it; run its checks from `experimental/` (see `experimental/README.md`).
 Each app brings its own catalogs: it passes them to `Localizer::resolve` and has an `i18n.toml` whose `assets_dir` points to them, since `t!()` validates keys at compile time against `{assets_dir}/en-US/{domain}.ftl` of the calling crate. The domain defaults to the crate name with `-` replaced by `_`; at runtime only the catalogs passed to `resolve` count.
 
 ## Key system dependencies
