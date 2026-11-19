@@ -114,7 +114,7 @@ fn find_sensor(components: &Components, matches: &[SensorMatch]) -> Option<Strin
     None
 }
 
-static CPU_MATCHES: [SensorMatch<'static>; 2] = [
+static CPU_MATCHES: [SensorMatch<'static>; 3] = [
     SensorMatch::Exact(&[
         "coretemp Package id 0",
         "coretemp Core 0",
@@ -123,12 +123,18 @@ static CPU_MATCHES: [SensorMatch<'static>; 2] = [
         "k10temp Tctl",
     ]),
     SensorMatch::StartsWith(&["k10temp", "applesmc"]),
+    // Qualcomm (Snapdragon) and other ARM SoCs expose per-core sensors named
+    // `cpu_<cluster>_<core>_<n>_thermal` (and `cpu_thermal` on some boards).
+    SensorMatch::StartsWith(&["cpu_"]),
 ];
 
-static GPU_MATCHES: [SensorMatch<'static>; 3] = [
+static GPU_MATCHES: [SensorMatch<'static>; 4] = [
     SensorMatch::StartsWith(&["xe"]),
     SensorMatch::Exact(&["amdgpu edge", "nouveau temp1"]),
     SensorMatch::Contains(&["nvidia"]),
+    // Qualcomm (Snapdragon) Adreno GPUs expose `gpu_<n>_<m>_thermal` plus a
+    // `gpuss_<n>_thermal` subsystem sensor.
+    SensorMatch::StartsWith(&["gpu_", "gpuss"]),
 ];
 
 static ACPI_MATCHES: [SensorMatch<'static>; 1] =

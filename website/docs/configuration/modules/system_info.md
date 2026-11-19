@@ -140,8 +140,8 @@ The sensor is configured with a single `sensor` option that accepts either a sen
 
 Sensor type keywords (auto-detected):
 
-- `"Cpu"` (default) — CPU temperature (coretemp/k10temp)
-- `"Gpu"` — GPU temperature (amdgpu/nouveau)
+- `"Cpu"` (default) — CPU temperature (coretemp/k10temp, Qualcomm `cpu_*_thermal` on ARM)
+- `"Gpu"` — GPU temperature (amdgpu/nouveau, Qualcomm `gpu_*_thermal`/`gpuss_*_thermal` on ARM)
 - `"Acpi"` — ACPI thermal zone (acpitz)
 - `"Nvme"` — NVMe SSD temperature
 
@@ -205,7 +205,9 @@ Common sensor labels include:
 - `acpitz temp1` - ACPI thermal zone
 - `coretemp Package id 0` - Intel CPU temperature
 - `k10temp Tctl` / `k10temp Tdie` - AMD Ryzen CPU temperature
+- `cpu_0_0_0_thermal temp1` - Qualcomm Snapdragon (ARM) CPU temperature
 - `amdgpu edge` - AMD GPU temperature
+- `gpu_0_0_thermal temp1` - Qualcomm Snapdragon (ARM) Adreno GPU temperature
 - `nvme Composite MODEL_NAME` - NVMe SSD temperature (use model from `lsblk` output)
 
 ## Polling Interval
