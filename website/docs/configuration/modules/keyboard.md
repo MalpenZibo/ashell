@@ -60,12 +60,12 @@ most a quarter of a second later.
 On a compositor without the `ext-idle-notify-v1` protocol they are read four
 times a second all the time.
 
-Each lock has three options:
+Each lock has two options:
 
-- `enabled` (default `true`): whether the lock is shown at all.
 - `visibility`: when the lock is shown.
   - `ActiveOnly` (default): only while it is on.
   - `AlwaysVisible`: always, dimmed while it is off.
+  - `Hidden`: never.
 - `icon`: a glyph or a text to show instead of the default icon, e.g. `"NUM"`.
 
 By default the module only shows the locks that are on.
@@ -80,5 +80,5 @@ visibility = "AlwaysVisible"
 icon = "NUM"
 
 [keyboard_locks.scroll_lock]
-enabled = false
+visibility = "Hidden"
 ```

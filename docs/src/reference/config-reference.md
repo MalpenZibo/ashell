@@ -140,8 +140,7 @@ labels = { "English (US)" = "EN", "Italian" = "IT" }
 
 ```toml
 [keyboard_locks.caps_lock]          # also num_lock and scroll_lock
-enabled = true
-visibility = "ActiveOnly"           # "ActiveOnly" or "AlwaysVisible"
+visibility = "ActiveOnly"           # "ActiveOnly", "AlwaysVisible" or "Hidden"
 icon = "CAPS"                       # optional, replaces the default icon
 ```
 

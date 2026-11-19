@@ -32,6 +32,8 @@ mod snapshot;
 pub mod stream;
 #[cfg(feature = "throttle")]
 pub mod throttle;
+#[cfg(any(feature = "brightness", feature = "keyboard_locks"))]
+mod udev_monitor;
 #[cfg(feature = "upower")]
 pub mod upower;
 #[cfg(feature = "weather")]
