@@ -12,7 +12,7 @@ help:
 	@echo "  start         Run the build"
 	@echo "  install       Install the build (supports DESTDIR and PREFIX)"
 	@echo "  fmt           Format the code"
-	@echo "  check         Format, check and lint the code"
+	@echo "  check         Format, check, lint and test the code"
 
 build:
 	cargo build --release
@@ -29,4 +29,4 @@ fmt:
 check: fmt
 	cargo check --workspace
 	cargo clippy --workspace -- -D warnings
-	cargo test -p ashell-services --all-features
+	cargo test --workspace --all-features
