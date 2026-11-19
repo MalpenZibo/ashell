@@ -29,6 +29,10 @@ const MIN_TILE: f32 = 2.0;
 // Gap carved out of a tile's edge where it abuts a neighbour, so adjacent
 // same-colour tiles don't merge into one block.
 const TILE_GAP: f32 = 1.0;
+// Column bottoms closer than this are drawn as one edge: tile sizes leave out
+// the compositor's gaps between stacked windows, so a stacked column comes out
+// a little shorter than a single-window one.
+const EDGE_SLACK: f32 = 1.0;
 
 /// An axis-aligned rectangle `(x, y, w, h)` in some 2D space.
 type Rect = (f32, f32, f32, f32);
@@ -313,8 +317,8 @@ fn layout_tiled<'a>(
                 outer: [
                     top && i == 0,
                     top && i + 1 == cols.len(),
-                    bottom && next_col_h < col_h,
-                    bottom && prev_col_h < col_h,
+                    bottom && next_col_h < col_h - EDGE_SLACK,
+                    bottom && prev_col_h < col_h - EDGE_SLACK,
                 ],
             });
             y += h;
@@ -448,6 +452,19 @@ mod tests {
         assert_eq!(placed[0].outer, [true, false, false, false]);
         assert_eq!(placed[1].outer, [false, false, true, true]);
         assert_eq!(placed[2].outer, [false, true, true, false]);
+    }
+
+    #[test]
+    fn nearly_level_columns_share_their_bottom_edge() {
+        let windows = [
+            win(1, 0, 0, 100.0, 16.0),
+            win(2, 1, 0, 100.0, 7.75),
+            win(3, 1, 1, 100.0, 7.75),
+        ];
+        let placed = layout(&windows, 1.0, 0.0);
+
+        assert_eq!(placed[0].outer, [true, false, false, true]);
+        assert_eq!(placed[2].outer, [false, false, true, false]);
     }
 
     #[test]
