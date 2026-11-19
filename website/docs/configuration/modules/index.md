@@ -79,6 +79,10 @@ Available on Hyprland, Niri and MangoWC.
 Displays the current keyboard submap, when one is active. Available on Hyprland
 and MangoWC.
 
+### KeyboardLocks
+
+Shows Caps Lock, Num Lock and Scroll Lock. Available on every compositor.
+
 ### Custom modules
 
 Custom modules are declared in `[[CustomModule]]` blocks and placed in a section

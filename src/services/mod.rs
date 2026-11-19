@@ -5,6 +5,7 @@ pub mod bluetooth;
 pub mod brightness;
 pub mod compositor;
 pub mod idle_inhibitor;
+pub mod keyboard_locks;
 pub mod logind;
 pub mod mpris;
 pub mod network;

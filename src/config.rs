@@ -95,6 +95,7 @@ pub struct Config {
     pub appearance: Appearance,
     pub media_player: MediaPlayerModuleConfig,
     pub keyboard_layout: KeyboardLayoutModuleConfig,
+    pub keyboard_locks: KeyboardLocksModuleConfig,
     pub animations: AnimationsConfig,
     pub enable_esc_key: bool,
     pub osd: OsdConfig,
@@ -213,6 +214,39 @@ impl Default for WindowTitleConfig {
 #[serde(default)]
 pub struct KeyboardLayoutModuleConfig {
     pub labels: HashMap<String, String>,
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LockVisibility {
+    AlwaysVisible,
+    #[default]
+    ActiveOnly,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(default)]
+pub struct LockIndicatorConfig {
+    pub enabled: bool,
+    pub visibility: LockVisibility,
+    pub icon: Option<String>,
+}
+
+impl Default for LockIndicatorConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            visibility: LockVisibility::ActiveOnly,
+            icon: None,
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+#[serde(default)]
+pub struct KeyboardLocksModuleConfig {
+    pub caps_lock: LockIndicatorConfig,
+    pub num_lock: LockIndicatorConfig,
+    pub scroll_lock: LockIndicatorConfig,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -1865,6 +1899,7 @@ pub enum ModuleName {
     SystemInfo,
     KeyboardLayout,
     KeyboardSubmap,
+    KeyboardLocks,
     Tray,
     Tempo,
     Privacy,
@@ -1876,7 +1911,7 @@ pub enum ModuleName {
 
 /// Each builtin module's layout name and its snake_case name, used for its
 /// settings section and its `[appearance.modules]` key.
-const BUILTIN_MODULES: [(&str, &str, ModuleName); 13] = [
+const BUILTIN_MODULES: [(&str, &str, ModuleName); 14] = [
     ("Updates", "updates", ModuleName::Updates),
     ("Workspaces", "workspaces", ModuleName::Workspaces),
     ("WindowTitle", "window_title", ModuleName::WindowTitle),
@@ -1892,6 +1927,7 @@ const BUILTIN_MODULES: [(&str, &str, ModuleName); 13] = [
         "keyboard_submap",
         ModuleName::KeyboardSubmap,
     ),
+    ("KeyboardLocks", "keyboard_locks", ModuleName::KeyboardLocks),
     ("Tray", "tray", ModuleName::Tray),
     ("Notifications", "notifications", ModuleName::Notifications),
     ("Tempo", "tempo", ModuleName::Tempo),

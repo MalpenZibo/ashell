@@ -7,6 +7,7 @@ use crate::{
         self,
         custom_module::Custom,
         keyboard_layout::KeyboardLayout,
+        keyboard_locks::KeyboardLocks,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         minimap::Minimap,
@@ -68,6 +69,7 @@ pub struct App {
     pub system_info: SystemInfo,
     pub keyboard_layout: KeyboardLayout,
     pub keyboard_submap: KeyboardSubmap,
+    pub keyboard_locks: KeyboardLocks,
     pub tray: TrayModule,
     pub tempo: Tempo,
     pub privacy: Privacy,
@@ -139,6 +141,7 @@ impl App {
                     system_info: SystemInfo::new(config.system_info),
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
                     keyboard_submap: KeyboardSubmap::default(),
+                    keyboard_locks: KeyboardLocks::new(config.keyboard_locks),
                     tray: TrayModule::new(config.tray),
                     tempo: Tempo::new(config.tempo),
                     privacy: Privacy::default(),
@@ -222,6 +225,11 @@ impl App {
                 config.keyboard_layout,
             ))
             .map(Message::KeyboardLayout);
+
+        self.keyboard_locks
+            .update(modules::keyboard_locks::Message::ConfigReloaded(
+                config.keyboard_locks,
+            ));
 
         self.tempo
             .update(modules::tempo::Message::ConfigReloaded(config.tempo));
@@ -401,6 +409,10 @@ impl App {
                 .map(Message::KeyboardLayout),
             Message::KeyboardSubmap(message) => {
                 self.keyboard_submap.update(message);
+                Task::none()
+            }
+            Message::KeyboardLocks(message) => {
+                self.keyboard_locks.update(message);
                 Task::none()
             }
             Message::Tray(msg) => match self.tray.update(msg) {

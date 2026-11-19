@@ -71,6 +71,7 @@ src/
 │   ├── system_info.rs       # CPU, RAM, disk, network, temperature
 │   ├── keyboard_layout.rs   # Keyboard layout indicator
 │   ├── keyboard_submap.rs   # Hyprland submap display
+│   ├── keyboard_locks.rs    # Caps/Num/Scroll Lock indicators
 │   ├── tray.rs              # System tray icon integration
 │   ├── media_player.rs      # MPRIS media player control
 │   ├── notifications.rs     # Notification center and toasts
@@ -112,6 +113,7 @@ src/
 │   │   └── dbus.rs           # StatusNotifierItem D-Bus proxies
 │   ├── upower.rs            # iced glue for the ashell-services UPower service
 │   ├── privacy.rs           # iced glue for the ashell-services privacy service
+│   ├── keyboard_locks.rs    # iced glue for the ashell-services keyboard locks service
 │   ├── idle_inhibitor.rs    # iced glue for the ashell-services idle inhibitor
 │   ├── logind.rs            # iced glue for the ashell-services logind service
 │   └── xdg_icons.rs         # iced glue for the ashell-services icon lookup

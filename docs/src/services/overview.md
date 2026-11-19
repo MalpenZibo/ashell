@@ -17,6 +17,7 @@ Services are the backend layer of ashell. They manage communication with system 
 | Notifications | `crates/ashell-services/src/notifications/` (iced glue in `services/notifications.rs`) | Notification server | D-Bus | — |
 | Privacy | `crates/ashell-services/src/privacy.rs` (iced glue in `services/privacy.rs`) | PipeWire + `/dev/video*` | PipeWire registry + inotify | `pipewire` |
 | Idle Inhibitor | `crates/ashell-services/src/idle_inhibitor.rs` (iced glue in `services/idle_inhibitor.rs`) | Wayland `idle-inhibit-unstable-v1` | Wayland protocol | — |
+| Keyboard Locks | `crates/ashell-services/src/keyboard_locks/` (iced glue in `services/keyboard_locks.rs`) | Keyboard LEDs in sysfs + Wayland `ext-idle-notify-v1` | Polling while the seat is in use + udev | — |
 | Logind | `crates/ashell-services/src/logind.rs` (iced glue in `services/logind.rs`) | systemd-logind | D-Bus | systemd-logind |
 | Weather | `crates/ashell-services/src/weather.rs` (subscribed to by `modules/tempo/mod.rs`) | Open-Meteo, ip-api.com, Nominatim | HTTPS (plain HTTP for ip-api.com) | — |
 | Throttle | `crates/ashell-services/src/throttle.rs` | (utility) | Stream adapter | — |

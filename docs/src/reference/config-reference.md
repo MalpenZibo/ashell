@@ -30,7 +30,7 @@ center = ["Tempo"]
 right = [["SystemInfo", "Settings"], "Tray"]
 ```
 
-Module names: `"Workspaces"`, `"WindowTitle"`, `"Minimap"`, `"SystemInfo"`, `"KeyboardLayout"`, `"KeyboardSubmap"`, `"Tray"`, `"Notifications"`, `"Tempo"`, `"Privacy"`, `"Settings"`, `"MediaPlayer"`, `"Updates"`. Any other string is the `name` of a custom module.
+Module names: `"Workspaces"`, `"WindowTitle"`, `"Minimap"`, `"SystemInfo"`, `"KeyboardLayout"`, `"KeyboardSubmap"`, `"KeyboardLocks"`, `"Tray"`, `"Notifications"`, `"Tempo"`, `"Privacy"`, `"Settings"`, `"MediaPlayer"`, `"Updates"`. Any other string is the `name` of a custom module.
 
 ## Appearance
 
@@ -134,6 +134,15 @@ truncate_title_after_length = 150
 ```toml
 [keyboard_layout]
 labels = { "English (US)" = "EN", "Italian" = "IT" }
+```
+
+## Keyboard Locks Module
+
+```toml
+[keyboard_locks.caps_lock]          # also num_lock and scroll_lock
+enabled = true
+visibility = "ActiveOnly"           # "ActiveOnly" or "AlwaysVisible"
+icon = "CAPS"                       # optional, replaces the default icon
 ```
 
 ## System Info Module
