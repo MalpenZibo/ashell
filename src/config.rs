@@ -514,6 +514,17 @@ impl NotificationsModuleConfig {
             );
             self.history_limit = clamped;
         }
+
+        // A toast leaves with its notification, so the history keeps at least
+        // what the toasts show.
+        if self.history_limit < self.toast_limit {
+            let raised = self.toast_limit.min(1000);
+            warn!(
+                "notifications.history_limit ({}) below toast_limit ({}), raising it to {raised}",
+                self.history_limit, self.toast_limit
+            );
+            self.history_limit = raised;
+        }
     }
 }
 

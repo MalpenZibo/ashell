@@ -1,26 +1,32 @@
-use crate::services::{ReadOnlyService, ServiceEvent};
-use ashell_services::xdg_icons::{self, IconFile};
-use iced::Subscription;
-use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
-use iced::stream::channel;
-use iced::widget::{image, svg};
-use log::{error, info};
-use std::any::TypeId;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use tokio::sync::broadcast;
-use tokio_stream::wrappers::BroadcastStream;
-use zbus::{Connection, OwnedVariant};
+//! The freedesktop notification daemon. ashell owns
+//! `org.freedesktop.Notifications` on the session bus: the daemon keeps the
+//! notifications applications send there, and `updates()` reports them as a
+//! snapshot after every change.
 
-pub mod dbus;
+use crate::xdg_icons::{self, IconFile};
+use bytes::Bytes;
+use futures::{Stream, stream};
+use log::info;
+use regex::Regex;
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use tokio::sync::watch;
+use zbus::{Connection, OwnedVariant, fdo::DBusProxy};
 
-use dbus::NotificationEvent;
-pub use dbus::{Notification, Urgency};
+mod dbus;
 
-#[derive(Debug, Clone)]
+use dbus::NotificationDaemon;
+pub use dbus::{DEFAULT_ACTION_KEY, Notification, Urgency};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NotificationIcon {
-    Image(image::Handle),
-    Svg(svg::Handle),
+    /// Pixels sent along in the `image-data` hint: RGBA, 8 bits per channel,
+    /// `width * height * 4` bytes, shared so a UI can wrap them without a copy.
+    Rgba {
+        width: u32,
+        height: u32,
+        pixels: Bytes,
+    },
+    File(IconFile),
 }
 
 impl NotificationIcon {
@@ -37,10 +43,7 @@ impl NotificationIcon {
     }
 
     fn from_path(path: PathBuf) -> Self {
-        match IconFile::from_path(path) {
-            IconFile::Svg(path) => Self::Svg(svg::Handle::from_path(path)),
-            IconFile::Image(path) => Self::Image(image::Handle::from_path(path)),
-        }
+        Self::File(IconFile::from_path(path))
     }
 }
 
@@ -57,7 +60,7 @@ struct HintImageData {
 }
 
 impl HintImageData {
-    /// Repacks the rows into the tight RGBA buffer iced expects. The hint is
+    /// Repacks the rows into the tight RGBA buffer a UI expects. The hint is
     /// GdkPixbuf's memory layout: rows start `rowstride` bytes apart, aligned
     /// to 4 bytes (so RGB rows are padded unless the width is a multiple of 4),
     /// and the last row is unpadded.
@@ -105,13 +108,11 @@ fn try_icon_from_hints(hints: &HashMap<String, OwnedVariant>) -> Option<Notifica
         && let Ok(hint_image_data) = HintImageData::try_from(image_data.clone())
         && let Some(bytes) = hint_image_data.to_rgba()
     {
-        Some(NotificationIcon::Image(
-            iced::advanced::image::Handle::from_rgba(
-                hint_image_data.width as u32,
-                hint_image_data.height as u32,
-                bytes,
-            ),
-        ))
+        Some(NotificationIcon::Rgba {
+            width: hint_image_data.width as u32,
+            height: hint_image_data.height as u32,
+            pixels: bytes.into(),
+        })
     } else {
         None
     }
@@ -159,82 +160,92 @@ fn resolve_candidate(candidate: String) -> Option<PathBuf> {
     xdg_icons::theme_icon_path(name)
 }
 
+/// The notifications on screen, newest first. Each one is shared, so a
+/// snapshot costs a pointer per notification however large its icon is.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NotificationsData {
+    pub notifications: Arc<[Arc<Notification>]>,
+}
+
+/// How many notifications the daemon keeps, and the apps whose
+/// notifications it drops on arrival.
 #[derive(Debug, Clone)]
-pub struct NotificationsService {
-    pub connection: Connection,
+pub struct NotificationsConfig {
+    pub history_limit: usize,
+    pub blocklist: Vec<Regex>,
 }
 
-impl NotificationsService {
-    async fn init_service() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)> {
-        let (connection, event_tx) = dbus::NotificationDaemon::start_server().await?;
-        Ok((connection, event_tx))
+#[derive(Debug, Clone)]
+pub enum NotificationsCommand {
+    /// Lowering the history limit evicts at once.
+    Configure(NotificationsConfig),
+    DismissApp(String),
+    DismissAll,
+}
+
+/// The `org.freedesktop.Notifications` daemon. It owns the notifications: the
+/// consumer reads them from [`Notifications::updates`] and changes them with
+/// [`Notifications::execute`].
+#[derive(Debug, Clone)]
+pub struct Notifications {
+    connection: Connection,
+    data: watch::Receiver<NotificationsData>,
+}
+
+impl Notifications {
+    /// Starts the daemon with `config` in place, so no notification arrives
+    /// before the blocklist does.
+    pub async fn connect(config: NotificationsConfig) -> anyhow::Result<Self> {
+        let (data_tx, data) = watch::channel(NotificationsData::default());
+        let connection = NotificationDaemon::start(config, data_tx).await?;
+        info!("Notifications service initialized");
+
+        Ok(Self { connection, data })
     }
 
-    async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
-        match state {
-            State::Init => match Self::init_service().await {
-                Ok((connection, event_tx)) => {
-                    info!("Notifications service initialized");
-                    let _ = output
-                        .send(ServiceEvent::Init(NotificationsService {
-                            connection: connection.clone(),
-                        }))
-                        .await;
-                    State::Active(connection, event_tx)
-                }
-                Err(err) => {
-                    error!("Failed to initialize notifications service: {err}");
-                    State::Error
-                }
-            },
-            State::Active(_connection, event_tx) => {
-                let rx = event_tx.subscribe();
-                let mut stream = BroadcastStream::new(rx);
-
-                while let Some(result) = stream.next().await {
-                    match result {
-                        Ok(event) => {
-                            let _ = output.send(ServiceEvent::Update(event)).await;
-                        }
-                        Err(e) => {
-                            error!("Error receiving notification event: {e}");
-                        }
-                    }
-                }
-                error!("Notification event stream ended unexpectedly");
-                State::Error
-            }
-            State::Error => {
-                error!("Notifications service error");
-                let _ = pending::<u8>().next().await;
-                State::Error
-            }
-        }
-    }
-}
-
-enum State {
-    Init,
-    Active(Connection, broadcast::Sender<NotificationEvent>),
-    Error,
-}
-
-impl ReadOnlyService for NotificationsService {
-    type UpdateEvent = NotificationEvent;
-    type Error = ();
-
-    fn update(&mut self, _event: NotificationEvent) {}
-
-    fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        Subscription::run_with(TypeId::of::<Self>(), |_| {
-            channel(100, async |mut output| {
-                let mut state = State::Init;
-
-                loop {
-                    state = NotificationsService::start_listening(state, &mut output).await;
-                }
-            })
+    /// The current notifications, then a snapshot per change. A consumer that
+    /// falls behind gets the latest one, never a stale list.
+    pub fn updates(&self) -> impl Stream<Item = NotificationsData> + Send + 'static {
+        let mut data = self.data.clone();
+        data.mark_changed();
+        stream::unfold(data, |mut data| async move {
+            data.changed().await.ok()?;
+            let snapshot = data.borrow_and_update().clone();
+            Some((snapshot, data))
         })
+    }
+
+    pub async fn execute(&self, command: NotificationsCommand) -> anyhow::Result<()> {
+        let daemon = NotificationDaemon::interface(&self.connection).await?;
+        let mut daemon = daemon.get_mut().await;
+        match command {
+            NotificationsCommand::Configure(config) => daemon.configure(config).await,
+            NotificationsCommand::DismissApp(app_name) => daemon.dismiss_all(Some(&app_name)).await,
+            NotificationsCommand::DismissAll => daemon.dismiss_all(None).await,
+        }
+        Ok(())
+    }
+
+    /// Emits `action`, when given, and dismisses notification `id` while it
+    /// still carries `revision`. Returns false when it was replaced or closed
+    /// since: a replacement that won the race must not go down with it.
+    pub async fn invoke(
+        &self,
+        id: u32,
+        revision: u64,
+        action: Option<String>,
+    ) -> anyhow::Result<bool> {
+        let daemon = NotificationDaemon::interface(&self.connection).await?;
+        daemon.get_mut().await.invoke(id, revision, action).await
+    }
+
+    /// The pid behind the D-Bus connection that sent a notification, see
+    /// [`Notification::sender`].
+    pub async fn sender_pid(&self, sender: &str) -> anyhow::Result<u32> {
+        let dbus = DBusProxy::new(&self.connection).await?;
+        Ok(dbus
+            .get_connection_unix_process_id(sender.try_into()?)
+            .await?)
     }
 }
 
@@ -280,6 +291,16 @@ mod tests {
     fn rgba_tight_rows_pass_through() {
         let bytes: Vec<u8> = (0..16).collect();
         assert_eq!(hint(2, 2, 8, 4, bytes.clone()).to_rgba().unwrap(), bytes);
+    }
+
+    #[test]
+    fn rgba_rows_skip_padding() {
+        // 2x2 RGBA, rows padded from 8 to 12 bytes.
+        let mut bytes: Vec<u8> = (0..8).collect();
+        bytes.extend([0; 4]);
+        bytes.extend(8..16);
+        let rgba = hint(2, 2, 12, 4, bytes).to_rgba().unwrap();
+        assert_eq!(rgba, (0..16).collect::<Vec<u8>>());
     }
 
     #[test]

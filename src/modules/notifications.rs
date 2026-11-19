@@ -7,15 +7,17 @@ use crate::{
     components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, styled_button},
     config::{ModuleName, NotificationsModuleConfig, Surface, ToastPosition},
     services::{
-        ReadOnlyService, ServiceEvent, compositor, connection_pid,
+        compositor,
         notifications::{
-            Notification, NotificationIcon, NotificationsService, Urgency,
-            dbus::{CloseGuard, DEFAULT_ACTION_KEY, NotificationDaemon, NotificationEvent},
+            self, DEFAULT_ACTION_KEY, Notification, NotificationIcon, NotificationsCommand,
+            NotificationsConfig, NotificationsData, Urgency,
         },
+        xdg_icons::XdgIcon,
     },
     theme::{Paint, surface_border, use_theme},
 };
 use ashell_i18n::t;
+use ashell_services::notifications::Notifications as NotificationsHandle;
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
@@ -28,22 +30,37 @@ use itertools::Itertools;
 use log::{debug, error};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
+    sync::Arc,
     time::{Duration, Instant},
 };
-use zbus::Connection;
 
 const ICON_SIZE: f32 = 36.0;
 
-fn notification_icon<'a, M: 'a>(icon_kind: Option<&NotificationIcon>) -> Element<'a, M> {
-    match icon_kind {
-        Some(NotificationIcon::Svg(handle)) => svg(handle.clone())
+/// A notification icon ready for iced. Built once per notification instance:
+/// an image handle made from pixels gets a new id each time, and the renderer
+/// would upload it again on every frame.
+fn icon_handle(icon: &NotificationIcon) -> XdgIcon {
+    match icon {
+        NotificationIcon::Rgba {
+            width,
+            height,
+            pixels,
+        } => XdgIcon::Image(image::Handle::from_rgba(*width, *height, pixels.clone())),
+        NotificationIcon::File(file) => XdgIcon::from(file.clone()),
+    }
+}
+
+fn notification_icon<'a, M: 'a>(handle: Option<&XdgIcon>) -> Element<'a, M> {
+    match handle {
+        Some(XdgIcon::Svg { handle, .. }) => svg(handle.clone())
             .width(Length::Fixed(ICON_SIZE))
             .height(Length::Fixed(ICON_SIZE))
             .into(),
-        Some(NotificationIcon::Image(handle)) => image(handle.clone())
+        Some(XdgIcon::Image(handle)) => image(handle.clone())
             .width(Length::Fixed(ICON_SIZE))
             .height(Length::Fixed(ICON_SIZE))
             .into(),
+        Some(XdgIcon::NerdFont(glyph)) => icon(*glyph).size(ICON_SIZE).into(),
         None => icon(StaticIcon::Bell).size(ICON_SIZE).into(),
     }
 }
@@ -58,63 +75,66 @@ struct FocusTarget {
 }
 
 fn invoke_and_close_task(
-    connection: Option<Connection>,
+    handle: Option<NotificationsHandle>,
     id: u32,
-    action_key: Option<String>,
-    guard: CloseGuard,
+    revision: Option<u64>,
+    action: Option<String>,
     focus: Option<FocusTarget>,
 ) -> Task<Message> {
-    Task::perform(
-        async move {
-            let Some(connection) = connection else {
-                return;
-            };
-            match NotificationDaemon::invoke_and_close(&connection, id, action_key, guard).await {
-                Ok(true) => {
-                    if let Some(FocusTarget { sender, apps }) = focus {
-                        let pid = match sender {
-                            Some(sender) => connection_pid(&connection, &sender)
-                                .await
-                                .inspect_err(|e| debug!("No pid for sender {sender}: {e}"))
-                                .ok(),
-                            None => None,
-                        };
-                        if let Err(e) = compositor::focus_app_window(pid, apps, None).await {
-                            debug!("Can't focus the window of notification {id}: {e}");
-                        }
+    let (Some(handle), Some(revision)) = (handle, revision) else {
+        return Task::none();
+    };
+    Task::future(async move {
+        match handle.invoke(id, revision, action).await {
+            Ok(true) => {
+                if let Some(FocusTarget { sender, apps }) = focus {
+                    let pid = match sender {
+                        Some(sender) => handle
+                            .sender_pid(&sender)
+                            .await
+                            .inspect_err(|e| debug!("No pid for sender {sender}: {e}"))
+                            .ok(),
+                        None => None,
+                    };
+                    if let Err(e) = compositor::focus_app_window(pid, apps, None).await {
+                        debug!("Can't focus the window of notification {id}: {e}");
                     }
                 }
-                Ok(false) => {}
-                Err(e) => error!("Failed to close notification id {}: {}", id, e),
             }
-        },
-        |_| Message::NotificationClosed,
-    )
+            Ok(false) => {}
+            Err(e) => error!("Failed to close notification id {}: {}", id, e),
+        }
+    })
+    .discard()
 }
 
-async fn close_notification_ids(connection: Option<Connection>, notification_ids: &[u32]) {
-    if let Some(connection) = connection {
-        for id in notification_ids {
-            if let Err(e) =
-                NotificationDaemon::invoke_and_close(&connection, *id, None, CloseGuard::Any).await
-            {
-                error!("Failed to close notification id {}: {}", id, e);
-            }
+fn execute_task(
+    handle: Option<NotificationsHandle>,
+    command: NotificationsCommand,
+) -> Task<Message> {
+    let Some(handle) = handle else {
+        return Task::none();
+    };
+    Task::future(async move {
+        if let Err(e) = handle.execute(command).await {
+            error!("Notifications command failed: {e}");
         }
+    })
+    .discard()
+}
+
+fn daemon_config(config: &NotificationsModuleConfig) -> NotificationsConfig {
+    NotificationsConfig {
+        history_limit: config.history_limit,
+        blocklist: config.blocklist.iter().map(|r| r.0.clone()).collect(),
     }
 }
 
-fn evict_task(connection: Option<Connection>, evicted: Vec<(u32, u64)>) -> Task<Message> {
-    Task::perform(
-        async move {
-            if let Some(connection) = connection
-                && let Err(e) = NotificationDaemon::evict_notifications(&connection, &evicted).await
-            {
-                error!("Failed to close evicted notifications: {e}");
-            }
-        },
-        |_| Message::NotificationClosed,
-    )
+fn configure_task(
+    handle: Option<NotificationsHandle>,
+    config: &NotificationsConfig,
+) -> Task<Message> {
+    execute_task(handle, NotificationsCommand::Configure(config.clone()))
 }
 
 fn delayed_toast_message(delay: Duration, id: u32, msg: fn(u32) -> Message) -> Task<Message> {
@@ -141,13 +161,10 @@ pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
     InvokeAction(u32, String),
-    NotificationClosed,
     CloseNotificationById(u32),
     ClearNotifications,
-    NotificationsCleared,
     ClearGroup(String),
-    GroupCleared(String, Vec<u32>),
-    Event(ServiceEvent<NotificationsService>),
+    Event(notifications::Event),
     ToggleGroup(String),
     ToggleDnd,
     ExpireToast(u32),
@@ -246,10 +263,13 @@ fn needs_wakeup(previous: Option<ToastTimer>, deadline: Instant) -> bool {
 
 pub struct Notifications {
     config: NotificationsModuleConfig,
-    connection: Option<Connection>,
-    notifications: VecDeque<Notification>,
+    /// The daemon's part of `config`, built once per reload.
+    daemon_config: Arc<NotificationsConfig>,
+    handle: Option<NotificationsHandle>,
+    /// The daemon's latest snapshot, newest first.
+    notifications: Arc<[Arc<Notification>]>,
+    icons: HashMap<(u32, u64), XdgIcon>,
     expanded_groups: HashSet<String>,
-    blocklist: Vec<crate::config::RegexCfg>,
     toasts: VecDeque<u32>,
     dismiss_phases: HashMap<u32, DismissPhase>,
     toast_timers: HashMap<u32, ToastTimer>,
@@ -260,13 +280,13 @@ pub struct Notifications {
 
 impl Notifications {
     pub fn new(config: NotificationsModuleConfig, animations_enabled: bool) -> Self {
-        let blocklist = config.blocklist.clone();
         Self {
+            daemon_config: Arc::new(daemon_config(&config)),
             config,
-            connection: None,
-            notifications: VecDeque::new(),
+            handle: None,
+            notifications: Arc::new([]),
+            icons: HashMap::new(),
             expanded_groups: HashSet::new(),
-            blocklist,
             toasts: VecDeque::new(),
             dismiss_phases: HashMap::new(),
             toast_timers: HashMap::new(),
@@ -288,19 +308,19 @@ impl Notifications {
         self.dnd = !self.dnd;
     }
 
-    fn is_blocklisted(&self, app_name: &str) -> bool {
-        self.blocklist
-            .iter()
-            .any(|pattern| pattern.is_match(app_name))
-    }
-
     fn find_notification(&self, id: u32) -> Option<&Notification> {
-        self.notifications.iter().find(|n| n.id == id)
+        self.notifications
+            .iter()
+            .find(|n| n.id == id)
+            .map(AsRef::as_ref)
     }
 
-    fn close_guard(&self, id: u32) -> CloseGuard {
-        self.find_notification(id)
-            .map_or(CloseGuard::Any, |n| CloseGuard::Revision(n.revision))
+    fn revision(&self, id: u32) -> Option<u64> {
+        self.find_notification(id).map(|n| n.revision)
+    }
+
+    fn icon(&self, notification: &Notification) -> Option<&XdgIcon> {
+        self.icons.get(&(notification.id, notification.revision))
     }
 
     /// `id`'s default action and the window it brings up; the action buttons
@@ -325,9 +345,9 @@ impl Notifications {
         action_key: Option<String>,
         focus: Option<FocusTarget>,
     ) -> Action {
-        let connection = self.connection.clone();
-        let guard = self.close_guard(id);
-        let invoke_task = invoke_and_close_task(connection, id, action_key, guard, focus);
+        let handle = self.handle.clone();
+        let revision = self.revision(id);
+        let invoke_task = invoke_and_close_task(handle, id, revision, action_key, focus);
         if !self.toasts.contains(&id) || self.dismiss_phases.contains_key(&id) {
             return Action::Task(invoke_task);
         }
@@ -358,22 +378,6 @@ impl Notifications {
         had_toasts
     }
 
-    fn remove_toasts(&mut self, ids: &[u32]) -> bool {
-        let had_toasts = !self.toasts.is_empty();
-        let ids: HashSet<u32> = ids.iter().copied().collect();
-        self.toasts.retain(|toast_id| !ids.contains(toast_id));
-        self.toast_timers.retain(|id, _| !ids.contains(id));
-        had_toasts
-    }
-
-    fn notification_ids_for_app(&self, app_name: &str) -> Vec<u32> {
-        self.notifications
-            .iter()
-            .filter(|notification| notification.app_name == app_name)
-            .map(|notification| notification.id)
-            .collect()
-    }
-
     fn hide_toasts_if_empty(&mut self, had_toasts: bool) -> Action {
         if had_toasts && self.toasts.is_empty() {
             self.toasts_hovered = false;
@@ -392,119 +396,124 @@ impl Notifications {
         }
     }
 
-    fn toast_action_for_update_event(&mut self, update_event: &NotificationEvent) -> Action {
-        if !self.config.toast {
-            return Action::None;
+    /// Starts or restarts the toast of a notification that arrived or
+    /// replaced its id, and returns its timer when it is on screen.
+    fn toast_received(&mut self, notification: &Notification) -> Option<Task<Message>> {
+        if !self.config.toast || (self.dnd && notification.urgency != Urgency::Critical) {
+            return None;
+        }
+        if self.config.toast_limit == 0 {
+            self.clear_toasts();
+            return None;
         }
 
-        match update_event {
-            NotificationEvent::Received(notification) => {
-                if self.config.toast_limit == 0 {
-                    let had_toasts = self.clear_toasts();
-                    return self.hide_toasts_if_empty(had_toasts);
-                }
-
-                if !self.toasts.contains(&notification.id) {
-                    while self.toasts.len() >= self.config.toast_limit
-                        && let Some(evicted) = self.toasts.pop_front()
-                    {
-                        self.dismiss_phases.remove(&evicted);
-                        self.toast_timers.remove(&evicted);
-                    }
-                    self.toasts.push_back(notification.id);
-                }
-
-                // A replace cancels an in-flight dismissal so the replacement is
-                // shown instead of being swallowed by the slide-out.
-                self.dismiss_phases.remove(&notification.id);
-
-                // Critical notifications are persistent per the freedesktop
-                // spec: they must be acknowledged by the user.
-                let timeout = if notification.urgency == Urgency::Critical {
-                    None
-                } else {
-                    toast_timeout(notification.expire_timeout, self.config.toast_timeout)
-                };
-
-                let task = if let Some(timeout) = timeout {
-                    let previous = self.toast_timers.get(&notification.id).copied();
-                    if self.toasts_hovered {
-                        self.toast_timers.insert(
-                            notification.id,
-                            ToastTimer::Paused {
-                                remaining: timeout,
-                                total: timeout,
-                                wakeup: previous.and_then(ToastTimer::wakeup),
-                            },
-                        );
-                        Task::none()
-                    } else {
-                        let deadline = Instant::now() + timeout;
-                        self.toast_timers.insert(
-                            notification.id,
-                            ToastTimer::Running {
-                                deadline,
-                                total: timeout,
-                            },
-                        );
-                        if needs_wakeup(previous, deadline) {
-                            delayed_toast_message(timeout, notification.id, Message::ExpireToast)
-                        } else {
-                            Task::none()
-                        }
-                    }
-                } else {
-                    self.toast_timers.remove(&notification.id);
-                    Task::none()
-                };
-
-                Action::Show(task)
+        if !self.toasts.contains(&notification.id) {
+            while self.toasts.len() >= self.config.toast_limit
+                && let Some(evicted) = self.toasts.pop_front()
+            {
+                self.dismiss_phases.remove(&evicted);
+                self.toast_timers.remove(&evicted);
             }
-            NotificationEvent::Closed(id) => {
-                let id = *id;
-                if self.dismiss_phases.contains_key(&id) {
-                    return Action::None;
-                }
-                let was_showing = self.remove_toast(id);
-                self.hide_toasts_if_empty(was_showing)
-            }
+            self.toasts.push_back(notification.id);
         }
-    }
 
-    fn apply_update_event(&mut self, update_event: NotificationEvent) -> Vec<(u32, u64)> {
-        match update_event {
-            NotificationEvent::Received(notification) => {
-                self.notifications.retain(|n| n.id != notification.id);
-                self.notifications.push_front(*notification);
-                self.evict_over_limit()
-            }
-            NotificationEvent::Closed(id) => {
-                self.notifications.retain(|n| n.id != id);
-                Vec::new()
-            }
-        }
-    }
+        // A replace cancels an in-flight dismissal so the replacement is
+        // shown instead of being swallowed by the slide-out.
+        self.dismiss_phases.remove(&notification.id);
 
-    /// Skips visible toasts, which can be older than the limit under DND.
-    fn evict_over_limit(&mut self) -> Vec<(u32, u64)> {
-        let mut evicted = Vec::new();
-        while self.notifications.len() > self.config.history_limit
-            && let Some(pos) = self
-                .notifications
-                .iter()
-                .rposition(|n| !self.toasts.contains(&n.id))
-            && let Some(notification) = self.notifications.remove(pos)
-        {
-            evicted.push((notification.id, notification.revision));
-        }
-        evicted
-    }
-
-    fn with_eviction(&self, action: Action, evicted: Vec<(u32, u64)>) -> Action {
-        if evicted.is_empty() {
-            action
+        // Critical notifications are persistent per the freedesktop
+        // spec: they must be acknowledged by the user.
+        let timeout = if notification.urgency == Urgency::Critical {
+            None
         } else {
-            action.with_task(evict_task(self.connection.clone(), evicted))
+            toast_timeout(notification.expire_timeout, self.config.toast_timeout)
+        };
+
+        let task = if let Some(timeout) = timeout {
+            let previous = self.toast_timers.get(&notification.id).copied();
+            if self.toasts_hovered {
+                self.toast_timers.insert(
+                    notification.id,
+                    ToastTimer::Paused {
+                        remaining: timeout,
+                        total: timeout,
+                        wakeup: previous.and_then(ToastTimer::wakeup),
+                    },
+                );
+                Task::none()
+            } else {
+                let deadline = Instant::now() + timeout;
+                self.toast_timers.insert(
+                    notification.id,
+                    ToastTimer::Running {
+                        deadline,
+                        total: timeout,
+                    },
+                );
+                if needs_wakeup(previous, deadline) {
+                    delayed_toast_message(timeout, notification.id, Message::ExpireToast)
+                } else {
+                    Task::none()
+                }
+            }
+        } else {
+            self.toast_timers.remove(&notification.id);
+            Task::none()
+        };
+
+        Some(task)
+    }
+
+    fn toast_closed(&mut self, id: u32) {
+        if !self.dismiss_phases.contains_key(&id) {
+            self.remove_toast(id);
+        }
+    }
+
+    /// Takes a new snapshot from the daemon: what arrived or was replaced since
+    /// the last one gets a toast, and what is gone loses it.
+    fn apply_snapshot(&mut self, data: NotificationsData) -> Action {
+        let had_toasts = !self.toasts.is_empty();
+        let previous: HashMap<u32, u64> = self
+            .notifications
+            .iter()
+            .map(|n| (n.id, n.revision))
+            .collect();
+        let current: HashSet<u32> = data.notifications.iter().map(|n| n.id).collect();
+        for &id in previous.keys().filter(|id| !current.contains(id)) {
+            self.toast_closed(id);
+        }
+
+        let mut shown = false;
+        let mut tasks = Vec::new();
+        for notification in data.notifications.iter().rev() {
+            if previous.get(&notification.id) != Some(&notification.revision)
+                && let Some(task) = self.toast_received(notification)
+            {
+                shown = true;
+                tasks.push(task);
+            }
+        }
+
+        let mut icons = std::mem::take(&mut self.icons);
+        self.icons = data
+            .notifications
+            .iter()
+            .filter_map(|n| {
+                let key = (n.id, n.revision);
+                let icon = match icons.remove(&key) {
+                    Some(icon) => icon,
+                    None => icon_handle(n.icon.as_ref()?),
+                };
+                Some((key, icon))
+            })
+            .collect();
+        self.notifications = data.notifications;
+
+        if shown {
+            Action::Show(Task::batch(tasks))
+        } else {
+            self.hide_toasts_if_empty(had_toasts)
         }
     }
 
@@ -512,7 +521,7 @@ impl Notifications {
         match message {
             Message::ConfigReloaded(config) => {
                 let hide = !config.toast && self.config.toast && !self.toasts.is_empty();
-                self.blocklist = config.blocklist.clone();
+                self.daemon_config = Arc::new(daemon_config(&config));
                 self.config = config;
                 let action = if hide {
                     self.clear_toasts();
@@ -520,49 +529,22 @@ impl Notifications {
                 } else {
                     Action::None
                 };
-                let evicted = self.evict_over_limit();
-                self.with_eviction(action, evicted)
+                action.with_task(configure_task(self.handle.clone(), &self.daemon_config))
             }
             Message::Event(event) => match event {
-                ServiceEvent::Init(service) => {
-                    self.connection = Some(service.connection);
-                    Action::None
+                // A reload before the daemon ran reaches it only now
+                notifications::Event::Connected(handle) => {
+                    self.handle = Some(handle);
+                    Action::Task(configure_task(self.handle.clone(), &self.daemon_config))
                 }
-                ServiceEvent::Update(update_event) => {
-                    if let NotificationEvent::Received(notification) = &update_event
-                        && self.is_blocklisted(&notification.app_name)
-                    {
-                        // The UI never shows it, so nothing else would close it
-                        // and the daemon would keep its revision tracked for the
-                        // lifetime of the process. Dismiss it at the source.
-                        return Action::Task(evict_task(
-                            self.connection.clone(),
-                            vec![(notification.id, notification.revision)],
-                        ));
-                    }
-
-                    let suppress_toast = self.dnd
-                        && matches!(
-                            &update_event,
-                            NotificationEvent::Received(notification)
-                                if notification.urgency != Urgency::Critical
-                        );
-                    let toast_action = if suppress_toast {
-                        Action::None
-                    } else {
-                        self.toast_action_for_update_event(&update_event)
-                    };
-                    let evicted = self.apply_update_event(update_event);
-                    self.with_eviction(toast_action, evicted)
-                }
-                ServiceEvent::Error(_) => Action::None,
+                notifications::Event::Snapshot(data) => self.apply_snapshot(data),
             },
             Message::NotificationClicked(id) => {
-                let connection = self.connection.clone();
+                let handle = self.handle.clone();
                 let (action_key, focus) = self.default_action(id).unzip();
-                let guard = self.close_guard(id);
+                let revision = self.revision(id);
                 let close_menu = focus.is_some();
-                let task = invoke_and_close_task(connection, id, action_key, guard, focus);
+                let task = invoke_and_close_task(handle, id, revision, action_key, focus);
                 if close_menu {
                     Action::TaskAndCloseMenu(task)
                 } else {
@@ -572,42 +554,20 @@ impl Notifications {
             Message::InvokeAction(id, action_key) => {
                 self.invoke_and_dismiss(id, Some(action_key), None)
             }
-            Message::NotificationClosed => Action::None,
             Message::ToggleDnd => {
                 self.toggle_dnd();
                 Action::None
             }
-            Message::ClearNotifications => {
-                let connection = self.connection.clone();
-                let notification_ids: Vec<u32> = self.notifications.iter().map(|n| n.id).collect();
-
-                Action::Task(Task::perform(
-                    async move {
-                        close_notification_ids(connection, &notification_ids).await;
-                    },
-                    |_| Message::NotificationsCleared,
-                ))
-            }
-            Message::NotificationsCleared => {
-                let had_toasts = self.clear_toasts();
-                self.hide_toasts_if_empty(had_toasts)
-            }
+            Message::ClearNotifications => Action::Task(execute_task(
+                self.handle.clone(),
+                NotificationsCommand::DismissAll,
+            )),
             Message::ClearGroup(app_name) => {
-                let connection = self.connection.clone();
-                let notification_ids = self.notification_ids_for_app(&app_name);
-
-                Action::Task(Task::perform(
-                    async move {
-                        close_notification_ids(connection, &notification_ids).await;
-                        (app_name, notification_ids)
-                    },
-                    |(app_name, ids)| Message::GroupCleared(app_name, ids),
-                ))
-            }
-            Message::GroupCleared(app_name, group_ids) => {
                 self.expanded_groups.remove(&app_name);
-                let had_toasts = self.remove_toasts(&group_ids);
-                self.hide_toasts_if_empty(had_toasts)
+                Action::Task(execute_task(
+                    self.handle.clone(),
+                    NotificationsCommand::DismissApp(app_name),
+                ))
             }
             Message::ToggleGroup(app_name) => {
                 if !self.expanded_groups.remove(&app_name) {
@@ -653,12 +613,12 @@ impl Notifications {
                 }
             }
             Message::CloseNotificationById(id) => {
-                let connection = self.connection.clone();
-                let guard = self.close_guard(id);
+                let handle = self.handle.clone();
+                let revision = self.revision(id);
                 let had_toasts = self.remove_toast(id);
                 self.dismiss_phases.remove(&id);
 
-                let task = invoke_and_close_task(connection, id, None, guard, None);
+                let task = invoke_and_close_task(handle, id, revision, None, None);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
             Message::DismissToast(id) => {
@@ -837,7 +797,7 @@ impl Notifications {
 
         let notification_id = notification.id;
 
-        let app_icon_button = notification_icon(notification.icon.as_ref());
+        let app_icon_button = notification_icon(self.icon(notification));
 
         let mut card = container(
             column!(
@@ -1102,7 +1062,7 @@ impl Notifications {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        NotificationsService::subscribe().map(Message::Event)
+        notifications::subscribe(self.daemon_config.clone()).map(Message::Event)
     }
 
     fn grouped_notifications<'a>(&'a self) -> Element<'a, Message> {
@@ -1137,7 +1097,7 @@ impl Notifications {
             // Multiple notifications — use the group layout.
             let app_name = first.app_name.clone();
             let is_expanded = self.expanded_groups.contains(&app_name);
-            let app_icon = notification_icon(first.icon.as_ref());
+            let app_icon = notification_icon(self.icon(first));
 
             let mut count = 1;
             let mut has_critical = first.urgency == Urgency::Critical;
@@ -1228,19 +1188,18 @@ mod tests {
     use super::{Message, Notifications, ToastTimer};
     use crate::{
         config::NotificationsModuleConfig,
-        services::{
-            ServiceEvent,
-            notifications::dbus::{Notification, NotificationEvent, Urgency},
-        },
+        services::notifications::{Event, Notification, NotificationsData, Urgency},
     };
-    use std::time::{Duration, Instant, SystemTime};
+    use std::{
+        sync::Arc,
+        time::{Duration, Instant, SystemTime},
+    };
 
     fn notification(id: u32, expire_timeout: i32) -> Notification {
         Notification {
             id,
             revision: 0,
             app_name: "test".to_string(),
-            app_icon: String::new(),
             summary: "summary".to_string(),
             body: String::new(),
             actions: vec![],
@@ -1253,10 +1212,34 @@ mod tests {
         }
     }
 
-    fn receive(module: &mut Notifications, notification: Notification) {
-        let _ = module.update(Message::Event(ServiceEvent::Update(
-            NotificationEvent::Received(Box::new(notification)),
-        )));
+    fn snapshot(module: &mut Notifications, notifications: Vec<Arc<Notification>>) {
+        let _ = module.update(Message::Event(Event::Snapshot(NotificationsData {
+            notifications: notifications.into(),
+        })));
+    }
+
+    /// What the daemon sends once `notification` arrives or replaces its id.
+    fn receive(module: &mut Notifications, mut notification: Notification) {
+        notification.revision = module
+            .notifications
+            .iter()
+            .map(|n| n.revision)
+            .max()
+            .map_or(1, |r| r + 1);
+        let id = notification.id;
+        let mut notifications = vec![Arc::new(notification)];
+        notifications.extend(module.notifications.iter().filter(|n| n.id != id).cloned());
+        snapshot(module, notifications);
+    }
+
+    fn close(module: &mut Notifications, id: u32) {
+        let notifications = module
+            .notifications
+            .iter()
+            .filter(|n| n.id != id)
+            .cloned()
+            .collect();
+        snapshot(module, notifications);
     }
 
     #[test]
@@ -1298,5 +1281,60 @@ mod tests {
         };
         assert_eq!(remaining, Duration::from_secs(2));
         assert_eq!(total, Duration::from_secs(2));
+    }
+
+    #[test]
+    fn a_snapshot_toasts_what_arrived_and_drops_what_closed() {
+        let mut module = Notifications::new(NotificationsModuleConfig::default(), false);
+        receive(&mut module, notification(1, 10_000));
+        receive(&mut module, notification(2, 10_000));
+        assert_eq!(module.toasts, [1, 2]);
+
+        close(&mut module, 1);
+        assert_eq!(module.toasts, [2]);
+        assert!(!module.toast_timers.contains_key(&1));
+    }
+
+    #[test]
+    fn several_arrivals_in_one_snapshot_toast_oldest_first() {
+        let mut module = Notifications::new(NotificationsModuleConfig::default(), false);
+        let newer = Notification {
+            revision: 2,
+            ..notification(2, 10_000)
+        };
+        let older = Notification {
+            revision: 1,
+            ..notification(1, 10_000)
+        };
+        snapshot(&mut module, vec![Arc::new(newer), Arc::new(older)]);
+
+        assert_eq!(module.toasts, [1, 2]);
+    }
+
+    #[test]
+    fn an_unchanged_notification_is_not_toasted_again() {
+        let mut module = Notifications::new(NotificationsModuleConfig::default(), false);
+        receive(&mut module, notification(1, 10_000));
+        module.toasts.clear();
+
+        receive(&mut module, notification(2, 10_000));
+        assert_eq!(module.toasts, [2]);
+    }
+
+    #[test]
+    fn do_not_disturb_keeps_only_critical_toasts() {
+        let mut module = Notifications::new(NotificationsModuleConfig::default(), false);
+        module.toggle_dnd();
+        receive(&mut module, notification(1, 10_000));
+        receive(
+            &mut module,
+            Notification {
+                urgency: Urgency::Critical,
+                ..notification(2, 10_000)
+            },
+        );
+
+        assert_eq!(module.toasts, [2]);
+        assert_eq!(module.notifications.len(), 2);
     }
 }

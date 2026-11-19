@@ -20,9 +20,11 @@ bluetooth.execute(BluetoothCommand::Toggle).await?;
 
 ashell wraps each of them in a small module under `src/services/` (e.g. `src/services/bluetooth.rs`) that implements `ReadOnlyService`/`Service`: `subscribe` connects, sends `Init` with the handle and the first snapshot, then forwards the rest of the stream as `Update`s; `command` runs `execute` and produces no message. Other UIs write their own glue on the same API.
 
+A snapshot stays cheap even when the state is large: the notifications daemon keeps each notification behind an `Arc`, so a snapshot copies one pointer per notification whatever its icon weighs, and the stream is a `watch` channel, so a consumer that falls behind gets the latest snapshot instead of a backlog. Its consumer tells what arrived, was replaced or closed by comparing the `(id, revision)` pairs of two snapshots.
+
 Each service sits behind a cargo feature of the same name, so consumers only compile the services, and pull in the system dependencies, they need. The crate has no default features.
 
-Currently migrated: Bluetooth (`bluetooth` feature), brightness (`brightness` feature), idle inhibitor (`idle_inhibitor` feature), logind (`logind` feature), privacy (`privacy` feature) and UPower (`upower` feature). Shared helpers that are not services live in plain modules, e.g. `rfkill` (soft-block state and change notifications, used by both bluetooth and network), `throttle` (a stream rate limiter) and `xdg_icons` (icon lookup by name). The optional `serde` feature derives `Deserialize` on types that appear in configuration, such as `upower::PeripheralDeviceKind`.
+Currently migrated: Bluetooth (`bluetooth` feature), brightness (`brightness` feature), idle inhibitor (`idle_inhibitor` feature), logind (`logind` feature), notifications (`notifications` feature), privacy (`privacy` feature) and UPower (`upower` feature). Shared helpers that are not services live in plain modules, e.g. `rfkill` (soft-block state and change notifications, used by both bluetooth and network), `throttle` (a stream rate limiter) and `xdg_icons` (icon lookup by name). The optional `serde` feature derives `Deserialize` on types that appear in configuration, such as `upower::PeripheralDeviceKind`.
 
 ## ServiceEvent
 
