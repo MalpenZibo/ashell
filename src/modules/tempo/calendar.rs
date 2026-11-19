@@ -248,8 +248,12 @@ impl Tempo {
                 column!(
                     text(self.date.format_localized("%A", locale).to_string())
                         .size(theme.font_size.sm),
-                    text(self.date.format_localized("%d %B %Y", locale).to_string())
-                        .size(theme.font_size.lg),
+                    text(
+                        self.date
+                            .format_localized(&self.menu_date_formats().header, locale)
+                            .to_string()
+                    )
+                    .size(theme.font_size.lg),
                 )
                 .spacing(theme.space.xs),
             ),)
