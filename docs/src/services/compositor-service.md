@@ -59,8 +59,9 @@ broadcaster_event_loop()
     ▼ broadcast::Sender::send()
     ├── Subscriber 1 (Workspaces module)
     ├── Subscriber 2 (WindowTitle module)
-    ├── Subscriber 3 (KeyboardLayout module)
-    └── Subscriber 4 (KeyboardSubmap module)
+    ├── Subscriber 3 (Minimap module)
+    ├── Subscriber 4 (KeyboardLayout module)
+    └── Subscriber 5 (KeyboardSubmap module)
 ```
 
 Each call to `CompositorService::subscribe()` creates a new `broadcast::Receiver`, getting all events from that point forward.
@@ -74,7 +75,9 @@ pub struct CompositorState {
     pub workspaces: Vec<CompositorWorkspace>,
     pub monitors: Vec<CompositorMonitor>,
     pub active_workspace_ids: Vec<i32>,
+    pub focused_workspace_id: Option<i32>,  // None where there is no global focus
     pub active_window: Option<ActiveWindow>,
+    pub windows: Vec<CompositorWindow>,     // per-window layout, filled by Niri only
     pub keyboard_layout: String,
     pub submap: Option<String>,
 }

@@ -54,6 +54,17 @@ Provides information about the current workspaces and allows switching between t
 
 Displays the title of the currently focused window.
 
+### Minimap
+
+Shows a small map of the tiled windows on the workspace active on the
+bar's output, laid out by column and row with proportional sizes, with
+the focused tile highlighted and urgent windows shown in the danger
+color. Floating windows have no grid position and aren't shown.
+
+Only the Niri backend provides the window layout today; on other
+compositors the module stays hidden. Tabbed columns are drawn as
+stacked tiles, since niri doesn't report a column's display mode.
+
 ### SystemInfo
 
 Displays system information such as CPU usage, memory usage, and disk space.

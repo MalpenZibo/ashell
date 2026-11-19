@@ -8,6 +8,7 @@ Modules are the UI building blocks of ashell. Each module is a self-contained co
 |--------|-------------|-------------|----------|
 | Workspaces | `"Workspaces"` | Workspace indicators and switching | No |
 | WindowTitle | `"WindowTitle"` | Active window title/class display | No |
+| Minimap | `"Minimap"` | Map of the tiled windows on the active workspace (Niri only) | No |
 | SystemInfo | `"SystemInfo"` | CPU, RAM, disk, network, temperature | Yes |
 | KeyboardLayout | `"KeyboardLayout"` | Keyboard layout indicator (click to cycle) | No |
 | KeyboardSubmap | `"KeyboardSubmap"` | Hyprland submap display | No |

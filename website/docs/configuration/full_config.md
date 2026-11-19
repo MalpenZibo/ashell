@@ -44,8 +44,8 @@ right = [ "SystemInfo", "MediaPlayer", [ "Tray", "Tempo", "Privacy", "Settings" 
 # right = [ [ "Tempo", "Privacy", "Settings" ] ]
 #
 # Every built-in module name: "Updates", "Workspaces", "WindowTitle",
-# "SystemInfo", "KeyboardLayout", "KeyboardSubmap", "Tray", "Tempo",
-# "Privacy", "Settings", "MediaPlayer", "Notifications".
+# "Minimap", "SystemInfo", "KeyboardLayout", "KeyboardSubmap", "Tray",
+# "Tempo", "Privacy", "Settings", "MediaPlayer", "Notifications".
 # Any other name refers to a [[CustomModule]] with that `name`.
 
 # ── Updates ───────────────────────────────────────────────────────────────────
