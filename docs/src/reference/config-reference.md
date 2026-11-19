@@ -139,9 +139,10 @@ labels = { "English (US)" = "EN", "Italian" = "IT" }
 ## Keyboard Locks Module
 
 ```toml
-[keyboard_locks.caps_lock]          # also num_lock and scroll_lock
-visibility = "ActiveOnly"           # "ActiveOnly", "AlwaysVisible" or "Hidden"
-icon = "CAPS"                       # optional, replaces the default icon
+[keyboard_locks]
+caps_lock = "ActiveOnly"            # "ActiveOnly", "AlwaysVisible" or "Hidden"
+num_lock = "ActiveOnly"
+scroll_lock = "ActiveOnly"
 ```
 
 ## System Info Module

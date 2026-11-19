@@ -97,15 +97,10 @@ truncate_title_after_length = 150 # (default) 0 means no truncation; capped at 2
 
 # ── Keyboard Locks ────────────────────────────────────────────────────────────
 
-[keyboard_locks.caps_lock]
-visibility = "ActiveOnly"   # (default) "ActiveOnly", "AlwaysVisible" (dimmed while off) or "Hidden"
-# icon = "CAPS"             # (default: a Nerd Font glyph) a glyph or text instead
-
-[keyboard_locks.num_lock]
-visibility = "ActiveOnly"
-
-[keyboard_locks.scroll_lock]
-visibility = "ActiveOnly"
+[keyboard_locks]
+caps_lock = "ActiveOnly"    # (default) "ActiveOnly", "AlwaysVisible" (dimmed while off) or "Hidden"
+num_lock = "ActiveOnly"     # (default)
+scroll_lock = "ActiveOnly"  # (default)
 
 # ── System Info ───────────────────────────────────────────────────────────────
 

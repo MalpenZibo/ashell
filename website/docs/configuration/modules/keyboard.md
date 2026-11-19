@@ -57,28 +57,20 @@ The LEDs are read four times a second while the keyboard or the mouse are in
 use, and not at all once they have been left alone for a few seconds, e.g. on
 the lock screen: a lock changes when a key is pressed, so a change shows up at
 most a quarter of a second later.
+
 On a compositor without the `ext-idle-notify-v1` protocol they are read four
 times a second all the time.
 
-Each lock has two options:
+`caps_lock`, `num_lock` and `scroll_lock` set when each lock is shown:
 
-- `visibility`: when the lock is shown.
-  - `ActiveOnly` (default): only while it is on.
-  - `AlwaysVisible`: always, dimmed while it is off.
-  - `Hidden`: never.
-- `icon`: a glyph or a text to show instead of the default icon, e.g. `"NUM"`.
-
-By default the module only shows the locks that are on.
+- `ActiveOnly` (default): only while it is on.
+- `AlwaysVisible`: always, dimmed while it is off.
+- `Hidden`: never.
 
 ### Example
 
 ```toml
-[keyboard_locks.caps_lock]
-visibility = "AlwaysVisible"
-
-[keyboard_locks.num_lock]
-icon = "NUM"
-
-[keyboard_locks.scroll_lock]
-visibility = "Hidden"
+[keyboard_locks]
+caps_lock = "AlwaysVisible"
+scroll_lock = "Hidden"
 ```
