@@ -22,9 +22,11 @@ where
     Tz::Offset: std::fmt::Display,
 {
     let mut out = String::new();
+
     if write!(out, "{}", time.format_localized(format, chrono_locale())).is_err() {
         out.clear();
     }
+
     out
 }
 

@@ -64,6 +64,7 @@ impl Scene {
             scale,
             backdrop,
         } = look;
+
         let Some(mut app) = Headless::new() else {
             eprintln!("no GPU adapter; nothing drawn");
             return None;
@@ -84,6 +85,7 @@ impl Scene {
         if let Some(backdrop) = backdrop {
             surface_config = surface_config.background_color(backdrop);
         }
+
         let surface = app.surface(surface_config, move || {
             provide_ui(ui);
             provide_context(modules(create_signal(config.clone()).read_only()));
@@ -121,11 +123,13 @@ impl Scene {
     fn frame(&self) -> ::image::RgbaImage {
         let pixels = self.app.read_frame(self.surface);
         let (width, height) = self.size;
+
         ::image::RgbaImage::from_raw(width * self.scale, height * self.scale, pixels).unwrap()
     }
 
     fn save(&self, name: &str) {
         let path = out_dir().join(format!("{name}.png"));
+
         self.frame().save(&path).unwrap();
         println!("{}", path.display());
     }
@@ -417,30 +421,36 @@ items = [{ item = "forecast", hours = 4 }]
 fn unpremultiplied(mut frame: ::image::RgbaImage) -> ::image::RgbaImage {
     for pixel in frame.pixels_mut() {
         let alpha = u32::from(pixel[3]);
+
         if alpha > 0 && alpha < 255 {
             for channel in &mut pixel.0[..3] {
                 *channel = (u32::from(*channel) * 255 / alpha).min(255) as u8;
             }
         }
     }
+
     frame
 }
 
 /// `frame` as a lossless WebP, as small as libwebp makes one.
 fn save_webp(frame: &::image::RgbaImage, path: &std::path::Path) {
     let mut config = webp::WebPConfig::new().unwrap();
+
     config.lossless = 1;
     config.method = 6;
     config.quality = 100.0;
+
     let encoded = webp::Encoder::from_rgba(frame.as_raw(), frame.width(), frame.height())
         .encode_advanced(&config)
         .unwrap();
+
     std::fs::write(path, &*encoded).unwrap();
 }
 
 /// What is drawn, with `margin` round it.
 fn cut_to_drawn(frame: &::image::RgbaImage, margin: u32) -> ::image::RgbaImage {
     let (mut left, mut top, mut right, mut bottom) = (u32::MAX, u32::MAX, 0, 0);
+
     for (x, y, pixel) in frame.enumerate_pixels() {
         if pixel[3] > 0 {
             left = left.min(x);
@@ -449,6 +459,7 @@ fn cut_to_drawn(frame: &::image::RgbaImage, margin: u32) -> ::image::RgbaImage {
             bottom = bottom.max(y);
         }
     }
+
     let left = left.saturating_sub(margin);
     let top = top.saturating_sub(margin);
     let right = (right + margin).min(frame.width() - 1);
@@ -461,6 +472,7 @@ fn cut_to_drawn(frame: &::image::RgbaImage, margin: u32) -> ::image::RgbaImage {
 /// theme, `show` putting it in the state pictured.
 fn site_picture(name: &str, bar: &str, size: (u32, u32), cut: bool, show: fn(&mut Scene)) {
     let dir = out_dir().join("site");
+
     std::fs::create_dir_all(&dir).unwrap();
 
     for mode in ["dark", "light"] {
@@ -474,6 +486,7 @@ fn site_picture(name: &str, bar: &str, size: (u32, u32), cut: bool, show: fn(&mu
         }) else {
             return;
         };
+
         show(&mut scene);
         scene.run(Duration::from_millis(1200));
 
@@ -484,6 +497,7 @@ fn site_picture(name: &str, bar: &str, size: (u32, u32), cut: bool, show: fn(&mu
             frame
         };
         let path = dir.join(format!("{name}-{mode}.webp"));
+
         save_webp(&frame, &path);
         println!("{}", path.display());
     }
@@ -491,6 +505,7 @@ fn site_picture(name: &str, bar: &str, size: (u32, u32), cut: bool, show: fn(&mu
 
 fn open_calendar(scene: &mut Scene) {
     let (group, zone) = zone_of(&scene.bar, "clock");
+
     scene.state.toggle(Opened {
         group,
         zone,

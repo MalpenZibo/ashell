@@ -80,9 +80,11 @@ fn placeholder(item: &Item, zone_open: Open, opens: Opens) -> Container {
 
 fn drawn(item: &Item, view: ItemView, zone_open: Open, opens: Opens) -> Container {
     let ItemView { view, shown, act } = view;
+
     let run = move |action: Action| {
         let act = act.clone();
         let opens = opens.clone();
+
         move || match &action {
             Action::Named(name) => act(name),
             Action::Open(panel) => opens(*panel),
@@ -101,31 +103,38 @@ fn drawn(item: &Item, view: ItemView, zone_open: Open, opens: Opens) -> Containe
     }
 
     let gestures = &item.gestures;
+
     if let Some(action) = gestures.right_click.clone() {
         view = view.on_right_click(run(action));
     }
+
     if let Some(action) = gestures.middle_click.clone() {
         view = view.on_middle_click(run(action));
     }
+
     if gestures.scroll_up.is_some() || gestures.scroll_down.is_some() {
         let up = gestures.scroll_up.clone().map(&run);
         let down = gestures.scroll_down.clone().map(&run);
         let gathered = Cell::new(0.0f32);
+
         view = view.on_scroll(move |_, delta, _| {
             // Down is positive, as for a scrolled list.
             let mut total = gathered.get() + delta;
+
             while total <= -SCROLL_STEP {
                 total += SCROLL_STEP;
                 if let Some(up) = &up {
                     up();
                 }
             }
+
             while total >= SCROLL_STEP {
                 total -= SCROLL_STEP;
                 if let Some(down) = &down {
                     down();
                 }
             }
+
             gathered.set(total);
         });
     }

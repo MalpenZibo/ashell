@@ -45,6 +45,7 @@ impl TempoConfig {
                 Some(names) => {
                     for (index, name) in names.iter().enumerate() {
                         let at = format!("timezones[{index}]");
+
                         match name.as_str().map(|name| (name, TimeZone::parse(name))) {
                             Some((_, Some(zone))) => config.timezones.push(zone),
                             Some((name, None)) => warn(
@@ -129,6 +130,7 @@ fn location(value: &Value) -> Result<WeatherLocation, String> {
                     .map(|city| WeatherLocation::City(city.to_string()))
                     .ok_or_else(|| "city: expected a string".to_string());
             }
+
             if let Some(coordinates) = table.get("coordinates") {
                 let numbers: Option<Vec<f64>> = coordinates.as_array().and_then(|values| {
                     values
@@ -136,6 +138,7 @@ fn location(value: &Value) -> Result<WeatherLocation, String> {
                         .map(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)))
                         .collect()
                 });
+
                 return match numbers.as_deref() {
                     Some(&[lat, lon]) if (-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lon) => {
                         Ok(WeatherLocation::Coordinates(lat as f32, lon as f32))
@@ -147,6 +150,7 @@ fn location(value: &Value) -> Result<WeatherLocation, String> {
                     _ => Err("coordinates: expected [<latitude>, <longitude>]".to_string()),
                 };
             }
+
             Err(EXPECTED.to_string())
         }
         _ => Err(EXPECTED.to_string()),
@@ -199,6 +203,7 @@ mod tests {
         );
 
         let (config, problems) = read(r#"weather_location = { coordinates = [95, 9] }"#);
+
         assert_eq!(config.weather_location, None);
         assert_eq!(problems.len(), 1);
     }

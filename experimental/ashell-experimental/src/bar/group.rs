@@ -349,11 +349,13 @@ fn rest(group: &Node, state: State, refs: &Refs, modules: Modules) -> Container 
                             });
                         }
                     };
+
                     let content =
                         items::zone(&zone.items, open, modules, opens(state, id, index), click)
                             .unwrap_or_else(|| {
                                 container().child(placeholder::zone(&zone.name, click))
                             });
+
                     let mut pill = container()
                         .widget_ref(refs.zones[&(id, index)])
                         .child(content);
@@ -408,6 +410,7 @@ fn details(
     rising(row, enter(), leave(), away).child(move || {
         zone.get().map(|index| {
             let zone = &group.zones()[index];
+
             swapped_in(items::details(
                 &zone.details,
                 zone.open,

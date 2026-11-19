@@ -26,6 +26,7 @@ fn warmth(hour: u32, low: f32, high: f32) -> f32 {
 /// The weather as it would be at `now`, a UTC time on London's clock.
 pub fn weather(now: NaiveDateTime) -> WeatherData {
     let midnight = now.date().and_hms_opt(0, 0, 0).unwrap();
+
     let days = DAYS
         .iter()
         .enumerate()
@@ -39,6 +40,7 @@ pub fn weather(now: NaiveDateTime) -> WeatherData {
             humidity: 76,
         })
         .collect();
+
     let hours = (0..7 * 24)
         .map(|offset| {
             let time = midnight + Duration::hours(offset);
@@ -52,6 +54,7 @@ pub fn weather(now: NaiveDateTime) -> WeatherData {
                 None if code >= 51 => 3,
                 None => 1,
             };
+
             Hour {
                 time,
                 code,

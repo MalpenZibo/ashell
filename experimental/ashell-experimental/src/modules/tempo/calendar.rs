@@ -27,6 +27,7 @@ pub fn view(tempo: Tempo) -> Container {
     // The day the weather card is about: none for now.
     let chosen = create_signal(None::<NaiveDate>);
     let has_weather = create_memo(move || tempo.weather.with(Option::is_some));
+
     container()
         .width(WIDTH)
         .padding(size::S4.px())
@@ -47,6 +48,7 @@ fn clock(tempo: Tempo) -> Container {
     let t = ui();
     let formats = time::Formats::of_locale();
     let written = move |format: &str| time::format(tempo.now.get(), tempo.zone().as_ref(), format);
+
     let hours = create_memo(move || written(&formats.time));
     let seconds = create_memo(move || written("%S"));
     let day = create_memo(move || written("%A %-d %B"));
@@ -89,6 +91,7 @@ fn zones(tempo: Tempo) -> Container {
         .layout(Flex::column().spacing(size::S0_5.px()))
         .children(move || {
             let active = tempo.zone.get();
+
             tempo
                 .config
                 .with(|c| c.timezones.clone())
@@ -101,6 +104,7 @@ fn zones(tempo: Tempo) -> Container {
                     let format = formats.time.clone();
                     let when =
                         create_memo(move || time::format(tempo.now.get(), Some(&zone), &format));
+
                     container()
                         .width(fill())
                         .height(Size::Sm.height())
@@ -150,6 +154,7 @@ fn card_for(
 ) -> Card {
     let now = &data.current;
     let today = time::date(now.time, zone);
+
     let high_low = |max: f32, min: f32| {
         t!(
             "tempo-high-low",
@@ -185,6 +190,7 @@ fn card_for(
                 .iter()
                 .filter(|h| {
                     let local = time::local(h.time, zone);
+
                     local.date_naive() == day.date && DAY_HOURS.contains(&local.hour())
                 })
                 .map(|h| sky::Hour::new(h, time::format(h.time, zone, &formats.hour)))
@@ -219,6 +225,7 @@ fn card_for(
                     } else {
                         time::format(h.time, zone, &formats.hour)
                     };
+
                     sky::Hour::new(h, when)
                 })
                 .collect(),
@@ -231,19 +238,23 @@ fn card_for(
 fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
     let t = ui();
     let formats = time::Formats::of_locale();
+
     let card = create_memo(move || {
         let zone = tempo.zone();
         let wind = sky::wind_symbol(tempo.config.with(|c| c.wind_speed_unit()));
+
         tempo.weather.with(|data| {
             data.as_ref()
                 .map(|data| card_for(data, chosen.get(), zone.as_ref(), wind, &formats))
         })
     });
+
     let place = create_memo(move || {
         tempo.weather.with(|data| {
             data.as_ref()
                 .map(|data| {
                     let place = &data.place;
+
                     if place.region.is_empty() {
                         place.city.clone()
                     } else {
@@ -253,8 +264,10 @@ fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
                 .unwrap_or_default()
         })
     });
+
     let read =
         move |f: fn(&Card) -> String| move || card.with(|c| c.as_ref().map(f).unwrap_or_default());
+
     container()
         .width(fill())
         .padding(size::S3.px())
@@ -371,18 +384,22 @@ const WEEK: [Weekday; 7] = [
 /// The month, from Monday, today marked, with a way to the months around it.
 fn month(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
     let t = ui();
+
     // How many months from this one the panel shows.
     let offset = create_signal(0i32);
     let today = create_memo(move || time::date(tempo.now.get(), tempo.zone().as_ref()));
+
     let first = create_memo(move || {
         let this = today.get().with_day(1).expect("every month has a first");
         let months = Months::new(offset.get().unsigned_abs());
+
         if offset.get() >= 0 {
             this + months
         } else {
             this - months
         }
     });
+
     let step = move |by: i32| move || offset.update(|o| *o += by);
 
     container()
@@ -450,6 +467,7 @@ fn month(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
                             .map(|data| data.days.iter().map(|d| (d.date, d.code)).collect())
                             .unwrap_or_default()
                     });
+
                     days(first)
                         .chunks(7)
                         .map(|week_days| {
@@ -473,6 +491,7 @@ fn month(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
 fn days(first: NaiveDate) -> Vec<NaiveDate> {
     let lead = first.weekday().num_days_from_monday() as i64;
     let start = first - chrono::Duration::days(lead);
+
     (0..42).map(|i| start + chrono::Duration::days(i)).collect()
 }
 
@@ -513,6 +532,7 @@ fn cell(
     let t = ui();
     let is_today = day == today;
     let outside = day.month() != first.month();
+
     let ink = if is_today {
         t.colors.on_accent
     } else if outside {
@@ -520,7 +540,9 @@ fn cell(
     } else {
         t.colors.text
     };
+
     let picked = move || !is_today && chosen.get() == Some(day);
+
     let base = container()
         .width(fill())
         .height(size::S10.px())
@@ -561,6 +583,7 @@ fn cell(
             } else {
                 self::sky::ink(code, t.colors.accent, t.colors.sub)
             };
+
             icon(self::sky::icon(code, true), icon_box::XSMALL.px(), tint)
         }));
 

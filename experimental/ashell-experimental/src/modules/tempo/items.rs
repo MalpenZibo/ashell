@@ -43,6 +43,7 @@ impl Options {
             ItemId::Weather => &["style"],
             _ => &["hours"],
         };
+
         for key in table.keys() {
             if !known.contains(&key.as_str()) {
                 problems.push(format!("{key}: unknown option of {}, ignored", id.name()));
@@ -65,6 +66,7 @@ impl Options {
                     }
                     None => Vec::new(),
                 };
+
                 if formats.is_empty() {
                     formats.push(
                         table
@@ -73,6 +75,7 @@ impl Options {
                             .unwrap_or_else(|| CLOCK_FORMAT.to_string()),
                     );
                 }
+
                 Options::Clock { formats }
             }
             ItemId::Date => Options::Date {
@@ -154,9 +157,11 @@ fn shown(
 fn clock(tempo: Tempo, show: Show, formats: Vec<String>) -> ItemView {
     let t = ui();
     let count = formats.len();
+
     let index = create_signal(0usize);
     let text = create_memo(move || {
         let format = &formats[index.get() % count];
+
         time::format(tempo.now.get(), tempo.zone().as_ref(), format)
     });
 
@@ -176,6 +181,7 @@ fn clock(tempo: Tempo, show: Show, formats: Vec<String>) -> ItemView {
 
 fn date(tempo: Tempo, show: Show, format: String) -> ItemView {
     let t = ui();
+
     let text = create_memo(move || time::format(tempo.now.get(), tempo.zone().as_ref(), &format));
 
     ItemView {
@@ -191,12 +197,14 @@ fn date(tempo: Tempo, show: Show, format: String) -> ItemView {
 
 fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
     let t = ui();
+
     let now = create_memo(move || {
         tempo.weather.with(|data| {
             data.as_ref()
                 .map(|d| (d.current.code, d.current.is_day, d.current.temperature))
         })
     });
+
     let view = container()
         .layout(centered_row(size::S1.px()))
         .child(move || {
@@ -235,8 +243,10 @@ fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
 fn forecast(tempo: Tempo, show: Show, hours: usize) -> ItemView {
     let t = ui();
     let formats = time::Formats::of_locale();
+
     let coming = create_memo(move || {
         let zone = tempo.zone();
+
         tempo.weather.with(|data| {
             data.as_ref()
                 .map(|data| {
@@ -244,6 +254,7 @@ fn forecast(tempo: Tempo, show: Show, hours: usize) -> ItemView {
                         .take(hours)
                         .map(|hour| {
                             let when = time::format(hour.time, zone.as_ref(), &formats.hour);
+
                             sky::Hour::new(hour, when)
                         })
                         .collect::<Vec<_>>()
@@ -251,6 +262,7 @@ fn forecast(tempo: Tempo, show: Show, hours: usize) -> ItemView {
                 .unwrap_or_default()
         })
     });
+
     let view = container()
         .layout(centered_row(size::S2.px()))
         .children(move || {

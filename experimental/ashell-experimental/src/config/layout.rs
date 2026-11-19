@@ -34,10 +34,13 @@ pub fn read(file: &Table) -> Parsed {
         .unwrap_or_default();
 
     let mut modules = modules::Configs::default();
+
     for module in ModuleId::ALL {
         let name = module.spec().name;
+
         if let Some(table) = file.get(name).and_then(|value| reader.table(name, value)) {
             let problems = modules.read(module, table);
+
             reader.problems.extend(problems);
         }
     }
@@ -543,6 +546,7 @@ impl Reader {
                 for key in Gestures::KEYS {
                     if let Some(value) = table.get(key) {
                         let action = self.action(&format!("{at}.{key}"), item.id, value);
+
                         if let (Some(action), Some(slot)) = (action, item.gestures.get_mut(key)) {
                             *slot = Some(action);
                         }
@@ -576,26 +580,32 @@ impl Reader {
             Value::String(name) if name == "none" => Some(Action::None),
             Value::String(name) => {
                 let action = modules::actions(item).iter().find(|action| *action == name);
+
                 if action.is_none() {
                     self.warn(
                         at,
                         format!("{} has no action named \"{name}\"", item.name()),
                     );
                 }
+
                 action.map(|action| Action::Named(action))
             }
             Value::Table(table) => {
                 self.known_keys(at, table, &["open", "run"]);
+
                 if table.contains_key("open") {
                     return self.get::<Open>(at, table, "open").map(|open| match open {
                         Open::Panel(panel) => Action::Open(panel),
                         Open::Nothing => Action::None,
                     });
                 }
+
                 if let Some(command) = table.get("run") {
                     let command = self.string(&format!("{at}.run"), command)?;
+
                     return Some(Action::Run(command.to_string()));
                 }
+
                 self.warn(at, "expected `open` or `run`");
                 None
             }
@@ -1253,6 +1263,7 @@ center = [\"clock\"]
         );
 
         let problems = parsed.problems.join("\n");
+
         assert!(
             problems.contains(
                 "zone.hot.open: \"calendr\": expected \"none\" or a panel, one of settings, calendar,"
@@ -1279,6 +1290,7 @@ center = [\"clock\"]
         assert!(parsed.problems.is_empty(), "{:?}", parsed.problems);
 
         let items = &place(&parsed.config.bars[0], 1)[0].zones()[0].items;
+
         assert_eq!(items[0].gestures, modules::default_gestures(ItemId::Clock));
         assert_eq!(
             items[1].gestures.scroll_up,
@@ -1317,6 +1329,7 @@ center = [\"clock\"]
         );
 
         let problems = parsed.problems.join("\n");
+
         for expected in [
             "zone.clock.items[0].right_click: date has no action named \"cycle_format\"",
             "zone.clock.items[0]: format: \"%Q\" is not a date format",

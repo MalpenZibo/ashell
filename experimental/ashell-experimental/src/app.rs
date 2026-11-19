@@ -15,6 +15,7 @@ pub fn run() {
 
     App::new().run(|_| {
         let config = config::watched();
+
         provide_context(Modules::new(config));
         // A wallpaper is read again only when the appearance changes.
         let appearance = create_memo(move || config.with(|config| config.appearance.clone()));

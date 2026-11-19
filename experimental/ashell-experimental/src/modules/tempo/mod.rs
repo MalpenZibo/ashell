@@ -42,17 +42,21 @@ impl Tempo {
     pub fn new(config: Memo<TempoConfig>) -> Self {
         let now = create_signal(time::now());
         let tick = now.writer();
+
         create_task(move |_| async move {
             loop {
                 let into = Utc::now().timestamp_subsec_millis() as u64;
+
                 tokio::time::sleep(Duration::from_millis(1000 - into.min(999))).await;
                 tick.set(time::now());
             }
         });
 
         let zone = create_signal(0usize);
+
         create_effect(move || {
             let count = config.with(|c| c.timezones.len());
+
             if zone.get_untracked() >= count.max(1) {
                 zone.set(0);
             }
@@ -60,14 +64,17 @@ impl Tempo {
 
         let weather = create_signal(None);
         let query = create_memo(move || config.with(|c| c.weather_query(language_subtag())));
+
         create_effect(move || {
             let query = query.get();
+
             weather.set(None);
             let Some(query) = query else {
                 return;
             };
 
             let forecast = weather.writer();
+
             create_task(move |_| async move {
                 let weather = match Weather::connect(query).await {
                     Ok(weather) => weather,
@@ -76,7 +83,9 @@ impl Tempo {
                         return;
                     }
                 };
+
                 let mut updates = pin!(weather.updates());
+
                 while let Some(update) = updates.next().await {
                     if update.is_some() {
                         forecast.set(update);
@@ -114,11 +123,13 @@ impl Tempo {
     /// The time zone the time is told in, the system's when none is set.
     fn zone(self) -> Option<TimeZone> {
         let index = self.zone.get();
+
         self.config.with(|c| c.timezones.get(index).cloned())
     }
 
     fn step_zone(self, by: isize) {
         let count = self.config.with(|c| c.timezones.len()) as isize;
+
         if count > 0 {
             self.zone
                 .update(|index| *index = (*index as isize + by).rem_euclid(count) as usize);
@@ -173,6 +184,7 @@ fn default_gestures(id: ItemId) -> Gestures {
         scroll_down: named(PREVIOUS_TIMEZONE),
         ..Gestures::default()
     };
+
     match id {
         ItemId::Clock => Gestures {
             right_click: named(CYCLE_FORMAT),

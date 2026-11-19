@@ -78,6 +78,7 @@ impl Configs {
         match module {
             ModuleId::Tempo => {
                 let (config, problems) = TempoConfig::read(table);
+
                 self.tempo = config;
                 problems
             }
@@ -144,6 +145,7 @@ mod tests {
     #[test]
     fn modules_have_their_own_tables() {
         let names: Vec<_> = ModuleId::ALL.iter().map(|m| m.spec().name).collect();
+
         for name in &names {
             assert_eq!(names.iter().filter(|n| *n == name).count(), 1);
             assert!(!["appearance", "bar", "monitor", "zone"].contains(name));
