@@ -21,6 +21,8 @@ and close is what is in place.
 | `"merge"` | The panel splits off the nearest island, starting as a sliver and growing to its size, merged with it. It merges back on close. Whether it stays joined by a neck is the bar's `gap`: see below. |
 | `"morph"` | The group's own island turns into the panel, and back. |
 
+{{ <panel_modes /> }}
+
 ### Joined or apart: `gap`
 
 The bar's `gap` (a space step, `s2` by default) is how far panels and

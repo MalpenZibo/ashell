@@ -17,6 +17,8 @@ timezones        = ["Europe/Rome", "America/New_York", "+09:00"]
 weather_location = { city = "Milano" }
 ```
 
+{{ <picture name="tempo/tempo-items" alt="A bar with the weather, the date and the time, the forecast on hover under the time, and the next hours" width="960" height="115" /> }}
+
 ## `[tempo]`
 
 What the module does and where its data comes from. Where its items show,
@@ -81,6 +83,8 @@ The time zone is the module's: changed on one item, every item and the
 calendar tell the time in it. The format is the item's own.
 
 ## The calendar
+
+{{ <picture name="tempo/tempo-calendar" alt="The calendar panel: the time, the time zones and the weather beside the month" width="960" height="540" /> }}
 
 The `calendar` panel has the time, large, with its seconds; the time zones,
 each with its time, the one chosen marked, and a click on one tells the time

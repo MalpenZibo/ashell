@@ -28,3 +28,9 @@ const CATALOGS: Catalogs = &[
 pub fn init() {
     init_localizer(Localizer::resolve(None, None, CATALOGS));
 }
+
+/// `language` and the formats of `region`, whatever the environment says.
+#[cfg(test)]
+pub fn init_for(language: &str, region: &str) {
+    init_localizer(Localizer::resolve(Some(language), Some(region), CATALOGS));
+}

@@ -6,7 +6,7 @@ use guido::testing::Headless;
 use styletto::provide_ui;
 
 use super::{NodeId, Opened, State, placed, view_with};
-use crate::config::{self, Bar, Panel};
+use crate::config::{self, Bar, Config, Panel};
 use crate::modules::Modules;
 
 const WIDTH: u32 = 1440;
@@ -26,11 +26,44 @@ struct Scene {
     bar: Bar,
     state: State,
     clock: Instant,
+    size: (u32, u32),
+    scale: u32,
+}
+
+/// How a scene is drawn: its size, its scale and what shows round the bar,
+/// guido's default with no `backdrop`.
+struct Look {
+    size: (u32, u32),
+    scale: u32,
+    backdrop: Option<Color>,
+}
+
+impl Default for Look {
+    fn default() -> Self {
+        Self {
+            size: (WIDTH, HEIGHT),
+            scale: 1,
+            backdrop: None,
+        }
+    }
 }
 
 impl Scene {
     fn new(text: &str) -> Option<Self> {
         crate::i18n::init();
+        Self::build(text, Look::default(), Modules::new)
+    }
+
+    fn build(
+        text: &str,
+        look: Look,
+        modules: impl Fn(Signal<Config>) -> Modules + 'static,
+    ) -> Option<Self> {
+        let Look {
+            size,
+            scale,
+            backdrop,
+        } = look;
         let Some(mut app) = Headless::new() else {
             eprintln!("no GPU adapter; nothing drawn");
             return None;
@@ -44,19 +77,20 @@ impl Scene {
 
         let drawn = bar.clone();
         // The whole surface drawn, not only where the bar shows.
-        let surface = app.surface(
-            SurfaceConfig::new()
-                .width(0)
-                .height(0)
-                .anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT),
-            move || {
-                provide_ui(ui);
-                provide_context(Modules::new(create_signal(config.clone()).read_only()));
+        let mut surface_config = SurfaceConfig::new()
+            .width(0)
+            .height(0)
+            .anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
+        if let Some(backdrop) = backdrop {
+            surface_config = surface_config.background_color(backdrop);
+        }
+        let surface = app.surface(surface_config, move || {
+            provide_ui(ui);
+            provide_context(modules(create_signal(config.clone()).read_only()));
 
-                view_with(&drawn, state)
-            },
-        );
-        app.configure(surface, WIDTH, HEIGHT, 1.0);
+            view_with(&drawn, state)
+        });
+        app.configure(surface, size.0, size.1, scale as f32);
         app.enter_output(surface, output);
 
         let mut scene = Self {
@@ -65,6 +99,8 @@ impl Scene {
             bar,
             state,
             clock: Instant::now(),
+            size,
+            scale,
         };
         scene.run(Duration::from_millis(100));
 
@@ -82,14 +118,15 @@ impl Scene {
         }
     }
 
-    fn save(&self, name: &str) {
+    fn frame(&self) -> ::image::RgbaImage {
         let pixels = self.app.read_frame(self.surface);
-        let path = out_dir().join(format!("{name}.png"));
+        let (width, height) = self.size;
+        ::image::RgbaImage::from_raw(width * self.scale, height * self.scale, pixels).unwrap()
+    }
 
-        ::image::RgbaImage::from_raw(WIDTH, HEIGHT, pixels)
-            .unwrap()
-            .save(&path)
-            .unwrap();
+    fn save(&self, name: &str) {
+        let path = out_dir().join(format!("{name}.png"));
+        self.frame().save(&path).unwrap();
         println!("{}", path.display());
     }
 
@@ -312,6 +349,171 @@ fn snapshots() {
     status("details-bare", BARE);
     status("details-apart", &with(STRIP, "gap = \"s4\""));
     details_moving("details-across", STRIP, "workspaces", "status");
+}
+
+/// A Tuesday morning in November, on London's clock.
+fn site_now() -> chrono::NaiveDateTime {
+    chrono::NaiveDate::from_ymd_opt(2026, 11, 17)
+        .unwrap()
+        .and_hms_opt(9, 41, 0)
+        .unwrap()
+}
+
+/// The site's theme, Tokyo Night's Moon or Day, and tempo at a fixed time.
+fn site_config(mode: &str, bar: &str) -> String {
+    format!(
+        r#"
+[appearance]
+theme        = "tokyo night"
+dark_flavor  = "moon"
+light_flavor = "day"
+mode         = "{mode}"
+
+{bar}
+
+[tempo]
+timezones        = ["Europe/London", "America/New_York", "Asia/Tokyo"]
+weather_location = {{ city = "London" }}
+"#
+    )
+}
+
+/// A bar as the docs' examples have it: its other zones placeholders.
+fn site_common_bar(panels: &str) -> String {
+    format!(
+        r#"
+[bar.main]
+panels  = "{panels}"
+padding = "s2"
+start   = ["workspaces"]
+center  = [["window", "clock"]]
+end     = [["privacy", "status"]]
+"#
+    )
+}
+
+/// A bar of tempo's items alone.
+const SITE_TEMPO_BAR: &str = r#"
+[bar.main]
+panels  = "merge"
+padding = "s2"
+hover   = true
+start   = ["sky"]
+center  = ["clock"]
+end     = ["hours"]
+
+[zone.sky]
+items = ["weather"]
+
+[zone.clock]
+items   = ["date", "clock"]
+details = ["forecast"]
+
+[zone.hours]
+items = [{ item = "forecast", hours = 4 }]
+"#;
+
+/// A frame read back premultiplied, as a PNG holds it: straight alpha.
+fn unpremultiplied(mut frame: ::image::RgbaImage) -> ::image::RgbaImage {
+    for pixel in frame.pixels_mut() {
+        let alpha = u32::from(pixel[3]);
+        if alpha > 0 && alpha < 255 {
+            for channel in &mut pixel.0[..3] {
+                *channel = (u32::from(*channel) * 255 / alpha).min(255) as u8;
+            }
+        }
+    }
+    frame
+}
+
+/// What is drawn, with `margin` round it.
+fn cut_to_drawn(frame: &::image::RgbaImage, margin: u32) -> ::image::RgbaImage {
+    let (mut left, mut top, mut right, mut bottom) = (u32::MAX, u32::MAX, 0, 0);
+    for (x, y, pixel) in frame.enumerate_pixels() {
+        if pixel[3] > 0 {
+            left = left.min(x);
+            top = top.min(y);
+            right = right.max(x);
+            bottom = bottom.max(y);
+        }
+    }
+    let left = left.saturating_sub(margin);
+    let top = top.saturating_sub(margin);
+    let right = (right + margin).min(frame.width() - 1);
+    let bottom = (bottom + margin).min(frame.height() - 1);
+
+    ::image::imageops::crop_imm(frame, left, top, right - left + 1, bottom - top + 1).to_image()
+}
+
+/// A scene of the site, on a desktop of `size` with nothing behind, in each
+/// theme, `show` putting it in the state pictured.
+fn site_picture(name: &str, bar: &str, size: (u32, u32), cut: bool, show: fn(&mut Scene)) {
+    let dir = out_dir().join("site");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    for mode in ["dark", "light"] {
+        let look = Look {
+            size,
+            scale: 2,
+            backdrop: Some(Color::TRANSPARENT),
+        };
+        let Some(mut scene) = Scene::build(&site_config(mode, bar), look, |config| {
+            Modules::fixed(config, site_now())
+        }) else {
+            return;
+        };
+        show(&mut scene);
+        scene.run(Duration::from_millis(1200));
+
+        let frame = unpremultiplied(scene.frame());
+        let frame = if cut {
+            cut_to_drawn(&frame, 24 * 2)
+        } else {
+            frame
+        };
+        let path = dir.join(format!("{name}-{mode}.png"));
+        frame.save(&path).unwrap();
+        println!("{}", path.display());
+    }
+}
+
+fn open_calendar(scene: &mut Scene) {
+    let (group, zone) = zone_of(&scene.bar, "clock");
+    scene.state.toggle(Opened {
+        group,
+        zone,
+        panel: Panel::Calendar,
+    });
+}
+
+/// The pictures of the site: the ways a panel opens, for the panels' page,
+/// and tempo's items and calendar, for its own. The desktop they sit on is
+/// the page's.
+#[test]
+#[ignore = "draws the site's pictures, asserts nothing"]
+fn site_pictures() {
+    crate::i18n::init_for("en-US", "en_GB");
+
+    for panels in ["dropdown", "merge", "morph"] {
+        site_picture(
+            &format!("panels-{panels}"),
+            &site_common_bar(panels),
+            (960, 540),
+            false,
+            open_calendar,
+        );
+    }
+
+    site_picture("tempo-items", SITE_TEMPO_BAR, (960, 160), true, |scene| {
+        scene.state.details.set(Some(zone_of(&scene.bar, "clock")));
+    });
+    site_picture(
+        "tempo-calendar",
+        SITE_TEMPO_BAR,
+        (960, 540),
+        false,
+        open_calendar,
+    );
 }
 
 /// The details as a pointer moves, with the events in the order guido sends

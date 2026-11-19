@@ -60,6 +60,14 @@ animation without a screen; the PNGs land in `target/snapshots`:
 cargo test -p ashell-experimental snapshots -- --ignored --nocapture
 ```
 
+The site's pictures of the bar are drawn the same way, at a fixed time with
+sample weather, in both of the site's themes. They land in
+`target/snapshots/site`, to copy into `website/static/img`:
+
+```sh
+cargo test -p ashell-experimental site_pictures -- --ignored --nocapture
+```
+
 - `src/config`: the configuration, parsed and resolved into one plain tree;
 - `src/bar`: the bar, its islands, its panels and its details, and the items
   in its zones with their gestures;

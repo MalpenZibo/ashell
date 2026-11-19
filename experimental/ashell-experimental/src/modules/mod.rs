@@ -110,6 +110,18 @@ impl Modules {
         }
     }
 
+    /// Tempo at `now`, its weather a sample week's, for pictures.
+    #[cfg(test)]
+    pub fn fixed(config: Signal<Config>, now: chrono::NaiveDateTime) -> Self {
+        Self {
+            tempo: Tempo::fixed(
+                create_memo(move || config.with(|c| c.modules.tempo.clone())),
+                now,
+                Some(tempo::sample::weather(now)),
+            ),
+        }
+    }
+
     /// `None` for an item no module draws yet.
     pub fn item(self, item: &Item) -> Option<ItemView> {
         match item.id.module()? {

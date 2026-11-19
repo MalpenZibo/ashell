@@ -4,6 +4,8 @@
 mod calendar;
 mod config;
 mod items;
+#[cfg(test)]
+pub mod sample;
 mod sky;
 mod time;
 
@@ -88,6 +90,23 @@ impl Tempo {
             now: now.read_only(),
             zone,
             weather: weather.read_only(),
+            place_hidden: create_signal(false),
+        }
+    }
+
+    /// At `now` with `weather`, with no tick and no weather service: for
+    /// pictures of the module.
+    #[cfg(test)]
+    pub fn fixed(
+        config: Memo<TempoConfig>,
+        now: NaiveDateTime,
+        weather: Option<WeatherData>,
+    ) -> Self {
+        Self {
+            config,
+            now: create_signal(now).read_only(),
+            zone: create_signal(0),
+            weather: create_signal(weather).read_only(),
             place_hidden: create_signal(false),
         }
     }
