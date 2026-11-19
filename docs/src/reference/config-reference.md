@@ -30,7 +30,7 @@ center = ["Tempo"]
 right = [["SystemInfo", "Settings"], "Tray"]
 ```
 
-Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"`, `"KeyboardSubmap"`, `"Tray"`, `"Notifications"`, `"Tempo"`, `"Privacy"`, `"Settings"`, `"MediaPlayer"`, `"Updates"`. Any other string is the `name` of a custom module.
+Module names: `"Workspaces"`, `"WindowTitle"`, `"Minimap"`, `"SystemInfo"`, `"KeyboardLayout"`, `"KeyboardSubmap"`, `"Tray"`, `"Notifications"`, `"Tempo"`, `"Privacy"`, `"Settings"`, `"MediaPlayer"`, `"Updates"`. Any other string is the `name` of a custom module.
 
 ## Appearance
 
