@@ -29,6 +29,17 @@ idle_inhibitor = [
     "dep:wayland-protocols-wlr",
 ]
 logind = ["dep:anyhow", "dep:log", "dep:tokio", "dep:zbus", "tokio/time"]
+notifications = [
+    "xdg_icons",
+    "dep:anyhow",
+    "dep:log",
+    "dep:regex",
+    "dep:tokio",
+    "dep:url",
+    "dep:zbus",
+    "tokio/rt",
+    "tokio/sync",
+]
 privacy = [
     "dep:anyhow",
     "dep:inotify",
@@ -80,6 +91,7 @@ linicon-theme = { version = "1.2.0", optional = true }
 log = { workspace = true, optional = true }
 pin-project-lite = { version = "0.2.16", optional = true }
 pipewire = { version = "0.10", optional = true }
+regex = { version = "1.12.2", optional = true }
 reqwest = { version = "0.13", default-features = false, features = [
     "json",
     "rustls",
@@ -89,6 +101,7 @@ serde = { version = "1", default-features = false, features = [
 ], optional = true }
 serde_json = { version = "1", optional = true }
 tokio = { workspace = true, optional = true }
+url = { version = "2.5.7", optional = true }
 udev = { version = "0.9", features = ["send", "sync"], optional = true }
 wayland-client = { version = "0.31", optional = true }
 wayland-protocols = { version = "0.32", features = [

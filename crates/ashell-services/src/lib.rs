@@ -8,6 +8,8 @@ mod bus;
 pub mod idle_inhibitor;
 #[cfg(feature = "logind")]
 pub mod logind;
+#[cfg(feature = "notifications")]
+pub mod notifications;
 #[cfg(feature = "privacy")]
 pub mod privacy;
 #[cfg(feature = "rfkill")]

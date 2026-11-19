@@ -36,7 +36,7 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 | StatusNotifier | `org.kde.StatusNotifierWatcher` (served by ashell only when no other watcher runs) | `services/tray/dbus.rs` | System tray icon registration; ashell always registers as a host (`org.freedesktop.StatusNotifierHost-<pid>-<n>`) with the current owner and follows it when it changes | — |
 | StatusNotifier | `org.kde.StatusNotifierItem` | `services/tray/dbus.rs` | Individual tray icons | — |
 | DBusMenu | `com.canonical.dbusmenu` | `services/tray/dbus.rs` | Tray menu layout (SNI context menus) | — |
-| Notifications | `org.freedesktop.Notifications` (served by ashell) | `services/notifications/dbus.rs` | Notification daemon | — |
+| Notifications | `org.freedesktop.Notifications` (served by ashell) | `crates/ashell-services/src/notifications/dbus.rs` | Notification daemon | — |
 
 ## Checking D-Bus Availability
 

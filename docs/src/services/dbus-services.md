@@ -48,7 +48,7 @@ The `#[proxy]` macro generates an `AdapterProxy` struct with async methods for e
 | Logind | System | `org.freedesktop.login1` | `crates/ashell-services/src/logind.rs` |
 | MPRIS | Session | `org.mpris.MediaPlayer2.*` | `services/mpris/dbus.rs` |
 | Tray | Session | `org.kde.StatusNotifierWatcher` | `services/tray/dbus.rs` |
-| Notifications | Session | `org.freedesktop.Notifications` | `services/notifications/dbus.rs` |
+| Notifications | Session | `org.freedesktop.Notifications` | `crates/ashell-services/src/notifications/dbus.rs` |
 | Brightness | System | `org.freedesktop.login1.Session` | `crates/ashell-services/src/brightness/dbus.rs` |
 
 ## Common D-Bus Service Structure

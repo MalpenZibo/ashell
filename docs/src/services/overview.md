@@ -14,7 +14,7 @@ Services are the backend layer of ashell. They manage communication with system 
 | MPRIS | `services/mpris/` | Media players | D-Bus | MPRIS-compatible player |
 | Tray | `services/tray/` | StatusNotifierItem | D-Bus | — |
 | UPower | `crates/ashell-services/src/upower/` (iced glue in `services/upower.rs`) | UPower daemon | D-Bus | `upower` |
-| Notifications | `services/notifications/` | Notification server | D-Bus | — |
+| Notifications | `crates/ashell-services/src/notifications/` (iced glue in `services/notifications.rs`) | Notification server | D-Bus | — |
 | Privacy | `crates/ashell-services/src/privacy.rs` (iced glue in `services/privacy.rs`) | PipeWire + `/dev/video*` | PipeWire registry + inotify | `pipewire` |
 | Idle Inhibitor | `crates/ashell-services/src/idle_inhibitor.rs` (iced glue in `services/idle_inhibitor.rs`) | Wayland `idle-inhibit-unstable-v1` | Wayland protocol | — |
 | Logind | `crates/ashell-services/src/logind.rs` (iced glue in `services/logind.rs`) | systemd-logind | D-Bus | systemd-logind |
