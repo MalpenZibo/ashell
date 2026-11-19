@@ -9,12 +9,16 @@
 
 mod activity;
 
-use crate::stream::channel;
+use crate::{stream::channel, udev_monitor};
 use futures::{SinkExt, Stream, future::pending};
-use log::{info, warn};
-use std::{fs, path::PathBuf, time::Duration};
+use log::warn;
+use std::{
+    fs::{self, File},
+    os::unix::fs::FileExt,
+    time::Duration,
+};
 use tokio::{
-    io::{Interest, unix::AsyncFd},
+    io::unix::AsyncFd,
     sync::watch,
     time::{MissedTickBehavior, interval},
 };
@@ -39,16 +43,16 @@ impl KeyboardLocksData {
                 Lock::Num => &mut data.num_lock,
                 Lock::Scroll => &mut data.scroll_lock,
             };
-            // A keyboard unplugged since the last scan has no file anymore
-            if let Ok(value) = fs::read_to_string(&led.brightness) {
-                *slot = Some(slot.unwrap_or(false) || value.trim() != "0");
+            let mut value = [0];
+            // A keyboard unplugged since the last scan fails to read
+            if led.brightness.read_at(&mut value, 0).is_ok() {
+                *slot = Some(slot.unwrap_or(false) || value[0] != b'0');
             }
         }
         data
     }
 }
 
-#[derive(Debug, Clone, Copy)]
 enum Lock {
     Caps,
     Num,
@@ -57,7 +61,7 @@ enum Lock {
 
 struct Led {
     lock: Lock,
-    brightness: PathBuf,
+    brightness: File,
 }
 
 #[derive(Debug, Clone)]
@@ -74,12 +78,10 @@ impl KeyboardLocks {
     pub fn updates(&self) -> impl Stream<Item = KeyboardLocksData> + Send + 'static {
         channel(16, |mut output| async move {
             // Listen before the first scan, so a keyboard added in between is not missed
-            let mut monitor = leds_monitor()
+            let mut monitor = udev_monitor::listen("leds")
                 .inspect_err(|err| warn!("Failed to listen for keyboards: {err}"))
                 .ok();
-            let mut activity = activity::watch()
-                .inspect_err(|err| info!("Keyboard locks are polled even when idle: {err}"))
-                .ok();
+            let mut activity = Some(activity::watch());
 
             let mut leds = find_leds();
             let mut data = KeyboardLocksData::read(&leds);
@@ -101,7 +103,8 @@ impl KeyboardLocks {
                             monitor = None;
                         }
                     },
-                    _ = seat_activity(&mut activity) => {}
+                    // Its first tick would read again right away
+                    _ = seat_activity(&mut activity) => ticker.reset(),
                 }
 
                 let next = KeyboardLocksData::read(&leds);
@@ -124,29 +127,19 @@ fn find_leds() -> Vec<Led> {
         .flatten()
         .filter_map(|entry| {
             let name = entry.file_name();
-            let (device, function) = name.to_str()?.split_once("::")?;
+            let function = name.to_str()?.strip_prefix("input")?.split_once("::")?.1;
             let lock = match function {
-                "capslock" if device.starts_with("input") => Lock::Caps,
-                "numlock" if device.starts_with("input") => Lock::Num,
-                "scrolllock" if device.starts_with("input") => Lock::Scroll,
+                "capslock" => Lock::Caps,
+                "numlock" => Lock::Num,
+                "scrolllock" => Lock::Scroll,
                 _ => return None,
             };
             Some(Led {
                 lock,
-                brightness: entry.path().join("brightness"),
+                brightness: File::open(entry.path().join("brightness")).ok()?,
             })
         })
         .collect()
-}
-
-fn leds_monitor() -> anyhow::Result<AsyncFd<udev::MonitorSocket>> {
-    let socket = udev::MonitorBuilder::new()?
-        .match_subsystem("leds")?
-        .listen()?;
-
-    // SAFETY: the socket owns its udev monitor fd until it is dropped,
-    // and `as_raw_fd` always returns that same fd.
-    Ok(unsafe { AsyncFd::register_with_interest(socket, Interest::READABLE) }?)
 }
 
 /// Whether a LED came or went. Never resolves without a monitor.
@@ -167,8 +160,8 @@ async fn keyboards_changed(
     Ok(changed)
 }
 
-/// Resolves when the seat goes idle or is used again. Without a Wayland
-/// connection it never does, and a lost one leaves the polling on.
+/// Resolves when the seat goes idle or is used again. Once that can't be
+/// followed anymore it never does, and the polling stays on.
 async fn seat_activity(activity: &mut Option<watch::Receiver<bool>>) {
     let Some(receiver) = activity else {
         return pending().await;

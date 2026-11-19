@@ -66,8 +66,11 @@ impl KeyboardLocks {
         .into_iter()
         .filter_map(|(config, on, default_icon)| {
             let on = on?;
-            let shown =
-                config.enabled && (on || config.visibility == LockVisibility::AlwaysVisible);
+            let shown = match config.visibility {
+                LockVisibility::Hidden => false,
+                LockVisibility::ActiveOnly => on,
+                LockVisibility::AlwaysVisible => true,
+            };
             shown.then(|| indicator(config, on, default_icon, size, off_color))
         })
         .collect::<Vec<_>>();

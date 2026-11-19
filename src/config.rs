@@ -218,27 +218,17 @@ pub struct KeyboardLayoutModuleConfig {
 
 #[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum LockVisibility {
-    AlwaysVisible,
+    Hidden,
     #[default]
     ActiveOnly,
+    AlwaysVisible,
 }
 
-#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 #[serde(default)]
 pub struct LockIndicatorConfig {
-    pub enabled: bool,
     pub visibility: LockVisibility,
     pub icon: Option<String>,
-}
-
-impl Default for LockIndicatorConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            visibility: LockVisibility::ActiveOnly,
-            icon: None,
-        }
-    }
 }
 
 #[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq)]
