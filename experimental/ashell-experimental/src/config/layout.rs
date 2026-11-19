@@ -6,7 +6,7 @@ use styletto::theme::config::UiConfig;
 use toml::{Table, Value};
 
 use super::catalogue::{Action, Gestures, ItemId, Open, builtin_zone};
-use crate::modules::{self, tempo::TempoConfig};
+use crate::modules::{self, ModuleId};
 
 use super::{
     Background, Bar, Config, Holds, Host, Item, Monitor, Node, Padding, Panels, Parsed, Place,
@@ -22,22 +22,25 @@ const DEFAULT_GROUPS: [&[&str]; 3] = [
 
 pub fn read(file: &Table) -> Parsed {
     let mut reader = Reader::default();
-    reader.known_keys("", file, &["appearance", "bar", "monitor", "tempo", "zone"]);
+    let keys: Vec<&str> = ["appearance", "bar", "monitor", "zone"]
+        .into_iter()
+        .chain(ModuleId::ALL.iter().map(|module| module.spec().name))
+        .collect();
+    reader.known_keys("", file, &keys);
 
     let appearance = file
         .get("appearance")
         .map(|value| reader.appearance(value))
         .unwrap_or_default();
 
-    let tempo = file
-        .get("tempo")
-        .and_then(|value| reader.table("tempo", value))
-        .map(|table| {
-            let (tempo, problems) = TempoConfig::read(table);
+    let mut modules = modules::Configs::default();
+    for module in ModuleId::ALL {
+        let name = module.spec().name;
+        if let Some(table) = file.get(name).and_then(|value| reader.table(name, value)) {
+            let problems = modules.read(module, table);
             reader.problems.extend(problems);
-            tempo
-        })
-        .unwrap_or_default();
+        }
+    }
 
     if let Some(zones) = file.get("zone") {
         reader.zone_tables(zones);
@@ -57,7 +60,7 @@ pub fn read(file: &Table) -> Parsed {
     Parsed {
         config: Config {
             appearance,
-            tempo,
+            modules,
             bars: bars.into_iter().map(|(_, bar)| bar).collect(),
             monitors,
         },
@@ -572,7 +575,7 @@ impl Reader {
         match value {
             Value::String(name) if name == "none" => Some(Action::None),
             Value::String(name) => {
-                let action = item.actions().iter().find(|action| *action == name);
+                let action = modules::actions(item).iter().find(|action| *action == name);
                 if action.is_none() {
                     self.warn(
                         at,
@@ -1276,7 +1279,7 @@ center = [\"clock\"]
         assert!(parsed.problems.is_empty(), "{:?}", parsed.problems);
 
         let items = &place(&parsed.config.bars[0], 1)[0].zones()[0].items;
-        assert_eq!(items[0].gestures, ItemId::Clock.default_gestures());
+        assert_eq!(items[0].gestures, modules::default_gestures(ItemId::Clock));
         assert_eq!(
             items[1].gestures.scroll_up,
             Some(Action::Named("previous_timezone"))

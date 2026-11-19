@@ -17,10 +17,9 @@ use futures::StreamExt;
 use guido::prelude::*;
 use toml::Table;
 
-use super::ItemView;
-use crate::config::{Item, ItemId, NEXT_TIMEZONE, PREVIOUS_TIMEZONE};
+use super::{ItemView, Spec};
+use crate::config::{Action, Gestures, Item, ItemId, Panel};
 
-pub use calendar::WIDTH as CALENDAR_WIDTH;
 pub use config::TempoConfig;
 use config::TimeZone;
 
@@ -120,11 +119,55 @@ impl Tempo {
         items::view(self, item)
     }
 
-    pub fn calendar(self) -> Container {
+    /// Its one panel, the calendar.
+    pub fn panel(self, _panel: Panel) -> Container {
         calendar::view(self)
     }
 }
 
-pub fn check_options(id: ItemId, options: &Table) -> Vec<String> {
+const CYCLE_FORMAT: &str = "cycle_format";
+const NEXT_TIMEZONE: &str = "next_timezone";
+const PREVIOUS_TIMEZONE: &str = "previous_timezone";
+
+pub const SPEC: Spec = Spec {
+    name: "tempo",
+    actions,
+    default_gestures,
+    check_options,
+    panel_width,
+};
+
+fn actions(id: ItemId) -> &'static [&'static str] {
+    match id {
+        ItemId::Clock => &[CYCLE_FORMAT, NEXT_TIMEZONE, PREVIOUS_TIMEZONE],
+        ItemId::Date => &[NEXT_TIMEZONE, PREVIOUS_TIMEZONE],
+        _ => &[],
+    }
+}
+
+/// ashell's: a right click cycles the clock's formats, the wheel the time
+/// zones.
+fn default_gestures(id: ItemId) -> Gestures {
+    let named = |name| Some(Action::Named(name));
+    let zones = Gestures {
+        scroll_up: named(NEXT_TIMEZONE),
+        scroll_down: named(PREVIOUS_TIMEZONE),
+        ..Gestures::default()
+    };
+    match id {
+        ItemId::Clock => Gestures {
+            right_click: named(CYCLE_FORMAT),
+            ..zones
+        },
+        ItemId::Date => zones,
+        _ => Gestures::default(),
+    }
+}
+
+fn check_options(id: ItemId, options: &Table) -> Vec<String> {
     items::Options::read(id, options).1
+}
+
+fn panel_width(_panel: Panel) -> f32 {
+    calendar::WIDTH
 }

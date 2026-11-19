@@ -8,8 +8,8 @@ use styletto::primitives::text::typed;
 use styletto::{centered_row, icon, ui};
 use toml::{Table, Value};
 
-use super::{Tempo, sky, time};
-use crate::config::{CYCLE_FORMAT, Item, ItemId, Show};
+use super::{CYCLE_FORMAT, Tempo, sky, time};
+use crate::config::{Item, ItemId, Show};
 use crate::modules::ItemView;
 
 const CLOCK_FORMAT: &str = "%R";

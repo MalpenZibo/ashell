@@ -11,16 +11,14 @@ use serde::Deserialize;
 use styletto::foundations::tokens::Space;
 use styletto::theme::config::UiConfig;
 
-pub use catalogue::{
-    Action, CYCLE_FORMAT, Gestures, ItemId, NEXT_TIMEZONE, Open, PREVIOUS_TIMEZONE, Panel, Show,
-};
+pub use catalogue::{Action, Gestures, ItemId, Open, Panel, Show};
 
-use crate::modules::tempo::TempoConfig;
+use crate::modules;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
     pub appearance: UiConfig,
-    pub tempo: TempoConfig,
+    pub modules: modules::Configs,
     pub bars: Vec<Bar>,
     /// The first that matches a monitor gives it its bars; the last matches
     /// any.
@@ -247,7 +245,7 @@ impl Item {
             id,
             show: id.default_show(),
             open: id.default_open(),
-            gestures: id.default_gestures(),
+            gestures: modules::default_gestures(id),
             options: toml::Table::new(),
         }
     }

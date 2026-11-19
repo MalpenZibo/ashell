@@ -403,7 +403,7 @@ struct Ctx {
 
 /// As wide as its module draws it, or its placeholder.
 fn panel_width(panel: Panel) -> f32 {
-    Modules::panel_width(panel).unwrap_or_else(placeholder::panel_width)
+    crate::modules::panel_width(panel).unwrap_or_else(placeholder::panel_width)
 }
 
 /// What a panel shows: its module's view, or its placeholder.
