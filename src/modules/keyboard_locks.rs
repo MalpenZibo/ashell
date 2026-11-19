@@ -4,7 +4,10 @@ use crate::{
     services::{ReadOnlyService, ServiceEvent, keyboard_locks::KeyboardLocksService},
     theme::use_theme,
 };
-use iced::{Alignment, Element, Subscription, widget::Row};
+use iced::{
+    Alignment, Element, Subscription, Theme,
+    widget::{Row, text},
+};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -42,13 +45,19 @@ impl KeyboardLocks {
 
     pub fn view(&self) -> Option<Element<'_, Message>> {
         let service = self.service.as_ref()?;
-        let (spacing, size, off_color) = use_theme(|theme| {
+        let (spacing, size, text_color) = use_theme(|theme| {
             (
                 theme.module_spacing(&ModuleName::KeyboardLocks, theme.space.xs),
                 theme.module_font_size(&ModuleName::KeyboardLocks, theme.font_size.md),
-                theme.palette.text.scale_alpha(0.4),
+                theme.module_text_color(&ModuleName::KeyboardLocks),
             )
         });
+        // A lock that is off dims the module's own text color
+        let off = move |theme: &Theme| {
+            text_color
+                .map_or(theme.palette().text, |color| color.color(theme))
+                .scale_alpha(0.4)
+        };
 
         let indicators = [
             (
@@ -74,7 +83,9 @@ impl KeyboardLocks {
             shown.then(|| {
                 icon_mono(icon)
                     .size(size)
-                    .color_maybe((!on).then_some(off_color))
+                    .style(move |theme: &Theme| text::Style {
+                        color: (!on).then(|| off(theme)),
+                    })
                     .into()
             })
         })
