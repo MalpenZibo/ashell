@@ -305,6 +305,7 @@ each module keeps its own value:
 | --- | --- | --- |
 | `custom.<name>` | The icon and the text of a button | `xs` |
 | `media_player` | The icon, the text and the visualizer | `xs` |
+| `keyboard_locks` | The locks | `xs` |
 | `privacy` | The icons | `xs` |
 | `settings` | The indicators | `xs` |
 | `system_info` | The indicators | `xxs` |
@@ -332,6 +333,7 @@ next to the time, keep theirs.
 | --- | --- | --- |
 | `custom.<name>` | The icon and the text | `md` |
 | `keyboard_layout` | The layout | `md` |
+| `keyboard_locks` | The icons | `md` |
 | `keyboard_submap` | The submap | `md` |
 | `media_player` | The icon and the title; the cover follows the height of the bar | `md` for the icon, `sm` for the title |
 | `notifications` | The icon | `md` |

@@ -27,6 +27,7 @@
 - System Information (CPU, RAM, Disk, IP address, Network speed, Temperature) with warn/alert thresholds
 - Keyboard Layout with custom labels (Hyprland/Niri/MangoWC/Wayfire)
 - Keyboard Submap (Hyprland/MangoWC)
+- Keyboard Locks (Caps Lock, Num Lock, Scroll Lock)
 - System Tray with context menus
 - Clock with calendar, weather, timezone cycling, and format cycling (Tempo)
 - Privacy indicators (microphone, camera, and screenshare usage)
