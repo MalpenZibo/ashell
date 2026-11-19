@@ -178,7 +178,7 @@ impl ItemId {
         let named = |name| Some(Action::Named(name));
         match self {
             ItemId::Clock => Gestures {
-                right_click: named("cycle_format"),
+                right_click: named(CYCLE_FORMAT),
                 scroll_up: named(NEXT_TIMEZONE),
                 scroll_down: named(PREVIOUS_TIMEZONE),
                 ..Gestures::default()
