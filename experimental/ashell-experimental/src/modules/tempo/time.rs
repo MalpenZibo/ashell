@@ -132,6 +132,17 @@ pub struct Formats {
     pub time: String,
     /// A bare hour, as a forecast's.
     pub hour: String,
+    pub clock: Clock,
+}
+
+/// The panel's clock, its hours and minutes large: what is written small
+/// before them, the AM/PM marker where the locale puts it first, and after
+/// them, the seconds and the marker where it goes last.
+#[derive(Clone)]
+pub struct Clock {
+    pub before: String,
+    pub time: String,
+    pub after: String,
 }
 
 impl Formats {
@@ -153,6 +164,23 @@ impl Formats {
         Self {
             time: twelve("%-I:%M").unwrap_or_else(|| "%H:%M".to_string()),
             hour: twelve(&hour).unwrap_or_else(|| "%H".to_string()),
+            clock: Clock::of(locale),
+        }
+    }
+}
+
+impl Clock {
+    fn of(locale: Locale) -> Self {
+        let (before, time, after) = match am_pm_placement("%X", locale) {
+            None => ("", "%H:%M", ":%S"),
+            Some(AmPm::After) => ("", "%-I:%M", ":%S %p"),
+            Some(AmPm::Before(_)) => ("%p", "%-I:%M", ":%S"),
+        };
+
+        Self {
+            before: before.to_string(),
+            time: time.to_string(),
+            after: after.to_string(),
         }
     }
 }
@@ -203,6 +231,16 @@ mod tests {
         assert_eq!(format(utc, rome.as_ref(), "%H:%M"), "23:30");
         assert_eq!(format(utc, tokyo.as_ref(), "%H:%M"), "07:30");
         assert_eq!(date(utc, tokyo.as_ref()).to_string(), "2026-11-17");
+    }
+
+    #[test]
+    fn the_clock_keeps_the_marker_with_the_seconds() {
+        let us = Clock::of(Locale::en_US);
+        let de = Clock::of(Locale::de_DE);
+
+        assert_eq!((us.before.as_str(), us.time.as_str()), ("", "%-I:%M"));
+        assert_eq!(us.after, ":%S %p");
+        assert_eq!((de.time.as_str(), de.after.as_str()), ("%H:%M", ":%S"));
     }
 
     #[test]

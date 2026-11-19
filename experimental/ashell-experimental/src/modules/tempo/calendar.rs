@@ -43,35 +43,44 @@ pub fn view(tempo: Tempo) -> Container {
         .child(month(tempo, chosen))
 }
 
-/// The time, large, with its seconds, and the day under it.
+/// The time, its hours and minutes large, its seconds and AM/PM marker
+/// small, and the day under it.
 fn clock(tempo: Tempo) -> Container {
     let t = ui();
-    let formats = time::Formats::of_locale();
+    let time::Clock {
+        before,
+        time,
+        after,
+    } = time::Formats::of_locale().clock;
     let written = move |format: &str| time::format(tempo.now.get(), tempo.zone().as_ref(), format);
+    let small = |text: Memo<String>| {
+        typed(move || text.get(), ty::TITLE_MEDIUM.tabular())
+            .color(t.colors.dim)
+            .nowrap()
+    };
+    let marker_first = !before.is_empty();
 
-    let hours = create_memo(move || written(&formats.time));
-    let seconds = create_memo(move || written("%S"));
+    let before = create_memo(move || written(&before));
+    let time = create_memo(move || written(&time));
+    let after = create_memo(move || written(&after));
     let day = create_memo(move || written("%A %-d %B"));
 
     container()
         .layout(Flex::column().spacing(size::S0_5.px()))
         .child(
             container()
-                .layout(
-                    Flex::row()
-                        .spacing(size::S1.px())
-                        .cross_alignment(CrossAlignment::Baseline),
-                )
+                .layout(Flex::row().cross_alignment(CrossAlignment::Baseline))
+                .child(marker_first.then(|| {
+                    container()
+                        .padding([0.0, size::S1.px(), 0.0, 0.0])
+                        .child(small(before))
+                }))
                 .child(
-                    roll::rolling(move || hours.get())
+                    roll::rolling(move || time.get())
                         .look(ty::DISPLAY_MEDIUM.em())
                         .color(t.colors.text),
                 )
-                .child(
-                    typed(move || seconds.get(), ty::TITLE_MEDIUM.tabular())
-                        .color(t.colors.dim)
-                        .nowrap(),
-                ),
+                .child(small(after)),
         )
         .child(
             typed(move || day.get(), ty::LABEL_MEDIUM)
@@ -334,14 +343,17 @@ fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
             container()
                 .width(fill())
                 .padding([size::S3.px(), 0.0, 0.0, 0.0])
-                .layout(Flex::row().main_alignment(MainAlignment::SpaceBetween))
+                .layout(Flex::row())
                 .children(move || {
                     card.get()
                         .map(|c| c.hours)
                         .unwrap_or_default()
                         .into_iter()
                         .map(|hour| {
+                            // As wide as each other, so the icons stay put
+                            // whatever the hours' names.
                             container()
+                                .width(fill())
                                 .layout(
                                     Flex::column()
                                         .spacing(size::S1.px())
