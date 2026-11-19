@@ -27,3 +27,4 @@ toml = { version = "0.9", features = ["preserve_order"] }
 [dev-dependencies]
 guido = { workspace = true, features = ["testing"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
+webp = "0.3"

@@ -426,6 +426,18 @@ fn unpremultiplied(mut frame: ::image::RgbaImage) -> ::image::RgbaImage {
     frame
 }
 
+/// `frame` as a lossless WebP, as small as libwebp makes one.
+fn save_webp(frame: &::image::RgbaImage, path: &std::path::Path) {
+    let mut config = webp::WebPConfig::new().unwrap();
+    config.lossless = 1;
+    config.method = 6;
+    config.quality = 100.0;
+    let encoded = webp::Encoder::from_rgba(frame.as_raw(), frame.width(), frame.height())
+        .encode_advanced(&config)
+        .unwrap();
+    std::fs::write(path, &*encoded).unwrap();
+}
+
 /// What is drawn, with `margin` round it.
 fn cut_to_drawn(frame: &::image::RgbaImage, margin: u32) -> ::image::RgbaImage {
     let (mut left, mut top, mut right, mut bottom) = (u32::MAX, u32::MAX, 0, 0);
@@ -471,8 +483,8 @@ fn site_picture(name: &str, bar: &str, size: (u32, u32), cut: bool, show: fn(&mu
         } else {
             frame
         };
-        let path = dir.join(format!("{name}-{mode}.png"));
-        frame.save(&path).unwrap();
+        let path = dir.join(format!("{name}-{mode}.webp"));
+        save_webp(&frame, &path);
         println!("{}", path.display());
     }
 }

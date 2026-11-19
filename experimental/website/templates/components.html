@@ -44,8 +44,8 @@
     as "tempo/tempo-items"; `width` and `height` its size in CSS pixels. -#}
 {% component picture(name: string, alt: string, width: string, height: string) -%}
 <figure class="desktop">
-  <img class="light-only" src="{{ get_url(path="img/" ~ name ~ "-light.png") }}" alt="{{ alt }}" width="{{ width }}" height="{{ height }}" loading="lazy">
-  <img class="dark-only" src="{{ get_url(path="img/" ~ name ~ "-dark.png") }}" alt="{{ alt }}" width="{{ width }}" height="{{ height }}" loading="lazy">
+  <img class="light-only" src="{{ get_url(path="img/" ~ name ~ "-light.webp") }}" alt="{{ alt }}" width="{{ width }}" height="{{ height }}" loading="lazy">
+  <img class="dark-only" src="{{ get_url(path="img/" ~ name ~ "-dark.webp") }}" alt="{{ alt }}" width="{{ width }}" height="{{ height }}" loading="lazy">
 </figure>
 {%- endcomponent picture %}
 
@@ -64,8 +64,8 @@
   <div class="desktop">
 {%- for mode in modes %}
     <figure class="mode-shot" data-mode="{{ mode[0] }}">
-      <img class="light-only" src="{{ get_url(path="img/panels/panels-" ~ mode[0] ~ "-light.png") }}" alt="A panel opened as {{ mode[0] }}" width="960" height="540" loading="lazy">
-      <img class="dark-only" src="{{ get_url(path="img/panels/panels-" ~ mode[0] ~ "-dark.png") }}" alt="A panel opened as {{ mode[0] }}" width="960" height="540" loading="lazy">
+      <img class="light-only" src="{{ get_url(path="img/panels/panels-" ~ mode[0] ~ "-light.webp") }}" alt="A panel opened as {{ mode[0] }}" width="960" height="540" loading="lazy">
+      <img class="dark-only" src="{{ get_url(path="img/panels/panels-" ~ mode[0] ~ "-dark.webp") }}" alt="A panel opened as {{ mode[0] }}" width="960" height="540" loading="lazy">
     </figure>
 {%- endfor %}
   </div>

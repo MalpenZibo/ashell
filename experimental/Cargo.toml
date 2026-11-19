@@ -23,3 +23,8 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 styletto = { git = "https://github.com/MalpenZibo/styletto", branch = "main", features = ["serde", "wallpaper"] }
 tokio = { version = "1", default-features = false }
+
+# libwebp encodes the site's pictures in the tests; unoptimised it takes
+# minutes.
+[profile.dev.package.libwebp-sys]
+opt-level = 3
