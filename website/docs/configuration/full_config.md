@@ -127,7 +127,7 @@ alert_threshold = 85
 # ── Media Player ──────────────────────────────────────────────────────────────
 
 [media_player]
-# indicator_format = "IconAndText"  # (default), "Text", or "Icon"
+# indicator_format = "IconAndText"  # (default), "Text", "Icon", "CoverAndText", or "Cover"
                                   # aliases: "IconAndTitle" = "IconAndText", "Title" = "Text"
 # indicator_fields = ["Artist", "Title"] # (default), also supports "Album"
 # max_text_length = 100         # (default)
