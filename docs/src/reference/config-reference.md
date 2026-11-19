@@ -284,7 +284,7 @@ tooltip = "Toggle VPN"                 # Optional
 
 ```toml
 [media_player]
-indicator_format = "IconAndText"     # "Text", "IconAndText", or "Icon"
+indicator_format = "IconAndText"     # "Text", "IconAndText", "Icon", "CoverAndText", or "Cover"
 indicator_fields = ["Artist", "Title"]
 max_text_length = 100
 indicator_visualizer = "Background"  # "Background", "Before", or "After"; omit to disable

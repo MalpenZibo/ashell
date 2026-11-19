@@ -11,23 +11,30 @@ will be truncated using the `max_text_length` field (default: `100`).
 
 ### Indicator Format
 
-The tray indicator can show configured metadata text, the media icon together
-with that text, or only the media icon. Configure this with the
-`indicator_format` field:
+The tray indicator can show configured metadata text, the media icon or the
+album cover together with that text, or only the icon or the cover. Configure
+this with the `indicator_format` field:
 
 | Value          | Description                                                |
 | -------------- | ---------------------------------------------------------- |
 | `Text`         | Displays only the configured text in the status bar.       |
 | `IconAndText`  | Displays the icon followed by the text (default).          |
 | `Icon`         | Displays only the media icon in the status bar.            |
+| `CoverAndText` | Displays the album cover followed by the text.             |
+| `Cover`        | Displays only the album cover in the status bar.           |
 
 `Title` and `IconAndTitle` are accepted as aliases of `Text` and `IconAndText`.
 
 Use `Icon` if you want a compact indicator or have limited space.
 
+The cover fills the height of the bar, so it grows with it: raise the module's
+[`font_size`](../appearance/general.md#module-font-size) to make the bar, and
+the cover, taller. When the player reports no cover, or it is still loading,
+the media icon is shown in its place.
+
 ### Indicator Fields
 
-When `indicator_format` is `Text` or `IconAndText`, configure the metadata
+When `indicator_format` shows text, configure the metadata
 fields shown in the status bar with `indicator_fields`
 (default: `["Artist", "Title"]`).
 

@@ -821,6 +821,8 @@ pub enum MediaPlayerFormat {
     #[serde(alias = "IconAndTitle")]
     #[default]
     IconAndText,
+    Cover,
+    CoverAndText,
 }
 
 #[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]

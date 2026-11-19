@@ -590,9 +590,10 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
-        let (space, spacing, label_size, icon_size, palette) = use_theme(|theme| {
+        let (space, radius, spacing, label_size, icon_size, palette) = use_theme(|theme| {
             (
                 theme.space,
+                theme.radius,
                 theme.module_spacing(&ModuleName::MediaPlayer, theme.space.xs),
                 theme.module_font_size(&ModuleName::MediaPlayer, theme.font_size.sm),
                 theme.module_font_size(&ModuleName::MediaPlayer, theme.font_size.md),
@@ -600,7 +601,31 @@ impl MediaPlayer {
             )
         });
         self.active_player().map(|player| {
-            let has_text = self.config.indicator_format != MediaPlayerFormat::Icon;
+            let has_text = !matches!(
+                self.config.indicator_format,
+                MediaPlayerFormat::Icon | MediaPlayerFormat::Cover
+            );
+            let shows_cover = matches!(
+                self.config.indicator_format,
+                MediaPlayerFormat::Cover | MediaPlayerFormat::CoverAndText
+            );
+            let leading = || -> Element<'_, Message> {
+                let cover = shows_cover
+                    .then(|| player.metadata.as_ref()?.art_url.as_deref())
+                    .flatten()
+                    .and_then(|url| self.service.as_ref()?.get_cover(url));
+                match cover {
+                    Some(handle) => container(
+                        image(handle)
+                            .filter_method(image::FilterMethod::Linear)
+                            .height(Length::Fill)
+                            .border_radius(radius.sm),
+                    )
+                    .padding([space.xxs / 2.0, 0.0])
+                    .into(),
+                    None => icon(StaticIcon::MusicNote).size(icon_size).into(),
+                }
+            };
             let label = || {
                 container(
                     text(self.indicator_text(player))
@@ -611,10 +636,10 @@ impl MediaPlayer {
             };
 
             let content = match self.config.indicator_format {
-                MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote).size(icon_size)],
+                MediaPlayerFormat::Icon | MediaPlayerFormat::Cover => row![leading()],
                 MediaPlayerFormat::Text => row![label()],
-                MediaPlayerFormat::IconAndText => {
-                    row![icon(StaticIcon::MusicNote).size(icon_size), label()]
+                MediaPlayerFormat::IconAndText | MediaPlayerFormat::CoverAndText => {
+                    row![leading(), label()]
                 }
             }
             .align_y(Vertical::Center)
@@ -649,7 +674,7 @@ impl MediaPlayer {
                     let base: Element<'_, Message> = if has_text {
                         content.into()
                     } else {
-                        container(icon(StaticIcon::MusicNote).size(icon_size))
+                        container(leading())
                             .center_x(Length::Fixed(VISUALIZER_BG_MIN_WIDTH))
                             .center_y(Length::Fill)
                             .into()
