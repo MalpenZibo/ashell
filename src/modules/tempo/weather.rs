@@ -47,7 +47,7 @@ impl Tempo {
         let temp = units.temperature_symbol();
         let wind = self.config.resolved_wind_speed_unit().symbol();
         let location_visible = self.location_visible;
-        self.weather_data.as_ref().map(|data| {
+        self.weather_data.as_ref().map(|(_, data)| {
             let location = &data.place;
             let inner_element: Element<'a, Message> = if location_visible {
                 let display_time = self.time_str(

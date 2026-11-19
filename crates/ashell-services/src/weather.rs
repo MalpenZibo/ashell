@@ -331,18 +331,20 @@ struct GeoLocation {
 
 impl From<GeoLocation> for Place {
     fn from(value: GeoLocation) -> Self {
-        let region = match (value.admin1, value.country) {
-            (Some(admin1), Some(country)) if admin1 == country || admin1 == value.name => country,
-            (Some(admin1), _) => admin1,
-            (None, country) => country.unwrap_or_default(),
-        };
-
         Place {
             latitude: value.latitude,
             longitude: value.longitude,
+            region: region_of(&value.name, value.admin1, value.country),
             city: value.name,
-            region,
         }
+    }
+}
+
+fn region_of(city: &str, admin1: Option<String>, country: Option<String>) -> String {
+    match (admin1, country) {
+        (Some(admin1), Some(country)) if admin1 == country || admin1 == city => country,
+        (Some(admin1), _) => admin1,
+        (None, country) => country.unwrap_or_default(),
     }
 }
 
@@ -353,6 +355,7 @@ struct IpLocation {
     lon: f32,
     city: String,
     region_name: String,
+    country: String,
 }
 
 impl From<IpLocation> for Place {
@@ -360,8 +363,8 @@ impl From<IpLocation> for Place {
         Place {
             latitude: value.lat,
             longitude: value.lon,
+            region: region_of(&value.city, Some(value.region_name), Some(value.country)),
             city: value.city,
-            region: value.region_name,
         }
     }
 }
@@ -568,6 +571,20 @@ mod tests {
         );
         assert_eq!(region(geo("Somewhere", None, Some("Chile"))), "Chile");
         assert_eq!(region(geo("Nowhere", None, None)), "");
+    }
+
+    #[test]
+    fn a_located_place_names_its_region_unless_it_repeats() {
+        let ip = |city: &str, region_name: &str| IpLocation {
+            lat: 0.0,
+            lon: 0.0,
+            city: city.into(),
+            region_name: region_name.into(),
+            country: "Austria".into(),
+        };
+
+        assert_eq!(Place::from(ip("Vienna", "Vienna")).region, "Austria");
+        assert_eq!(Place::from(ip("Graz", "Styria")).region, "Styria");
     }
 
     #[test]

@@ -3,7 +3,7 @@ pub mod weather;
 
 use std::time::Duration;
 
-use ashell_services::weather::{Weather, WeatherData};
+use ashell_services::weather::{Weather, WeatherData, WeatherQuery};
 use chrono::{
     DateTime, Local, Locale, NaiveDate,
     format::{Fixed, Item, Numeric, StrftimeItems},
@@ -160,7 +160,7 @@ fn local_minute(now: DateTime<Local>) -> i64 {
 pub enum Message {
     Update,
     ChangeSelectDate(Option<NaiveDate>),
-    UpdateWeather(Box<WeatherData>),
+    UpdateWeather(Box<(WeatherQuery, WeatherData)>),
     CycleFormat,
     CycleTimezone(TimezoneDirection),
     SetTimezone(usize),
@@ -182,7 +182,7 @@ pub struct Tempo {
     config: TempoModuleConfig,
     date: DateTime<Local>,
     selected_date: Option<NaiveDate>,
-    weather_data: Option<WeatherData>,
+    weather_data: Option<(WeatherQuery, WeatherData)>,
     current_format_index: usize,
     current_timezone_index: usize,
     location_visible: bool,
@@ -246,8 +246,10 @@ impl Tempo {
 
                 Action::None
             }
-            Message::UpdateWeather(data) => {
-                self.weather_data = Some(*data);
+            Message::UpdateWeather(update) => {
+                if Some(&update.0) == self.weather_query().as_ref() {
+                    self.weather_data = Some(*update);
+                }
 
                 Action::None
             }
@@ -293,13 +295,16 @@ impl Tempo {
                     self.current_timezone_index = 0;
                 }
 
-                let location_changed = self.config.weather_location != new_config.weather_location;
+                self.config = new_config;
 
-                if location_changed {
+                let query = self.weather_query();
+                if self
+                    .weather_data
+                    .as_ref()
+                    .is_some_and(|(asked, _)| Some(asked) != query.as_ref())
+                {
                     self.weather_data = None;
                 }
-
-                self.config = new_config;
                 Action::None
             }
             Message::ToggleLocationVisibility => {
@@ -334,7 +339,7 @@ impl Tempo {
             return None;
         }
         let temp = unit_system().temperature_symbol();
-        self.weather_data.as_ref().map(|data| {
+        self.weather_data.as_ref().map(|(_, data)| {
             Row::new()
                 .push(
                     weather_icon(data.current.code, data.current.is_day)
@@ -398,7 +403,7 @@ impl Tempo {
             Subscription::run_with(query, |query| {
                 let query = query.clone();
                 channel(100, async move |mut output| {
-                    let weather = match Weather::connect(query).await {
+                    let weather = match Weather::connect(query.clone()).await {
                         Ok(weather) => weather,
                         Err(err) => {
                             error!("Failed to start the weather service: {err}");
@@ -409,7 +414,8 @@ impl Tempo {
                     let mut updates = pin!(weather.updates());
                     while let Some(update) = updates.next().await {
                         if let Some(data) = update {
-                            let _ = output.send(Message::UpdateWeather(Box::new(data))).await;
+                            let update = Box::new((query.clone(), data));
+                            let _ = output.send(Message::UpdateWeather(update)).await;
                         }
                     }
                 })
