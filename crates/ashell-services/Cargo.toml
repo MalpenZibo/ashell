@@ -37,7 +37,6 @@ keyboard_locks = [
     "dep:wayland-protocols",
     "tokio/macros",
     "tokio/net",
-    "tokio/sync",
     "tokio/time",
     "wayland-protocols/staging",
 ]

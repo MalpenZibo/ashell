@@ -10,8 +10,9 @@
 mod activity;
 
 use crate::{stream::channel, udev_monitor};
+use activity::Activity;
 use futures::{SinkExt, Stream, future::pending};
-use log::warn;
+use log::{info, warn};
 use std::{
     fs::{self, File},
     os::unix::fs::FileExt,
@@ -19,8 +20,7 @@ use std::{
 };
 use tokio::{
     io::unix::AsyncFd,
-    sync::watch,
-    time::{MissedTickBehavior, interval},
+    time::{Instant, MissedTickBehavior, interval_at},
 };
 
 const LEDS_DIR: &str = "/sys/class/leds";
@@ -44,8 +44,8 @@ impl KeyboardLocksData {
                 Lock::Scroll => &mut data.scroll_lock,
             };
             let mut value = [0];
-            // A keyboard unplugged since the last scan fails to read
-            if led.brightness.read_at(&mut value, 0).is_ok() {
+            // A keyboard unplugged since the last scan fails to read, or reads nothing
+            if let Ok(1) = led.brightness.read_at(&mut value, 0) {
                 *slot = Some(slot.unwrap_or(false) || value[0] != b'0');
             }
         }
@@ -81,7 +81,10 @@ impl KeyboardLocks {
             let mut monitor = udev_monitor::listen("leds")
                 .inspect_err(|err| warn!("Failed to listen for keyboards: {err}"))
                 .ok();
-            let mut activity = Some(activity::watch());
+            let mut activity = Activity::connect()
+                .inspect_err(|err| info!("Keyboard locks are polled even when idle: {err}"))
+                .ok();
+            let mut active = true;
 
             let mut leds = find_leds();
             let mut data = KeyboardLocksData::read(&leds);
@@ -89,10 +92,11 @@ impl KeyboardLocks {
                 return;
             }
 
-            let mut ticker = interval(POLL_INTERVAL);
+            // Its first tick would read again right away
+            let mut ticker = interval_at(Instant::now() + POLL_INTERVAL, POLL_INTERVAL);
             ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+
             loop {
-                let active = activity.as_ref().is_none_or(|active| *active.borrow());
                 tokio::select! {
                     _ = ticker.tick(), if active && !leds.is_empty() => {}
                     added_or_removed = keyboards_changed(monitor.as_mut()) => match added_or_removed {
@@ -103,8 +107,16 @@ impl KeyboardLocks {
                             monitor = None;
                         }
                     },
-                    // Its first tick would read again right away
-                    _ = seat_activity(&mut activity) => ticker.reset(),
+                    changed = seat_activity(activity.as_mut()) => {
+                        match changed {
+                            Ok(now) => active = now,
+                            Err(err) => {
+                                warn!("Keyboard locks are polled from now on: {err}");
+                                (activity, active) = (None, true);
+                            }
+                        }
+                        ticker.reset();
+                    }
                 }
 
                 let next = KeyboardLocksData::read(&leds);
@@ -160,13 +172,11 @@ async fn keyboards_changed(
     Ok(changed)
 }
 
-/// Resolves when the seat goes idle or is used again. Once that can't be
-/// followed anymore it never does, and the polling stays on.
-async fn seat_activity(activity: &mut Option<watch::Receiver<bool>>) {
-    let Some(receiver) = activity else {
-        return pending().await;
-    };
-    if receiver.changed().await.is_err() {
-        *activity = None;
+/// The seat going idle or being used again. Never resolves without a way to
+/// tell.
+async fn seat_activity(activity: Option<&mut Activity>) -> anyhow::Result<bool> {
+    match activity {
+        Some(activity) => activity.changed().await,
+        None => pending().await,
     }
 }
