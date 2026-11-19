@@ -2,7 +2,6 @@ use super::{Service, ServiceEvent};
 use crate::services::ReadOnlyService;
 use dbus::ConnectivityState;
 use dbus::NetworkDbus;
-use iced::futures::TryFutureExt;
 use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender},
@@ -12,10 +11,40 @@ use iwd_dbus::IwdDbus;
 use log::{debug, error, info, warn};
 use std::{any::TypeId, ops::Deref, time::Duration};
 use tokio::time::sleep;
-use zbus::OwnedObjectPath;
+use zbus::{OwnedObjectPath, fdo::DBusProxy, names::BusName};
 
 pub mod dbus;
 pub mod iwd_dbus;
+
+const NETWORK_MANAGER_NAME: &str = "org.freedesktop.NetworkManager";
+const IWD_NAME: &str = "net.connman.iwd";
+
+/// A value that is never printed by `Debug`.
+///
+/// Wrap secrets in this and keep `#[derive(Debug)]` on the containing type:
+/// a future variant cannot leak by forgetting a manual `Debug` impl.
+#[derive(Clone)]
+pub struct Redacted<T>(T);
+
+impl<T> Redacted<T> {
+    pub const fn new(value: T) -> Self {
+        Self(value)
+    }
+
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+
+    pub fn as_inner(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> std::fmt::Debug for Redacted<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<redacted>")
+    }
+}
 
 /// Trait defining the interface for a network backend.
 /// This allows abstracting the specific D-Bus implementation (like IWD or `NetworkManager`).
@@ -103,7 +132,7 @@ impl WifiSecurity {
 #[derive(Debug, Clone)]
 pub enum PskOutcome {
     Password {
-        psk: String,
+        psk: Redacted<String>,
         security: WifiSecurity,
         /// The QR code needs `H:true` or scanners won't find the network.
         hidden: bool,
@@ -125,9 +154,10 @@ pub enum NetworkCommand {
     ScanNearByWiFi,
     ToggleWiFi,
     ToggleAirplaneMode,
+    SetAirplaneMode(bool),
     SelectAccessPoint {
         access_point: AccessPointData,
-        password: Option<String>,
+        password: Option<Redacted<String>>,
         connect_once: bool,
     },
     ToggleVpn(Vpn),
@@ -260,6 +290,7 @@ enum State {
     Init,
     Active(zbus::Connection, BackendChoice, bool),
     Error,
+    Unsupported(zbus::Connection),
 }
 
 impl ReadOnlyService for NetworkService {
@@ -377,6 +408,64 @@ enum BackendChoice {
 impl BackendChoice {
     fn with_connection(self, conn: zbus::Connection) -> BackendChoiceWithConnection {
         BackendChoiceWithConnection { choice: self, conn }
+    }
+}
+
+async fn name_owned(proxy: &DBusProxy<'_>, name: &'static str) -> bool {
+    let Ok(name) = BusName::try_from(name) else {
+        return false;
+    };
+
+    proxy.name_has_owner(name).await.unwrap_or(false)
+}
+
+async fn select_backend(conn: &zbus::Connection) -> Option<BackendChoice> {
+    let proxy = DBusProxy::new(conn).await.ok()?;
+
+    if name_owned(&proxy, NETWORK_MANAGER_NAME).await {
+        Some(BackendChoice::NetworkManager)
+    } else if name_owned(&proxy, IWD_NAME).await {
+        Some(BackendChoice::Iwd)
+    } else {
+        None
+    }
+}
+
+async fn wait_for_backend(conn: &zbus::Connection) -> bool {
+    let Ok(proxy) = DBusProxy::new(conn).await else {
+        return false;
+    };
+    let Ok(mut network_manager) = proxy
+        .receive_name_owner_changed_with_args(&[(0, NETWORK_MANAGER_NAME)])
+        .await
+    else {
+        return false;
+    };
+    let Ok(mut iwd) = proxy
+        .receive_name_owner_changed_with_args(&[(0, IWD_NAME)])
+        .await
+    else {
+        return false;
+    };
+
+    if select_backend(conn).await.is_some() {
+        return true;
+    }
+
+    loop {
+        tokio::select! {
+            Some(signal) = network_manager.next() => {
+                if signal.args().is_ok_and(|args| args.new_owner().is_some()) {
+                    return true;
+                }
+            }
+            Some(signal) = iwd.next() => {
+                if signal.args().is_ok_and(|args| args.new_owner().is_some()) {
+                    return true;
+                }
+            }
+            else => return false,
+        }
     }
 }
 
@@ -502,40 +591,18 @@ impl NetworkService {
         match state {
             State::Init => match zbus::Connection::system().await {
                 Ok(conn) => {
-                    // get first backend that is available
-                    info!("Connecting to backend");
-                    let maybe_backend: Result<(NetworkData, BackendChoice), _> =
-                        match NetworkDbus::new(&conn)
-                            .and_then(|nm| async move { nm.initialize_data().await })
-                            .await
-                        {
-                            Ok(data) => {
-                                info!("NetworkManager service initialized");
-                                Ok((data, BackendChoice::NetworkManager))
-                            }
-                            Err(err) => {
-                                info!(
-                                    "Failed to initialize NetworkManager. Falling back to iwd. Error: {err}"
-                                );
-                                match IwdDbus::new(&conn)
-                                    .and_then(|iwd| async move { iwd.initialize_data().await })
-                                    .await
-                                {
-                                    Ok(data) => {
-                                        info!("IWD service initialized");
-                                        Ok((data, BackendChoice::Iwd))
-                                    }
-                                    Err(err) => {
-                                        error!("Failed to initialize network service: {err}");
-                                        Err(err)
-                                    }
-                                }
-                            }
-                        };
-                    info!("Connected");
+                    let Some(choice) = select_backend(&conn).await else {
+                        warn!(
+                            "No network backend found (NetworkManager or IWD); waiting for one to appear"
+                        );
+                        return State::Unsupported(conn);
+                    };
 
-                    match maybe_backend {
-                        Ok((data, choice)) => {
+                    info!("Initializing {choice:?} backend");
+                    let backend = choice.with_connection(conn.clone());
+
+                    match backend.initialize_data().await {
+                        Ok(data) => {
                             info!("Network service initialized");
                             let _ = output
                                 .send(ServiceEvent::Init(NetworkService {
@@ -548,11 +615,7 @@ impl NetworkService {
                             State::Active(conn, choice, false)
                         }
                         Err(err) => {
-                            if err.is::<zbus::Error>() {
-                                error!("Failed to connect to system bus: {err}");
-                            } else {
-                                error!("Failed to initialize network service: {err}");
-                            }
+                            error!("Failed to initialize network service: {err}");
                             State::Error
                         }
                     }
@@ -655,6 +718,15 @@ impl NetworkService {
                     }
                 }
             }
+            State::Unsupported(conn) => {
+                if wait_for_backend(&conn).await {
+                    debug!("Network backend appeared; retrying initialization");
+                    State::Init
+                } else {
+                    debug!("Lost the system bus while waiting for a network backend");
+                    State::Error
+                }
+            }
             State::Error => {
                 error!("Network service error, retrying in 5 seconds");
 
@@ -687,6 +759,19 @@ impl Service for NetworkService {
                         } else {
                             airplane_mode
                         }
+                    },
+                    |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
+                )
+            }
+            NetworkCommand::SetAirplaneMode(enabled) => {
+                let previous = self.airplane_mode;
+
+                Task::perform(
+                    async move {
+                        debug!("Setting airplane mode to: {enabled}");
+                        let res = bc.set_airplane_mode(enabled).await;
+
+                        if res.is_ok() { enabled } else { previous }
                     },
                     |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
                 )
@@ -750,7 +835,11 @@ impl Service for NetworkService {
             } => Task::perform(
                 async move {
                     if let Err(err) = bc
-                        .select_access_point(&access_point, password, connect_once)
+                        .select_access_point(
+                            &access_point,
+                            password.map(Redacted::into_inner),
+                            connect_once,
+                        )
                         .await
                     {
                         error!(
@@ -821,5 +910,83 @@ impl Service for NetworkService {
                 }
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn access_point() -> AccessPointData {
+        AccessPointData {
+            ssid: "HomeNet".to_string(),
+            strength: 80,
+            max_bitrate: 1000,
+            frequency: 5180,
+            state: dbus::DeviceState::Activated,
+            public: false,
+            working: false,
+            path: OwnedObjectPath::try_from("/org/freedesktop/NetworkManager/AccessPoint/1")
+                .unwrap(),
+            device_path: OwnedObjectPath::try_from("/org/freedesktop/NetworkManager/Devices/1")
+                .unwrap(),
+        }
+    }
+
+    #[test]
+    fn command_debug_redacts_password() {
+        let command = NetworkCommand::SelectAccessPoint {
+            access_point: access_point(),
+            password: Some(Redacted::new("correct horse battery staple".to_string())),
+            connect_once: false,
+        };
+
+        let debug = format!("{command:?}");
+
+        assert!(debug.contains("HomeNet"));
+        assert!(debug.contains("Some(<redacted>)"));
+        assert!(!debug.contains("correct horse battery staple"));
+    }
+
+    #[test]
+    fn command_debug_without_password_keeps_normal_shape() {
+        let command = NetworkCommand::SelectAccessPoint {
+            access_point: access_point(),
+            password: None,
+            connect_once: true,
+        };
+
+        let debug = format!("{command:?}");
+
+        assert!(debug.contains("SelectAccessPoint"));
+        assert!(debug.contains("password: None"));
+        assert!(debug.contains("connect_once: true"));
+        assert!(!debug.contains("<redacted>"));
+    }
+
+    #[test]
+    fn psk_outcome_debug_redacts_psk() {
+        let outcome = PskOutcome::Password {
+            psk: Redacted::new("correct horse battery staple".to_string()),
+            security: WifiSecurity::Wpa,
+            hidden: false,
+        };
+
+        let debug = format!("{outcome:?}");
+
+        assert!(debug.contains("Password"));
+        assert!(debug.contains("<redacted>"));
+        assert!(!debug.contains("correct horse battery staple"));
+    }
+
+    #[test]
+    fn psk_outcome_debug_without_password_keeps_normal_shape() {
+        let outcome = PskOutcome::Open { hidden: true };
+
+        let debug = format!("{outcome:?}");
+
+        assert!(debug.contains("Open"));
+        assert!(debug.contains("hidden: true"));
+        assert!(!debug.contains("<redacted>"));
     }
 }

@@ -93,9 +93,7 @@ The IWD (iNet Wireless Daemon) integration has the most extensive D-Bus bindings
 
 - `Station` — WiFi station management
 - `Network` — WiFi network connections
-- `KnownNetwork` — Previously connected networks
 - `Device` — Wireless device control
-- `AccessPoint` — AP mode (not used by ashell but defined for completeness)
 
 ## Signal Watching vs. Property Polling
 

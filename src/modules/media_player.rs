@@ -5,7 +5,7 @@ use crate::{
     components::{ButtonKind, ButtonSize, MenuSize},
     config::{
         MediaPlayerFormat, MediaPlayerIndicatorControls, MediaPlayerModuleConfig,
-        MediaPlayerTextField, MediaPlayerVisualizer,
+        MediaPlayerTextField, MediaPlayerVisualizer, ModuleName,
     },
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -348,7 +348,7 @@ impl MediaPlayer {
         container(match &self.service {
             None => Into::<Element<'a, Message>>::into(text(t!("media-player-not-connected"))),
             Some(service) => column!(
-                text(t!("media-player-heading")).size(font_size.lg),
+                text(t!("media-player-heading")).size(font_size.xl),
                 divider(),
                 container(scrollable(
                     column(service.players().iter().map(|d| {
@@ -590,26 +590,35 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
-        let (space, font_size, palette) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.palette));
+        let (space, spacing, label_size, icon_size, palette) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.module_spacing(&ModuleName::MediaPlayer, theme.space.xs),
+                theme.module_font_size(&ModuleName::MediaPlayer, theme.font_size.sm),
+                theme.module_font_size(&ModuleName::MediaPlayer, theme.font_size.md),
+                theme.palette,
+            )
+        });
         self.active_player().map(|player| {
             let has_text = self.config.indicator_format != MediaPlayerFormat::Icon;
             let label = || {
                 container(
                     text(self.indicator_text(player))
                         .wrapping(text::Wrapping::None)
-                        .size(font_size.sm),
+                        .size(label_size),
                 )
                 .clip(true)
             };
 
             let content = match self.config.indicator_format {
-                MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote)],
+                MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote).size(icon_size)],
                 MediaPlayerFormat::Text => row![label()],
-                MediaPlayerFormat::IconAndText => row![icon(StaticIcon::MusicNote), label()],
+                MediaPlayerFormat::IconAndText => {
+                    row![icon(StaticIcon::MusicNote).size(icon_size), label()]
+                }
             }
             .align_y(Vertical::Center)
-            .spacing(space.xs)
+            .spacing(spacing)
             .height(Length::Fill);
 
             let active = player.state == PlaybackStatus::Playing && !self.bars.is_empty();
@@ -640,7 +649,7 @@ impl MediaPlayer {
                     let base: Element<'_, Message> = if has_text {
                         content.into()
                     } else {
-                        container(icon(StaticIcon::MusicNote))
+                        container(icon(StaticIcon::MusicNote).size(icon_size))
                             .center_x(Length::Fixed(VISUALIZER_BG_MIN_WIDTH))
                             .center_y(Length::Fill)
                             .into()
@@ -667,12 +676,12 @@ impl MediaPlayer {
                 }
                 Some(MediaPlayerVisualizer::Before) if active => row![beside_visualizer(), content]
                     .align_y(Vertical::Center)
-                    .spacing(space.xs)
+                    .spacing(spacing)
                     .height(Length::Fill)
                     .into(),
                 Some(MediaPlayerVisualizer::After) if active => row![content, beside_visualizer()]
                     .align_y(Vertical::Center)
-                    .spacing(space.xs)
+                    .spacing(spacing)
                     .height(Length::Fill)
                     .into(),
                 _ => content.into(),

@@ -122,7 +122,7 @@ impl Tempo {
                         selected_date.checked_sub_months(Months::new(1)),
                     )),
                 text(selected_date.format_localized("%B", locale).to_string())
-                    .size(theme.font_size.md)
+                    .size(theme.font_size.lg)
                     .width(Length::Fill)
                     .align_x(Horizontal::Center),
                 icon_button::<Message>(StaticIcon::RightChevron)
@@ -253,7 +253,7 @@ impl Tempo {
                             .format_localized(&self.menu_date_formats().header, locale)
                             .to_string()
                     )
-                    .size(theme.font_size.md),
+                    .size(theme.font_size.lg),
                 )
                 .spacing(theme.space.xs),
             ),)

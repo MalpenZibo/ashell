@@ -1,0 +1,34 @@
+# The site of ashell's experimental island, built with Zola:
+#
+#   zola serve    # http://127.0.0.1:1111, rebuilt on save
+#   zola build    # into public/
+#
+# Served under ashell's GitHub Pages, beside the stable site.
+base_url = "https://malpenzibo.github.io/ashell/experimental"
+title = "ashell-experimental"
+description = "The experimental ashell: a bar described by its configuration, built on GUIdo and styletto."
+default_language = "en"
+
+compile_sass = true
+minify_html = false
+build_search_index = true
+generate_feeds = false
+
+[markdown]
+smart_punctuation = false
+external_links_target_blank = true
+external_links_no_referrer = true
+
+[markdown.highlighting]
+light_theme = "github-light"
+dark_theme = "tokyo-night"
+
+[search]
+include_description = true
+index_format = "elasticlunr_json"
+
+[extra]
+repository = "https://github.com/MalpenZibo/ashell"
+experimental_tree = "https://github.com/MalpenZibo/ashell/tree/main/experimental"
+stable_site = "https://malpenzibo.github.io/ashell/"
+matrix = "https://matrix.to/#/#ashell:matrix.org"

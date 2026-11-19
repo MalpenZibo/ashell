@@ -34,5 +34,6 @@ pub enum Message {
     ResumeFromSleep,
     None,
     ToggleVisibility,
+    SetVisibility(bool),
     LoadConfig(PathBuf),
 }

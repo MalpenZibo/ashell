@@ -6,7 +6,7 @@ use crate::{
         styled_button,
     },
     components::{scrollable, toggler},
-    config::{TrayClickAction, TrayModuleConfig},
+    config::{ModuleName, TrayClickAction, TrayModuleConfig},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -286,10 +286,12 @@ impl TrayModule {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
-        let (space, font_size, button_style) = use_theme(|theme| {
+        let (space, spacing, size, point_size, button_style) = use_theme(|theme| {
             (
                 theme.space,
-                theme.font_size,
+                theme.module_spacing(&ModuleName::Tray, 0.0),
+                theme.module_font_size(&ModuleName::Tray, theme.font_size.lg),
+                theme.module_font_size(&ModuleName::Tray, theme.font_size.md),
                 theme.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary),
             )
         });
@@ -315,12 +317,12 @@ impl TrayModule {
                                 };
                                 let icon_content: Element<'_, Message> = match active_icon {
                                     Some(TrayIcon::Image(handle)) => Image::new(handle.clone())
-                                        .height(Length::Fixed(font_size.md - 2.0))
+                                        .height(Length::Fixed(size - 2.0))
                                         .into(),
                                     Some(TrayIcon::Svg { handle, symbolic }) => {
                                         let svg = Svg::new(handle.clone())
-                                            .height(Length::Fixed(font_size.md + 2.))
-                                            .width(Length::Fixed(font_size.md + 2.))
+                                            .height(Length::Fixed(size + 2.))
+                                            .width(Length::Fixed(size + 2.))
                                             .content_fit(iced::ContentFit::Cover);
                                         // Symbolic icons ship a fixed dark fill and
                                         // expect the host to recolor them.
@@ -333,13 +335,16 @@ impl TrayModule {
                                             svg.into()
                                         }
                                     }
-                                    _ => icon(StaticIcon::Point).into(),
+                                    _ => icon(StaticIcon::Point).size(point_size).into(),
                                 };
                                 let open_app = Message::Activate(name.clone());
                                 let toggle_menu = move |r| Message::ToggleMenu(name.clone(), id, r);
 
                                 let mut btn = position_button(icon_content);
                                 btn = match &self.right_click {
+                                    _ if !item.has_menu() => btn
+                                        .on_press(open_app.clone())
+                                        .on_right_press(open_app.clone()),
                                     None => btn.on_press_with_position(toggle_menu.clone()),
                                     Some(TrayClickAction::Open) => btn
                                         .on_press_with_position(toggle_menu.clone())
@@ -355,6 +360,7 @@ impl TrayModule {
                             .collect::<Vec<_>>(),
                     )
                     .padding([2.0, 0.])
+                    .spacing(spacing)
                     .align_y(Alignment::Center),
                 )
             })
@@ -366,9 +372,10 @@ impl TrayModule {
             .service
             .as_ref()
             .and_then(|service| service.data.iter().find(|item| item.name == name))
+            .and_then(|item| item.menu.as_ref())
         {
-            Some(item) => Column::with_children(
-                renderable_children(&item.menu.2).map(|menu| self.menu_voice(name, menu)),
+            Some(menu) => Column::with_children(
+                renderable_children(&menu.2).map(|menu| self.menu_voice(name, menu)),
             )
             .spacing(space.xs),
             _ => Column::new(),

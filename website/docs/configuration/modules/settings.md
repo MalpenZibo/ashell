@@ -65,6 +65,23 @@ logout_cmd = "loginctl kill-user $(whoami)"
 
 The `lock_cmd` parameter is optional. If not set, or set to an empty string, the lock button will not appear.
 
+On systems where the built-in executable is missing, ashell retries the same
+power action through `loginctl` once. This only applies while the command is
+still the default one shown above, and only when the shell reports the
+executable as not found (exit status 127):
+
+| Built-in default | Fallback |
+| ---------------- | -------- |
+| `shutdown now` | `loginctl poweroff` |
+| `systemctl suspend` | `loginctl suspend` |
+| `systemctl reboot` | `loginctl reboot` |
+
+Custom commands are always used verbatim, and other failures (permissions,
+inhibitor locks, unsupported sleep states) do not trigger the fallback. Set the
+`*_cmd` options explicitly when your system needs a different implementation.
+Hibernate has no built-in default, so on elogind set
+`hibernate_cmd = "loginctl hibernate"` if you want that button.
+
 The `hibernate_cmd` parameter is optional. If not set, or set to an empty string, the hibernate button will not appear.
 
 With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`  
@@ -354,6 +371,28 @@ The default value is `Icon`.
 network_indicator_format = "IconAndPercentage"
 # or, to show the SSID next to the wifi icon:
 # network_indicator_format = "IconAndName"
+```
+
+### Network Backend
+
+With the `network_backend` option you can control which backend ashell uses for
+the network module.
+
+The default value is `auto`: ashell checks whether NetworkManager or IWD owns
+its D-Bus name and initializes the first one it finds. If neither service is
+present, ashell logs once and waits for one to appear instead of retrying every
+few seconds. NetworkManager is preferred when both are available, which is also
+the case when NetworkManager uses IWD as its Wi-Fi backend.
+
+Set `network_backend = "disabled"` to disable the network service completely. This
+is useful on hosts that use systemd-networkd, dhcpcd or another tool, or when
+you manage networking elsewhere and do not want ashell to connect to the bus.
+With `disabled`, the network indicator and menu are not backed by a service.
+
+```toml
+[settings]
+network_backend = "auto"  # default
+# network_backend = "disabled"
 ```
 
 ### Bluetooth Format

@@ -186,6 +186,31 @@ fn lookup_icon(icon_name: &str) -> Option<IconFile> {
 }
 
 const THEME_PATH_MAX_DIRS: usize = 8;
+const ICON_FILE_EXTENSIONS: [&str; 2] = ["svg", "png"];
+
+fn has_icon_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| {
+            ICON_FILE_EXTENSIONS
+                .iter()
+                .any(|known| ext.eq_ignore_ascii_case(known))
+        })
+}
+
+fn is_plain_absolute(path: &Path) -> bool {
+    path.is_absolute() && !path.components().any(|c| c == Component::ParentDir)
+}
+
+/// Icon from an absolute file path, which some SNI clients put in `IconName`.
+pub fn get_icon_from_file(path: &Path) -> Option<IconFile> {
+    if !is_plain_absolute(path) || !has_icon_extension(path) || !path.is_file() {
+        debug!("icon file {path:?}: rejected or missing");
+        return None;
+    }
+
+    Some(IconFile::from_path(path.to_path_buf()))
+}
 
 /// Looks `icon_name` up in the flat directories of an SNI `IconThemePath`
 /// (Chromium temp dirs, Spotify). Not cached: clients rewrite them.
@@ -531,9 +556,10 @@ fn icon_directories() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        IconFile, desktop_entry_keys, find_similar_icon, get_icon_from_name, is_safe_icon_name,
-        normalize_icon_name, strip_icon_separators, theme_icon_path,
+        IconFile, desktop_entry_keys, find_similar_icon, get_icon_from_file, get_icon_from_name,
+        is_safe_icon_name, normalize_icon_name, strip_icon_separators, theme_icon_path,
     };
+    use std::path::Path;
 
     #[test]
     fn desktop_entry_keys_skip_action_groups() {
@@ -657,6 +683,31 @@ mod tests {
         let parent = format!("{}/../one", one.display());
         assert_eq!(in_path(&parent, "status_icon_2"), None);
         assert_eq!(in_path("", "status_icon_2"), None);
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn icon_file_requires_a_plain_absolute_path() {
+        assert!(get_icon_from_file(Path::new("relative/icon.png")).is_none());
+        assert!(get_icon_from_file(Path::new("/tmp/../etc/passwd")).is_none());
+        assert!(get_icon_from_file(Path::new("/etc/passwd")).is_none());
+        assert!(get_icon_from_file(Path::new("/etc/hosts")).is_none());
+    }
+
+    #[test]
+    fn icon_file_accepts_absolute_image_paths() {
+        let root = std::env::temp_dir().join(format!("ashell-icon-file-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let png = root.join("icon.png");
+        let svg = root.join("icon.svg");
+        std::fs::write(&png, b"").unwrap();
+        std::fs::write(&svg, b"").unwrap();
+
+        assert_eq!(get_icon_from_file(&png), Some(IconFile::Image(png.clone())));
+        assert_eq!(get_icon_from_file(&svg), Some(IconFile::Svg(svg.clone())));
+        assert!(get_icon_from_file(&root.join("missing.png")).is_none());
 
         std::fs::remove_dir_all(&root).unwrap();
     }

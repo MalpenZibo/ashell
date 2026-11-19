@@ -27,8 +27,9 @@ pub fn materialize(
             security,
             hidden,
         } => {
-            let payload = build_wifi_payload(ssid, Some((&psk, security)), hidden);
-            (Some(psk), None, Some(payload))
+            let payload =
+                build_wifi_payload(ssid, Some((psk.as_inner().as_str(), security)), hidden);
+            (Some(psk.into_inner()), None, Some(payload))
         }
         PskOutcome::Open { hidden } => {
             let payload = build_wifi_payload(ssid, None, hidden);

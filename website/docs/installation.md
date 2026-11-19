@@ -4,6 +4,8 @@ sidebar_position: 2
 
 # 🛠️ Installation
 
+Ashell works on both `x86-64` and `aarch64` (ARM64) systems.
+
 You can install Ashell using the following methods:
 
 ## Packages
@@ -38,7 +40,7 @@ yay -S ashell-git
 
 Ashell is available in nixpkgs:
 
-- **nixpkgs unstable**: version 0.8.0
+- **nixpkgs unstable**: version 0.11.0
 - **nixpkgs 25.11 (stable)**: version 0.6.0
 
 #### nix profile (flake)

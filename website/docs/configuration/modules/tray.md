@@ -44,6 +44,8 @@ You can configure what happens when right-clicking a tray icon using `right_clic
 - `"Open"` — right click activates the application (e.g. show/raise its window); left click opens the context menu
 - `"Menu"` — right click opens the context menu; left click activates the application
 
+Applications without a menu are activated by any click.
+
 ## Examples
 
 **Hide multiple applications by pattern:**

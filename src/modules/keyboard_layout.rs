@@ -1,9 +1,10 @@
 use crate::{
-    config::KeyboardLayoutModuleConfig,
+    config::{KeyboardLayoutModuleConfig, ModuleName},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         compositor::{CompositorCommand, CompositorService},
     },
+    theme::use_theme,
 };
 use iced::{Element, Subscription, Task, widget::text};
 
@@ -71,9 +72,11 @@ impl KeyboardLayout {
             None => active_layout.clone(),
         };
 
+        let size = use_theme(|t| t.module_font_size(&ModuleName::KeyboardLayout, t.font_size.md));
+
         // Returns plain text matching original implementation style.
         // (Assuming parent container or mouse area handles interactions if any)
-        Some(text(label).into())
+        Some(text(label).size(size).into())
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

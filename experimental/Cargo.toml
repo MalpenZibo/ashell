@@ -1,0 +1,21 @@
+# The experimental ashell, built on GUIdo and styletto.
+# A workspace of its own, out of ashell's: its builds, lock file and CI
+# never touch ashell's.
+[workspace]
+resolver = "3"
+members = ["ashell-experimental"]
+
+[workspace.package]
+repository = "https://github.com/MalpenZibo/ashell"
+authors = ["Simone Camito (Zibo)"]
+license = "GPL-3.0-or-later"
+edition = "2024"
+rust-version = "1.97"
+
+[workspace.dependencies]
+futures = "0.3"
+guido = { git = "https://github.com/MalpenZibo/guido", branch = "main" }
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+styletto = { git = "https://github.com/MalpenZibo/styletto", branch = "main", features = ["serde", "wallpaper"] }
+tokio = { version = "1", default-features = false }

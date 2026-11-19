@@ -68,6 +68,49 @@ pub enum IpcCommand {
         #[arg(long)]
         no_osd: bool,
     },
+    /// Show (`true`) or hide (`false`) the bar
+    SetVisibility {
+        // `bool` fields default to `ArgAction::SetTrue`, which is invalid for
+        // a positional; make it a required value explicitly.
+        #[arg(value_parser = clap::builder::BoolishValueParser::new(), action = clap::ArgAction::Set)]
+        state: bool,
+    },
+    /// Mute (`true`) or unmute (`false`) the sink
+    VolumeSetMute {
+        // `bool` fields default to `ArgAction::SetTrue`, which is invalid for
+        // a positional; make it a required value explicitly.
+        #[arg(value_parser = clap::builder::BoolishValueParser::new(), action = clap::ArgAction::Set)]
+        state: bool,
+        #[arg(long)]
+        no_osd: bool,
+    },
+    /// Mute (`true`) or unmute (`false`) the source
+    MicrophoneSetMute {
+        // `bool` fields default to `ArgAction::SetTrue`, which is invalid for
+        // a positional; make it a required value explicitly.
+        #[arg(value_parser = clap::builder::BoolishValueParser::new(), action = clap::ArgAction::Set)]
+        state: bool,
+        #[arg(long)]
+        no_osd: bool,
+    },
+    /// Turn airplane mode on (`true`) or off (`false`)
+    SetAirplaneMode {
+        // `bool` fields default to `ArgAction::SetTrue`, which is invalid for
+        // a positional; make it a required value explicitly.
+        #[arg(value_parser = clap::builder::BoolishValueParser::new(), action = clap::ArgAction::Set)]
+        state: bool,
+        #[arg(long)]
+        no_osd: bool,
+    },
+    /// Turn the idle inhibitor on (`true`) or off (`false`)
+    SetIdleInhibitor {
+        // `bool` fields default to `ArgAction::SetTrue`, which is invalid for
+        // a positional; make it a required value explicitly.
+        #[arg(value_parser = clap::builder::BoolishValueParser::new(), action = clap::ArgAction::Set)]
+        state: bool,
+        #[arg(long)]
+        no_osd: bool,
+    },
     LoadConfig {
         #[arg(value_parser = config::resolve_config_arg)]
         file: PathBuf,
@@ -77,7 +120,9 @@ pub enum IpcCommand {
 impl IpcCommand {
     pub fn no_osd(&self) -> bool {
         match self {
-            IpcCommand::ToggleVisibility | IpcCommand::LoadConfig { .. } => false,
+            IpcCommand::ToggleVisibility
+            | IpcCommand::SetVisibility { .. }
+            | IpcCommand::LoadConfig { .. } => false,
             IpcCommand::VolumeUp { no_osd }
             | IpcCommand::VolumeDown { no_osd }
             | IpcCommand::VolumeToggleMute { no_osd }
@@ -87,7 +132,23 @@ impl IpcCommand {
             | IpcCommand::BrightnessUp { no_osd }
             | IpcCommand::BrightnessDown { no_osd }
             | IpcCommand::ToggleAirplaneMode { no_osd }
-            | IpcCommand::ToggleIdleInhibitor { no_osd } => *no_osd,
+            | IpcCommand::ToggleIdleInhibitor { no_osd }
+            | IpcCommand::VolumeSetMute { no_osd, .. }
+            | IpcCommand::MicrophoneSetMute { no_osd, .. }
+            | IpcCommand::SetAirplaneMode { no_osd, .. }
+            | IpcCommand::SetIdleInhibitor { no_osd, .. } => *no_osd,
+        }
+    }
+
+    /// The forced state of the `set-*` commands, if any.
+    fn state(&self) -> Option<bool> {
+        match self {
+            IpcCommand::SetVisibility { state }
+            | IpcCommand::VolumeSetMute { state, .. }
+            | IpcCommand::MicrophoneSetMute { state, .. }
+            | IpcCommand::SetAirplaneMode { state, .. }
+            | IpcCommand::SetIdleInhibitor { state, .. } => Some(*state),
+            _ => None,
         }
     }
 }
@@ -108,16 +169,37 @@ impl fmt::Display for IpcCommand {
             IpcCommand::BrightnessDown { .. } => "brightness-down",
             IpcCommand::ToggleAirplaneMode { .. } => "toggle-airplane-mode",
             IpcCommand::ToggleIdleInhibitor { .. } => "toggle-idle-inhibitor",
+            IpcCommand::SetVisibility { .. } => "set-visibility",
+            IpcCommand::VolumeSetMute { .. } => "volume-set-mute",
+            IpcCommand::MicrophoneSetMute { .. } => "microphone-set-mute",
+            IpcCommand::SetAirplaneMode { .. } => "set-airplane-mode",
+            IpcCommand::SetIdleInhibitor { .. } => "set-idle-inhibitor",
             IpcCommand::LoadConfig { .. } => "load-config",
         };
         write!(f, "{base}")?;
         if let IpcCommand::LoadConfig { file } = self {
             write!(f, " {}", file.display())?;
         }
+        if let Some(state) = self.state() {
+            write!(f, " {state}")?;
+        }
         if self.no_osd() {
             write!(f, "{NO_OSD_SUFFIX}")?;
         }
         Ok(())
+    }
+}
+
+/// Parse the required `true`/`false` argument of the `set-*` commands.
+fn parse_bool(name: &str, value: Option<&str>) -> Result<bool> {
+    let Some(value) = value else {
+        return Err(anyhow!("{name} requires a true or false argument"));
+    };
+
+    match value.to_ascii_lowercase().as_str() {
+        "true" | "yes" | "on" | "1" => Ok(true),
+        "false" | "no" | "off" | "0" => Ok(false),
+        _ => Err(anyhow!("{name} expects true or false, got {value:?}")),
     }
 }
 
@@ -134,6 +216,22 @@ impl FromStr for IpcCommand {
         let name = parts.next().unwrap_or("").trim();
         let rest = parts.next().map(str::trim).filter(|s| !s.is_empty());
 
+        // Toggles flip on their own; a forced state goes through `set-*`.
+        if let Some(rest) = rest
+            && matches!(
+                name,
+                "toggle-visibility"
+                    | "volume-toggle-mute"
+                    | "microphone-toggle-mute"
+                    | "toggle-airplane-mode"
+                    | "toggle-idle-inhibitor"
+            )
+        {
+            return Err(anyhow!(
+                "{name} takes no arguments, got {rest:?}; use the matching set-* command to force a state"
+            ));
+        }
+
         match name {
             "toggle-visibility" => Ok(IpcCommand::ToggleVisibility),
             "volume-up" => Ok(IpcCommand::VolumeUp { no_osd }),
@@ -146,6 +244,25 @@ impl FromStr for IpcCommand {
             "brightness-down" => Ok(IpcCommand::BrightnessDown { no_osd }),
             "toggle-airplane-mode" => Ok(IpcCommand::ToggleAirplaneMode { no_osd }),
             "toggle-idle-inhibitor" => Ok(IpcCommand::ToggleIdleInhibitor { no_osd }),
+            "set-visibility" => Ok(IpcCommand::SetVisibility {
+                state: parse_bool(name, rest)?,
+            }),
+            "volume-set-mute" => Ok(IpcCommand::VolumeSetMute {
+                state: parse_bool(name, rest)?,
+                no_osd,
+            }),
+            "microphone-set-mute" => Ok(IpcCommand::MicrophoneSetMute {
+                state: parse_bool(name, rest)?,
+                no_osd,
+            }),
+            "set-airplane-mode" => Ok(IpcCommand::SetAirplaneMode {
+                state: parse_bool(name, rest)?,
+                no_osd,
+            }),
+            "set-idle-inhibitor" => Ok(IpcCommand::SetIdleInhibitor {
+                state: parse_bool(name, rest)?,
+                no_osd,
+            }),
             "load-config" => {
                 let file =
                     PathBuf::from(rest.ok_or_else(|| anyhow!("load-config requires a file path"))?);
@@ -364,4 +481,119 @@ pub fn subscription() -> Subscription<IpcCommand> {
         })
         .filter_map(iced::futures::future::ready)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IpcCommand;
+
+    fn parse(command: &str) -> IpcCommand {
+        command.parse().unwrap()
+    }
+
+    #[test]
+    fn set_commands_round_trip() {
+        for command in [
+            "set-visibility true",
+            "set-visibility false",
+            "volume-set-mute true?no-osd",
+            "microphone-set-mute false",
+            "set-airplane-mode true",
+            "set-idle-inhibitor false",
+        ] {
+            assert_eq!(parse(command).to_string(), command);
+        }
+    }
+
+    #[test]
+    fn toggles_remain_parameterless() {
+        for command in [
+            "toggle-visibility",
+            "volume-toggle-mute",
+            "microphone-toggle-mute?no-osd",
+            "toggle-airplane-mode",
+            "toggle-idle-inhibitor",
+        ] {
+            let parsed = parse(command);
+            assert_eq!(parsed.state(), None);
+            assert_eq!(parsed.to_string(), command);
+        }
+    }
+
+    #[test]
+    fn boolish_state_spellings_normalise() {
+        for (command, expected) in [
+            ("set-visibility yes", true),
+            ("set-visibility 1", true),
+            ("set-visibility no", false),
+            ("set-visibility 0", false),
+        ] {
+            let parsed = parse(command);
+            assert_eq!(parsed.state(), Some(expected));
+            assert_eq!(parsed.to_string(), format!("set-visibility {expected}"));
+        }
+    }
+
+    #[test]
+    fn rejects_a_state_that_is_not_a_bool() {
+        assert!("set-visibility maybe".parse::<IpcCommand>().is_err());
+        assert!("set-airplane-mode 2".parse::<IpcCommand>().is_err());
+    }
+
+    #[test]
+    fn set_commands_require_a_state() {
+        for command in [
+            "set-visibility",
+            "volume-set-mute",
+            "microphone-set-mute",
+            "set-airplane-mode",
+            "set-idle-inhibitor",
+        ] {
+            assert!(command.parse::<IpcCommand>().is_err(), "{command}");
+        }
+    }
+
+    #[test]
+    fn toggles_reject_arguments() {
+        assert!("toggle-visibility true".parse::<IpcCommand>().is_err());
+        assert!("toggle-airplane-mode false".parse::<IpcCommand>().is_err());
+    }
+
+    #[test]
+    fn state_and_no_osd_compose() {
+        let parsed = parse("set-airplane-mode false?no-osd");
+        assert_eq!(parsed.state(), Some(false));
+        assert!(parsed.no_osd());
+        assert_eq!(parsed.to_string(), "set-airplane-mode false?no-osd");
+    }
+
+    #[test]
+    fn clap_accepts_the_set_commands() {
+        use clap::Parser;
+
+        for (args, expected) in [
+            (
+                vec!["ashell", "msg", "set-visibility", "false"],
+                "set-visibility false",
+            ),
+            (
+                vec!["ashell", "msg", "toggle-visibility"],
+                "toggle-visibility",
+            ),
+            (
+                vec!["ashell", "msg", "volume-set-mute", "true", "--no-osd"],
+                "volume-set-mute true?no-osd",
+            ),
+            (
+                vec!["ashell", "msg", "set-airplane-mode", "--no-osd", "off"],
+                "set-airplane-mode false?no-osd",
+            ),
+        ] {
+            let args = crate::Args::try_parse_from(args).unwrap();
+            let Some(crate::Command::Msg { command }) = args.command else {
+                panic!("expected the msg subcommand");
+            };
+            assert_eq!(command.to_string(), expected);
+        }
+    }
 }

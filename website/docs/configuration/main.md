@@ -23,7 +23,7 @@ with mode `0700`. If that directory exists but is not yours with mode `0700`,
 ashell logs to stderr instead. Log files are rotated daily or when they reach
 10 MB, and the last 7 files are kept.
 
-See [log levels](https://docs.rs/env_logger/latest/env_logger/#enabling-logging)
+See [log levels](https://docs.rs/flexi_logger/latest/flexi_logger/struct.LogSpecification.html)
 for the full filter syntax.
 
 ### Options
@@ -36,8 +36,9 @@ for the full filter syntax.
 
 :::warning
 
-Changing the `[logging]` section requires restarting ashell to take effect.
-The log destination is set once at startup and cannot be changed via hot-reload.
+Changing `level` is applied on hot-reload. Changing `target` or `directory`
+requires restarting ashell: the log destination is set once at startup and
+cannot be changed via hot-reload.
 
 :::
 
@@ -224,6 +225,10 @@ You can toggle the visibility of the status bar using the built-in IPC socket:
 ```bash
 # Toggle ashell visibility
 ashell msg toggle-visibility
+
+# Force it visible or hidden (e.g. from a compositor overview event)
+ashell msg set-visibility true
+ashell msg set-visibility false
 ```
 
 This is the recommended approach for keybind-based toggling or scripting.
@@ -272,6 +277,9 @@ ashell msg toggle-airplane-mode
 # Idle Inhibitor
 ashell msg toggle-idle-inhibitor
 ```
+
+The `set-*` commands set a concrete state instead of toggling, for example
+`ashell msg set-airplane-mode false --no-osd`.
 
 The OSD appears at center-bottom and auto-hides after a timeout. To suppress
 it for a specific command, add `--no-osd`:

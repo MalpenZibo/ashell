@@ -52,8 +52,8 @@ let centerbox = Centerbox::new([left, center, right])
     .spacing(space.xxs)
     .width(Length::Fill)
     .align_items(Alignment::Center)
-    .height((HEIGHT + bar_layout.vertical_padding()) as f32)
+    .height(bar_layout.height() as f32)
     .padding(bar_layout.padding());
 ```
 
-Where `modules_section()` returns `[left_modules, center_modules, right_modules]`.
+Where `modules_section()` returns `[left_modules, center_modules, right_modules]`, and `bar_layout.height()` is the content height plus the bar's vertical padding (see [Module Styles](../core/theme-system.md#module-styles)).

@@ -1,0 +1,11 @@
+# ashell's default modules on a solid bar (ashell's bar.surface = "solid"):
+# a flat background along the edge, and no island anywhere.
+
+[bar.main]
+background = "solid"
+shape      = false
+panels     = "dropdown"
+
+start  = ["workspaces"]
+center = ["window"]
+end    = [["clock", "privacy", "status"]]

@@ -7,12 +7,12 @@ use crate::{
         spinning_icon::spinning_icon,
         styled_button, toggler,
     },
-    config::SettingsFormat,
+    config::{NetworkBackend, SettingsFormat},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
             AccessPointData, ActiveConnectionInfo, KnownConnection, NetworkCommand, NetworkEvent,
-            NetworkService, PskOutcome, Vpn, dbus::ConnectivityState, frequency_band,
+            NetworkService, PskOutcome, Redacted, Vpn, dbus::ConnectivityState, frequency_band,
         },
     },
     theme::use_theme,
@@ -94,6 +94,7 @@ pub enum Message {
     ConfirmOpenNetwork(String),
     ToggleVpn(Vpn),
     ToggleAirplaneMode,
+    SetAirplaneMode(bool),
     OpenMore,
     ToggleWifiMenu,
     ToggleVPNMenu,
@@ -123,6 +124,7 @@ pub struct NetworkSettingsConfig {
     pub vpn_more_cmd: Option<String>,
     pub remove_airplane_btn: bool,
     pub indicator_format: SettingsFormat,
+    pub backend: NetworkBackend,
 }
 
 impl NetworkSettingsConfig {
@@ -131,12 +133,14 @@ impl NetworkSettingsConfig {
         vpn_more_cmd: Option<String>,
         remove_airplane_btn: bool,
         indicator_format: SettingsFormat,
+        backend: NetworkBackend,
     ) -> Self {
         Self {
             wifi_more_cmd,
             vpn_more_cmd,
             remove_airplane_btn,
             indicator_format,
+            backend,
         }
     }
 }
@@ -169,6 +173,7 @@ impl NetworkSettings {
 
     pub fn update(&mut self, message: Message) -> Action {
         match message {
+            Message::Event(_) if self.config.backend == NetworkBackend::Disabled => Action::None,
             Message::Event(event) => match event {
                 ServiceEvent::Init(service) => {
                     self.service = Some(service);
@@ -209,6 +214,14 @@ impl NetworkSettings {
                 Some(service) => Action::CloseSubMenu(
                     service
                         .command(NetworkCommand::ToggleAirplaneMode)
+                        .map(Message::Event),
+                ),
+                _ => Action::None,
+            },
+            Message::SetAirplaneMode(enabled) => match self.service.as_mut() {
+                Some(service) => Action::CloseSubMenu(
+                    service
+                        .command(NetworkCommand::SetAirplaneMode(enabled))
                         .map(Message::Event),
                 ),
                 _ => Action::None,
@@ -297,7 +310,7 @@ impl NetworkSettings {
                         .find(|ap| ap.ssid == ssid)
                         .cloned();
                     if let Some(ap) = ap {
-                        let password = (!password.is_empty()).then_some(password);
+                        let password = (!password.is_empty()).then_some(Redacted::new(password));
                         Action::Command(
                             service
                                 .command(NetworkCommand::SelectAccessPoint {
@@ -345,7 +358,11 @@ impl NetworkSettings {
                 }
             }
             Message::ConfigReloaded(config) => {
+                let disabled = config.backend == NetworkBackend::Disabled;
                 self.config = config;
+                if disabled {
+                    self.service = None;
+                }
                 Action::None
             }
             Message::ShareActiveWifi => {
@@ -394,8 +411,9 @@ impl NetworkSettings {
                     format_indicator(
                         self.config.indicator_format,
                         icon_type,
-                        text(label).into(),
+                        text(label),
                         state,
+                        super::Settings::indicator_size(),
                     )
                     .on_right_press(Message::OpenMore)
                     .into()
@@ -407,8 +425,9 @@ impl NetworkSettings {
                     format_indicator(
                         self.config.indicator_format,
                         StaticIcon::Wifi0,
-                        text(label).into(),
+                        text(label),
                         IndicatorState::Normal,
+                        super::Settings::indicator_size(),
                     )
                     .on_right_press(Message::OpenMore)
                     .into()
@@ -426,7 +445,7 @@ impl NetworkSettings {
                 .map(|a| {
                     let icon_type = a.get_icon();
 
-                    container(icon(icon_type))
+                    container(icon(icon_type).size(super::Settings::indicator_size()))
                         .style(|theme: &Theme| container::Style {
                             text_color: Some(theme.palette().warning),
                             ..Default::default()
@@ -455,7 +474,7 @@ impl NetworkSettings {
 
                 Some((
                     quick_setting_button(
-                        active_connection.map_or_else(|| StaticIcon::Wifi0, |(_, _, _, icon)| icon),
+                        active_connection.map_or(StaticIcon::Wifi0, |(_, _, _, icon)| icon),
                         t!("settings-network-wifi"),
                         active_connection.map(|(name, _, _, _)| name.to_string()),
                         service.wifi_enabled,
@@ -542,7 +561,10 @@ impl NetworkSettings {
                             } else {
                                 Message::ToggleVPNMenu
                             },
-                            Some(Message::OpenMore),
+                            self.config
+                                .vpn_more_cmd
+                                .as_ref()
+                                .map(|_| Message::VpnMore(id)),
                             if !actives.is_empty() {
                                 Some((SubMenu::Vpn, sub_menu, Message::ToggleVPNMenu))
                             } else {
@@ -791,7 +813,11 @@ impl NetworkSettings {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        NetworkService::subscribe().map(Message::Event)
+        if self.config.backend == NetworkBackend::Disabled {
+            Subscription::none()
+        } else {
+            NetworkService::subscribe().map(Message::Event)
+        }
     }
 
     pub fn airplane_mode_icon(active: bool) -> StaticIcon {

@@ -4,7 +4,7 @@ use iced::widget::{image, svg};
 
 pub use ashell_services::xdg_icons::warm_cache_async;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum XdgIcon {
     Image(image::Handle),
     Svg { handle: svg::Handle, symbolic: bool },
@@ -30,6 +30,10 @@ pub fn fallback_icon() -> XdgIcon {
 
 pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
     xdg_icons::get_icon_from_name(icon_name).map(XdgIcon::from)
+}
+
+pub fn get_icon_from_file(path: &std::path::Path) -> Option<XdgIcon> {
+    xdg_icons::get_icon_from_file(path).map(XdgIcon::from)
 }
 
 pub fn get_icon_from_theme_path(theme_path: &str, icon_name: &str) -> Option<XdgIcon> {

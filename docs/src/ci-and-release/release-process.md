@@ -10,7 +10,7 @@ ashell uses [cargo-dist](https://github.com/axodotdev/cargo-dist) (v0.30.0) for 
 
 2. **Publish the release**: The maintainer publishes the drafted release (e.g., tag `v0.11.0`). This triggers `pre-release.yml`, which:
    - Prepends the release notes to `CHANGELOG.md`
-   - Sets the Cargo version with `cargo set-version`
+   - Sets the Cargo version of every workspace member with `cargo set-version --workspace` and commits all their manifests, so the tagged `Cargo.lock` matches them and `--locked` builds work
    - Freezes the website docs version (`docusaurus docs:version`)
    - Commits and pushes to `main`, moves the tag to the new commit
    - Triggers the Release workflow (`release.yml`) with the tag

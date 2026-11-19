@@ -266,10 +266,14 @@ impl StatusNotifierWatcher {
             .path(ITEM_OBJECT_PATH)
             .cache_properties(zbus::proxy::CacheProperties::No);
         match builder.build().await {
-            Ok(proxy) => tokio::time::timeout(Duration::from_millis(500), proxy.icon_name())
-                .await
-                .map(|r| r.is_ok())
-                .unwrap_or(false),
+            // `Status` is small and required, and unlike `IconName` it is
+            // present on pixmap-only items. Fall back to `IconName` for the
+            // clients that omit one of the two.
+            Ok(proxy) => tokio::time::timeout(Duration::from_millis(500), async {
+                proxy.status().await.is_ok() || proxy.icon_name().await.is_ok()
+            })
+            .await
+            .unwrap_or(false),
             Err(_) => false,
         }
     }

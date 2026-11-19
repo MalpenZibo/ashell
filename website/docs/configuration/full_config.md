@@ -192,7 +192,7 @@ audio_sources_more_cmd = "pavucontrol -t 4"
 wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueberry"
-battery_format = "IconAndPercentage"  # (default), "Icon", "Percentage", "IconAndPercentage", "Time", "IconAndTime", "Name", "IconAndName", "PercentageAndTime", "IconAndPercentageAndTime"
+battery_format = "IconAndPercentage"  # (default), "Icon", "Percentage", "Time", "IconAndTime", "Name", "IconAndName", "PercentageAndTime", "IconAndPercentageAndTime"
 # battery_hide_when_full = false  # (default)
 # peripheral_indicators = "All"   # (default) or { Specific = ["Keyboard", "Mouse", "Headphones", "Gamepad"] }
 peripheral_battery_format = "Icon"  # (default), "Percentage", "IconAndPercentage", "Time", "IconAndTime", "Name", "IconAndName", "PercentageAndTime", "IconAndPercentageAndTime"
@@ -201,6 +201,7 @@ peripheral_battery_format = "Icon"  # (default), "Percentage", "IconAndPercentag
 audio_indicator_format = "Icon"        # (default), "IconAndPercentage", "Percentage", etc.
 microphone_indicator_format = "Icon"   # (default)
 network_indicator_format = "Icon"      # (default), "IconAndPercentage", "Percentage", "Name", "IconAndName" (Name/IconAndName show the SSID/interface/VPN name)
+network_backend = "auto"               # "auto" (default) or "disabled"
 bluetooth_indicator_format = "Icon"    # (default)
 brightness_indicator_format = "Icon"   # (default)
 # keyboard_backlight_slider = false     # (default) set true to show the built-in keyboard backlight slider
@@ -209,7 +210,7 @@ max_volume = 100   # (default) max volume level, range 1..=200 (>100 enables ove
 # remove_airplane_btn = false   # (default) set true to hide airplane mode button
 # remove_idle_btn = false       # (default) set true to hide idle inhibitor button
 # remove_dnd_btn = false        # (default) set true to hide do not disturb button
-indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "Brightness" ]
+indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery" ]
 # indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "PeripheralBattery", "Brightness" ]
 
 [[settings.CustomButton]]
@@ -262,8 +263,8 @@ surface = "transparent"  # (default) or "solid"
 [appearance.modules.default]
 # radius = "lg"            # (default) same values as bar.radius
 # padding = "none"         # (default) same values as bar.padding
-# border = { width = 0, color = "background.strong" }  # (default)
-# background = "background"  # (default) hex or palette reference
+# border = { width = 0, color = "background.strong" }  # (effective default: no border)
+# background = "background"  # (effective default) hex or palette reference
 
 [appearance.modules.group]
 # radius, padding, border, background: fall back to [appearance.modules.default]
@@ -272,6 +273,8 @@ surface = "transparent"  # (default) or "solid"
 # [appearance.modules.system_info]
 # radius, padding, border, background: fall back to [appearance.modules.default]
 # text_color = "primary"   # text color of the module, also inside a group
+# spacing = "xxs"          # (default: the module's own) space between the module's elements
+# font_size = "md"         # (default: the module's own) xxs|xs|sm|md|lg|xl|xxl, main text and icons
 
 [appearance.menu]
 # backdrop = 0.0   # (default) darkening drawn behind an open menu

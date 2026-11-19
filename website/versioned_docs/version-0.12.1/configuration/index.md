@@ -1,0 +1,130 @@
+# ⚙️ Configuration
+
+All configuration options are stored in the `config.toml` file, located at:
+
+```bash
+~/.config/ashell
+```
+
+:::info
+
+Ashell does **not** create this file automatically.
+
+:::
+
+Ashell watches this file for changes and will apply updates
+immediately, so you can tweak the configuration while Ashell is running.
+
+See more about the [TOML format](https://toml.io/en/).
+
+## How commands are executed
+
+Every configuration option that takes a command string is run through
+`bash -c "<your command>"`. Shell features are therefore available:
+pipes, `&&`, `$(...)` substitution, globs, redirection and environment
+variables all work as they would in an interactive shell.
+
+The options executed this way are:
+
+| Where | Options |
+| ----- | ------- |
+| [Updates](./modules/updates.md) | `check_cmd`, `update_cmd` |
+| [Settings](./modules/settings.md), power menu | `lock_cmd`, `suspend_cmd`, `hibernate_cmd`, `reboot_cmd`, `shutdown_cmd`, `logout_cmd` |
+| [Settings](./modules/settings.md), "more" buttons | `audio_sinks_more_cmd`, `audio_sources_more_cmd`, `wifi_more_cmd`, `vpn_more_cmd`, `bluetooth_more_cmd` |
+| [Settings](./modules/settings.md), audio post-switch | `audio_sink_post_switch_cmd`, `audio_source_post_switch_cmd` |
+| [Settings](./modules/settings.md), custom buttons | `command`, `status_command` |
+| [Custom modules](./modules/custom_module.md) | `command`, `listen_cmd`, `on_right_click`, `on_middle_click`, `on_scroll_up`, `on_scroll_down` |
+
+Because a shell interprets these strings, remember to quote paths and
+arguments that contain spaces, and to escape `$` where you want a literal
+dollar sign rather than a variable.
+
+:::warning
+
+Anything in these options runs with your user's full privileges, as soon as
+the relevant module loads or the relevant button is pressed. Note that
+`check_cmd` and `listen_cmd` run automatically, without any interaction.
+
+Treat `config.toml` with the same care as `~/.bashrc`: don't paste command
+options from sources you don't trust, and don't make the file writable by
+other users.
+
+:::
+
+## Command-line parameters
+
+You can pass a configuration file to Ashell using the `--config-path` parameter:
+
+```bash
+ashell --config-path /path/to/config.toml
+```
+
+This allows you to use a different configuration file instead of the default one.
+
+Ashell will still watch this file for changes and apply updates immediately.
+
+## IPC messaging
+
+Ashell exposes a Unix socket for controlling a running instance. The same binary
+acts as a client when invoked with the `msg` subcommand:
+
+```bash
+ashell msg <command>
+```
+
+Available commands:
+
+| Command                  | Description                          |
+| ------------------------ | ------------------------------------ |
+| `toggle-visibility`      | Toggle the bar on/off                                        |
+| `set-visibility <state>` | Show (`true`) or hide (`false`) the bar                      |
+| `volume-up`              | Increase sink volume by `settings.volume_step` (default 5%)  |
+| `volume-down`            | Decrease sink volume by `settings.volume_step` (default 5%)  |
+| `volume-toggle-mute`     | Toggle sink mute                                             |
+| `volume-set-mute <state>`  | Mute (`true`) or unmute (`false`) the sink                 |
+| `microphone-up`          | Increase source volume by 5% (fixed)                         |
+| `microphone-down`        | Decrease source volume by 5% (fixed)                         |
+| `microphone-toggle-mute` | Toggle source mute                                           |
+| `microphone-set-mute <state>` | Mute (`true`) or unmute (`false`) the source            |
+| `brightness-up`          | Increase screen brightness by 5% of the device maximum       |
+| `brightness-down`        | Decrease screen brightness by 5% of the device maximum       |
+| `toggle-airplane-mode`   | Toggle airplane mode                                         |
+| `set-airplane-mode <state>` | Turn airplane mode on (`true`) or off (`false`)           |
+| `toggle-idle-inhibitor`  | Toggle idle inhibitor                                        |
+| `set-idle-inhibitor <state>` | Turn the idle inhibitor on (`true`) or off (`false`)     |
+| `load-config <file>`     | Load another config without restarting ashell                |
+
+The `set-*` commands take a `true` or `false` argument (other clap bool spellings
+such as `1`/`0` or `on`/`off` are accepted too) and are useful when a script
+needs a fixed state instead of a flip:
+
+```bash
+# Show the bar while the overview is open, hide it afterwards
+ashell msg set-visibility true
+ashell msg set-visibility false
+
+# Mute the microphone without caring about the current state
+ashell msg microphone-set-mute true
+```
+
+Only `volume-up` / `volume-down` honour
+[`settings.volume_step`](./modules/settings.md#volume-step); the microphone and
+brightness steps are fixed. Sink volume is also capped by
+[`settings.max_volume`](./modules/settings.md#max-volume).
+
+
+Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD (On-Screen Display)
+overlay when the OSD is enabled (`[osd] enabled = true`). Add `--no-osd` to suppress it:
+
+```bash
+ashell msg volume-up --no-osd
+```
+
+The socket is created at `$XDG_RUNTIME_DIR/ashell.sock`. When
+`$XDG_RUNTIME_DIR` is unset or unusable, ashell falls back to
+`$TMPDIR/ashell-<uid>/ashell.sock` (typically `/tmp/ashell-1000/ashell.sock`).
+That directory must be owned by you with mode `0700`; otherwise ashell runs
+without IPC and `ashell msg` refuses to connect.
+
+If another ashell instance already owns the socket, the new instance still
+starts but runs without IPC and logs a warning.

@@ -148,7 +148,7 @@ weather-rain-freezing-heavy = Pluie verglaçante forte
 weather-snow-slight = Chute de neige faible
 weather-snow-moderate = Chute de neige modérée
 weather-snow-heavy = Chute de neige forte
-weather-snow-grains = Grésil
+weather-snow-grains = Neige en grains
 weather-rain-showers-slight = Averses de pluie faibles
 weather-rain-showers-moderate = Averses de pluie modérées
 weather-rain-showers-violent = Averses de pluie violentes
@@ -162,7 +162,11 @@ weather-unknown = Condition météo inconnue
 ## Module notifications
 notifications-heading = Notifications
 notifications-empty = Aucune notification
-notifications-group-count = { $count } nouvelle(s)
+notifications-group-count =
+    { $count ->
+        [one] { $count } nouvelle
+       *[other] { $count } nouvelles
+    }
 
 ## Module informations système
 system-info-heading = Infos système

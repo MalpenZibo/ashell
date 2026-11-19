@@ -14,7 +14,7 @@ use crate::{
         password_dialog, position_button, quick_setting_button, share_wifi_dialog,
         sub_menu_wrapper,
     },
-    config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
+    config::{ModuleName, Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -158,6 +158,11 @@ impl Settings {
         Action::None
     }
 
+    pub fn set_mute(&mut self, muted: bool) -> Action {
+        self.audio.set_sink_mute(muted);
+        Action::None
+    }
+
     pub fn microphone_adjust(&mut self, up: bool) -> Action {
         match self.audio.microphone_adjust(up) {
             audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
@@ -167,6 +172,11 @@ impl Settings {
 
     pub fn microphone_toggle_mute(&mut self) -> Action {
         self.audio.microphone_toggle_mute();
+        Action::None
+    }
+
+    pub fn set_microphone_mute(&mut self, muted: bool) -> Action {
+        self.audio.set_source_mute(muted);
         Action::None
     }
 
@@ -186,11 +196,32 @@ impl Settings {
         }
     }
 
+    pub fn set_airplane(&mut self, enabled: bool) -> Action {
+        match self
+            .network
+            .update(network::Message::SetAirplaneMode(enabled))
+        {
+            network::Action::CloseSubMenu(task) | network::Action::Command(task) => {
+                Action::Command(task.map(Message::Network))
+            }
+            _ => Action::None,
+        }
+    }
+
     pub fn toggle_idle_inhibitor(&mut self) -> Action {
         if let Some(idle_inhibitor) = &mut self.idle_inhibitor
             && let Err(err) = idle_inhibitor.toggle()
         {
             warn!("Failed to toggle idle inhibitor: {err}");
+        }
+        Action::None
+    }
+
+    pub fn set_idle_inhibitor(&mut self, enabled: bool) -> Action {
+        if let Some(idle_inhibitor) = &mut self.idle_inhibitor
+            && let Err(err) = idle_inhibitor.set(enabled)
+        {
+            warn!("Failed to set idle inhibitor: {err}");
         }
         Action::None
     }
@@ -228,6 +259,7 @@ impl Settings {
                 config.vpn_more_cmd,
                 config.remove_airplane_btn,
                 config.network_indicator_format,
+                config.network_backend,
             )),
             bluetooth: BluetoothSettings::new(BluetoothSettingsConfig::new(
                 config.bluetooth_more_cmd,
@@ -574,6 +606,7 @@ impl Settings {
                         config.vpn_more_cmd,
                         config.remove_airplane_btn,
                         config.network_indicator_format,
+                        config.network_backend,
                     ),
                 ));
                 self.bluetooth.update(bluetooth::Message::ConfigReloaded(
@@ -857,8 +890,13 @@ impl Settings {
         .into()
     }
 
+    /// Size of the icons and texts of the bar indicators.
+    pub fn indicator_size() -> f32 {
+        use_theme(|t| t.module_font_size(&ModuleName::Settings, t.font_size.md))
+    }
+
     pub fn view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
-        let space = use_theme(|t| t.space);
+        let spacing = use_theme(|t| t.module_spacing(&ModuleName::Settings, t.space.xs));
         let mut row = Row::with_capacity(self.indicators.len());
 
         for indicator in &self.indicators {
@@ -868,7 +906,7 @@ impl Settings {
                     .as_ref()
                     .filter(|i| i.is_inhibited())
                     .map(|_| {
-                        container(icon(idle_inhibitor::icon(true)))
+                        container(icon(idle_inhibitor::icon(true)).size(Self::indicator_size()))
                             .style(|theme: &Theme| container::Style {
                                 text_color: Some(theme.palette().danger),
                                 ..Default::default()
@@ -972,7 +1010,7 @@ impl Settings {
             }
         }
 
-        row.spacing(space.xs).into()
+        row.spacing(spacing).into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

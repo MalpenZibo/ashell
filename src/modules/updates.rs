@@ -4,7 +4,7 @@ use crate::{
     components::scrollable,
     components::spinning_icon::spinning_icon,
     components::{IconPosition, MenuSize, styled_button},
-    config::UpdatesModuleConfig,
+    config::{ModuleName, UpdatesModuleConfig},
     theme::use_theme,
 };
 use ashell_i18n::t;
@@ -173,26 +173,38 @@ impl Updates {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let (space, font_size, animated) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.animations_enabled));
+        let (spacing, size, spinner_ratio, animated) = use_theme(|theme| {
+            (
+                theme.module_spacing(&ModuleName::Updates, theme.space.xxs),
+                theme.module_font_size(&ModuleName::Updates, theme.font_size.md),
+                theme.font_size.sm / theme.font_size.md,
+                theme.animations_enabled,
+            )
+        });
+        // The spinner fills its box while a glyph leaves room around it, so
+        // at this ratio it looks as large as the icon it stands in for.
+        let spinner_size = size * spinner_ratio;
         let is_checking = matches!(self.state, State::Checking);
         let icon_element: Element<'_, Message> = if is_checking {
-            spinning_icon(font_size.sm, animated)
+            spinning_icon(spinner_size, animated)
         } else {
-            container(icon(if self.updates.is_empty() {
-                StaticIcon::NoUpdatesAvailable
-            } else {
-                StaticIcon::UpdatesAvailable
-            }))
+            container(
+                icon(if self.updates.is_empty() {
+                    StaticIcon::NoUpdatesAvailable
+                } else {
+                    StaticIcon::UpdatesAvailable
+                })
+                .size(size),
+            )
             .into()
         };
 
         let mut content = row!(icon_element)
             .align_y(Alignment::Center)
-            .spacing(space.xxs);
+            .spacing(spacing);
 
         if !self.updates.is_empty() {
-            content = content.push(text(self.updates.len()));
+            content = content.push(text(self.updates.len()).size(size));
         }
 
         content.into()

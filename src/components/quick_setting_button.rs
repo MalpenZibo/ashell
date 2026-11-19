@@ -50,7 +50,7 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
             None => text(title).size(font_size.sm).into(),
         };
         let main_content = row!(
-            icon_kind.to_text().size(font_size.lg),
+            icon_kind.to_text().size(font_size.xl),
             container(
                 Column::with_capacity(2)
                     .push(title_el)

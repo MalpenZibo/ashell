@@ -104,6 +104,11 @@ const config: Config = {
           position: "left",
         },
         {
+          href: "https://malpenzibo.github.io/ashell/experimental/",
+          label: "Experimental",
+          position: "left",
+        },
+        {
           type: "docsVersionDropdown",
           position: "right",
         },
@@ -154,6 +159,10 @@ const config: Config = {
             {
               label: "Changelog",
               to: "/changelog",
+            },
+            {
+              label: "Experimental",
+              href: "https://malpenzibo.github.io/ashell/experimental/",
             },
             {
               label: "GitHub",

@@ -54,6 +54,5 @@ The IWD integration includes a comprehensive set of D-Bus proxy definitions — 
 |-----------|---------|
 | `net.connman.iwd.Station` | WiFi station management |
 | `net.connman.iwd.Network` | Network connection control |
-| `net.connman.iwd.KnownNetwork` | Saved network management |
 | `net.connman.iwd.Device` | Wireless device control |
 | `net.connman.iwd.Adapter` | Physical adapter properties |

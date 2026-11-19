@@ -8,6 +8,8 @@ Ashell is a Wayland status bar written in Rust using the `iced` library. It runs
 on any Wayland compositor. See [Compositor Support](./compositor-support.md) for
 the dedicated integrations, the generic fallback, and the feature matrix.
 
+Ashell works on both `x86-64` and `aarch64` (ARM64) systems.
+
 ## Features
 
 - OS Updates indicator

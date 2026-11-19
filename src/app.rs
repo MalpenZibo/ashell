@@ -1,5 +1,4 @@
 use crate::{
-    HEIGHT,
     components::{Centerbox, menu::MenuType},
     config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
     get_log_spec,
@@ -87,7 +86,7 @@ impl App {
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
             let mut outputs = Outputs::new(
-                BarLayout::from_appearance(&config.appearance.bar),
+                BarLayout::from_appearance(&config.appearance, &config.modules),
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
@@ -104,6 +103,7 @@ impl App {
             init_theme(AshellTheme::new(
                 config.position,
                 &config.appearance,
+                &config.modules,
                 &config.animations,
             ));
             init_localizer(resolve_localizer(&config));
@@ -153,6 +153,7 @@ impl App {
         init_theme(AshellTheme::new(
             config.position,
             &config.appearance,
+            &config.modules,
             &config.animations,
         ));
         init_localizer(resolve_localizer(&config));
@@ -263,8 +264,8 @@ impl App {
                     self.general_config.outputs, config.outputs
                 );
                 let (bar_position, bar_layout, scale_factor) =
-                    use_theme(|t| (t.bar_position, t.bar_layout(), t.scale_factor));
-                let new_layout = BarLayout::from_appearance(&config.appearance.bar);
+                    use_theme(|t| (t.bar_position, t.bar_layout, t.scale_factor));
+                let new_layout = BarLayout::from_appearance(&config.appearance, &config.modules);
                 if self.general_config.outputs != config.outputs
                     || bar_position != config.position
                     || bar_layout != new_layout
@@ -471,7 +472,7 @@ impl App {
                     };
 
                     let (bar_layout, bar_position, scale_factor) =
-                        use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
+                        use_theme(|t| (t.bar_layout, t.bar_position, t.scale_factor));
                     let task = self.outputs.add(
                         bar_layout,
                         &self.general_config.outputs,
@@ -493,7 +494,7 @@ impl App {
                 OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
                     let (bar_layout, bar_position, scale_factor) =
-                        use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
+                        use_theme(|t| (t.bar_layout, t.bar_position, t.scale_factor));
                     self.outputs.remove(
                         bar_layout,
                         bar_position,
@@ -530,7 +531,7 @@ impl App {
             }
             Message::ResumeFromSleep => {
                 let (bar_layout, bar_position, scale_factor) =
-                    use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
+                    use_theme(|t| (t.bar_layout, t.bar_position, t.scale_factor));
                 self.outputs.sync(
                     bar_layout,
                     &self.general_config.outputs,
@@ -575,18 +576,26 @@ impl App {
                     IpcCommand::VolumeUp { .. } => self.settings.volume_adjust(true),
                     IpcCommand::VolumeDown { .. } => self.settings.volume_adjust(false),
                     IpcCommand::VolumeToggleMute { .. } => self.settings.toggle_mute(),
+                    IpcCommand::VolumeSetMute { state, .. } => self.settings.set_mute(*state),
                     IpcCommand::MicrophoneUp { .. } => self.settings.microphone_adjust(true),
                     IpcCommand::MicrophoneDown { .. } => self.settings.microphone_adjust(false),
                     IpcCommand::MicrophoneToggleMute { .. } => {
                         self.settings.microphone_toggle_mute()
                     }
+                    IpcCommand::MicrophoneSetMute { state, .. } => {
+                        self.settings.set_microphone_mute(*state)
+                    }
                     IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
                     IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
                     IpcCommand::ToggleAirplaneMode { .. } => self.settings.toggle_airplane(),
+                    IpcCommand::SetAirplaneMode { state, .. } => self.settings.set_airplane(*state),
                     IpcCommand::ToggleIdleInhibitor { .. } => self.settings.toggle_idle_inhibitor(),
-                    IpcCommand::ToggleVisibility => {
+                    IpcCommand::SetIdleInhibitor { state, .. } => {
+                        self.settings.set_idle_inhibitor(*state)
+                    }
+                    IpcCommand::ToggleVisibility | IpcCommand::SetVisibility { .. } => {
                         warn!(
-                            "IpcCommand::ToggleVisibility reached IpcOsdCommand handler; use Message::ToggleVisibility instead"
+                            "visibility IPC command reached IpcOsdCommand handler; use Message::ToggleVisibility or Message::SetVisibility instead"
                         );
                         modules::settings::Action::None
                     }
@@ -625,22 +634,8 @@ impl App {
                 _ => Task::none(),
             },
             Message::None => Task::none(),
-            Message::ToggleVisibility => {
-                let task = self.outputs.toggle_visibility();
-
-                if self.outputs.bar_is_shown() {
-                    task
-                } else {
-                    // A menu surface spans the whole output and keeps accepting
-                    // input there, so hiding the bar has to close it instead of
-                    // leaving it floating over the desktop.
-                    Task::batch(vec![
-                        task,
-                        self.outputs
-                            .close_all_menus(self.general_config.enable_esc_key),
-                    ])
-                }
-            }
+            Message::ToggleVisibility => self.set_bar_visibility(!self.outputs.bar_is_shown()),
+            Message::SetVisibility(shown) => self.set_bar_visibility(shown),
             Message::LoadConfig(config_file) => match config::read_config(&config_file) {
                 Ok(config) => {
                     self.config_path = config_file;
@@ -651,6 +646,28 @@ impl App {
                     Task::none()
                 }
             },
+        }
+    }
+
+    /// Show or hide the bar, closing open menus when it goes away. A menu
+    /// surface spans the whole output and keeps accepting input there, so
+    /// hiding the bar has to close it instead of leaving it floating over the
+    /// desktop.
+    fn set_bar_visibility(&mut self, shown: bool) -> Task<Message> {
+        if self.outputs.bar_is_shown() == shown {
+            return Task::none();
+        }
+
+        let task = self.outputs.set_visibility(shown);
+
+        if shown {
+            task
+        } else {
+            Task::batch(vec![
+                task,
+                self.outputs
+                    .close_all_menus(self.general_config.enable_esc_key),
+            ])
         }
     }
 
@@ -675,13 +692,13 @@ impl App {
                 ) = use_theme(|t| {
                     (
                         t.space,
-                        t.bar_surface,
+                        t.bar_layout.surface,
                         t.menu,
                         t.animations_enabled,
                         t.bar_border_radius(),
                         t.bar_border,
                         t.surface(Surface::Bar).blur,
-                        t.bar_layout(),
+                        t.bar_layout,
                     )
                 });
                 let centerbox = Centerbox::new([left, center, right])
@@ -689,7 +706,7 @@ impl App {
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height((HEIGHT + bar_layout.vertical_padding()) as f32)
+                    .height(bar_layout.height() as f32)
                     .padding(bar_layout.padding());
 
                 let menu_is_open = self.outputs.menu_is_open();
@@ -867,6 +884,7 @@ impl App {
             self.settings.subscription().map(Message::Settings),
             crate::ipc::subscription().map(|cmd| match cmd {
                 IpcCommand::ToggleVisibility => Message::ToggleVisibility,
+                IpcCommand::SetVisibility { state } => Message::SetVisibility(state),
                 IpcCommand::LoadConfig { file } => Message::LoadConfig(file),
                 other => Message::IpcOsdCommand(other),
             }),

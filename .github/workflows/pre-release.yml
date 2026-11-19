@@ -83,7 +83,7 @@ jobs:
 
       - name: Git add updated cargo toml
         run: |
-          git add Cargo.toml Cargo.lock
+          git add Cargo.toml Cargo.lock crates/*/Cargo.toml
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6

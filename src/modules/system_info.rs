@@ -3,8 +3,8 @@ use crate::{
     components::icons::{StaticIcon, icon},
     components::{scrollable, sub_menu_wrapper},
     config::{
-        CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
-        TemperatureSensor, TemperatureSensorType,
+        CpuFormat, DiskFormat, MemoryFormat, ModuleName, SystemInfoIndicator,
+        SystemInfoModuleConfig, TemperatureSensor, TemperatureSensorType,
     },
     theme::{lerp_color, use_theme},
     utils,
@@ -114,7 +114,7 @@ fn find_sensor(components: &Components, matches: &[SensorMatch]) -> Option<Strin
     None
 }
 
-static CPU_MATCHES: [SensorMatch<'static>; 2] = [
+static CPU_MATCHES: [SensorMatch<'static>; 3] = [
     SensorMatch::Exact(&[
         "coretemp Package id 0",
         "coretemp Core 0",
@@ -123,12 +123,18 @@ static CPU_MATCHES: [SensorMatch<'static>; 2] = [
         "k10temp Tctl",
     ]),
     SensorMatch::StartsWith(&["k10temp", "applesmc"]),
+    // Qualcomm (Snapdragon) and other ARM SoCs expose per-core sensors named
+    // `cpu_<cluster>_<core>_<n>_thermal` (and `cpu_thermal` on some boards).
+    SensorMatch::StartsWith(&["cpu_"]),
 ];
 
-static GPU_MATCHES: [SensorMatch<'static>; 3] = [
+static GPU_MATCHES: [SensorMatch<'static>; 4] = [
     SensorMatch::StartsWith(&["xe"]),
     SensorMatch::Exact(&["amdgpu edge", "nouveau temp1"]),
     SensorMatch::Contains(&["nvidia"]),
+    // Qualcomm (Snapdragon) Adreno GPUs expose `gpu_<n>_<m>_thermal` plus a
+    // `gpuss_<n>_thermal` subsystem sensor.
+    SensorMatch::StartsWith(&["gpu_", "gpuss"]),
 ];
 
 static ACPI_MATCHES: [SensorMatch<'static>; 1] =
@@ -520,10 +526,21 @@ impl SystemInfo {
         } else {
             format!("{display}{unit}")
         };
-        let (spacing, animations_enabled) = use_theme(|t| (t.space.xxs, t.animations_enabled));
+        let (spacing, font_size, animations_enabled) = use_theme(|t| {
+            (
+                t.space.xxs,
+                t.module_font_size(&ModuleName::SystemInfo, t.font_size.md),
+                t.animations_enabled,
+            )
+        });
+        let content = move |label: String| {
+            row!(icon(info_icon).size(font_size), text(label).size(font_size))
+                .spacing(spacing)
+                .align_y(Alignment::Center)
+        };
 
         let Some((value, warn_threshold, alert_threshold)) = threshold else {
-            return container(row!(icon(info_icon), text(label)).spacing(spacing)).into();
+            return container(content(label)).into();
         };
 
         // 0.0 = normal, 1.0 = warning, 2.0 = danger. Animating through the
@@ -539,7 +556,7 @@ impl SystemInfo {
 
         if animations_enabled {
             AnimationBuilder::new(target, move |t| {
-                container(row!(icon(info_icon), text(label.clone())).spacing(spacing))
+                container(content(label.clone()))
                     .style(move |theme: &Theme| container::Style {
                         text_color: Some(severity_color(theme, t)),
                         ..Default::default()
@@ -549,7 +566,7 @@ impl SystemInfo {
             .animation(Easing::EASE.quick())
             .into()
         } else {
-            container(row!(icon(info_icon), text(label)).spacing(spacing))
+            container(content(label))
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(severity_color(theme, target)),
                     ..Default::default()
@@ -655,7 +672,7 @@ impl SystemInfo {
             .map(|network| rows(network).into());
 
         Column::new()
-            .push(text(t!("system-info-heading")).size(font_size.lg))
+            .push(text(t!("system-info-heading")).size(font_size.xl))
             .push(card(
                 (!resources.is_empty()).then(|| rows(resources).into()),
             ))
@@ -667,7 +684,7 @@ impl SystemInfo {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space = use_theme(|t| t.space);
+        let spacing = use_theme(|t| t.module_spacing(&ModuleName::SystemInfo, t.space.xxs));
         let data = self.data.as_ref();
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemInfoIndicator::Cpu => data.map(|data| {
@@ -819,7 +836,7 @@ impl SystemInfo {
 
         Row::with_children(indicators)
             .align_y(Alignment::Center)
-            .spacing(space.xxs)
+            .spacing(spacing)
             .into()
     }
 

@@ -2,7 +2,10 @@ use crate::{
     components::position_button,
     theme::{IslandStyle, use_theme},
 };
-use iced::{Alignment, Element, Length, widget::container};
+use iced::{
+    Alignment, Element, Length,
+    widget::{Space, column, container},
+};
 
 use super::ButtonUIRef;
 
@@ -76,8 +79,17 @@ impl<'a, Msg: 'static + Clone> ModuleItem<'a, Msg> {
 
 impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
     fn from(item: ModuleItem<'a, Msg>) -> Self {
-        let (space, module_button_style) =
-            use_theme(|theme| (theme.space, theme.module_button_style(item.island_style)));
+        let (space, module_button_style, bar_height) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.module_button_style(item.island_style),
+                theme.bar_layout.content_height as f32,
+            )
+        });
+        // As wide as it is tall at least, so the island of a narrow module
+        // stays round when a taller module grows the bar.
+        let padding = item.island_style.padding;
+        let min_width = bar_height - padding.y();
 
         // A module can bind only, say, right-click or scroll, so the button has
         // to be built whenever any handler is set, not just on left press.
@@ -88,13 +100,14 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
             || item.on_scroll_down.is_some();
 
         if has_action {
-            let mut button = position_button(
+            let mut button = position_button(at_least(
                 container(item.content)
                     .padding([0.0, 1.0])
                     .align_y(Alignment::Center)
                     .height(Length::Fill)
                     .clip(true),
-            )
+                min_width - 2.0 * (space.xs - 1.0),
+            ))
             .padding([0.0, space.xs - 1.0])
             .height(Length::Fill)
             .style(module_button_style);
@@ -129,12 +142,22 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
 
             button.into()
         } else {
-            container(item.content)
-                .padding([0.0, space.xs])
-                .height(Length::Fill)
-                .align_y(Alignment::Center)
-                .clip(true)
-                .into()
+            at_least(
+                container(item.content)
+                    .padding([0.0, space.xs])
+                    .height(Length::Fill)
+                    .align_y(Alignment::Center)
+                    .clip(true),
+                min_width,
+            )
         }
     }
+}
+
+/// Widens `content` to `width` when it is narrower, keeping it centered.
+fn at_least<'a, Msg: 'a>(content: impl Into<Element<'a, Msg>>, width: f32) -> Element<'a, Msg> {
+    column![Space::new().width(width.max(0.0)), content.into()]
+        .align_x(Alignment::Center)
+        .height(Length::Fill)
+        .into()
 }

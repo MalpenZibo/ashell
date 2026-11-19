@@ -136,7 +136,7 @@ dependencies = [
 
 [[package]]
 name = "ashell"
-version = "0.11.0"
+version = "0.12.1"
 dependencies = [
  "allsorts",
  "anyhow",
@@ -165,7 +165,6 @@ dependencies = [
  "serde_json",
  "serde_with",
  "shellexpand",
- "signal-hook",
  "signal-hook-tokio",
  "sysinfo",
  "tokio",
@@ -181,7 +180,7 @@ dependencies = [
 
 [[package]]
 name = "ashell-i18n"
-version = "0.11.0"
+version = "0.12.1"
 dependencies = [
  "chrono",
  "i18n-embed",
@@ -193,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "ashell-services"
-version = "0.11.0"
+version = "0.12.1"
 dependencies = [
  "anyhow",
  "freedesktop-icons",
@@ -1007,7 +1006,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1729,7 +1728,7 @@ dependencies = [
 [[package]]
 name = "hyprland"
 version = "0.7.0"
-source = "git+https://github.com/romanstingler/hyprland-rs-next?rev=7c2f69f8be78d89b58720bce7cad03b82e99baa3#7c2f69f8be78d89b58720bce7cad03b82e99baa3"
+source = "git+https://github.com/romanstingler/hyprland-rs-next?rev=7d5efed08c7ba28f134d31ff5fe57dba54ea6477#7d5efed08c7ba28f134d31ff5fe57dba54ea6477"
 dependencies = [
  "async-stream",
  "chardetng",
@@ -1748,11 +1747,11 @@ dependencies = [
 [[package]]
 name = "hyprland-macros"
 version = "0.7.0"
-source = "git+https://github.com/romanstingler/hyprland-rs-next?rev=7c2f69f8be78d89b58720bce7cad03b82e99baa3#7c2f69f8be78d89b58720bce7cad03b82e99baa3"
+source = "git+https://github.com/romanstingler/hyprland-rs-next?rev=7d5efed08c7ba28f134d31ff5fe57dba54ea6477#7d5efed08c7ba28f134d31ff5fe57dba54ea6477"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -2507,9 +2506,9 @@ dependencies = [
 
 [[package]]
 name = "libz-sys"
-version = "1.1.29"
+version = "1.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85bc9657773828b90eeb625adff10eeac83cc21bbfd8e23a03eaa8a33c9e28d9"
+checksum = "ff20308ecabd635a2dc1dd5834a86c462cca20efba1d5d3ddab1f8aea3455cb2"
 dependencies = [
  "cc",
  "pkg-config",
@@ -3420,7 +3419,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3759,7 +3758,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3816,7 +3815,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4416,7 +4415,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -65,7 +65,7 @@ pub fn view<'a>(
                 text_input("", current_password)
                     .id(PASSWORD_INPUT_ID)
                     .secure(!show_password)
-                    .size(font_size.md)
+                    .size(font_size.lg)
                     .padding([space.xs, space.md])
                     .style(text_input_style)
                     .on_input(Message::PasswordChanged)

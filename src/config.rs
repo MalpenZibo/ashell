@@ -23,6 +23,12 @@ use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 
+/// Built-in power commands. The launcher only applies its `loginctl` fallback
+/// when a configured command still matches one of these defaults exactly.
+pub const DEFAULT_SHUTDOWN_CMD: &str = "shutdown now";
+pub const DEFAULT_SUSPEND_CMD: &str = "systemctl suspend";
+pub const DEFAULT_REBOOT_CMD: &str = "systemctl reboot";
+
 #[derive(Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LogTarget {
@@ -664,6 +670,14 @@ pub enum SettingsFormat {
     IconAndPercentageAndTime,
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum NetworkBackend {
+    #[default]
+    Auto,
+    Disabled,
+}
+
 #[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
 pub enum PeripheralIndicators {
     #[default]
@@ -693,6 +707,7 @@ pub struct SettingsModuleConfig {
     pub audio_indicator_format: SettingsFormat,
     pub microphone_indicator_format: SettingsFormat,
     pub network_indicator_format: SettingsFormat,
+    pub network_backend: NetworkBackend,
     pub bluetooth_indicator_format: SettingsFormat,
     pub brightness_indicator_format: SettingsFormat,
     #[serde(default, deserialize_with = "empty_string_as_none")]
@@ -723,10 +738,10 @@ impl Default for SettingsModuleConfig {
     fn default() -> Self {
         Self {
             lock_cmd: Default::default(),
-            shutdown_cmd: "shutdown now".to_string(),
-            suspend_cmd: "systemctl suspend".to_string(),
+            shutdown_cmd: DEFAULT_SHUTDOWN_CMD.to_string(),
+            suspend_cmd: DEFAULT_SUSPEND_CMD.to_string(),
             hibernate_cmd: Default::default(),
-            reboot_cmd: "systemctl reboot".to_string(),
+            reboot_cmd: DEFAULT_REBOOT_CMD.to_string(),
             logout_cmd: "loginctl kill-user $(whoami)".to_string(),
             battery_format: SettingsFormat::IconAndPercentage,
             battery_hide_when_full: false,
@@ -739,6 +754,7 @@ impl Default for SettingsModuleConfig {
             audio_indicator_format: SettingsFormat::Icon,
             microphone_indicator_format: SettingsFormat::Icon,
             network_indicator_format: SettingsFormat::Icon,
+            network_backend: NetworkBackend::Auto,
             bluetooth_indicator_format: SettingsFormat::Icon,
             brightness_indicator_format: SettingsFormat::Icon,
             audio_sinks_more_cmd: Default::default(),
@@ -2409,6 +2425,21 @@ mod tests {
         assert_eq!(appearance.bar.border.width, 0.0);
         assert_eq!(appearance.bar.border.color, BACKGROUND_STRONG);
         assert_eq!(appearance.modules, ModulesAppearance::default());
+    }
+
+    #[test]
+    fn network_backend_defaults_to_auto_and_parses_disabled() {
+        assert_eq!(
+            parse("").unwrap().settings.network_backend,
+            NetworkBackend::Auto
+        );
+        assert_eq!(
+            parse("[settings]\nnetwork_backend = \"disabled\"")
+                .unwrap()
+                .settings
+                .network_backend,
+            NetworkBackend::Disabled
+        );
     }
 
     #[test]

@@ -31,6 +31,7 @@ The options executed this way are:
 | [Updates](./modules/updates.md) | `check_cmd`, `update_cmd` |
 | [Settings](./modules/settings.md), power menu | `lock_cmd`, `suspend_cmd`, `hibernate_cmd`, `reboot_cmd`, `shutdown_cmd`, `logout_cmd` |
 | [Settings](./modules/settings.md), "more" buttons | `audio_sinks_more_cmd`, `audio_sources_more_cmd`, `wifi_more_cmd`, `vpn_more_cmd`, `bluetooth_more_cmd` |
+| [Settings](./modules/settings.md), audio post-switch | `audio_sink_post_switch_cmd`, `audio_source_post_switch_cmd` |
 | [Settings](./modules/settings.md), custom buttons | `command`, `status_command` |
 | [Custom modules](./modules/custom_module.md) | `command`, `listen_cmd`, `on_right_click`, `on_middle_click`, `on_scroll_up`, `on_scroll_down` |
 
@@ -76,17 +77,35 @@ Available commands:
 | Command                  | Description                          |
 | ------------------------ | ------------------------------------ |
 | `toggle-visibility`      | Toggle the bar on/off                                        |
+| `set-visibility <state>` | Show (`true`) or hide (`false`) the bar                      |
 | `volume-up`              | Increase sink volume by `settings.volume_step` (default 5%)  |
 | `volume-down`            | Decrease sink volume by `settings.volume_step` (default 5%)  |
 | `volume-toggle-mute`     | Toggle sink mute                                             |
+| `volume-set-mute <state>`  | Mute (`true`) or unmute (`false`) the sink                 |
 | `microphone-up`          | Increase source volume by 5% (fixed)                         |
 | `microphone-down`        | Decrease source volume by 5% (fixed)                         |
 | `microphone-toggle-mute` | Toggle source mute                                           |
+| `microphone-set-mute <state>` | Mute (`true`) or unmute (`false`) the source            |
 | `brightness-up`          | Increase screen brightness by 5% of the device maximum       |
 | `brightness-down`        | Decrease screen brightness by 5% of the device maximum       |
 | `toggle-airplane-mode`   | Toggle airplane mode                                         |
+| `set-airplane-mode <state>` | Turn airplane mode on (`true`) or off (`false`)           |
 | `toggle-idle-inhibitor`  | Toggle idle inhibitor                                        |
-| `load-config <file>`            | Load another config without restarting ashell         |
+| `set-idle-inhibitor <state>` | Turn the idle inhibitor on (`true`) or off (`false`)     |
+| `load-config <file>`     | Load another config without restarting ashell                |
+
+The `set-*` commands take a `true` or `false` argument (other clap bool spellings
+such as `1`/`0` or `on`/`off` are accepted too) and are useful when a script
+needs a fixed state instead of a flip:
+
+```bash
+# Show the bar while the overview is open, hide it afterwards
+ashell msg set-visibility true
+ashell msg set-visibility false
+
+# Mute the microphone without caring about the current state
+ashell msg microphone-set-mute true
+```
 
 Only `volume-up` / `volume-down` honour
 [`settings.volume_step`](./modules/settings.md#volume-step); the microphone and
@@ -95,7 +114,7 @@ brightness steps are fixed. Sink volume is also capped by
 
 
 Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD (On-Screen Display)
-overlay by default. Add `--no-osd` to suppress it:
+overlay when the OSD is enabled (`[osd] enabled = true`). Add `--no-osd` to suppress it:
 
 ```bash
 ashell msg volume-up --no-osd

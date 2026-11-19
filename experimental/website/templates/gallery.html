@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}{{ section.title }} · {{ config.title }}{% endblock %}
+{% block description %}{{ section.description or config.description }}{% endblock %}
+{% block body_class %}gallery-page{% endblock %}
+
+{% block content %}
+{%- set gallery = section -%}
+{%- set exts = ["png", "jpg", "jpeg", "webp", "avif", "gif", "svg"] -%}
+{%- set images = [a for a in gallery.assets | sort if a | split(pat=".") | last | lower in exts] -%}
+<main class="gallery">
+  <header class="gallery-header">
+    <h1>{{ section.title }}</h1>
+    {{ section.content | safe }}
+  </header>
+
+  {% if images | length == 0 %}
+  <p class="gallery-empty">No screenshots yet.</p>
+  {% else %}
+  <div class="viewer" data-count="{{ images | length }}">
+    <button class="viewer-arrow prev" type="button" aria-label="Previous">&#8249;</button>
+    <div class="viewer-stage">
+      {%- for asset in images %}
+      {%- set name = asset | split(pat="/") | last %}
+      {%- set caption = gallery.extra.captions | get(key=name, default="") %}
+      <figure class="viewer-slide" id="{{ name }}"{% if not loop.first %} hidden{% endif %}>
+        <img src="{{ get_url(path=asset) }}" alt="{{ caption or name }}"{% if not loop.first %} loading="lazy"{% endif %}>
+        <figcaption>{{ caption }}<span class="viewer-count">{{ loop.index }} / {{ images | length }}</span></figcaption>
+      </figure>
+      {%- endfor %}
+    </div>
+    <button class="viewer-arrow next" type="button" aria-label="Next">&#8250;</button>
+  </div>
+
+  <div class="thumbs" role="tablist">
+    {%- for asset in images %}
+    {%- set name = asset | split(pat="/") | last %}
+    <button class="thumb{% if loop.first %} active{% endif %}" type="button" role="tab" data-index="{{ loop.index0 }}" aria-label="{{ gallery.extra.captions | get(key=name, default=name) }}">
+      <img src="{{ get_url(path=asset) }}" alt="" loading="lazy">
+    </button>
+    {%- endfor %}
+  </div>
+  {% endif %}
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (() => {
+    const slides = [...document.querySelectorAll(".viewer-slide")];
+    const thumbs = [...document.querySelectorAll(".thumb")];
+    if (slides.length === 0) return;
+    let shown = 0;
+
+    const show = (index, updateHash = true) => {
+      shown = (index + slides.length) % slides.length;
+      slides.forEach((slide, i) => (slide.hidden = i !== shown));
+      thumbs.forEach((thumb, i) => {
+        thumb.classList.toggle("active", i === shown);
+        thumb.setAttribute("aria-selected", i === shown);
+      });
+      thumbs[shown].scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+      if (updateHash) history.replaceState(null, "", "#" + slides[shown].id);
+    };
+
+    document.querySelector(".viewer-arrow.prev").addEventListener("click", () => show(shown - 1));
+    document.querySelector(".viewer-arrow.next").addEventListener("click", () => show(shown + 1));
+    thumbs.forEach((thumb, i) => thumb.addEventListener("click", () => show(i)));
+    document.addEventListener("keydown", (event) => {
+      // Not while typing, as in the search.
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
+      if (event.key === "ArrowLeft") show(shown - 1);
+      if (event.key === "ArrowRight") show(shown + 1);
+    });
+
+    // A link to one image opens on it.
+    const linked = slides.findIndex((slide) => "#" + slide.id === decodeURIComponent(location.hash));
+    if (linked > 0) show(linked, false);
+  })();
+</script>
+{% endblock %}

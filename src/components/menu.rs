@@ -248,9 +248,9 @@ impl Menu {
 
     pub fn request_keyboard<Message: 'static>(&self) -> Task<Message> {
         if let Some(open) = &self.open {
-            // Exclusive grabs keyboard focus on Hyprland immediately, so keystrokes
-            // reach the dialog without requiring a mouse click first.
-            set_keyboard_interactivity(open.id, KeyboardInteractivity::Exclusive)
+            // OnDemand allows on-screen keyboards to remain interactive. Surface focus
+            // depends on the compositor and may require a click or tap on the input.
+            set_keyboard_interactivity(open.id, KeyboardInteractivity::OnDemand)
         } else {
             Task::none()
         }
@@ -308,7 +308,7 @@ impl App {
             (
                 t.space,
                 t.radius,
-                t.bar_surface,
+                t.bar_layout.surface,
                 t.bar_position,
                 t.menu.backdrop,
                 t.surface(Surface::Menu).blur,

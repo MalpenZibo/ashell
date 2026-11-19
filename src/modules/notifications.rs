@@ -5,7 +5,7 @@ use crate::{
     components::scrollable,
     components::slide::{self, SlideDirection, slide},
     components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, styled_button},
-    config::{NotificationsModuleConfig, Surface, ToastPosition},
+    config::{ModuleName, NotificationsModuleConfig, Surface, ToastPosition},
     services::{
         ReadOnlyService, ServiceEvent, compositor, connection_pid,
         notifications::{
@@ -847,7 +847,7 @@ impl Notifications {
                             .push(app_icon_button)
                             .push(column!(
                                 text(&notification.app_name)
-                                    .size(font_size.md)
+                                    .size(font_size.lg)
                                     .wrapping(text::Wrapping::WordOrGlyph),
                                 timestamp_element
                             ))
@@ -966,7 +966,11 @@ impl Notifications {
         } else {
             StaticIcon::Bell
         };
-        icon(bell_icon).into()
+        icon(bell_icon)
+            .size(use_theme(|t| {
+                t.module_font_size(&ModuleName::Notifications, t.font_size.md)
+            }))
+            .into()
     }
 
     pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
@@ -974,7 +978,7 @@ impl Notifications {
         let is_empty = self.notifications.is_empty();
 
         let content = if is_empty {
-            container(text(t!("notifications-empty")).size(font_size.md))
+            container(text(t!("notifications-empty")).size(font_size.lg))
                 .width(Length::Fill)
                 .center_x(Length::Fill)
                 .padding(space.xxl)
@@ -990,7 +994,7 @@ impl Notifications {
                 .push(
                     text(t!("notifications-heading"))
                         .width(Length::Fill)
-                        .size(font_size.lg)
+                        .size(font_size.xl)
                 )
                 .push(
                     icon_button(if self.dnd {
@@ -1161,7 +1165,7 @@ impl Notifications {
             let header = row!(
                 app_icon,
                 text(app_name)
-                    .size(font_size.md)
+                    .size(font_size.lg)
                     .wrapping(text::Wrapping::WordOrGlyph)
                     .width(Length::Fill),
                 text(t!("notifications-group-count", count = count)),

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f334d"/>
+      <stop offset="0.55" stop-color="#1e2030"/>
+      <stop offset="1" stop-color="#3b4261"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect x="540.0" y="14" width="520" height="400" rx="32" fill="#1b1d2b" stroke="#3b4261" stroke-width="1.5"/>
+  <rect x="568.0" y="42" width="464" height="30" rx="15" fill="#2f334d"/>
+  <rect x="568.0" y="42" width="324.79999999999995" height="30" rx="15" fill="#82aaff" opacity="0.8"/>
+  <rect x="568.0" y="94" width="464" height="30" rx="15" fill="#2f334d"/>
+  <rect x="568.0" y="94" width="231.99999999999997" height="30" rx="15" fill="#82aaff" opacity="0.8"/>
+  <rect x="568.0" y="146" width="464" height="30" rx="15" fill="#2f334d"/>
+  <rect x="568.0" y="146" width="139.19999999999996" height="30" rx="15" fill="#82aaff" opacity="0.8"/>
+  <rect x="568.0" y="200" width="105.5" height="84" rx="20" fill="#82aaff" opacity="0.85"/>
+  <rect x="687.5" y="200" width="105.5" height="84" rx="20" fill="#2f334d" opacity="0.85"/>
+  <rect x="807.0" y="200" width="105.5" height="84" rx="20" fill="#82aaff" opacity="0.85"/>
+  <rect x="926.5" y="200" width="105.5" height="84" rx="20" fill="#2f334d" opacity="0.85"/>
+  <rect x="568.0" y="304" width="464" height="40" rx="14" fill="#222436"/>
+  <rect x="568.0" y="356" width="464" height="40" rx="14" fill="#222436"/>
+  <rect x="1078.0" y="14" width="110" height="40" rx="20" fill="#1b1d2b" stroke="#3b4261" stroke-width="1.5"/>
+  <rect x="1100.0" y="27" width="66" height="14" rx="7" fill="#ff966c"/>
+  <text x="800.0" y="830" text-anchor="middle" font-family="sans-serif" font-size="34" fill="#c8d3f5" opacity="0.85">Morphing island</text>
+  <text x="800.0" y="868" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#828bb8">Concept, not a screenshot</text>
+</svg>
