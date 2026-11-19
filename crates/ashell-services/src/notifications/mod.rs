@@ -4,6 +4,7 @@
 //! snapshot after every change.
 
 use crate::xdg_icons::{self, IconFile};
+use bytes::Bytes;
 use futures::{Stream, stream};
 use log::info;
 use regex::Regex;
@@ -19,16 +20,13 @@ pub use dbus::{DEFAULT_ACTION_KEY, Notification, Urgency};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NotificationIcon {
     /// Pixels sent along in the `image-data` hint: RGBA, 8 bits per channel,
-    /// `width * height * 4` bytes.
+    /// `width * height * 4` bytes, shared so a UI can wrap them without a copy.
     Rgba {
         width: u32,
         height: u32,
-        pixels: Vec<u8>,
+        pixels: Bytes,
     },
-    /// An SVG file.
-    Svg(PathBuf),
-    /// Any other image file.
-    Image(PathBuf),
+    File(IconFile),
 }
 
 impl NotificationIcon {
@@ -45,10 +43,7 @@ impl NotificationIcon {
     }
 
     fn from_path(path: PathBuf) -> Self {
-        match IconFile::from_path(path) {
-            IconFile::Svg(path) => Self::Svg(path),
-            IconFile::Image(path) => Self::Image(path),
-        }
+        Self::File(IconFile::from_path(path))
     }
 }
 
@@ -116,7 +111,7 @@ fn try_icon_from_hints(hints: &HashMap<String, OwnedVariant>) -> Option<Notifica
         Some(NotificationIcon::Rgba {
             width: hint_image_data.width as u32,
             height: hint_image_data.height as u32,
-            pixels: bytes,
+            pixels: bytes.into(),
         })
     } else {
         None
@@ -180,17 +175,6 @@ pub enum NotificationsCommand {
         history_limit: usize,
         blocklist: Vec<Regex>,
     },
-    /// Emits the action, when given, and dismisses the notification while it
-    /// still carries `revision`.
-    Invoke {
-        id: u32,
-        revision: u64,
-        action: Option<String>,
-    },
-    Dismiss {
-        id: u32,
-        revision: u64,
-    },
     DismissApp(String),
     DismissAll,
 }
@@ -225,9 +209,7 @@ impl Notifications {
         })
     }
 
-    /// Returns false when `Invoke` or `Dismiss` found the notification replaced
-    /// or closed since.
-    pub async fn execute(&self, command: NotificationsCommand) -> anyhow::Result<bool> {
+    pub async fn execute(&self, command: NotificationsCommand) -> anyhow::Result<()> {
         let daemon = NotificationDaemon::interface(&self.connection).await?;
         let mut daemon = daemon.get_mut().await;
         match command {
@@ -235,18 +217,23 @@ impl Notifications {
                 history_limit,
                 blocklist,
             } => daemon.configure(history_limit, blocklist).await,
-            NotificationsCommand::Invoke {
-                id,
-                revision,
-                action,
-            } => return daemon.invoke(id, revision, action).await,
-            NotificationsCommand::Dismiss { id, revision } => {
-                return daemon.invoke(id, revision, None).await;
-            }
             NotificationsCommand::DismissApp(app_name) => daemon.dismiss_all(Some(&app_name)).await,
             NotificationsCommand::DismissAll => daemon.dismiss_all(None).await,
         }
-        Ok(true)
+        Ok(())
+    }
+
+    /// Emits `action`, when given, and dismisses notification `id` while it
+    /// still carries `revision`. Returns false when it was replaced or closed
+    /// since: a replacement that won the race must not go down with it.
+    pub async fn invoke(
+        &self,
+        id: u32,
+        revision: u64,
+        action: Option<String>,
+    ) -> anyhow::Result<bool> {
+        let daemon = NotificationDaemon::interface(&self.connection).await?;
+        daemon.get_mut().await.invoke(id, revision, action).await
     }
 
     /// The pid behind the D-Bus connection that sent a notification, see

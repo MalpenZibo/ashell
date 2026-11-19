@@ -195,6 +195,7 @@ name = "ashell-services"
 version = "0.12.1"
 dependencies = [
  "anyhow",
+ "bytes",
  "chrono",
  "freedesktop-icons",
  "futures",

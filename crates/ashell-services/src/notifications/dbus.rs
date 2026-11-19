@@ -177,12 +177,18 @@ impl Store {
         self.evict()
     }
 
-    fn ids(&self, app_name: Option<&str>) -> Vec<u32> {
-        self.notifications
-            .iter()
-            .filter(|n| app_name.is_none_or(|app| n.app_name == app))
-            .map(|n| n.id)
-            .collect()
+    /// Removes every notification, or every one from `app_name`, and returns
+    /// their ids.
+    fn remove_all(&mut self, app_name: Option<&str>) -> Vec<u32> {
+        let mut removed = Vec::new();
+        self.notifications.retain(|n| {
+            let keep = app_name.is_some_and(|app| n.app_name != app);
+            if !keep {
+                removed.push(n.id);
+            }
+            keep
+        });
+        removed
     }
 }
 
@@ -228,7 +234,8 @@ impl NotificationDaemon {
 
         if self.store.is_blocklisted(&app_name) {
             debug!("Dropping notification {id} from blocklisted {app_name}");
-            // Closed after the reply, so the sender already knows the id.
+            // Closed from a task so the reply, which tells the sender the id,
+            // most likely goes out first.
             let connection = self.connection.clone();
             tokio::spawn(async move {
                 emit_closed(&connection, id, CLOSE_REASON_EXPIRED).await;
@@ -338,9 +345,6 @@ impl NotificationDaemon {
         }
     }
 
-    /// Emits `ActionInvoked` for `action_key`, when there is one, and dismisses
-    /// the notification, but only while `id` still carries `revision`: a
-    /// replacement that won the race must not go down with it.
     pub(super) async fn invoke(
         &mut self,
         id: u32,
@@ -372,12 +376,9 @@ impl NotificationDaemon {
 
     /// Dismisses every notification, or every one from `app_name`.
     pub(super) async fn dismiss_all(&mut self, app_name: Option<&str>) {
-        let ids = self.store.ids(app_name);
+        let ids = self.store.remove_all(app_name);
         if ids.is_empty() {
             return;
-        }
-        for id in &ids {
-            self.store.remove(*id);
         }
         self.publish();
         self.emit_all_closed(&ids, CLOSE_REASON_DISMISSED).await;
@@ -523,15 +524,17 @@ mod tests {
     }
 
     #[test]
-    fn ids_can_be_taken_by_app() {
+    fn notifications_can_be_removed_by_app() {
         let mut store = Store::default();
         store.insert(stored(1, Urgency::Normal));
         store.insert(Notification {
             app_name: "other".to_string(),
             ..stored(2, Urgency::Normal)
         });
+        store.insert(stored(3, Urgency::Normal));
 
-        assert_eq!(store.ids(Some("app")), [1]);
-        assert_eq!(store.ids(None), [2, 1]);
+        assert_eq!(store.remove_all(Some("app")), [3, 1]);
+        assert_eq!(ids(&store), [2]);
+        assert_eq!(store.remove_all(None), [2]);
     }
 }

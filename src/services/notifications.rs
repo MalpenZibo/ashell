@@ -13,19 +13,18 @@ pub use ashell_services::notifications::{
     Urgency,
 };
 
+/// Sent once connected; every snapshot, the first one included, follows as an
+/// `Update`.
 #[derive(Debug, Clone)]
 pub struct NotificationsService {
     pub handle: Notifications,
-    pub data: NotificationsData,
 }
 
 impl ReadOnlyService for NotificationsService {
     type UpdateEvent = NotificationsData;
     type Error = ();
 
-    fn update(&mut self, event: Self::UpdateEvent) {
-        self.data = event;
-    }
+    fn update(&mut self, _event: Self::UpdateEvent) {}
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
         Subscription::run_with(TypeId::of::<Self>(), |_| {
@@ -39,13 +38,9 @@ impl ReadOnlyService for NotificationsService {
                 };
 
                 let mut updates = pin!(handle.updates());
-                let Some(data) = updates.next().await else {
-                    return;
-                };
                 let _ = output
                     .send(ServiceEvent::Init(NotificationsService {
                         handle: handle.clone(),
-                        data,
                     }))
                     .await;
 

@@ -16,7 +16,7 @@ use crate::{
     theme::{Paint, surface_border, use_theme},
 };
 use ashell_i18n::t;
-use ashell_services::notifications::Notifications as NotificationsHandle;
+use ashell_services::{notifications::Notifications as NotificationsHandle, xdg_icons::IconFile};
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
@@ -52,8 +52,10 @@ impl IconHandle {
                 height,
                 pixels,
             } => Self::Image(image::Handle::from_rgba(*width, *height, pixels.clone())),
-            NotificationIcon::Image(path) => Self::Image(image::Handle::from_path(path)),
-            NotificationIcon::Svg(path) => Self::Svg(svg::Handle::from_path(path)),
+            NotificationIcon::File(IconFile::Image(path)) => {
+                Self::Image(image::Handle::from_path(path))
+            }
+            NotificationIcon::File(IconFile::Svg(path)) => Self::Svg(svg::Handle::from_path(path)),
         }
     }
 }
@@ -91,43 +93,43 @@ fn invoke_and_close_task(
     let (Some(handle), Some(revision)) = (handle, revision) else {
         return Task::none();
     };
-    Task::perform(
-        async move {
-            let command = NotificationsCommand::Invoke {
-                id,
-                revision,
-                action,
-            };
-            match handle.execute(command).await {
-                Ok(true) => {
-                    if let Some(FocusTarget { sender, apps }) = focus {
-                        let pid = match sender {
-                            Some(sender) => handle
-                                .sender_pid(&sender)
-                                .await
-                                .inspect_err(|e| debug!("No pid for sender {sender}: {e}"))
-                                .ok(),
-                            None => None,
-                        };
-                        if let Err(e) = compositor::focus_app_window(pid, apps, None).await {
-                            debug!("Can't focus the window of notification {id}: {e}");
-                        }
+    Task::future(async move {
+        match handle.invoke(id, revision, action).await {
+            Ok(true) => {
+                if let Some(FocusTarget { sender, apps }) = focus {
+                    let pid = match sender {
+                        Some(sender) => handle
+                            .sender_pid(&sender)
+                            .await
+                            .inspect_err(|e| debug!("No pid for sender {sender}: {e}"))
+                            .ok(),
+                        None => None,
+                    };
+                    if let Err(e) = compositor::focus_app_window(pid, apps, None).await {
+                        debug!("Can't focus the window of notification {id}: {e}");
                     }
                 }
-                Ok(false) => {}
-                Err(e) => error!("Failed to close notification id {}: {}", id, e),
             }
-        },
-        |_| Message::NotificationClosed,
-    )
+            Ok(false) => {}
+            Err(e) => error!("Failed to close notification id {}: {}", id, e),
+        }
+    })
+    .discard()
 }
 
-async fn execute(handle: Option<NotificationsHandle>, command: NotificationsCommand) {
-    if let Some(handle) = handle
-        && let Err(e) = handle.execute(command).await
-    {
-        error!("Notifications command failed: {e}");
-    }
+fn execute_task(
+    handle: Option<NotificationsHandle>,
+    command: NotificationsCommand,
+) -> Task<Message> {
+    let Some(handle) = handle else {
+        return Task::none();
+    };
+    Task::future(async move {
+        if let Err(e) = handle.execute(command).await {
+            error!("Notifications command failed: {e}");
+        }
+    })
+    .discard()
 }
 
 fn configure_task(
@@ -138,7 +140,7 @@ fn configure_task(
         history_limit: config.history_limit,
         blocklist: config.blocklist.iter().map(|r| r.0.clone()).collect(),
     };
-    Task::perform(execute(handle, command), |_| Message::NotificationClosed)
+    execute_task(handle, command)
 }
 
 fn delayed_toast_message(delay: Duration, id: u32, msg: fn(u32) -> Message) -> Task<Message> {
@@ -165,12 +167,9 @@ pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
     InvokeAction(u32, String),
-    NotificationClosed,
     CloseNotificationById(u32),
     ClearNotifications,
-    NotificationsCleared,
     ClearGroup(String),
-    GroupCleared(String, Vec<u32>),
     Event(ServiceEvent<NotificationsService>),
     ToggleGroup(String),
     ToggleDnd,
@@ -273,9 +272,6 @@ pub struct Notifications {
     handle: Option<NotificationsHandle>,
     /// The daemon's latest snapshot, newest first.
     notifications: Arc<[Arc<Notification>]>,
-    /// The revision of each id in `notifications`, to tell what a new
-    /// snapshot added, replaced or closed.
-    revisions: HashMap<u32, u64>,
     icons: HashMap<(u32, u64), IconHandle>,
     expanded_groups: HashSet<String>,
     toasts: VecDeque<u32>,
@@ -292,7 +288,6 @@ impl Notifications {
             config,
             handle: None,
             notifications: Arc::new([]),
-            revisions: HashMap::new(),
             icons: HashMap::new(),
             expanded_groups: HashSet::new(),
             toasts: VecDeque::new(),
@@ -323,6 +318,10 @@ impl Notifications {
             .map(AsRef::as_ref)
     }
 
+    fn revision(&self, id: u32) -> Option<u64> {
+        self.find_notification(id).map(|n| n.revision)
+    }
+
     fn icon(&self, notification: &Notification) -> Option<&IconHandle> {
         self.icons.get(&(notification.id, notification.revision))
     }
@@ -350,7 +349,7 @@ impl Notifications {
         focus: Option<FocusTarget>,
     ) -> Action {
         let handle = self.handle.clone();
-        let revision = self.revisions.get(&id).copied();
+        let revision = self.revision(id);
         let invoke_task = invoke_and_close_task(handle, id, revision, action_key, focus);
         if !self.toasts.contains(&id) || self.dismiss_phases.contains_key(&id) {
             return Action::Task(invoke_task);
@@ -380,22 +379,6 @@ impl Notifications {
         self.toasts.retain(|&toast_id| toast_id != id);
         self.toast_timers.remove(&id);
         had_toasts
-    }
-
-    fn remove_toasts(&mut self, ids: &[u32]) -> bool {
-        let had_toasts = !self.toasts.is_empty();
-        let ids: HashSet<u32> = ids.iter().copied().collect();
-        self.toasts.retain(|toast_id| !ids.contains(toast_id));
-        self.toast_timers.retain(|id, _| !ids.contains(id));
-        had_toasts
-    }
-
-    fn notification_ids_for_app(&self, app_name: &str) -> Vec<u32> {
-        self.notifications
-            .iter()
-            .filter(|notification| notification.app_name == app_name)
-            .map(|notification| notification.id)
-            .collect()
     }
 
     fn hide_toasts_if_empty(&mut self, had_toasts: bool) -> Action {
@@ -494,20 +477,13 @@ impl Notifications {
     /// the last one gets a toast, and what is gone loses it.
     fn apply_snapshot(&mut self, data: NotificationsData) -> Action {
         let had_toasts = !self.toasts.is_empty();
-        let previous = std::mem::replace(
-            &mut self.revisions,
-            data.notifications
-                .iter()
-                .map(|n| (n.id, n.revision))
-                .collect(),
-        );
-
-        let closed: Vec<u32> = previous
-            .keys()
-            .filter(|id| !self.revisions.contains_key(id))
-            .copied()
+        let previous: HashMap<u32, u64> = self
+            .notifications
+            .iter()
+            .map(|n| (n.id, n.revision))
             .collect();
-        for id in closed {
+        let current: HashSet<u32> = data.notifications.iter().map(|n| n.id).collect();
+        for &id in previous.keys().filter(|id| !current.contains(id)) {
             self.toast_closed(id);
         }
 
@@ -560,8 +536,7 @@ impl Notifications {
             Message::Event(event) => match event {
                 ServiceEvent::Init(service) => {
                     self.handle = Some(service.handle);
-                    let configure = configure_task(self.handle.clone(), &self.config);
-                    self.apply_snapshot(service.data).with_task(configure)
+                    Action::Task(configure_task(self.handle.clone(), &self.config))
                 }
                 ServiceEvent::Update(data) => self.apply_snapshot(data),
                 ServiceEvent::Error(_) => Action::None,
@@ -569,7 +544,7 @@ impl Notifications {
             Message::NotificationClicked(id) => {
                 let handle = self.handle.clone();
                 let (action_key, focus) = self.default_action(id).unzip();
-                let revision = self.revisions.get(&id).copied();
+                let revision = self.revision(id);
                 let close_menu = focus.is_some();
                 let task = invoke_and_close_task(handle, id, revision, action_key, focus);
                 if close_menu {
@@ -581,37 +556,20 @@ impl Notifications {
             Message::InvokeAction(id, action_key) => {
                 self.invoke_and_dismiss(id, Some(action_key), None)
             }
-            Message::NotificationClosed => Action::None,
             Message::ToggleDnd => {
                 self.toggle_dnd();
                 Action::None
             }
-            Message::ClearNotifications => {
-                let command = NotificationsCommand::DismissAll;
-                Action::Task(Task::perform(execute(self.handle.clone(), command), |_| {
-                    Message::NotificationsCleared
-                }))
-            }
-            Message::NotificationsCleared => {
-                let had_toasts = self.clear_toasts();
-                self.hide_toasts_if_empty(had_toasts)
-            }
+            Message::ClearNotifications => Action::Task(execute_task(
+                self.handle.clone(),
+                NotificationsCommand::DismissAll,
+            )),
             Message::ClearGroup(app_name) => {
-                let handle = self.handle.clone();
-                let notification_ids = self.notification_ids_for_app(&app_name);
-
-                Action::Task(Task::perform(
-                    async move {
-                        execute(handle, NotificationsCommand::DismissApp(app_name.clone())).await;
-                        (app_name, notification_ids)
-                    },
-                    |(app_name, ids)| Message::GroupCleared(app_name, ids),
-                ))
-            }
-            Message::GroupCleared(app_name, group_ids) => {
                 self.expanded_groups.remove(&app_name);
-                let had_toasts = self.remove_toasts(&group_ids);
-                self.hide_toasts_if_empty(had_toasts)
+                Action::Task(execute_task(
+                    self.handle.clone(),
+                    NotificationsCommand::DismissApp(app_name),
+                ))
             }
             Message::ToggleGroup(app_name) => {
                 if !self.expanded_groups.remove(&app_name) {
@@ -658,7 +616,7 @@ impl Notifications {
             }
             Message::CloseNotificationById(id) => {
                 let handle = self.handle.clone();
-                let revision = self.revisions.get(&id).copied();
+                let revision = self.revision(id);
                 let had_toasts = self.remove_toast(id);
                 self.dismiss_phases.remove(&id);
 
@@ -1268,7 +1226,12 @@ mod tests {
 
     /// What the daemon sends once `notification` arrives or replaces its id.
     fn receive(module: &mut Notifications, mut notification: Notification) {
-        notification.revision = module.revisions.values().max().map_or(1, |r| r + 1);
+        notification.revision = module
+            .notifications
+            .iter()
+            .map(|n| n.revision)
+            .max()
+            .map_or(1, |r| r + 1);
         let id = notification.id;
         let mut notifications = vec![Arc::new(notification)];
         notifications.extend(module.notifications.iter().filter(|n| n.id != id).cloned());
