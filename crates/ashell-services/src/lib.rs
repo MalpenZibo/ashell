@@ -20,7 +20,7 @@ pub mod rfkill;
     feature = "upower",
     feature = "weather"
 ))]
-mod stream;
+pub mod stream;
 #[cfg(feature = "throttle")]
 pub mod throttle;
 #[cfg(feature = "upower")]
