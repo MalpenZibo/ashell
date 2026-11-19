@@ -4,14 +4,15 @@ use crate::{
         ReadOnlyService, ServiceEvent,
         compositor::{CompositorService, CompositorState, CompositorWindow},
     },
+    theme::use_theme,
 };
 use iced::{
     Alignment, Color, Element, Length, Point, Rectangle, Renderer, Size, Subscription, SurfaceId,
-    Theme,
+    Theme, border,
     mouse::Cursor,
     widget::{
         canvas,
-        canvas::{Geometry, Program},
+        canvas::{Geometry, Path, Program},
         container,
     },
 };
@@ -190,8 +191,13 @@ struct CanvasTile {
     h: f32,
     inset_r: f32,
     inset_b: f32,
+    outer: Corners,
     role: TileRole,
 }
+
+/// The corners of a tile that lie on the minimap's outline, in the order
+/// top-left, top-right, bottom-right, bottom-left.
+type Corners = [bool; 4];
 
 /// A fully positioned minimap, in canvas (post-scale) pixel coordinates.
 struct MinimapCanvas {
@@ -223,10 +229,19 @@ impl<Message> Program<Message> for MinimapProgram<'_> {
             // neighbour, so adjacent tiles stay separated while outer edges
             // stay flush. Tile sizes are already >= MIN_TILE from layout, so
             // the inset leaves at least a sliver visible.
+            let radius = use_theme(|t| t.radius.sm);
             for t in &self.canvas.tiles {
-                frame.fill_rectangle(
-                    Point::new(t.x, t.y),
-                    Size::new(t.w - t.inset_r, t.h - t.inset_b),
+                let size = Size::new(t.w - t.inset_r, t.h - t.inset_b);
+                let r = radius.min(size.width / 2.0).min(size.height / 2.0);
+                let [tl, tr, br, bl] = t.outer.map(|outer| if outer { r } else { 0.0 });
+                let radius = border::Radius {
+                    top_left: tl,
+                    top_right: tr,
+                    bottom_right: br,
+                    bottom_left: bl,
+                };
+                frame.fill(
+                    &Path::rounded_rectangle(Point::new(t.x, t.y), size, radius),
                     tile_color(t.role, theme),
                 );
             }
@@ -245,6 +260,7 @@ struct PlacedTile<'a> {
     win: &'a CompositorWindow,
     neighbor_right: bool,
     neighbor_below: bool,
+    outer: Corners,
 }
 
 /// Lay tiled windows out left to right by column, top to bottom within a
@@ -282,15 +298,24 @@ fn layout_tiled<'a>(
             .max(1.0)
             * scale)
             .max(min_size);
+        let col_h = col_heights[i];
+        let prev_col_h = i.checked_sub(1).map_or(0.0, |p| col_heights[p]);
         let next_col_h = col_heights.get(i + 1).copied().unwrap_or(0.0);
         let mut y = 0.0_f32;
         for (j, w) in tiles.iter().enumerate() {
             let h = tile_h(w);
+            let (top, bottom) = (j == 0, j + 1 == tiles.len());
             placed.push(PlacedTile {
                 rect: (x, y, col_w, h),
                 win: w,
                 neighbor_right: next_col_h > y,
-                neighbor_below: j + 1 < tiles.len(),
+                neighbor_below: !bottom,
+                outer: [
+                    top && i == 0,
+                    top && i + 1 == cols.len(),
+                    bottom && next_col_h < col_h,
+                    bottom && prev_col_h < col_h,
+                ],
             });
             y += h;
         }
@@ -339,6 +364,7 @@ fn build_canvas(windows: &[&CompositorWindow]) -> Option<MinimapCanvas> {
                 h,
                 inset_r: if t.neighbor_right { TILE_GAP } else { 0.0 },
                 inset_b: if t.neighbor_below { TILE_GAP } else { 0.0 },
+                outer: t.outer,
                 role: role_of(t.win),
             }
         })
@@ -408,6 +434,20 @@ mod tests {
         assert!(!placed[1].neighbor_below);
         assert!(!placed[2].neighbor_right);
         assert!(!placed[2].neighbor_below);
+    }
+
+    #[test]
+    fn only_corners_on_the_outline_are_outer() {
+        let windows = [
+            win(1, 0, 0, 100.0, 200.0),
+            win(2, 0, 1, 100.0, 100.0),
+            win(3, 1, 0, 50.0, 150.0),
+        ];
+        let placed = layout(&windows, 1.0, 0.0);
+
+        assert_eq!(placed[0].outer, [true, false, false, false]);
+        assert_eq!(placed[1].outer, [false, false, true, true]);
+        assert_eq!(placed[2].outer, [false, true, true, false]);
     }
 
     #[test]
