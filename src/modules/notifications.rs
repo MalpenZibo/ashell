@@ -7,10 +7,10 @@ use crate::{
     components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, styled_button},
     config::{ModuleName, NotificationsModuleConfig, Surface, ToastPosition},
     services::{
-        ReadOnlyService, ServiceEvent, compositor,
+        ServiceEvent, compositor,
         notifications::{
             DEFAULT_ACTION_KEY, Notification, NotificationIcon, NotificationsCommand,
-            NotificationsData, NotificationsService, Urgency,
+            NotificationsConfig, NotificationsData, NotificationsService, Urgency,
         },
     },
     theme::{Paint, surface_border, use_theme},
@@ -132,15 +132,21 @@ fn execute_task(
     .discard()
 }
 
+fn daemon_config(config: &NotificationsModuleConfig) -> NotificationsConfig {
+    NotificationsConfig {
+        history_limit: config.history_limit,
+        blocklist: config.blocklist.iter().map(|r| r.0.clone()).collect(),
+    }
+}
+
 fn configure_task(
     handle: Option<NotificationsHandle>,
     config: &NotificationsModuleConfig,
 ) -> Task<Message> {
-    let command = NotificationsCommand::Configure {
-        history_limit: config.history_limit,
-        blocklist: config.blocklist.iter().map(|r| r.0.clone()).collect(),
-    };
-    execute_task(handle, command)
+    execute_task(
+        handle,
+        NotificationsCommand::Configure(daemon_config(config)),
+    )
 }
 
 fn delayed_toast_message(delay: Duration, id: u32, msg: fn(u32) -> Message) -> Task<Message> {
@@ -1064,7 +1070,7 @@ impl Notifications {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        NotificationsService::subscribe().map(Message::Event)
+        NotificationsService::subscribe_with(daemon_config(&self.config)).map(Message::Event)
     }
 
     fn grouped_notifications<'a>(&'a self) -> Element<'a, Message> {

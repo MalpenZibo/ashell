@@ -141,7 +141,7 @@ Maximum height (in pixels) of each individual toast card. Cards with less conten
 
 Maximum number of notifications kept in the menu. When a new notification arrives and the history is full, the oldest one is removed and closed, so the app that sent it sees it as expired.
 
-Values outside `1..=1000` are clamped. Notifications still shown as a toast are never removed, so the history can hold more entries than the limit while toasts are on screen.
+Values outside `1..=1000` are clamped, and a value below `toast_limit` is raised to it, so a toast never leaves before its time. Critical notifications are never removed: they stay until dismissed, so the history can hold more entries than the limit while they are there.
 
 **Type:** `integer`
 **Default:** `200`

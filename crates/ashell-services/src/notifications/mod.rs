@@ -167,14 +167,27 @@ pub struct NotificationsData {
     pub notifications: Arc<[Arc<Notification>]>,
 }
 
+/// How many notifications the daemon keeps, and the apps whose
+/// notifications it drops on arrival.
+#[derive(Debug, Clone)]
+pub struct NotificationsConfig {
+    pub history_limit: usize,
+    pub blocklist: Vec<Regex>,
+}
+
+impl Default for NotificationsConfig {
+    fn default() -> Self {
+        Self {
+            history_limit: 200,
+            blocklist: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum NotificationsCommand {
-    /// The history limit and the apps whose notifications are dropped on
-    /// arrival. Lowering the limit evicts at once.
-    Configure {
-        history_limit: usize,
-        blocklist: Vec<Regex>,
-    },
+    /// Lowering the history limit evicts at once.
+    Configure(NotificationsConfig),
     DismissApp(String),
     DismissAll,
 }
@@ -189,9 +202,11 @@ pub struct Notifications {
 }
 
 impl Notifications {
-    pub async fn connect() -> anyhow::Result<Self> {
+    /// Starts the daemon with `config` in place, so no notification arrives
+    /// before the blocklist does.
+    pub async fn connect(config: NotificationsConfig) -> anyhow::Result<Self> {
         let (data_tx, data) = watch::channel(NotificationsData::default());
-        let connection = NotificationDaemon::start(data_tx).await?;
+        let connection = NotificationDaemon::start(config, data_tx).await?;
         info!("Notifications service initialized");
 
         Ok(Self { connection, data })
@@ -213,10 +228,7 @@ impl Notifications {
         let daemon = NotificationDaemon::interface(&self.connection).await?;
         let mut daemon = daemon.get_mut().await;
         match command {
-            NotificationsCommand::Configure {
-                history_limit,
-                blocklist,
-            } => daemon.configure(history_limit, blocklist).await,
+            NotificationsCommand::Configure(config) => daemon.configure(config).await,
             NotificationsCommand::DismissApp(app_name) => daemon.dismiss_all(Some(&app_name)).await,
             NotificationsCommand::DismissAll => daemon.dismiss_all(None).await,
         }

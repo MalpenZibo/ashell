@@ -6,11 +6,14 @@ use iced::{
     stream::channel,
 };
 use log::error;
-use std::{any::TypeId, pin::pin};
+use std::{
+    hash::{Hash, Hasher},
+    pin::pin,
+};
 
 pub use ashell_services::notifications::{
-    DEFAULT_ACTION_KEY, Notification, NotificationIcon, NotificationsCommand, NotificationsData,
-    Urgency,
+    DEFAULT_ACTION_KEY, Notification, NotificationIcon, NotificationsCommand, NotificationsConfig,
+    NotificationsData, Urgency,
 };
 
 /// Sent once connected; every snapshot, the first one included, follows as an
@@ -27,9 +30,25 @@ impl ReadOnlyService for NotificationsService {
     fn update(&mut self, _event: Self::UpdateEvent) {}
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        Subscription::run_with(TypeId::of::<Self>(), |_| {
-            channel(100, async |mut output| {
-                let handle = match Notifications::connect().await {
+        Self::subscribe_with(NotificationsConfig::default())
+    }
+}
+
+/// The configuration the daemon starts with. It is not part of the
+/// subscription's identity: a new one must not restart the daemon, and
+/// reaches it as `Configure` instead.
+struct Start(NotificationsConfig);
+
+impl Hash for Start {
+    fn hash<H: Hasher>(&self, _state: &mut H) {}
+}
+
+impl NotificationsService {
+    pub fn subscribe_with(config: NotificationsConfig) -> Subscription<ServiceEvent<Self>> {
+        Subscription::run_with(Start(config), |Start(config)| {
+            let config = config.clone();
+            channel(100, async move |mut output| {
+                let handle = match Notifications::connect(config).await {
                     Ok(handle) => handle,
                     Err(err) => {
                         error!("Failed to initialize notifications service: {err}");

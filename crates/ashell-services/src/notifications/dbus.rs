@@ -1,4 +1,4 @@
-use super::{NotificationIcon, NotificationsData};
+use super::{NotificationIcon, NotificationsConfig, NotificationsData};
 use log::{debug, info, warn};
 use regex::Regex;
 use std::{
@@ -109,19 +109,15 @@ pub(super) struct Store {
     blocklist: Vec<Regex>,
 }
 
-impl Default for Store {
-    fn default() -> Self {
+impl Store {
+    fn new(config: NotificationsConfig) -> Self {
         Self {
             notifications: VecDeque::new(),
-            history_limit: DEFAULT_HISTORY_LIMIT,
-            blocklist: Vec::new(),
+            history_limit: config.history_limit,
+            blocklist: config.blocklist,
         }
     }
-}
 
-const DEFAULT_HISTORY_LIMIT: usize = 200;
-
-impl Store {
     pub(super) fn data(&self) -> NotificationsData {
         NotificationsData {
             notifications: self.notifications.iter().cloned().collect(),
@@ -171,9 +167,9 @@ impl Store {
         evicted
     }
 
-    fn configure(&mut self, history_limit: usize, blocklist: Vec<Regex>) -> Vec<u32> {
-        self.history_limit = history_limit;
-        self.blocklist = blocklist;
+    fn configure(&mut self, config: NotificationsConfig) -> Vec<u32> {
+        self.history_limit = config.history_limit;
+        self.blocklist = config.blocklist;
         self.evict()
     }
 
@@ -292,13 +288,14 @@ impl NotificationDaemon {
 
 impl NotificationDaemon {
     pub(super) async fn start(
+        config: NotificationsConfig,
         data: watch::Sender<NotificationsData>,
     ) -> anyhow::Result<Connection> {
         let connection = Connection::session().await?;
         let daemon = NotificationDaemon {
             next_id: 0,
             next_revision: 0,
-            store: Store::default(),
+            store: Store::new(config),
             data,
             connection: connection.clone(),
         };
@@ -337,8 +334,8 @@ impl NotificationDaemon {
         }
     }
 
-    pub(super) async fn configure(&mut self, history_limit: usize, blocklist: Vec<Regex>) {
-        let evicted = self.store.configure(history_limit, blocklist);
+    pub(super) async fn configure(&mut self, config: NotificationsConfig) {
+        let evicted = self.store.configure(config);
         if !evicted.is_empty() {
             self.publish();
             self.emit_all_closed(&evicted, CLOSE_REASON_EXPIRED).await;
@@ -403,6 +400,13 @@ async fn emit_closed(connection: &Connection, id: u32, reason: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn limit(history_limit: usize) -> NotificationsConfig {
+        NotificationsConfig {
+            history_limit,
+            ..NotificationsConfig::default()
+        }
+    }
 
     fn notification(app_name: &str, desktop_entry: Option<&str>) -> Notification {
         Notification {
@@ -479,7 +483,7 @@ mod tests {
 
     #[test]
     fn a_replacement_moves_to_the_front() {
-        let mut store = Store::default();
+        let mut store = Store::new(NotificationsConfig::default());
         store.insert(stored(1, Urgency::Normal));
         store.insert(stored(2, Urgency::Normal));
         store.insert(Notification {
@@ -493,8 +497,8 @@ mod tests {
 
     #[test]
     fn eviction_drops_the_oldest_but_keeps_critical_ones() {
-        let mut store = Store::default();
-        store.configure(2, Vec::new());
+        let mut store = Store::new(NotificationsConfig::default());
+        store.configure(limit(2));
         store.insert(stored(1, Urgency::Critical));
         store.insert(stored(2, Urgency::Normal));
         let evicted = store.insert(stored(3, Urgency::Normal));
@@ -505,19 +509,22 @@ mod tests {
 
     #[test]
     fn a_lower_limit_evicts_at_once() {
-        let mut store = Store::default();
+        let mut store = Store::new(NotificationsConfig::default());
         for id in 1..=4 {
             store.insert(stored(id, Urgency::Normal));
         }
 
-        assert_eq!(store.configure(2, Vec::new()), [1, 2]);
+        assert_eq!(store.configure(limit(2)), [1, 2]);
         assert_eq!(ids(&store), [4, 3]);
     }
 
     #[test]
     fn the_blocklist_matches_the_app_name() {
-        let mut store = Store::default();
-        store.configure(10, vec![Regex::new("^spotify$").unwrap()]);
+        let mut store = Store::new(NotificationsConfig::default());
+        store.configure(NotificationsConfig {
+            history_limit: 10,
+            blocklist: vec![Regex::new("^spotify$").unwrap()],
+        });
 
         assert!(store.is_blocklisted("spotify"));
         assert!(!store.is_blocklisted("spotify-launcher"));
@@ -525,7 +532,7 @@ mod tests {
 
     #[test]
     fn notifications_can_be_removed_by_app() {
-        let mut store = Store::default();
+        let mut store = Store::new(NotificationsConfig::default());
         store.insert(stored(1, Urgency::Normal));
         store.insert(Notification {
             app_name: "other".to_string(),
