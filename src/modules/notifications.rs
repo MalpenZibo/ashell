@@ -7,16 +7,17 @@ use crate::{
     components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize, styled_button},
     config::{ModuleName, NotificationsModuleConfig, Surface, ToastPosition},
     services::{
-        ServiceEvent, compositor,
+        compositor,
         notifications::{
-            DEFAULT_ACTION_KEY, Notification, NotificationIcon, NotificationsCommand,
-            NotificationsConfig, NotificationsData, NotificationsService, Urgency,
+            self, DEFAULT_ACTION_KEY, Notification, NotificationIcon, NotificationsCommand,
+            NotificationsConfig, NotificationsData, Urgency,
         },
+        xdg_icons::XdgIcon,
     },
     theme::{Paint, surface_border, use_theme},
 };
 use ashell_i18n::t;
-use ashell_services::{notifications::Notifications as NotificationsHandle, xdg_icons::IconFile};
+use ashell_services::notifications::Notifications as NotificationsHandle;
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
@@ -38,38 +39,28 @@ const ICON_SIZE: f32 = 36.0;
 /// A notification icon ready for iced. Built once per notification instance:
 /// an image handle made from pixels gets a new id each time, and the renderer
 /// would upload it again on every frame.
-#[derive(Debug, Clone)]
-enum IconHandle {
-    Image(image::Handle),
-    Svg(svg::Handle),
-}
-
-impl IconHandle {
-    fn new(icon: &NotificationIcon) -> Self {
-        match icon {
-            NotificationIcon::Rgba {
-                width,
-                height,
-                pixels,
-            } => Self::Image(image::Handle::from_rgba(*width, *height, pixels.clone())),
-            NotificationIcon::File(IconFile::Image(path)) => {
-                Self::Image(image::Handle::from_path(path))
-            }
-            NotificationIcon::File(IconFile::Svg(path)) => Self::Svg(svg::Handle::from_path(path)),
-        }
+fn icon_handle(icon: &NotificationIcon) -> XdgIcon {
+    match icon {
+        NotificationIcon::Rgba {
+            width,
+            height,
+            pixels,
+        } => XdgIcon::Image(image::Handle::from_rgba(*width, *height, pixels.clone())),
+        NotificationIcon::File(file) => XdgIcon::from(file.clone()),
     }
 }
 
-fn notification_icon<'a, M: 'a>(handle: Option<&IconHandle>) -> Element<'a, M> {
+fn notification_icon<'a, M: 'a>(handle: Option<&XdgIcon>) -> Element<'a, M> {
     match handle {
-        Some(IconHandle::Svg(handle)) => svg(handle.clone())
+        Some(XdgIcon::Svg { handle, .. }) => svg(handle.clone())
             .width(Length::Fixed(ICON_SIZE))
             .height(Length::Fixed(ICON_SIZE))
             .into(),
-        Some(IconHandle::Image(handle)) => image(handle.clone())
+        Some(XdgIcon::Image(handle)) => image(handle.clone())
             .width(Length::Fixed(ICON_SIZE))
             .height(Length::Fixed(ICON_SIZE))
             .into(),
+        Some(XdgIcon::NerdFont(glyph)) => icon(*glyph).size(ICON_SIZE).into(),
         None => icon(StaticIcon::Bell).size(ICON_SIZE).into(),
     }
 }
@@ -141,12 +132,9 @@ fn daemon_config(config: &NotificationsModuleConfig) -> NotificationsConfig {
 
 fn configure_task(
     handle: Option<NotificationsHandle>,
-    config: &NotificationsModuleConfig,
+    config: &NotificationsConfig,
 ) -> Task<Message> {
-    execute_task(
-        handle,
-        NotificationsCommand::Configure(daemon_config(config)),
-    )
+    execute_task(handle, NotificationsCommand::Configure(config.clone()))
 }
 
 fn delayed_toast_message(delay: Duration, id: u32, msg: fn(u32) -> Message) -> Task<Message> {
@@ -176,7 +164,7 @@ pub enum Message {
     CloseNotificationById(u32),
     ClearNotifications,
     ClearGroup(String),
-    Event(ServiceEvent<NotificationsService>),
+    Event(notifications::Event),
     ToggleGroup(String),
     ToggleDnd,
     ExpireToast(u32),
@@ -275,10 +263,12 @@ fn needs_wakeup(previous: Option<ToastTimer>, deadline: Instant) -> bool {
 
 pub struct Notifications {
     config: NotificationsModuleConfig,
+    /// The daemon's part of `config`, built once per reload.
+    daemon_config: Arc<NotificationsConfig>,
     handle: Option<NotificationsHandle>,
     /// The daemon's latest snapshot, newest first.
     notifications: Arc<[Arc<Notification>]>,
-    icons: HashMap<(u32, u64), IconHandle>,
+    icons: HashMap<(u32, u64), XdgIcon>,
     expanded_groups: HashSet<String>,
     toasts: VecDeque<u32>,
     dismiss_phases: HashMap<u32, DismissPhase>,
@@ -291,6 +281,7 @@ pub struct Notifications {
 impl Notifications {
     pub fn new(config: NotificationsModuleConfig, animations_enabled: bool) -> Self {
         Self {
+            daemon_config: Arc::new(daemon_config(&config)),
             config,
             handle: None,
             notifications: Arc::new([]),
@@ -328,7 +319,7 @@ impl Notifications {
         self.find_notification(id).map(|n| n.revision)
     }
 
-    fn icon(&self, notification: &Notification) -> Option<&IconHandle> {
+    fn icon(&self, notification: &Notification) -> Option<&XdgIcon> {
         self.icons.get(&(notification.id, notification.revision))
     }
 
@@ -512,7 +503,7 @@ impl Notifications {
                 let key = (n.id, n.revision);
                 let icon = match icons.remove(&key) {
                     Some(icon) => icon,
-                    None => IconHandle::new(n.icon.as_ref()?),
+                    None => icon_handle(n.icon.as_ref()?),
                 };
                 Some((key, icon))
             })
@@ -530,6 +521,7 @@ impl Notifications {
         match message {
             Message::ConfigReloaded(config) => {
                 let hide = !config.toast && self.config.toast && !self.toasts.is_empty();
+                self.daemon_config = Arc::new(daemon_config(&config));
                 self.config = config;
                 let action = if hide {
                     self.clear_toasts();
@@ -537,15 +529,15 @@ impl Notifications {
                 } else {
                     Action::None
                 };
-                action.with_task(configure_task(self.handle.clone(), &self.config))
+                action.with_task(configure_task(self.handle.clone(), &self.daemon_config))
             }
             Message::Event(event) => match event {
-                ServiceEvent::Init(service) => {
-                    self.handle = Some(service.handle);
-                    Action::Task(configure_task(self.handle.clone(), &self.config))
+                // A reload before the daemon ran reaches it only now
+                notifications::Event::Connected(handle) => {
+                    self.handle = Some(handle);
+                    Action::Task(configure_task(self.handle.clone(), &self.daemon_config))
                 }
-                ServiceEvent::Update(data) => self.apply_snapshot(data),
-                ServiceEvent::Error(_) => Action::None,
+                notifications::Event::Snapshot(data) => self.apply_snapshot(data),
             },
             Message::NotificationClicked(id) => {
                 let handle = self.handle.clone();
@@ -1070,7 +1062,7 @@ impl Notifications {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        NotificationsService::subscribe_with(daemon_config(&self.config)).map(Message::Event)
+        notifications::subscribe(self.daemon_config.clone()).map(Message::Event)
     }
 
     fn grouped_notifications<'a>(&'a self) -> Element<'a, Message> {
@@ -1196,10 +1188,7 @@ mod tests {
     use super::{Message, Notifications, ToastTimer};
     use crate::{
         config::NotificationsModuleConfig,
-        services::{
-            ServiceEvent,
-            notifications::{Notification, NotificationsData, Urgency},
-        },
+        services::notifications::{Event, Notification, NotificationsData, Urgency},
     };
     use std::{
         sync::Arc,
@@ -1211,7 +1200,6 @@ mod tests {
             id,
             revision: 0,
             app_name: "test".to_string(),
-            app_icon: String::new(),
             summary: "summary".to_string(),
             body: String::new(),
             actions: vec![],
@@ -1225,7 +1213,7 @@ mod tests {
     }
 
     fn snapshot(module: &mut Notifications, notifications: Vec<Arc<Notification>>) {
-        let _ = module.update(Message::Event(ServiceEvent::Update(NotificationsData {
+        let _ = module.update(Message::Event(Event::Snapshot(NotificationsData {
             notifications: notifications.into(),
         })));
     }

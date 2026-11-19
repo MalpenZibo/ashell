@@ -175,15 +175,6 @@ pub struct NotificationsConfig {
     pub blocklist: Vec<Regex>,
 }
 
-impl Default for NotificationsConfig {
-    fn default() -> Self {
-        Self {
-            history_limit: 200,
-            blocklist: Vec::new(),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum NotificationsCommand {
     /// Lowering the history limit evicts at once.
