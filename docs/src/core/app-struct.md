@@ -16,6 +16,7 @@ pub struct App {
     pub updates: Option<Updates>,            // Package update checker (optional)
     pub workspaces: Workspaces,              // Workspace indicators
     pub window_title: WindowTitle,           // Active window display
+    pub minimap: Minimap,                    // Tiled window map of the active workspace
     pub system_info: SystemInfo,             // CPU/RAM/disk/network stats
     pub keyboard_layout: KeyboardLayout,     // Keyboard layout indicator
     pub keyboard_submap: KeyboardSubmap,     // Hyprland submap display

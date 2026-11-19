@@ -44,8 +44,8 @@ right = [ "SystemInfo", "MediaPlayer", [ "Tray", "Tempo", "Privacy", "Settings" 
 # right = [ [ "Tempo", "Privacy", "Settings" ] ]
 #
 # Every built-in module name: "Updates", "Workspaces", "WindowTitle",
-# "SystemInfo", "KeyboardLayout", "KeyboardSubmap", "Tray", "Tempo",
-# "Privacy", "Settings", "MediaPlayer", "Notifications".
+# "Minimap", "SystemInfo", "KeyboardLayout", "KeyboardSubmap", "Tray",
+# "Tempo", "Privacy", "Settings", "MediaPlayer", "Notifications".
 # Any other name refers to a [[CustomModule]] with that `name`.
 
 # ── Updates ───────────────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ alert_threshold = 85
 # ── Media Player ──────────────────────────────────────────────────────────────
 
 [media_player]
-# indicator_format = "IconAndText"  # (default), "Text", or "Icon"
+# indicator_format = "IconAndText"  # (default), "Text", "Icon", "CoverAndText", or "Cover"
                                   # aliases: "IconAndTitle" = "IconAndText", "Title" = "Text"
 # indicator_fields = ["Artist", "Title"] # (default), also supports "Album"
 # max_text_length = 100         # (default)

@@ -17,12 +17,15 @@ pub mod rfkill;
     feature = "brightness",
     feature = "logind",
     feature = "privacy",
-    feature = "upower"
+    feature = "upower",
+    feature = "weather"
 ))]
-mod stream;
+pub mod stream;
 #[cfg(feature = "throttle")]
 pub mod throttle;
 #[cfg(feature = "upower")]
 pub mod upower;
+#[cfg(feature = "weather")]
+pub mod weather;
 #[cfg(feature = "xdg_icons")]
 pub mod xdg_icons;

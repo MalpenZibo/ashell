@@ -172,6 +172,8 @@ is a parse error that makes ashell fall back to the *entire* default config.
 
 - Tempo fetches location data either from `ip-api.com` (for `Current`), from Open-Meteo's geocoding endpoint (for
   `City`), or uses reverse geocoding from Nominatim (OpenStreetMap) to get location names for `Coordinates`.
+  The free `ip-api.com` endpoint only speaks plain HTTP, so the `Current` lookup is unencrypted: anyone on the network
+  path can see it and alter the location it returns. Use `City` or `Coordinates` to avoid it.
 - Weather observations and forecasts are requested from the Open-Meteo API every 30 minutes. Ensure `ashell` has network
   access.
 - If an API call fails the module keeps showing the last successful reading and logs a warning.

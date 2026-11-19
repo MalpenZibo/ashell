@@ -30,7 +30,7 @@ center = ["Tempo"]
 right = [["SystemInfo", "Settings"], "Tray"]
 ```
 
-Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"`, `"KeyboardSubmap"`, `"Tray"`, `"Notifications"`, `"Tempo"`, `"Privacy"`, `"Settings"`, `"MediaPlayer"`, `"Updates"`. Any other string is the `name` of a custom module.
+Module names: `"Workspaces"`, `"WindowTitle"`, `"Minimap"`, `"SystemInfo"`, `"KeyboardLayout"`, `"KeyboardSubmap"`, `"Tray"`, `"Notifications"`, `"Tempo"`, `"Privacy"`, `"Settings"`, `"MediaPlayer"`, `"Updates"`. Any other string is the `name` of a custom module.
 
 ## Appearance
 
@@ -284,7 +284,7 @@ tooltip = "Toggle VPN"                 # Optional
 
 ```toml
 [media_player]
-indicator_format = "IconAndText"     # "Text", "IconAndText", or "Icon"
+indicator_format = "IconAndText"     # "Text", "IconAndText", "Icon", "CoverAndText", or "Cover"
 indicator_fields = ["Artist", "Title"]
 max_text_length = 100
 indicator_visualizer = "Background"  # "Background", "Before", or "After"; omit to disable

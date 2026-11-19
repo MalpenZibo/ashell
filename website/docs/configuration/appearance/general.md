@@ -333,7 +333,7 @@ next to the time, keep theirs.
 | `custom.<name>` | The icon and the text | `md` |
 | `keyboard_layout` | The layout | `md` |
 | `keyboard_submap` | The submap | `md` |
-| `media_player` | The icon and the title | `md` for the icon, `sm` for the title |
+| `media_player` | The icon and the title; the cover follows the height of the bar | `md` for the icon, `sm` for the title |
 | `notifications` | The icon | `md` |
 | `privacy` | The icons | `md` |
 | `settings` | The icons and texts of the indicators | `md` |
