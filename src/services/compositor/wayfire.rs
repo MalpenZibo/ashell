@@ -195,26 +195,34 @@ fn encode_workspace_id(output_index: usize, slot: i64) -> Option<i32> {
         .then(|| (output_index as i64 * OUTPUT_STRIDE + slot + 1) as i32)
 }
 
-/// `WAYFIRE_SOCKET` is the documented source; fall back to the socket Wayfire
+/// `WAYFIRE_SOCKET` is the documented source; fall back to the sockets Wayfire
 /// drops in the runtime directory when the variable was not inherited.
-fn socket_path() -> Option<PathBuf> {
+fn socket_paths() -> Vec<PathBuf> {
     if let Some(path) = env::var_os("WAYFIRE_SOCKET").filter(|p| !p.is_empty()) {
-        return Some(PathBuf::from(path));
+        return vec![PathBuf::from(path)];
     }
 
-    let runtime_dir = PathBuf::from(env::var_os("XDG_RUNTIME_DIR")?);
+    let Some(runtime_dir) = env::var_os("XDG_RUNTIME_DIR") else {
+        return Vec::new();
+    };
+    let runtime_dir = PathBuf::from(runtime_dir);
     let display = env::var("WAYLAND_DISPLAY").unwrap_or_default();
 
     let mut candidates: Vec<PathBuf> = std::fs::read_dir(&runtime_dir)
-        .ok()?
-        .filter_map(|entry| entry.ok())
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("wayfire-") && name.ends_with(".socket"))
+        .map(|entries| {
+            entries
+                .filter_map(|entry| entry.ok())
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| {
+                            name.starts_with("wayfire-") && name.ends_with(".socket")
+                        })
+                })
+                .collect()
         })
-        .collect();
+        .unwrap_or_default();
 
     candidates.sort_by_key(|path| {
         let name = path
@@ -224,11 +232,17 @@ fn socket_path() -> Option<PathBuf> {
         (!name.contains(&display)) as u8
     });
 
-    candidates.into_iter().next()
+    candidates
 }
 
+/// A stale socket left behind by a crashed or exited Wayfire still matches the
+/// path checks, so probe the connection the way the MangoWC backend does. A
+/// leftover socket refuses connections, which lets detection fall through to the
+/// generic backend instead of wedging the bar on a dead Wayfire.
 pub fn is_available() -> bool {
-    socket_path().is_some()
+    socket_paths()
+        .into_iter()
+        .any(|path| StdUnixStream::connect(path).is_ok())
 }
 
 pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<()> {
@@ -307,12 +321,24 @@ fn send_state(tx: &broadcast::Sender<ServiceEvent<CompositorService>>, state: &C
 }
 
 async fn connect() -> Result<UnixStream> {
-    let path = socket_path().ok_or_else(|| {
-        anyhow!("Wayfire IPC socket not found (WAYFIRE_SOCKET unset, no wayfire-*.socket in XDG_RUNTIME_DIR)")
-    })?;
-    let std_stream = StdUnixStream::connect(&path)?;
-    std_stream.set_nonblocking(true)?;
-    UnixStream::from_std(std_stream).context("Failed to convert Wayfire socket")
+    let mut last_err = None;
+    for path in socket_paths() {
+        match StdUnixStream::connect(&path) {
+            Ok(std_stream) => {
+                std_stream.set_nonblocking(true)?;
+                return UnixStream::from_std(std_stream)
+                    .context("Failed to convert Wayfire socket");
+            }
+            Err(e) => last_err = Some(e),
+        }
+    }
+
+    match last_err {
+        Some(e) => Err(e).context("Failed to connect to the Wayfire IPC socket"),
+        None => Err(anyhow!(
+            "Wayfire IPC socket not found (WAYFIRE_SOCKET unset, no wayfire-*.socket in XDG_RUNTIME_DIR)"
+        )),
+    }
 }
 
 static REQUEST_STREAM: OnceLock<AsyncMutex<Option<UnixStream>>> = OnceLock::new();
@@ -589,11 +615,13 @@ fn build_state(
         .unwrap_or_else(|| "Unknown".to_string());
 
     CompositorState {
+        focused_workspace_id: active_workspace_ids.first().copied(),
         workspaces,
         monitors,
         active_workspace_ids,
         active_window,
         keyboard_layout,
+        windows: Vec::new(),
         submap: None,
     }
 }
