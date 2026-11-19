@@ -49,12 +49,20 @@ pub struct ActiveWindowMango {
     pub class: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ActiveWindowWayfire {
+    pub title: String,
+    pub class: String,
+    pub address: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ActiveWindow {
     Hyprland(ActiveWindowHyprland),
     Niri(ActiveWindowNiri),
     Generic(ActiveWindowGeneric),
     Mango(ActiveWindowMango),
+    Wayfire(ActiveWindowWayfire),
 }
 
 impl ActiveWindow {
@@ -64,6 +72,7 @@ impl ActiveWindow {
             ActiveWindow::Niri(w) => &w.title,
             ActiveWindow::Generic(w) => &w.title,
             ActiveWindow::Mango(w) => &w.title,
+            ActiveWindow::Wayfire(w) => &w.title,
         }
     }
 
@@ -73,6 +82,7 @@ impl ActiveWindow {
             ActiveWindow::Niri(w) => &w.class,
             ActiveWindow::Generic(w) => &w.class,
             ActiveWindow::Mango(w) => &w.class,
+            ActiveWindow::Wayfire(w) => &w.class,
         }
     }
 
@@ -82,6 +92,7 @@ impl ActiveWindow {
             ActiveWindow::Niri(_) => Err("InitialTitle isn't supported on Niri"),
             ActiveWindow::Generic(_) => Err("InitialTitle isn't supported on generic Wayland"),
             ActiveWindow::Mango(_) => Err("InitialTitle isn't supported on MangoWC"),
+            ActiveWindow::Wayfire(_) => Err("InitialTitle isn't supported on Wayfire"),
         }
     }
 
@@ -91,6 +102,7 @@ impl ActiveWindow {
             ActiveWindow::Niri(_) => Err("InitialClass isn't supported on Niri"),
             ActiveWindow::Generic(_) => Err("InitialClass isn't supported on generic Wayland"),
             ActiveWindow::Mango(_) => Err("InitialClass isn't supported on MangoWC"),
+            ActiveWindow::Wayfire(_) => Err("InitialClass isn't supported on Wayfire"),
         }
     }
 }
@@ -137,6 +149,7 @@ pub enum CompositorChoice {
     Niri,
     Generic,
     Mango,
+    Wayfire,
 }
 
 #[derive(Debug, Clone)]
