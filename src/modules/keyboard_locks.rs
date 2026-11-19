@@ -1,6 +1,6 @@
 use crate::{
-    components::icons::{IconKind, StaticIcon, icon_mono},
-    config::{KeyboardLocksModuleConfig, LockIndicatorConfig, LockVisibility, ModuleName},
+    components::icons::{StaticIcon, icon_mono},
+    config::{KeyboardLocksModuleConfig, LockVisibility, ModuleName},
     services::{ReadOnlyService, ServiceEvent, keyboard_locks::KeyboardLocksService},
     theme::use_theme,
 };
@@ -52,26 +52,31 @@ impl KeyboardLocks {
 
         let indicators = [
             (
-                &self.config.caps_lock,
+                self.config.caps_lock,
                 service.caps_lock,
                 StaticIcon::CapsLock,
             ),
-            (&self.config.num_lock, service.num_lock, StaticIcon::NumLock),
+            (self.config.num_lock, service.num_lock, StaticIcon::NumLock),
             (
-                &self.config.scroll_lock,
+                self.config.scroll_lock,
                 service.scroll_lock,
                 StaticIcon::ScrollLock,
             ),
         ]
         .into_iter()
-        .filter_map(|(config, on, default_icon)| {
+        .filter_map(|(visibility, on, icon)| {
             let on = on?;
-            let shown = match config.visibility {
+            let shown = match visibility {
                 LockVisibility::Hidden => false,
                 LockVisibility::ActiveOnly => on,
                 LockVisibility::AlwaysVisible => true,
             };
-            shown.then(|| indicator(config, on, default_icon, size, off_color))
+            shown.then(|| {
+                icon_mono(icon)
+                    .size(size)
+                    .color_maybe((!on).then_some(off_color))
+                    .into()
+            })
         })
         .collect::<Vec<_>>();
 
@@ -86,21 +91,4 @@ impl KeyboardLocks {
     pub fn subscription(&self) -> Subscription<Message> {
         KeyboardLocksService::subscribe().map(Message::Event)
     }
-}
-
-fn indicator<'a>(
-    config: &LockIndicatorConfig,
-    on: bool,
-    default_icon: StaticIcon,
-    size: f32,
-    off_color: iced::Color,
-) -> Element<'a, Message> {
-    let icon = match &config.icon {
-        Some(glyph) => IconKind::Dynamic(glyph.clone()),
-        None => IconKind::Static(default_icon),
-    };
-    icon_mono(icon)
-        .size(size)
-        .color_maybe((!on).then_some(off_color))
-        .into()
 }

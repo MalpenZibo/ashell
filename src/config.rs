@@ -226,17 +226,10 @@ pub enum LockVisibility {
 
 #[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 #[serde(default)]
-pub struct LockIndicatorConfig {
-    pub visibility: LockVisibility,
-    pub icon: Option<String>,
-}
-
-#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq)]
-#[serde(default)]
 pub struct KeyboardLocksModuleConfig {
-    pub caps_lock: LockIndicatorConfig,
-    pub num_lock: LockIndicatorConfig,
-    pub scroll_lock: LockIndicatorConfig,
+    pub caps_lock: LockVisibility,
+    pub num_lock: LockVisibility,
+    pub scroll_lock: LockVisibility,
 }
 
 #[derive(Deserialize, Clone, Debug)]
