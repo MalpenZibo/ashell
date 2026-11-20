@@ -8,7 +8,7 @@ use crate::{
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        audio::{AudioCommand, AudioEvent, AudioService, ChannelVolumesExt, DevicePortType, Port},
+        audio::{self, AudioCommand, AudioService, Port, PortKind},
     },
     theme::use_theme,
     utils::IndicatorState,
@@ -20,10 +20,9 @@ use iced::{
     mouse::ScrollDelta,
     widget::{Column, Text, column, container, row, text},
 };
-use libpulse_binding::volume::Volume;
 use std::time::{Duration, Instant};
 
-pub const NORMAL_VOLUME: u32 = Volume::NORMAL.0;
+pub const NORMAL_VOLUME: u32 = audio::NORMAL_VOLUME;
 
 const VOL_PERCENT: u32 = NORMAL_VOLUME / 100;
 
@@ -135,7 +134,7 @@ impl AudioSettings {
     pub fn real_sink_volume(&self) -> Option<u32> {
         self.service
             .as_ref()
-            .and_then(|s| s.active_sink().map(|d| d.volume.get_volume()))
+            .and_then(|s| s.active_sink().map(|d| d.volume))
     }
 
     pub fn is_sink_muted(&self) -> Option<bool> {
@@ -192,7 +191,7 @@ impl AudioSettings {
     pub fn real_source_volume(&self) -> Option<u32> {
         self.service
             .as_ref()
-            .and_then(|s| s.active_source().map(|d| d.volume.get_volume()))
+            .and_then(|s| s.active_source().map(|d| d.volume))
     }
 
     pub fn is_source_muted(&self) -> Option<bool> {
@@ -254,19 +253,12 @@ impl AudioSettings {
                 }
                 ServiceEvent::Update(data) => {
                     if let Some(service) = self.service.as_mut() {
-                        let (sink_switched, source_switched) = match &data {
-                            AudioEvent::ServerInfo(info) => (
-                                Self::take_switched(
-                                    &mut self.pending_sink_switch,
-                                    &info.default_sink,
-                                ),
-                                Self::take_switched(
-                                    &mut self.pending_source_switch,
-                                    &info.default_source,
-                                ),
-                            ),
-                            _ => (false, false),
-                        };
+                        let sink_switched =
+                            Self::take_switched(&mut self.pending_sink_switch, &data.default_sink);
+                        let source_switched = Self::take_switched(
+                            &mut self.pending_source_switch,
+                            &data.default_source,
+                        );
 
                         service.update(data);
 
@@ -317,7 +309,7 @@ impl AudioSettings {
             }
             Message::DefaultSinkChanged(name, port) => {
                 if let Some(service) = self.service.as_mut() {
-                    if name != service.server_info.default_sink {
+                    if name != service.default_sink {
                         self.pending_sink_switch = Some((name.clone(), Instant::now()));
                     }
                     let _ = service.command(AudioCommand::DefaultSink(name, port));
@@ -352,7 +344,7 @@ impl AudioSettings {
             }
             Message::DefaultSourceChanged(name, port) => {
                 if let Some(service) = self.service.as_mut() {
-                    if name != service.server_info.default_source {
+                    if name != service.default_source {
                         self.pending_source_switch = Some((name.clone(), Instant::now()));
                     }
                     let _ = service.command(AudioCommand::DefaultSource(name, port));
@@ -504,14 +496,14 @@ impl AudioSettings {
         self.service.as_ref().map(|service| {
             Self::submenu(
                 service
-                    .sink_iter()
+                    .sink_routes()
                     .map(|route| SubmenuEntry {
                         name: route.to_string(),
                         icon: route
                             .port
                             .and_then(Self::port_icon)
                             .unwrap_or(StaticIcon::Speaker3),
-                        active: route.device.name == service.server_info.default_sink,
+                        active: route.device.name == service.default_sink,
                         msg: Message::DefaultSinkChanged(
                             route.device.name.clone(),
                             route.port.map(|p| p.name.clone()),
@@ -531,14 +523,14 @@ impl AudioSettings {
         self.service.as_ref().map(|service| {
             Self::submenu(
                 service
-                    .source_iter()
+                    .source_routes()
                     .map(|route| SubmenuEntry {
                         name: route.to_string(),
                         icon: route
                             .port
                             .and_then(Self::port_icon)
                             .unwrap_or(StaticIcon::Mic1),
-                        active: route.device.name == service.server_info.default_source,
+                        active: route.device.name == service.default_source,
                         msg: Message::DefaultSourceChanged(
                             route.device.name.clone(),
                             route.port.map(|p| p.name.clone()),
@@ -555,30 +547,30 @@ impl AudioSettings {
     }
 
     fn port_icon(port: &Port) -> Option<StaticIcon> {
-        match port.device_type {
-            DevicePortType::Unknown => None,
-            DevicePortType::Aux => Some(StaticIcon::AudioJack),
-            DevicePortType::Speaker => Some(StaticIcon::Speaker3),
-            DevicePortType::Headphones => Some(StaticIcon::Headphones1),
-            DevicePortType::Line => Some(StaticIcon::AudioJack),
-            DevicePortType::Mic => Some(StaticIcon::Mic1),
-            DevicePortType::Headset => Some(StaticIcon::Headset),
-            DevicePortType::Handset => Some(StaticIcon::Phone),
-            DevicePortType::Earpiece => Some(StaticIcon::Ear),
-            DevicePortType::SPDIF => Some(StaticIcon::AudioRca),
-            DevicePortType::HDMI => Some(StaticIcon::MonitorSpeaker),
-            DevicePortType::TV => Some(StaticIcon::MonitorSpeaker),
-            DevicePortType::Radio => Some(StaticIcon::Radio),
-            DevicePortType::Video => Some(StaticIcon::MonitorSpeaker),
-            DevicePortType::USB => Some(StaticIcon::Usb),
-            DevicePortType::Bluetooth => Some(StaticIcon::SpeakerBluetooth),
-            DevicePortType::Portable => None,
-            DevicePortType::Handsfree => Some(StaticIcon::Ear),
-            DevicePortType::Car => Some(StaticIcon::Car),
-            DevicePortType::HiFi => Some(StaticIcon::AudioHiFi),
-            DevicePortType::Phone => Some(StaticIcon::Phone),
-            DevicePortType::Network => Some(StaticIcon::SpeakerWireless),
-            DevicePortType::Analog => Some(StaticIcon::AudioRca),
+        match port.kind {
+            PortKind::Unknown => None,
+            PortKind::Aux => Some(StaticIcon::AudioJack),
+            PortKind::Speaker => Some(StaticIcon::Speaker3),
+            PortKind::Headphones => Some(StaticIcon::Headphones1),
+            PortKind::Line => Some(StaticIcon::AudioJack),
+            PortKind::Mic => Some(StaticIcon::Mic1),
+            PortKind::Headset => Some(StaticIcon::Headset),
+            PortKind::Handset => Some(StaticIcon::Phone),
+            PortKind::Earpiece => Some(StaticIcon::Ear),
+            PortKind::Spdif => Some(StaticIcon::AudioRca),
+            PortKind::Hdmi => Some(StaticIcon::MonitorSpeaker),
+            PortKind::Tv => Some(StaticIcon::MonitorSpeaker),
+            PortKind::Radio => Some(StaticIcon::Radio),
+            PortKind::Video => Some(StaticIcon::MonitorSpeaker),
+            PortKind::Usb => Some(StaticIcon::Usb),
+            PortKind::Bluetooth => Some(StaticIcon::SpeakerBluetooth),
+            PortKind::Portable => None,
+            PortKind::Handsfree => Some(StaticIcon::Ear),
+            PortKind::Car => Some(StaticIcon::Car),
+            PortKind::HiFi => Some(StaticIcon::AudioHiFi),
+            PortKind::Phone => Some(StaticIcon::Phone),
+            PortKind::Network => Some(StaticIcon::SpeakerWireless),
+            PortKind::Analog => Some(StaticIcon::AudioRca),
         }
     }
 
@@ -607,7 +599,7 @@ impl AudioSettings {
 
         let mut ctrl = slider_control(
             mute_icon,
-            Volume::MUTED.0..=max,
+            0..=max,
             volume.value(),
             volume_changed,
             Self::on_scroll(volume.value(), step, max, volume_changed),
