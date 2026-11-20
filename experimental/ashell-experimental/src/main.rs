@@ -3,6 +3,7 @@ mod bar;
 mod config;
 mod i18n;
 mod modules;
+mod services;
 #[cfg(test)]
 mod testing;
 

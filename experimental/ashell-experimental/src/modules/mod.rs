@@ -6,6 +6,7 @@
 //! exists, its table to [`Configs`], and its state to [`Modules`].
 
 pub mod configurator;
+pub mod settings;
 pub mod tempo;
 
 use std::rc::Rc;
@@ -15,20 +16,23 @@ use toml::Table;
 
 use crate::config::{Config, Gestures, Item, ItemId, Panel, Show};
 use configurator::Configurator;
+use settings::Settings;
 use tempo::{Tempo, TempoConfig};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleId {
     Tempo,
+    Settings,
     Config,
 }
 
 impl ModuleId {
-    pub const ALL: [ModuleId; 2] = [ModuleId::Tempo, ModuleId::Config];
+    pub const ALL: [ModuleId; 3] = [ModuleId::Tempo, ModuleId::Settings, ModuleId::Config];
 
     pub fn spec(self) -> &'static Spec {
         match self {
             ModuleId::Tempo => &tempo::SPEC,
+            ModuleId::Settings => &settings::SPEC,
             ModuleId::Config => &configurator::SPEC,
         }
     }
@@ -100,6 +104,10 @@ impl Configs {
                 self.tempo = config;
                 problems
             }
+            ModuleId::Settings => table
+                .keys()
+                .map(|key| format!("settings.{key}: unknown key, ignored"))
+                .collect(),
             ModuleId::Config => configurator::check(table),
         }
     }
@@ -136,6 +144,7 @@ pub struct ItemView {
 #[derive(Clone, Copy)]
 pub struct Modules {
     tempo: Tempo,
+    settings: Settings,
     configurator: Configurator,
 }
 
@@ -145,6 +154,7 @@ impl Modules {
             tempo: Tempo::new(create_memo(move || {
                 config.with(|c| c.modules.tempo.clone())
             })),
+            settings: Settings::new(),
             configurator: Configurator::new(config),
         }
     }
@@ -158,6 +168,7 @@ impl Modules {
                 now,
                 Some(tempo::sample::weather(now)),
             ),
+            settings: settings::sample::settings(),
             configurator: Configurator::new(config),
         }
     }
@@ -171,6 +182,7 @@ impl Modules {
     pub fn item(self, item: &Item) -> Option<ItemView> {
         match item.id.module()? {
             ModuleId::Tempo => Some(self.tempo.item(item)),
+            ModuleId::Settings => Some(self.settings.item(item)),
             ModuleId::Config => Some(self.configurator.item(item)),
         }
     }
@@ -179,6 +191,7 @@ impl Modules {
     pub fn panel(self, panel: Panel) -> Option<Container> {
         match panel.module()? {
             ModuleId::Tempo => Some(self.tempo.panel(panel)),
+            ModuleId::Settings => None,
             ModuleId::Config => None,
         }
     }

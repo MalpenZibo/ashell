@@ -8,8 +8,9 @@ second row of details shown on hover, and what a click on it opens. An item
 is one piece of information: the battery, the time, the window's title.
 
 {% <note kind="info" title="Placeholders"> %}
-The items of [`tempo`](@/docs/rolling/configuration/tempo.md) are drawn,
-with their `show`, `open` and gestures. The others show placeholders for
+The items of [`tempo`](@/docs/rolling/configuration/tempo.md) and
+[`settings`](@/docs/rolling/configuration/settings.md) are drawn, with their
+`show`, `open` and gestures. The others show placeholders for
 now, sized like the real ones; a zone none of whose items is drawn yet is
 one placeholder with its name.
 {% </note> %}

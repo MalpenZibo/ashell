@@ -10,8 +10,15 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+anyhow = "1"
 ashell-i18n.workspace = true
-ashell-services = { workspace = true, features = ["weather"] }
+ashell-services = { workspace = true, features = [
+    "bluetooth",
+    "brightness",
+    "idle_inhibitor",
+    "upower",
+    "weather",
+] }
 chrono = { workspace = true, features = ["clock", "std", "unstable-locales"] }
 chrono-tz.workspace = true
 env_logger = "0.11"
