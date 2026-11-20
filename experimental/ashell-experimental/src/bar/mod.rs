@@ -413,8 +413,9 @@ fn panel_view(panel: Panel, modules: Modules) -> Container {
         .unwrap_or_else(|| placeholder::panel(panel))
 }
 
-/// How far to shift the panel sideways so that it sits under the clicked zone.
-fn under_zone(opened: Opened, middle: f32, ctx: &Ctx) -> f32 {
+/// Where the middle of `opened`'s panel goes on the screen: under the zone
+/// clicked.
+fn panel_x(opened: Opened, ctx: &Ctx) -> f32 {
     let zone = ctx.refs.zones[&(opened.group, opened.zone)]
         .layout_rect()
         .get_untracked();
@@ -434,7 +435,20 @@ fn under_zone(opened: Opened, middle: f32, ctx: &Ctx) -> f32 {
         bar
     };
 
-    panel_center(zone, width, within) - middle
+    panel_center(zone, width, within)
+}
+
+/// The shift that puts the middle of a box `width` wide at `x`, hung at
+/// `place` of what holds it, which spans `holder`.
+///
+/// A panel hangs at the place of its group's list: the end of the group that
+/// stays put when an item comes or goes in it, so the panel stays put too.
+fn hung_at(place: Place, holder: Rect, x: f32, width: f32) -> f32 {
+    match place {
+        Place::Start => x - width / 2.0 - holder.x,
+        Place::Center => x - (holder.x + holder.width / 2.0),
+        Place::End => x + width / 2.0 - (holder.x + holder.width),
+    }
 }
 
 struct Refs {
