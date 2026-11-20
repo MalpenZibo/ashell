@@ -8,7 +8,7 @@ use crate::{
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        audio::{self, AudioCommand, AudioService, Port, PortKind},
+        audio::{AudioCommand, AudioService, Port, PortKind, Route},
     },
     theme::use_theme,
     utils::IndicatorState,
@@ -22,7 +22,7 @@ use iced::{
 };
 use std::time::{Duration, Instant};
 
-pub const NORMAL_VOLUME: u32 = audio::NORMAL_VOLUME;
+pub use crate::services::audio::NORMAL_VOLUME;
 
 const VOL_PERCENT: u32 = NORMAL_VOLUME / 100;
 
@@ -498,7 +498,7 @@ impl AudioSettings {
                 service
                     .sink_routes()
                     .map(|route| SubmenuEntry {
-                        name: route.to_string(),
+                        name: Self::route_label(route),
                         icon: route
                             .port
                             .and_then(Self::port_icon)
@@ -525,7 +525,7 @@ impl AudioSettings {
                 service
                     .source_routes()
                     .map(|route| SubmenuEntry {
-                        name: route.to_string(),
+                        name: Self::route_label(route),
                         icon: route
                             .port
                             .and_then(Self::port_icon)
@@ -544,6 +544,17 @@ impl AudioSettings {
                 },
             )
         })
+    }
+
+    fn route_label(route: Route<'_>) -> String {
+        match route.port {
+            // The node description already names the port when it is the only one,
+            // so the prefix is only needed to tell apart ports of the same node
+            Some(port) if route.device.ports.len() > 1 => {
+                format!("{}: {}", port.description, route.device.description)
+            }
+            _ => route.device.description.clone(),
+        }
     }
 
     fn port_icon(port: &Port) -> Option<StaticIcon> {

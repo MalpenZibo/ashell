@@ -1,5 +1,5 @@
-//! libpulse's main loop, on the thread [`run`] owns: it keeps the state the
-//! snapshots are made of and applies the commands to it.
+//! libpulse's main loop, on the thread [`run`] owns. The snapshot it
+//! publishes is also the state the commands are resolved against.
 
 use super::{AudioCommand, AudioData, Device, Port, PortKind};
 use libpulse_binding::{
@@ -9,7 +9,7 @@ use libpulse_binding::{
         introspect::{
             Introspector, ServerInfo, SinkInfo, SinkPortInfo, SourceInfo, SourcePortInfo,
         },
-        subscribe::InterestMaskSet,
+        subscribe::{Facility, InterestMaskSet},
     },
     def::{DevicePortType, PortAvailable},
     mainloop::{
@@ -23,8 +23,7 @@ use libpulse_binding::{
 };
 use log::{debug, error, info, warn};
 use std::{
-    cell::RefCell,
-    collections::HashMap,
+    cell::{Cell, RefCell},
     os::fd::{AsRawFd, OwnedFd, RawFd},
     rc::Rc,
     sync::mpsc::{Receiver, RecvTimeoutError, TryRecvError},
@@ -81,33 +80,22 @@ pub(super) fn run(commands: Receiver<AudioCommand>, wake: OwnedFd, data: watch::
 /// Every handle is gone.
 struct Closed;
 
-/// What the main loop's callbacks fill in and the commands read.
-#[derive(Default)]
-struct State {
-    data: AudioData,
-    /// Each device's own channels, which a volume is scaled over.
-    sink_channels: HashMap<String, ChannelVolumes>,
-    source_channels: HashMap<String, ChannelVolumes>,
-    /// The lists being received, each complete at its `End`.
-    sinks: Vec<(Device, ChannelVolumes)>,
-    sources: Vec<(Device, ChannelVolumes)>,
-}
-
+/// What the main loop's callbacks write to.
 struct Shared {
-    state: RefCell<State>,
     data: Rc<watch::Sender<AudioData>>,
+    /// The lists being received, each complete at its `End`.
+    sinks: RefCell<Vec<Device>>,
+    sources: RefCell<Vec<Device>>,
+    /// Off until the first round of answers is in, so the first snapshot
+    /// sent is a whole one.
+    ready: Cell<bool>,
 }
 
 impl Shared {
-    fn publish(&self) {
-        let state = self.state.borrow();
-        self.data.send_if_modified(|current| {
-            let changed = *current != state.data;
-            if changed {
-                current.clone_from(&state.data);
-            }
-            changed
-        });
+    /// Applies `change` and tells the consumers if it changed anything.
+    fn update(&self, change: impl FnOnce(&mut AudioData) -> bool) {
+        let ready = self.ready.get();
+        self.data.send_if_modified(|data| change(data) && ready);
     }
 }
 
@@ -124,28 +112,25 @@ impl Server {
             .set_str(APPLICATION_NAME, APP_NAME)
             .map_err(|_| anyhow::anyhow!("failed to set the application name"))?;
 
-        let mut mainloop =
+        let mainloop =
             Mainloop::new().ok_or_else(|| anyhow::anyhow!("failed to create a main loop"))?;
-        let mut context = Context::new_with_proplist(&mainloop, APP_NAME, &proplist)
+        let context = Context::new_with_proplist(&mainloop, APP_NAME, &proplist)
             .ok_or_else(|| anyhow::anyhow!("failed to create a context"))?;
+        let mut server = Self { mainloop, context };
 
-        context.connect(None, FlagSet::NOFLAGS, None)?;
+        server.context.connect(None, FlagSet::NOFLAGS, None)?;
 
         loop {
-            if let IterateResult::Quit(_) | IterateResult::Err(_) = mainloop.iterate(true) {
-                anyhow::bail!("the main loop failed while connecting");
-            }
+            server.iterate()?;
 
-            match context.get_state() {
-                context::State::Ready => break,
+            match server.context.get_state() {
+                context::State::Ready => return Ok(server),
                 context::State::Failed | context::State::Terminated => {
                     anyhow::bail!("the connection failed");
                 }
                 _ => {}
             }
         }
-
-        Ok(Self { mainloop, context })
     }
 
     fn serve(
@@ -155,8 +140,10 @@ impl Server {
         data: &Rc<watch::Sender<AudioData>>,
     ) -> anyhow::Result<Closed> {
         let shared = Rc::new(Shared {
-            state: RefCell::default(),
             data: data.clone(),
+            sinks: RefCell::default(),
+            sources: RefCell::default(),
+            ready: Cell::new(false),
         });
 
         self.context.subscribe(
@@ -168,19 +155,25 @@ impl Server {
             },
         );
 
-        let introspector = self.context.introspect();
-        let (server, sinks, sources) = fetch(&introspector, &shared);
-        self.wait(&server)?;
-        self.wait(&sinks)?;
-        self.wait(&sources)?;
+        let mut introspector = self.context.introspect();
+        self.wait(&fetch_server(&introspector, &shared))?;
+        self.wait(&fetch_sinks(&introspector, &shared))?;
+        self.wait(&fetch_sources(&introspector, &shared))?;
+        shared.ready.set(true);
+        data.send_modify(|_| {});
 
+        // An event names only what changed, which is asked for again
         let events = self.context.introspect();
         let fetching = shared.clone();
-        self.context.set_subscribe_callback(Some(Box::new(
-            move |_facility, _operation, _index| {
-                fetch(&events, &fetching);
-            },
-        )));
+        self.context
+            .set_subscribe_callback(Some(Box::new(
+                move |facility, _operation, _index| match facility {
+                    Some(Facility::Server) => drop(fetch_server(&events, &fetching)),
+                    Some(Facility::Sink) => drop(fetch_sinks(&events, &fetching)),
+                    Some(Facility::Source) => drop(fetch_sources(&events, &fetching)),
+                    _ => {}
+                },
+            )));
 
         // A command wakes the main loop through the pipe; reading empties it
         let _wake = self.mainloop.new_io_event(
@@ -193,11 +186,8 @@ impl Server {
             }),
         );
 
-        let mut introspector = introspector;
         loop {
-            if let IterateResult::Quit(_) | IterateResult::Err(_) = self.mainloop.iterate(true) {
-                anyhow::bail!("the main loop failed");
-            }
+            self.iterate()?;
 
             // A server restart (e.g. `systemctl --user restart pipewire`) drops the
             // connection without making `iterate` fail: the context just moves out of
@@ -210,10 +200,12 @@ impl Server {
 
             loop {
                 match commands.try_recv() {
-                    Ok(command) => {
-                        let state = shared.state.borrow();
-                        apply(command, &state, &mut self.context, &mut introspector);
-                    }
+                    Ok(command) => apply(
+                        command,
+                        &data.borrow(),
+                        &mut self.context,
+                        &mut introspector,
+                    ),
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => return Ok(Closed),
                 }
@@ -221,11 +213,16 @@ impl Server {
         }
     }
 
+    fn iterate(&mut self) -> anyhow::Result<()> {
+        match self.mainloop.iterate(true) {
+            IterateResult::Quit(_) | IterateResult::Err(_) => anyhow::bail!("the main loop failed"),
+            IterateResult::Success(_) => Ok(()),
+        }
+    }
+
     fn wait<T: ?Sized>(&mut self, operation: &Operation<T>) -> anyhow::Result<()> {
         loop {
-            if let IterateResult::Quit(_) | IterateResult::Err(_) = self.mainloop.iterate(true) {
-                anyhow::bail!("the main loop failed");
-            }
+            self.iterate()?;
 
             match operation.get_state() {
                 operation::State::Done => return Ok(()),
@@ -242,158 +239,135 @@ type ServerOperation = Operation<dyn FnMut(&ServerInfo<'_>)>;
 type SinksOperation = Operation<dyn FnMut(ListResult<&SinkInfo<'_>>)>;
 type SourcesOperation = Operation<dyn FnMut(ListResult<&SourceInfo<'_>>)>;
 
-/// Asks for the defaults and both lists again: an event tells only that
-/// something changed.
-fn fetch(
-    introspector: &Introspector,
-    shared: &Rc<Shared>,
-) -> (ServerOperation, SinksOperation, SourcesOperation) {
-    let server = introspector.get_server_info({
-        let shared = shared.clone();
-        move |info| {
-            {
-                let data = &mut shared.state.borrow_mut().data;
-                data.default_sink = info
-                    .default_sink_name
-                    .as_deref()
-                    .unwrap_or_default()
-                    .to_string();
-                data.default_source = info
-                    .default_source_name
-                    .as_deref()
-                    .unwrap_or_default()
-                    .to_string();
+fn fetch_server(introspector: &Introspector, shared: &Rc<Shared>) -> ServerOperation {
+    let shared = shared.clone();
+    introspector.get_server_info(move |info| {
+        let sink = info.default_sink_name.as_deref().unwrap_or_default();
+        let source = info.default_source_name.as_deref().unwrap_or_default();
+        shared.update(|data| {
+            let changed = data.default_sink != sink || data.default_source != source;
+            if changed {
+                sink.clone_into(&mut data.default_sink);
+                source.clone_into(&mut data.default_source);
             }
-            shared.publish();
-        }
-    });
-
-    let sinks = introspector.get_sink_info_list({
-        let shared = shared.clone();
-        move |item| match item {
-            ListResult::Item(info) => {
-                let kept = info.ports.is_empty()
-                    || info.ports.iter().any(|p| p.available != PortAvailable::No)
-                    || info.proplist.get_str("node.link-group").is_some();
-                if kept {
-                    let device = device(
-                        info.name.as_deref(),
-                        info.description.as_deref(),
-                        info.proplist.get_str("device.description"),
-                        info.volume,
-                        info.mute,
-                        info.proplist.get_str("node.link-group").is_some(),
-                        sink_ports(&info.ports),
-                    );
-                    shared.state.borrow_mut().sinks.push((device, info.volume));
-                }
-            }
-            ListResult::End => {
-                {
-                    let state = &mut *shared.state.borrow_mut();
-                    let (devices, channels) = split(std::mem::take(&mut state.sinks));
-                    state.data.sinks = devices;
-                    state.sink_channels = channels;
-                }
-                shared.publish();
-            }
-            ListResult::Error => error!("Failed to list the PulseAudio sinks"),
-        }
-    });
-
-    let sources = introspector.get_source_info_list({
-        let shared = shared.clone();
-        move |item| match item {
-            ListResult::Item(info) => {
-                if info
-                    .name
-                    .as_deref()
-                    .is_some_and(|name| !name.contains("monitor"))
-                {
-                    let device = device(
-                        info.name.as_deref(),
-                        info.description.as_deref(),
-                        info.proplist.get_str("device.description"),
-                        info.volume,
-                        info.mute,
-                        info.proplist.get_str("node.link-group").is_some(),
-                        source_ports(&info.ports),
-                    );
-                    shared
-                        .state
-                        .borrow_mut()
-                        .sources
-                        .push((device, info.volume));
-                }
-            }
-            ListResult::End => {
-                {
-                    let state = &mut *shared.state.borrow_mut();
-                    let (devices, channels) = split(std::mem::take(&mut state.sources));
-                    state.data.sources = devices;
-                    state.source_channels = channels;
-                }
-                shared.publish();
-            }
-            ListResult::Error => error!("Failed to list the PulseAudio sources"),
-        }
-    });
-
-    (server, sinks, sources)
+            changed
+        });
+    })
 }
 
-fn split(list: Vec<(Device, ChannelVolumes)>) -> (Vec<Device>, HashMap<String, ChannelVolumes>) {
-    let channels = list
-        .iter()
-        .map(|(device, channels)| (device.name.clone(), *channels))
-        .collect();
-    let devices = list.into_iter().map(|(device, _)| device).collect();
-    (devices, channels)
+fn fetch_sinks(introspector: &Introspector, shared: &Rc<Shared>) -> SinksOperation {
+    let shared = shared.clone();
+    introspector.get_sink_info_list(move |item| match item {
+        ListResult::Item(info) => {
+            let filter = info.proplist.get_str("node.link-group").is_some();
+            let available = info.ports.iter().any(|p| p.available != PortAvailable::No);
+            if info.ports.is_empty() || available || filter {
+                let ports = sink_ports(&info.ports);
+                shared.sinks.borrow_mut().push(device(
+                    info.name.as_deref(),
+                    info.description.as_deref(),
+                    &info.proplist,
+                    &info.volume,
+                    info.mute,
+                    ports,
+                ));
+            }
+        }
+        ListResult::End => {
+            let sinks = shared.sinks.take();
+            shared.update(|data| replace(&mut data.sinks, sinks));
+        }
+        ListResult::Error => error!("Failed to list the PulseAudio sinks"),
+    })
+}
+
+fn fetch_sources(introspector: &Introspector, shared: &Rc<Shared>) -> SourcesOperation {
+    let shared = shared.clone();
+    introspector.get_source_info_list(move |item| match item {
+        ListResult::Item(info) => {
+            if info.monitor_of_sink.is_none() {
+                let ports = source_ports(&info.ports);
+                shared.sources.borrow_mut().push(device(
+                    info.name.as_deref(),
+                    info.description.as_deref(),
+                    &info.proplist,
+                    &info.volume,
+                    info.mute,
+                    ports,
+                ));
+            }
+        }
+        ListResult::End => {
+            let sources = shared.sources.take();
+            shared.update(|data| replace(&mut data.sources, sources));
+        }
+        ListResult::Error => error!("Failed to list the PulseAudio sources"),
+    })
+}
+
+fn replace(devices: &mut Vec<Device>, new: Vec<Device>) -> bool {
+    let changed = *devices != new;
+    if changed {
+        *devices = new;
+    }
+    changed
 }
 
 fn apply(
     command: AudioCommand,
-    state: &State,
+    data: &AudioData,
     context: &mut Context,
     introspector: &mut Introspector,
 ) {
-    let data = &state.data;
-    let sink = data.active_sink();
-    let source = data.active_source();
+    let sink = data.active_sink().map(|sink| sink.name.as_str());
+    let source = data.active_source().map(|source| source.name.as_str());
 
     match command {
         AudioCommand::ToggleSinkMute => {
-            if let Some(sink) = sink {
+            if let Some(sink) = data.active_sink() {
                 introspector.set_sink_mute_by_name(&sink.name, !sink.is_mute, None);
             }
         }
         AudioCommand::SetSinkMute(mute) => {
             if let Some(sink) = sink {
-                introspector.set_sink_mute_by_name(&sink.name, mute, None);
+                introspector.set_sink_mute_by_name(sink, mute, None);
             }
         }
+        // Scaled over the channels the server has now, so their balance stays
         AudioCommand::SinkVolume(volume) => {
-            if let Some(sink) = sink
-                && let Some(channels) = scaled(state.sink_channels.get(&sink.name), volume)
-            {
-                introspector.set_sink_volume_by_name(&sink.name, &channels, None);
+            if let Some(sink) = sink {
+                let mut setter = context.introspect();
+                introspector.get_sink_info_by_name(sink, move |item| {
+                    if let ListResult::Item(info) = item
+                        && let Some(name) = info.name.as_deref()
+                        && let Some(channels) = scaled(info.volume, volume)
+                    {
+                        setter.set_sink_volume_by_name(name, &channels, None);
+                    }
+                });
             }
         }
         AudioCommand::ToggleSourceMute => {
-            if let Some(source) = source {
+            if let Some(source) = data.active_source() {
                 introspector.set_source_mute_by_name(&source.name, !source.is_mute, None);
             }
         }
         AudioCommand::SetSourceMute(mute) => {
             if let Some(source) = source {
-                introspector.set_source_mute_by_name(&source.name, mute, None);
+                introspector.set_source_mute_by_name(source, mute, None);
             }
         }
         AudioCommand::SourceVolume(volume) => {
-            if let Some(source) = source
-                && let Some(channels) = scaled(state.source_channels.get(&source.name), volume)
-            {
-                introspector.set_source_volume_by_name(&source.name, &channels, None);
+            if let Some(source) = source {
+                let mut setter = context.introspect();
+                introspector.get_source_info_by_name(source, move |item| {
+                    if let ListResult::Item(info) = item
+                        && let Some(name) = info.name.as_deref()
+                        && let Some(channels) = scaled(info.volume, volume)
+                    {
+                        setter.set_source_volume_by_name(name, &channels, None);
+                    }
+                });
             }
         }
         AudioCommand::DefaultSink(name, port) => {
@@ -412,8 +386,7 @@ fn apply(
 }
 
 /// `channels` with the loudest at `volume`, the others in proportion.
-fn scaled(channels: Option<&ChannelVolumes>, volume: u32) -> Option<ChannelVolumes> {
-    let mut channels = *channels?;
+fn scaled(mut channels: ChannelVolumes, volume: u32) -> Option<ChannelVolumes> {
     if channels.scale(Volume(volume)).is_none() {
         error!("Failed to scale the volume {channels} to {volume}");
         return None;
@@ -421,25 +394,34 @@ fn scaled(channels: Option<&ChannelVolumes>, volume: u32) -> Option<ChannelVolum
     Some(channels)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn device(
     name: Option<&str>,
     description: Option<&str>,
-    fallback_description: Option<String>,
-    channels: ChannelVolumes,
+    proplist: &Proplist,
+    channels: &ChannelVolumes,
     is_mute: bool,
-    is_filter: bool,
     ports: Vec<Port>,
 ) -> Device {
+    let name = name.unwrap_or_default().to_string();
+
+    // A WirePlumber smart filter is chosen as a whole, not by port
+    let ports = if proplist.get_str("node.link-group").is_some() {
+        if ports.len() > 1 {
+            warn!("Unexpected multiple ports in the filter node {name}");
+        }
+        Vec::new()
+    } else {
+        ports
+    };
+
     Device {
-        name: name.unwrap_or_default().to_string(),
         description: description
             .map(str::to_string)
-            .or(fallback_description)
+            .or_else(|| proplist.get_str("device.description"))
             .unwrap_or_default(),
+        name,
         volume: channels.max().0,
         is_mute,
-        is_filter,
         ports,
     }
 }

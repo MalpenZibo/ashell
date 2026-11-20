@@ -22,7 +22,7 @@ Unlike D-Bus services, the audio service uses **libpulse** (the PulseAudio C lib
 libpulse's `Mainloop` is `!Send`: it cannot be moved between threads, and it runs an event loop of its own that would block tokio. So:
 
 1. `Audio::connect()` spawns an OS thread that owns the main loop (`audio/pulse.rs`).
-2. The thread keeps the whole state (`AudioData`, plus each device's channel volumes) and publishes it as a snapshot on a `watch` channel after every change. Unchanged snapshots are not sent, and a consumer that falls behind gets the latest one.
+2. The thread publishes the state as a snapshot on a `watch` channel, which is also what its commands are resolved against. A server event names what changed (the server info, the sinks or the sources), and only that is asked for again. The first snapshot is sent once all three are in; after that, unchanged snapshots are not sent, and a consumer that falls behind gets the latest one.
 3. Commands go through a `std::sync::mpsc` channel; writing a byte to a pipe the main loop polls wakes it to apply them.
 
 The thread also owns reconnection: when the server goes away (e.g. `systemctl --user restart pipewire` moves the context out of `Ready`), it publishes an empty `AudioData` and connects again every 5 seconds. Once every handle is dropped, the thread sees the command channel closed and exits.
@@ -42,8 +42,7 @@ pub struct Device {
     pub description: String,
     pub volume: u32,               // the loudest channel; NORMAL_VOLUME is 100%
     pub is_mute: bool,
-    pub is_filter: bool,           // WirePlumber smart filters
-    pub ports: Vec<Port>,          // the available ones
+    pub ports: Vec<Port>,          // the available ones; none for a WirePlumber smart filter
 }
 
 pub struct Port {
@@ -58,14 +57,14 @@ pub struct Route<'a> {
 }
 ```
 
-No libpulse type is part of the API. `AudioData` has `active_sink`/`active_source` and `sink_routes`/`source_routes`, the choices the settings panel lists.
+No libpulse type is part of the API. `AudioData` has `active_sink`/`active_source` and `sink_routes`/`source_routes`, the choices the settings panel lists: each port of a device, or the device itself when it has none. The settings panel writes their labels.
 
 ## Commands
 
 `AudioCommand` acts on the default sink or source, as the server has it when the command runs:
 
 - Set default sink/source, optionally selecting a port (`DefaultSink`, `DefaultSource`)
-- Set volume for the active sink/source (`SinkVolume`, `SourceVolume`), scaled over every channel so their balance stays
+- Set volume for the active sink/source (`SinkVolume`, `SourceVolume`), scaled over the channels the server reports at that moment, so their balance stays
 - Toggle or set mute for the active sink/source (`ToggleSinkMute`, `SetSinkMute`, `ToggleSourceMute`, `SetSourceMute`)
 
 The glue keeps what is only UI: the `Remote<u32>` sliders that show the requested volume while dragging.

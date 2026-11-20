@@ -3,10 +3,9 @@
 
 mod pulse;
 
-use futures::{Stream, stream};
-use log::warn;
+use crate::snapshot::snapshots;
+use futures::Stream;
 use std::{
-    fmt,
     os::fd::{AsRawFd, FromRawFd, OwnedFd},
     sync::{Arc, mpsc},
     thread,
@@ -23,9 +22,8 @@ pub struct Device {
     /// The loudest channel's.
     pub volume: u32,
     pub is_mute: bool,
-    /// A WirePlumber smart filter, chosen as a whole rather than by port.
-    pub is_filter: bool,
-    /// The available ones.
+    /// The available ones; none for a WirePlumber smart filter, which is
+    /// chosen as a whole.
     pub ports: Vec<Port>,
 }
 
@@ -71,19 +69,6 @@ pub struct Route<'a> {
     pub port: Option<&'a Port>,
 }
 
-impl fmt::Display for Route<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.port {
-            // The node description already names the port when it is the only one,
-            // so the prefix is only needed to tell apart ports of the same node
-            Some(port) if self.device.ports.len() > 1 => {
-                write!(f, "{}: {}", port.description, self.device.description)
-            }
-            _ => write!(f, "{}", self.device.description),
-        }
-    }
-}
-
 /// The server's sinks and sources, the monitors left out. Empty while there
 /// is no server to talk to.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -120,26 +105,15 @@ impl AudioData {
     }
 }
 
-/// Every route a user can choose: each available port of a device, or the
-/// device itself when it has none or is a
-/// [smart filter](https://pipewire.pages.freedesktop.org/wireplumber/policies/smart_filters.html).
+/// Every route a user can choose: each port of a device, or the device
+/// itself when it has none.
 fn routes(devices: &[Device]) -> impl Iterator<Item = Route<'_>> {
     devices.iter().flat_map(|device| {
-        if device.is_filter && device.ports.len() > 1 {
-            warn!(
-                "Unexpected multiple ports in a filter node: {}",
-                device.name
-            );
-        }
-
-        let ports: Box<dyn Iterator<Item = Option<&Port>>> =
-            if device.is_filter || device.ports.is_empty() {
-                Box::new(std::iter::once(None))
-            } else {
-                Box::new(device.ports.iter().map(Some))
-            };
-
-        ports.map(move |port| Route { device, port })
+        let whole = device.ports.is_empty().then_some(None);
+        whole
+            .into_iter()
+            .chain(device.ports.iter().map(Some))
+            .map(move |port| Route { device, port })
     })
 }
 
@@ -218,13 +192,7 @@ impl Audio {
     /// The current state, then a snapshot per change. A consumer that falls
     /// behind gets the latest one.
     pub fn updates(&self) -> impl Stream<Item = AudioData> + Send + 'static {
-        let mut data = self.data.clone();
-        data.mark_changed();
-        stream::unfold(data, |mut data| async move {
-            data.changed().await.ok()?;
-            let snapshot = data.borrow_and_update().clone();
-            Some((snapshot, data))
-        })
+        snapshots(self.data.clone())
     }
 
     /// Queues `command` for the server's thread and wakes it.
@@ -239,13 +207,12 @@ impl Audio {
 mod tests {
     use super::*;
 
-    fn device(name: &str, ports: &[&str], is_filter: bool) -> Device {
+    fn device(name: &str, ports: &[&str]) -> Device {
         Device {
             name: name.to_string(),
             description: name.to_uppercase(),
             volume: NORMAL_VOLUME,
             is_mute: false,
-            is_filter,
             ports: ports
                 .iter()
                 .map(|port| Port {
@@ -258,21 +225,27 @@ mod tests {
     }
 
     #[test]
-    fn a_route_per_port_and_one_per_filter() {
+    fn a_route_per_port_or_one_for_the_device() {
         let data = AudioData {
             sinks: vec![
-                device("card", &["speaker", "headphones"], false),
-                device("hdmi", &[], false),
-                device("filter", &["in"], true),
+                device("card", &["speaker", "headphones"]),
+                device("hdmi", &[]),
             ],
             ..AudioData::default()
         };
 
-        let routes: Vec<String> = data.sink_routes().map(|r| r.to_string()).collect();
+        let routes: Vec<_> = data
+            .sink_routes()
+            .map(|r| (r.device.name.as_str(), r.port.map(|p| p.name.as_str())))
+            .collect();
 
         assert_eq!(
             routes,
-            ["SPEAKER: CARD", "HEADPHONES: CARD", "HDMI", "FILTER"]
+            [
+                ("card", Some("speaker")),
+                ("card", Some("headphones")),
+                ("hdmi", None)
+            ]
         );
         assert!(data.has_multiple_sinks());
         assert!(!data.has_multiple_sources());
@@ -282,7 +255,7 @@ mod tests {
     fn the_active_device_is_the_default_one() {
         let data = AudioData {
             default_sink: "hdmi".to_string(),
-            sinks: vec![device("card", &[], false), device("hdmi", &[], false)],
+            sinks: vec![device("card", &[]), device("hdmi", &[])],
             ..AudioData::default()
         };
 

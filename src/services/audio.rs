@@ -9,7 +9,9 @@ use iced::{
 use log::error;
 use std::{any::TypeId, ops::Deref, pin::pin};
 
-pub use ashell_services::audio::{AudioCommand, AudioData, Device, NORMAL_VOLUME, Port, PortKind};
+pub use ashell_services::audio::{
+    AudioCommand, AudioData, Device, NORMAL_VOLUME, Port, PortKind, Route,
+};
 
 #[derive(Debug, Clone)]
 pub struct AudioService {
@@ -65,7 +67,7 @@ impl ReadOnlyService for AudioService {
                 };
                 let mut service = AudioService {
                     data: AudioData::default(),
-                    handle: handle.clone(),
+                    handle,
                     sink_slider: Remote::default(),
                     source_slider: Remote::default(),
                 };

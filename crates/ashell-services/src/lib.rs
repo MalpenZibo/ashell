@@ -16,6 +16,8 @@ pub mod notifications;
 pub mod privacy;
 #[cfg(feature = "rfkill")]
 pub mod rfkill;
+#[cfg(any(feature = "audio", feature = "notifications"))]
+mod snapshot;
 #[cfg(any(
     feature = "bluetooth",
     feature = "brightness",
