@@ -99,9 +99,11 @@ impl Shared {
     }
 }
 
+/// The context goes before the main loop: closing it frees the I/O events
+/// it has on the loop.
 struct Server {
-    mainloop: Mainloop,
     context: Context,
+    mainloop: Mainloop,
 }
 
 impl Server {
@@ -116,7 +118,7 @@ impl Server {
             Mainloop::new().ok_or_else(|| anyhow::anyhow!("failed to create a main loop"))?;
         let context = Context::new_with_proplist(&mainloop, APP_NAME, &proplist)
             .ok_or_else(|| anyhow::anyhow!("failed to create a context"))?;
-        let mut server = Self { mainloop, context };
+        let mut server = Self { context, mainloop };
 
         server.context.connect(None, FlagSet::NOFLAGS, None)?;
 
