@@ -25,6 +25,8 @@ pub struct Device {
     /// The available ones; none for a WirePlumber smart filter, which is
     /// chosen as a whole.
     pub ports: Vec<Port>,
+    /// The name of the port in use.
+    pub active_port: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,6 +69,15 @@ pub enum PortKind {
 pub struct Route<'a> {
     pub device: &'a Device,
     pub port: Option<&'a Port>,
+}
+
+impl Route<'_> {
+    /// Its port is the one its device uses, or it has none: with the device
+    /// the default, it is the route in use.
+    pub fn is_active(&self) -> bool {
+        self.port
+            .is_none_or(|port| self.device.active_port.as_deref() == Some(port.name.as_str()))
+    }
 }
 
 /// The server's sinks and sources, the monitors left out. Empty while there
@@ -221,6 +232,7 @@ mod tests {
                     kind: PortKind::Unknown,
                 })
                 .collect(),
+            active_port: ports.first().map(|port| port.to_string()),
         }
     }
 
@@ -249,6 +261,37 @@ mod tests {
         );
         assert!(data.has_multiple_sinks());
         assert!(!data.has_multiple_sources());
+    }
+
+    #[test]
+    fn the_route_in_use_is_the_active_port_or_a_device_without_ports() {
+        let data = AudioData {
+            sinks: vec![
+                device("card", &["speaker", "headphones"]),
+                device("hdmi", &[]),
+            ],
+            ..AudioData::default()
+        };
+
+        let active: Vec<_> = data
+            .sink_routes()
+            .map(|r| {
+                (
+                    r.device.name.as_str(),
+                    r.port.map(|p| p.name.as_str()),
+                    r.is_active(),
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            active,
+            [
+                ("card", Some("speaker"), true),
+                ("card", Some("headphones"), false),
+                ("hdmi", None, true)
+            ]
+        );
     }
 
     #[test]

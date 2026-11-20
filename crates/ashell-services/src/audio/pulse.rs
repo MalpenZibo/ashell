@@ -272,6 +272,7 @@ fn fetch_sinks(introspector: &Introspector, shared: &Rc<Shared>) -> SinksOperati
                     &info.volume,
                     info.mute,
                     ports,
+                    info.active_port.as_ref().and_then(|p| p.name.as_deref()),
                 ));
             }
         }
@@ -296,6 +297,7 @@ fn fetch_sources(introspector: &Introspector, shared: &Rc<Shared>) -> SourcesOpe
                     &info.volume,
                     info.mute,
                     ports,
+                    info.active_port.as_ref().and_then(|p| p.name.as_deref()),
                 ));
             }
         }
@@ -403,17 +405,18 @@ fn device(
     channels: &ChannelVolumes,
     is_mute: bool,
     ports: Vec<Port>,
+    active_port: Option<&str>,
 ) -> Device {
     let name = name.unwrap_or_default().to_string();
 
     // A WirePlumber smart filter is chosen as a whole, not by port
-    let ports = if proplist.get_str("node.link-group").is_some() {
+    let (ports, active_port) = if proplist.get_str("node.link-group").is_some() {
         if ports.len() > 1 {
             warn!("Unexpected multiple ports in the filter node {name}");
         }
-        Vec::new()
+        (Vec::new(), None)
     } else {
-        ports
+        (ports, active_port.map(str::to_string))
     };
 
     Device {
@@ -425,6 +428,7 @@ fn device(
         volume: channels.max().0,
         is_mute,
         ports,
+        active_port,
     }
 }
 

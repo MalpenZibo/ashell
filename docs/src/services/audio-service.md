@@ -43,6 +43,7 @@ pub struct Device {
     pub volume: u32,               // the loudest channel; NORMAL_VOLUME is 100%
     pub is_mute: bool,
     pub ports: Vec<Port>,          // the available ones; none for a WirePlumber smart filter
+    pub active_port: Option<String>, // the name of the port in use
 }
 
 pub struct Port {
@@ -57,7 +58,7 @@ pub struct Route<'a> {
 }
 ```
 
-No libpulse type is part of the API. `AudioData` has `active_sink`/`active_source` and `sink_routes`/`source_routes`, the choices the settings panel lists: each port of a device, or the device itself when it has none. The settings panel writes their labels.
+No libpulse type is part of the API. `AudioData` has `active_sink`/`active_source` and `sink_routes`/`source_routes`, the choices the settings panel lists: each port of a device, or the device itself when it has none. A route `is_active` when its port is the one its device uses, so the panel marks only the port in use of the default device. The settings panel writes their labels.
 
 ## Commands
 

@@ -503,7 +503,7 @@ impl AudioSettings {
                             .port
                             .and_then(Self::port_icon)
                             .unwrap_or(StaticIcon::Speaker3),
-                        active: route.device.name == service.default_sink,
+                        active: route.device.name == service.default_sink && route.is_active(),
                         msg: Message::DefaultSinkChanged(
                             route.device.name.clone(),
                             route.port.map(|p| p.name.clone()),
@@ -530,7 +530,7 @@ impl AudioSettings {
                             .port
                             .and_then(Self::port_icon)
                             .unwrap_or(StaticIcon::Mic1),
-                        active: route.device.name == service.default_source,
+                        active: route.device.name == service.default_source && route.is_active(),
                         msg: Message::DefaultSourceChanged(
                             route.device.name.clone(),
                             route.port.map(|p| p.name.clone()),
