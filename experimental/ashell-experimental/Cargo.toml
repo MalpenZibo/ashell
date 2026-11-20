@@ -10,6 +10,10 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+ashell-i18n.workspace = true
+ashell-services = { workspace = true, features = ["weather"] }
+chrono = { workspace = true, features = ["clock", "std", "unstable-locales"] }
+chrono-tz.workspace = true
 env_logger = "0.11"
 futures.workspace = true
 guido.workspace = true
@@ -23,3 +27,4 @@ toml = { version = "0.9", features = ["preserve_order"] }
 [dev-dependencies]
 guido = { workspace = true, features = ["testing"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
+webp = "0.3"

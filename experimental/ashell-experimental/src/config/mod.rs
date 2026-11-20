@@ -11,11 +11,14 @@ use serde::Deserialize;
 use styletto::foundations::tokens::Space;
 use styletto::theme::config::UiConfig;
 
-pub use catalogue::{ItemId, Open, Panel, Show};
+pub use catalogue::{Action, Gestures, ItemId, Open, Panel, Show};
+
+use crate::modules;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
     pub appearance: UiConfig,
+    pub modules: modules::Configs,
     pub bars: Vec<Bar>,
     /// The first that matches a monitor gives it its bars; the last matches
     /// any.
@@ -231,6 +234,8 @@ pub struct Item {
     pub id: ItemId,
     pub show: Show,
     pub open: Option<Open>,
+    pub gestures: Gestures,
+    /// The item's own options, as its module reads them.
     pub options: toml::Table,
 }
 
@@ -240,6 +245,7 @@ impl Item {
             id,
             show: id.default_show(),
             open: id.default_open(),
+            gestures: modules::default_gestures(id),
             options: toml::Table::new(),
         }
     }

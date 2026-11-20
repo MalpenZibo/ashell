@@ -8,7 +8,8 @@ zone shows its details. Both are set on a node, or on the bar for all of
 them, and flow down.
 
 {% <note kind="info" title="Placeholders"> %}
-The panels are placeholders for now, sized like the real ones: how they open
+The panels are placeholders for now, sized like the real ones, but for the
+[calendar](@/docs/rolling/configuration/tempo.md#the-calendar): how they open
 and close is what is in place.
 {% </note> %}
 
@@ -19,6 +20,8 @@ and close is what is in place.
 | `"dropdown"` (default) | The panel drops down from the edge of the nearest island, or of the bar, as wide as it is from the start: the stable ashell's menus. |
 | `"merge"` | The panel splits off the nearest island, starting as a sliver and growing to its size, merged with it. It merges back on close. Whether it stays joined by a neck is the bar's `gap`: see below. |
 | `"morph"` | The group's own island turns into the panel, and back. |
+
+{{ <panel_modes /> }}
 
 ### Joined or apart: `gap`
 

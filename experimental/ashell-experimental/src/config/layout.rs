@@ -5,7 +5,9 @@ use styletto::foundations::tokens::{Space, size};
 use styletto::theme::config::UiConfig;
 use toml::{Table, Value};
 
-use super::catalogue::{ItemId, Open, builtin_zone};
+use super::catalogue::{Action, Gestures, ItemId, Open, builtin_zone};
+use crate::modules::{self, ModuleId};
+
 use super::{
     Background, Bar, Config, Holds, Host, Item, Monitor, Node, Padding, Panels, Parsed, Place,
     Position, Spec, Zone,
@@ -20,12 +22,28 @@ const DEFAULT_GROUPS: [&[&str]; 3] = [
 
 pub fn read(file: &Table) -> Parsed {
     let mut reader = Reader::default();
-    reader.known_keys("", file, &["appearance", "bar", "monitor", "zone"]);
+    let keys: Vec<&str> = ["appearance", "bar", "monitor", "zone"]
+        .into_iter()
+        .chain(ModuleId::ALL.iter().map(|module| module.spec().name))
+        .collect();
+    reader.known_keys("", file, &keys);
 
     let appearance = file
         .get("appearance")
         .map(|value| reader.appearance(value))
         .unwrap_or_default();
+
+    let mut modules = modules::Configs::default();
+
+    for module in ModuleId::ALL {
+        let name = module.spec().name;
+
+        if let Some(table) = file.get(name).and_then(|value| reader.table(name, value)) {
+            let problems = modules.read(module, table);
+
+            reader.problems.extend(problems);
+        }
+    }
 
     if let Some(zones) = file.get("zone") {
         reader.zone_tables(zones);
@@ -45,6 +63,7 @@ pub fn read(file: &Table) -> Parsed {
     Parsed {
         config: Config {
             appearance,
+            modules,
             bars: bars.into_iter().map(|(_, bar)| bar).collect(),
             monitors,
         },
@@ -524,16 +543,77 @@ impl Reader {
                 if let Some(open) = self.get(at, table, "open") {
                     item.open = Some(open);
                 }
+                for key in Gestures::KEYS {
+                    if let Some(value) = table.get(key) {
+                        let action = self.action(&format!("{at}.{key}"), item.id, value);
+
+                        if let (Some(action), Some(slot)) = (action, item.gestures.get_mut(key)) {
+                            *slot = Some(action);
+                        }
+                    }
+                }
                 item.options = table
                     .iter()
-                    .filter(|(key, _)| !["item", "show", "open"].contains(&key.as_str()))
+                    .filter(|(key, _)| {
+                        !["item", "show", "open"].contains(&key.as_str())
+                            && !Gestures::KEYS.contains(&key.as_str())
+                    })
                     .map(|(key, value)| (key.clone(), value.clone()))
                     .collect();
+                for problem in modules::check_options(item.id, &item.options) {
+                    self.warn(at, problem);
+                }
 
                 Some(item)
             }
             _ => {
                 self.warn(at, "expected an item, or a table with `item`");
+                None
+            }
+        }
+    }
+
+    /// An action of the item's by name, `"none"`, `{ open = "<panel>" }` or
+    /// `{ run = "<command>" }`.
+    fn action(&mut self, at: &str, item: ItemId, value: &Value) -> Option<Action> {
+        match value {
+            Value::String(name) if name == "none" => Some(Action::None),
+            Value::String(name) => {
+                let action = modules::actions(item).iter().find(|action| *action == name);
+
+                if action.is_none() {
+                    self.warn(
+                        at,
+                        format!("{} has no action named \"{name}\"", item.name()),
+                    );
+                }
+
+                action.map(|action| Action::Named(action))
+            }
+            Value::Table(table) => {
+                self.known_keys(at, table, &["open", "run"]);
+
+                if table.contains_key("open") {
+                    return self.get::<Open>(at, table, "open").map(|open| match open {
+                        Open::Panel(panel) => Action::Open(panel),
+                        Open::Nothing => Action::None,
+                    });
+                }
+
+                if let Some(command) = table.get("run") {
+                    let command = self.string(&format!("{at}.run"), command)?;
+
+                    return Some(Action::Run(command.to_string()));
+                }
+
+                self.warn(at, "expected `open` or `run`");
+                None
+            }
+            _ => {
+                self.warn(
+                    at,
+                    "expected an action's name, or a table with `open` or `run`",
+                );
                 None
             }
         }
@@ -1183,12 +1263,85 @@ center = [\"clock\"]
         );
 
         let problems = parsed.problems.join("\n");
+
         assert!(
             problems.contains(
                 "zone.hot.open: \"calendr\": expected \"none\" or a panel, one of settings, calendar,"
             ),
             "{problems}"
         );
+    }
+
+    #[test]
+    fn gestures_bind_actions_over_the_items_defaults() {
+        let parsed = read(
+            r#"
+            [bar.main]
+            center = "clock"
+
+            [zone.clock]
+            items = [
+                "clock",
+                { item = "clock", scroll_up = "previous_timezone", middle_click = { run = "gnome-calendar" } },
+                { item = "date", right_click = { open = "calendar" }, scroll_down = "none" },
+            ]
+            "#,
+        );
+        assert!(parsed.problems.is_empty(), "{:?}", parsed.problems);
+
+        let items = &place(&parsed.config.bars[0], 1)[0].zones()[0].items;
+
+        assert_eq!(items[0].gestures, modules::default_gestures(ItemId::Clock));
+        assert_eq!(
+            items[1].gestures.scroll_up,
+            Some(Action::Named("previous_timezone"))
+        );
+        assert_eq!(
+            items[1].gestures.right_click,
+            Some(Action::Named("cycle_format"))
+        );
+        assert_eq!(
+            items[1].gestures.middle_click,
+            Some(Action::Run("gnome-calendar".into()))
+        );
+        assert_eq!(
+            items[2].gestures.right_click,
+            Some(Action::Open(Panel::Calendar))
+        );
+        assert_eq!(items[2].gestures.scroll_down, Some(Action::None));
+        assert!(items[1].options.is_empty());
+    }
+
+    #[test]
+    fn wrong_gestures_and_options_are_reported() {
+        let parsed = read(
+            r#"
+            [bar.main]
+            center = "clock"
+
+            [zone.clock]
+            items = [
+                { item = "date", right_click = "cycle_format", format = "%Q" },
+                { item = "clock", middle_click = { open = "nowhere" }, colour = "red" },
+                { item = "forecast", hours = 40 },
+            ]
+            "#,
+        );
+
+        let problems = parsed.problems.join("\n");
+
+        for expected in [
+            "zone.clock.items[0].right_click: date has no action named \"cycle_format\"",
+            "zone.clock.items[0]: format: \"%Q\" is not a date format",
+            "zone.clock.items[1].middle_click.open: \"nowhere\": expected \"none\" or a panel",
+            "zone.clock.items[1]: colour: unknown option of clock",
+            "zone.clock.items[2]: hours: expected a number from 1 to 12",
+        ] {
+            assert!(
+                problems.contains(expected),
+                "{expected:?} not in:\n{problems}"
+            );
+        }
     }
 
     #[test]

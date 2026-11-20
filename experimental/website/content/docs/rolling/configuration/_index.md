@@ -46,6 +46,7 @@ table:
 | [`[bar.<name>]`](@/docs/rolling/configuration/bars.md) | A bar: its edge, its content, how it draws and opens. |
 | [`[monitor."<monitor>"]`](@/docs/rolling/configuration/bars.md#monitors) | Which bars a monitor has. |
 | [`[zone.<name>]`](@/docs/rolling/configuration/zones.md) | A zone's items, details and click. |
+| [`[tempo]`](@/docs/rolling/configuration/tempo.md) | The time zones, and where the weather is for. |
 
 ## The levels of a bar
 
@@ -67,6 +68,8 @@ bar                  an edge of the screen: where, and how things open
   and a pointer resting on a zone do.
 - [Zones and items](@/docs/rolling/configuration/zones.md): the built-in
   zones, and how to make your own.
+- [Tempo](@/docs/rolling/configuration/tempo.md): the time, the weather and
+  the calendar.
 
 ## Options flow down
 

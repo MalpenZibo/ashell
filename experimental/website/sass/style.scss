@@ -1203,3 +1203,113 @@ pre {
   padding: 96px 16px;
   text-align: center;
 }
+
+// A desktop for the pictures of the bar, which have nothing behind them, so it
+// follows the page's theme.
+.desktop {
+  margin: 1.5rem 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary) 30%, var(--bg)),
+    var(--surface-2) 55%,
+    var(--bg)
+  );
+  box-shadow: var(--shadow);
+
+  img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}
+
+// The same picture in each way of a setting, switched with no script: a radio
+// per way, its tab a label, its picture shown while it is checked.
+.mode-switch {
+  margin: 1.5rem 0;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.mode-switch .desktop {
+  margin: 0;
+}
+
+.mode-shot {
+  display: none;
+  margin: 0;
+}
+
+.mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+
+    &:hover {
+      background: var(--surface);
+    }
+  }
+}
+
+.mode-name {
+  color: var(--heading);
+  font-weight: 600;
+
+  code {
+    margin-left: 0.25rem;
+    font-weight: 400;
+    color: var(--muted);
+  }
+}
+
+.mode-what {
+  color: var(--muted);
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .mode-tabs {
+    grid-template-columns: 1fr;
+  }
+}
+
+@each $mode in dropdown, merge, morph {
+  #panel-mode-#{$mode}:checked ~ .mode-tabs label[for="panel-mode-#{$mode}"] {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  #panel-mode-#{$mode}:focus-visible ~ .mode-tabs label[for="panel-mode-#{$mode}"] {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  #panel-mode-#{$mode}:checked ~ .desktop .mode-shot[data-mode="#{$mode}"] {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-tabs label {
+    transition: none;
+  }
+}

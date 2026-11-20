@@ -13,9 +13,18 @@ edition = "2024"
 rust-version = "1.97"
 
 [workspace.dependencies]
+ashell-i18n = { path = "../crates/ashell-i18n" }
+ashell-services = { path = "../crates/ashell-services" }
+chrono = { version = "0.4", default-features = false }
+chrono-tz = "0.10"
 futures = "0.3"
 guido = { git = "https://github.com/MalpenZibo/guido", branch = "main" }
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
 styletto = { git = "https://github.com/MalpenZibo/styletto", branch = "main", features = ["serde", "wallpaper"] }
 tokio = { version = "1", default-features = false }
+
+# libwebp encodes the site's pictures in the tests; unoptimised it takes
+# minutes.
+[profile.dev.package.libwebp-sys]
+opt-level = 3
