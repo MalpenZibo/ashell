@@ -1,8 +1,10 @@
 //! The machine's state, and what of it can be set from the bar: the
 //! `battery`, `peripheral_battery`, `power_profile`, `bluetooth`,
-//! `idle_inhibitor` and `brightness` items.
+//! `idle_inhibitor` and `brightness` items, and the `settings` panel.
 
+mod config;
 mod items;
+mod panel;
 #[cfg(test)]
 pub mod sample;
 
@@ -13,13 +15,16 @@ use ashell_services::upower::{UPower, UPowerCommand};
 use guido::prelude::*;
 use toml::Table;
 
-use super::{ItemView, Spec};
-use crate::config::{Action, Gestures, Item, ItemId};
+use super::{Close, ItemView, Spec};
+use crate::config::{Action, Gestures, Item, ItemId, Panel};
 use crate::services::{Linked, link};
+
+pub use config::SettingsConfig;
 
 /// The module's state, shared by every item it draws.
 #[derive(Clone, Copy)]
 pub struct Settings {
+    config: Memo<SettingsConfig>,
     upower: Linked<UPower>,
     bluetooth: Linked<Bluetooth>,
     brightness: Linked<Brightness>,
@@ -35,8 +40,9 @@ struct Idle {
 }
 
 impl Settings {
-    pub fn new() -> Self {
+    pub fn new(config: Memo<SettingsConfig>) -> Self {
         Self {
+            config,
             upower: link(),
             bluetooth: link(),
             brightness: link(),
@@ -48,6 +54,11 @@ impl Settings {
         items::view(self, item)
     }
 
+    /// Its one panel.
+    pub fn panel(self, _panel: Panel, close: Close) -> Container {
+        panel::view(self, close)
+    }
+
     fn act(self, action: &str) {
         match action {
             NEXT_POWER_PROFILE => self.upower.commands.send(UPowerCommand::TogglePowerProfile),
@@ -57,6 +68,19 @@ impl Settings {
             BRIGHTNESS_DOWN => self.step_brightness(false),
             _ => {}
         }
+    }
+
+    /// Sets the backlight to `percent`, never under its lowest level that
+    /// lights.
+    fn set_brightness(self, percent: f32) {
+        let Some(data) = self.brightness.data.get_untracked() else {
+            return;
+        };
+        let value = (percent / 100.0 * data.max as f32).round() as u32;
+
+        self.brightness
+            .commands
+            .send(BrightnessCommand(value.max(data.max.min(1))));
     }
 
     /// A twentieth of the range, as ashell's. Down stops at 1, not 0: a raw 0
@@ -127,6 +151,7 @@ pub const SPEC: Spec = Spec {
     check_options,
     states: items::states,
     notable: items::notable,
+    panel_width,
     ..Spec::bare("settings")
 };
 
@@ -154,4 +179,8 @@ fn default_gestures(id: ItemId) -> Gestures {
 
 fn check_options(id: ItemId, options: &Table) -> Vec<String> {
     items::Options::read(id, options).1
+}
+
+fn panel_width(_panel: Panel) -> f32 {
+    panel::width()
 }

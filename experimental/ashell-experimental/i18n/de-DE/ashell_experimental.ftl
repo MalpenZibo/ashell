@@ -34,6 +34,38 @@ weather-thunderstorm-hail-slight = Gewitter mit leichtem Hagel
 weather-thunderstorm-hail-heavy = Gewitter mit starkem Hagel
 weather-unknown = Unbekanntes Wetter
 
+## Settings
+settings-power-suspend = Standby
+settings-power-hibernate = Ruhezustand
+settings-power-reboot = Neustart
+settings-power-shutdown = Herunterfahren
+settings-power-logout = Abmelden
+settings-power-full-in = Voll in { $duration }
+settings-power-empty-in = Leer in { $duration }
+settings-power-profile-balanced = Ausgeglichen
+settings-power-profile-performance = Leistung
+settings-power-profile-power-saver = Energie sparen
+settings-power-status-charging = Wird geladen
+settings-power-status-not-charging = Lädt nicht
+settings-power-status-full = Voll
+settings-bluetooth = Bluetooth
+settings-bluetooth-known-devices = Gekoppelte Geräte
+settings-bluetooth-available = Verfügbar
+settings-bluetooth-pair = Koppeln
+settings-bluetooth-no-devices = Keine Geräte gefunden
+settings-scanning = Wird gesucht …
+settings-power = Energie
+settings-power-lock = Sperren
+settings-power-mode = Energie-Modus
+settings-on = An
+settings-off = Aus
+settings-bluetooth-off = Bluetooth ausgeschaltet
+settings-bluetooth-connected = Verbunden
+settings-bluetooth-disconnected = Verbindung getrennt
+settings-power-profile-power-saver-description = Reduzierte Leistungsfähigkeit und niedriger Energieverbrauch
+settings-power-profile-balanced-description = Normale Leistungsfähigkeit und normaler Energieverbrauch
+settings-power-profile-performance-description = Hohe Leistungsfähigkeit und erhöhter Energieverbrauch
+
 ## The config window
 config-settings = Einstellungen
 config-page-bar = Leiste

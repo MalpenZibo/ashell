@@ -34,6 +34,38 @@ weather-thunderstorm-hail-slight = Гроза с небольшим градом
 weather-thunderstorm-hail-heavy = Гроза с сильным градом
 weather-unknown = Неизвестные погодные условия
 
+## Settings
+settings-power-suspend = Спящий режим
+settings-power-hibernate = Гибернация
+settings-power-reboot = Перезагрузить
+settings-power-shutdown = Выключить
+settings-power-logout = Выйти
+settings-power-full-in = Зарядится через { $duration }
+settings-power-empty-in = Разрядится через { $duration }
+settings-power-profile-balanced = Сбалансированный
+settings-power-profile-performance = Производительность
+settings-power-profile-power-saver = Экономия энергии
+settings-power-status-charging = Заряжается
+settings-power-status-not-charging = Не заряжается
+settings-power-status-full = Полностью заряжена
+settings-bluetooth = Bluetooth
+settings-bluetooth-known-devices = Сопряжённые устройства
+settings-bluetooth-available = Доступные
+settings-bluetooth-pair = Сопряжение
+settings-bluetooth-no-devices = Устройства не найдены
+settings-scanning = Поиск…
+settings-power = Питание
+settings-power-lock = Заблокировать
+settings-power-mode = Режим питания
+settings-on = Включено
+settings-off = Выключено
+settings-bluetooth-off = Адаптер Bluetooth выключен
+settings-bluetooth-connected = Подключено
+settings-bluetooth-disconnected = Отключено
+settings-power-profile-power-saver-description = Уменьшенная производительность и энергопотребление
+settings-power-profile-balanced-description = Стандартная производительность и энергопотребление
+settings-power-profile-performance-description = Высокая производительность и энергопотребление
+
 ## The config window
 config-settings = Настройки
 config-page-bar = Панель

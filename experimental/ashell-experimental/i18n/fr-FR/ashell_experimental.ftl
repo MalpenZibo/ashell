@@ -34,6 +34,38 @@ weather-thunderstorm-hail-slight = Orage avec grêle légère
 weather-thunderstorm-hail-heavy = Orage avec grêle forte
 weather-unknown = Condition météo inconnue
 
+## Settings
+settings-power-suspend = Mettre en veille
+settings-power-hibernate = Hiberner
+settings-power-reboot = Redémarrer
+settings-power-shutdown = Éteindre
+settings-power-logout = Déconnexion
+settings-power-full-in = Pleine dans { $duration }
+settings-power-empty-in = Vide dans { $duration }
+settings-power-profile-balanced = Équilibré
+settings-power-profile-performance = Performance
+settings-power-profile-power-saver = Économie d'énergie
+settings-power-status-charging = En charge
+settings-power-status-not-charging = Pas en charge
+settings-power-status-full = Pleine
+settings-bluetooth = Bluetooth
+settings-bluetooth-known-devices = Appareils connus
+settings-bluetooth-available = Disponibles
+settings-bluetooth-pair = Appairer
+settings-bluetooth-no-devices = Aucun appareil trouvé
+settings-scanning = Recherche en cours…
+settings-power = Énergie
+settings-power-lock = Verrouiller
+settings-power-mode = Mode puissance
+settings-on = Activé
+settings-off = Désactivé
+settings-bluetooth-off = Bluetooth désactivé
+settings-bluetooth-connected = Connecté
+settings-bluetooth-disconnected = Déconnecté
+settings-power-profile-power-saver-description = Performances et consommation d’énergie réduites
+settings-power-profile-balanced-description = Performances et consommation d’énergie normales
+settings-power-profile-performance-description = Performances et consommation d’énergie élevées
+
 ## The config window
 config-settings = Paramètres
 config-page-bar = Barre

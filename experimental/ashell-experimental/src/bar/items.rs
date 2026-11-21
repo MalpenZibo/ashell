@@ -10,6 +10,7 @@ use styletto::components::button::{pill, pill_text};
 use styletto::foundations::control::Size;
 use styletto::foundations::tokens::size;
 
+use crate::command;
 use crate::config::{Action, Item, Open};
 use crate::modules::{ItemView, Modules};
 
@@ -92,7 +93,7 @@ fn drawn(item: &Item, view: ItemView, zone_open: Open, opens: Opens) -> Containe
         move || match &action {
             Action::Named(name) => act(name),
             Action::Open(open) => opens(*open),
-            Action::Run(command) => run_command(command.clone()),
+            Action::Run(command) => command::run(command.clone()),
             Action::None => {}
         }
     };
@@ -144,19 +145,4 @@ fn drawn(item: &Item, view: ItemView, zone_open: Open, opens: Opens) -> Containe
     }
 
     view
-}
-
-/// Runs `command` with the shell, off the UI thread.
-fn run_command(command: String) {
-    std::thread::spawn(move || {
-        match std::process::Command::new("sh")
-            .arg("-c")
-            .arg(&command)
-            .status()
-        {
-            Ok(status) if !status.success() => log::warn!("`{command}` ended with {status}"),
-            Ok(_) => {}
-            Err(err) => log::warn!("`{command}` did not start: {err}"),
-        }
-    });
 }

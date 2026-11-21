@@ -2,7 +2,9 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use ashell_services::bluetooth::BluetoothState;
-use ashell_services::upower::{BatteryData, BatteryStatus, PeripheralDeviceKind, PowerProfile};
+use ashell_services::upower::{
+    BatteryData, BatteryStatus, PeripheralDeviceKind, PowerProfile, UPowerData,
+};
 use guido::prelude::*;
 use styletto::components::level::{Glyph, Level as Charge, Levels, level_indicator};
 use styletto::foundations::tokens::{icon as icon_box, size};
@@ -16,7 +18,7 @@ use crate::config::{Item, ItemId};
 use crate::modules::{ItemView, Style, shown, unknown_options};
 
 /// ashell's: a warning below 30%, an alert below 20%.
-const THRESHOLDS: Thresholds = Thresholds {
+pub(super) const THRESHOLDS: Thresholds = Thresholds {
     warn: 30,
     alert: 20,
 };
@@ -52,7 +54,7 @@ pub fn notable(id: ItemId) -> &'static [&'static str] {
     match id {
         ItemId::Battery | ItemId::PeripheralBattery => &[WARN, ALERT, CHARGING],
         ItemId::BatteryTime => &[DISCHARGING],
-        ItemId::Bluetooth => &[CONNECTED],
+        ItemId::Bluetooth => &[ON],
         ItemId::IdleInhibitor => &[ON],
         ItemId::PowerProfile => &[PERFORMANCE, POWER_SAVER],
         _ => &[],
@@ -256,7 +258,7 @@ fn without_estimate(mut battery: BatteryData) -> BatteryData {
     battery
 }
 
-fn charging(battery: &BatteryData) -> bool {
+pub(super) fn charging(battery: &BatteryData) -> bool {
     matches!(battery.status, BatteryStatus::Charging(_))
 }
 
@@ -275,7 +277,7 @@ fn battery_is(battery: &BatteryData, thresholds: Thresholds, state: &str) -> boo
 
 /// How a battery stands: well while charging or held by a charge limit, its
 /// warning or alert while discharging.
-fn battery_level(battery: &BatteryData, thresholds: Thresholds, held: bool) -> Charge {
+pub(super) fn battery_level(battery: &BatteryData, thresholds: Thresholds, held: bool) -> Charge {
     if charging(battery) || held {
         Charge::Good
     } else if battery.is_discharging {
@@ -337,14 +339,7 @@ fn battery_time(settings: Settings, item: &Item) -> Drawn {
     let upower = settings.upower.data;
 
     let battery = create_memo(move || upower.with(|data| data.system_battery));
-    let left = create_memo(move || {
-        battery.get().and_then(|battery| match battery.status {
-            BatteryStatus::Charging(left) | BatteryStatus::Discharging(left) if !left.is_zero() => {
-                Some(left)
-            }
-            _ => None,
-        })
-    });
+    let left = create_memo(move || upower.with(time_left));
     let is = move |state: &str| {
         battery
             .get()
@@ -354,6 +349,20 @@ fn battery_time(settings: Settings, item: &Item) -> Drawn {
     let view = container().child(label(move || left.get().map(span).unwrap_or_default()));
 
     (view, shown(item, move || left.get().is_some(), is))
+}
+
+/// How long until the battery is full or empty, as the panel says it: the
+/// charger, not the battery's state, tells charging from draining. On the
+/// charger with the charge held, as near a full charge, the firmware lets the
+/// battery drain a little and UPower estimates days to empty: none then.
+fn time_left(data: &UPowerData) -> Option<Duration> {
+    let plugged = data.on_battery == Some(false);
+
+    match data.system_battery?.status {
+        BatteryStatus::Charging(left) if !left.is_zero() => Some(left),
+        BatteryStatus::Discharging(left) if !left.is_zero() && !plugged => Some(left),
+        _ => None,
+    }
 }
 
 /// "1h 12m", "45m".
@@ -419,7 +428,7 @@ fn levels(style: Style, levels: Levels) -> Levels {
     if style.icon() { levels } else { Levels(&[]) }
 }
 
-fn peripheral_icon(kind: PeripheralDeviceKind) -> Icon {
+pub(super) fn peripheral_icon(kind: PeripheralDeviceKind) -> Icon {
     match kind {
         PeripheralDeviceKind::Keyboard => Icon::Keyboard,
         PeripheralDeviceKind::Mouse => Icon::Mouse,
@@ -458,11 +467,20 @@ fn power_profile(settings: Settings, item: &Item) -> Drawn {
     )
 }
 
-fn power_profile_icon(profile: PowerProfile) -> Icon {
+pub(super) fn power_profile_icon(profile: PowerProfile) -> Icon {
     match profile {
         PowerProfile::Performance => Icon::Gauge,
         PowerProfile::PowerSaver => Icon::Leaf,
         PowerProfile::Balanced | PowerProfile::Unknown => Icon::Zap,
+    }
+}
+
+/// Bluetooth's icon, on or off.
+pub(super) fn bluetooth_icon(on: bool) -> Icon {
+    if on {
+        Icon::Bluetooth
+    } else {
+        Icon::BluetoothOff
     }
 }
 
@@ -572,6 +590,34 @@ mod tests {
 
     fn read(id: ItemId, text: &str) -> (Options, Vec<String>) {
         Options::read(id, &toml::from_str(text).unwrap())
+    }
+
+    #[test]
+    fn a_battery_held_on_the_charger_has_no_time_left() {
+        let data = |on_battery, status| UPowerData {
+            on_battery: Some(on_battery),
+            system_battery: Some(at(100, status)),
+            ..UPowerData::default()
+        };
+        let days = Duration::from_secs(140 * 24 * 3600);
+        let hour = Duration::from_secs(3600);
+
+        assert_eq!(
+            time_left(&data(false, BatteryStatus::Discharging(days))),
+            None
+        );
+        assert_eq!(
+            time_left(&data(true, BatteryStatus::Discharging(hour))),
+            Some(hour)
+        );
+        assert_eq!(
+            time_left(&data(false, BatteryStatus::Charging(hour))),
+            Some(hour)
+        );
+        assert_eq!(
+            time_left(&data(true, BatteryStatus::Discharging(Duration::ZERO))),
+            None
+        );
     }
 
     #[test]

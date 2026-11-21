@@ -407,9 +407,9 @@ fn panel_width(panel: Panel) -> f32 {
 }
 
 /// What a panel shows: its module's view, or its placeholder.
-fn panel_view(panel: Panel, modules: Modules) -> Container {
+fn panel_view(panel: Panel, modules: Modules, state: State) -> Container {
     modules
-        .panel(panel)
+        .panel(panel, Rc::new(move || state.close()))
         .unwrap_or_else(|| placeholder::panel(panel))
 }
 

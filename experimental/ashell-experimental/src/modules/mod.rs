@@ -16,7 +16,7 @@ use toml::Table;
 
 use crate::config::{Config, Gestures, Item, ItemId, Panel};
 use configurator::Configurator;
-use settings::Settings;
+use settings::{Settings, SettingsConfig};
 use tempo::{Tempo, TempoConfig};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -107,6 +107,7 @@ pub fn panel_width(panel: Panel) -> Option<f32> {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Configs {
     pub tempo: TempoConfig,
+    pub settings: SettingsConfig,
 }
 
 impl Configs {
@@ -119,7 +120,13 @@ impl Configs {
                 self.tempo = config;
                 problems
             }
-            ModuleId::Settings | ModuleId::Config => unknown_keys(module, table),
+            ModuleId::Settings => {
+                let (config, problems) = SettingsConfig::read(table);
+
+                self.settings = config;
+                problems
+            }
+            ModuleId::Config => unknown_keys(module, table),
         }
     }
 }
@@ -131,6 +138,9 @@ fn unknown_keys(module: ModuleId, table: &Table) -> Vec<String> {
         .map(|key| format!("{}.{key}: unknown key, ignored", module.spec().name))
         .collect()
 }
+
+/// Closes the panel it is given to.
+pub type Close = Rc<dyn Fn()>;
 
 /// An item as its module draws it.
 pub struct ItemView {
@@ -211,7 +221,9 @@ impl Modules {
             tempo: Tempo::new(create_memo(move || {
                 config.with(|c| c.modules.tempo.clone())
             })),
-            settings: Settings::new(),
+            settings: Settings::new(create_memo(move || {
+                config.with(|c| c.modules.settings.clone())
+            })),
             configurator: Configurator::new(config),
         }
     }
@@ -225,7 +237,9 @@ impl Modules {
                 now,
                 Some(tempo::sample::weather(now)),
             ),
-            settings: settings::sample::settings(),
+            settings: settings::sample::settings(create_memo(move || {
+                config.with(|c| c.modules.settings.clone())
+            })),
             configurator: Configurator::new(config),
         }
     }
@@ -244,11 +258,12 @@ impl Modules {
         }
     }
 
-    /// `None` for a panel no module draws yet.
-    pub fn panel(self, panel: Panel) -> Option<Container> {
+    /// `None` for a panel no module draws yet. `close` closes it, for what
+    /// is done once a button in it has run.
+    pub fn panel(self, panel: Panel, close: Close) -> Option<Container> {
         match panel.module()? {
             ModuleId::Tempo => Some(self.tempo.panel(panel)),
-            ModuleId::Settings => None,
+            ModuleId::Settings => Some(self.settings.panel(panel, close)),
             ModuleId::Config => None,
         }
     }
