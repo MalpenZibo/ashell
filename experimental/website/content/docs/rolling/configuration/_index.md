@@ -25,7 +25,8 @@ The file's folder is watched: when the file is written, or saved over by
 renaming, the bars are made again with the new configuration. A save that
 changes nothing does nothing. Deleting the file, or moving it away, gives
 the default bar back. A symlinked file is followed to where it points, and
-to the new file when the link is pointed elsewhere.
+to the new file when the link is pointed elsewhere. The files it imports are
+watched the same way.
 {% </note> %}
 
 A file that does not parse is logged and ignored: the bars keep the last
@@ -34,6 +35,40 @@ known in the layout tables (`[bar.*]`, the nodes, `[zone.*]`,
 `[monitor.*]`), and values that fall back to a default, are logged as
 warnings; an item's other keys are kept as its options. Run with
 `RUST_LOG=info` to see each reload.
+
+## Imports
+
+Any table at the top of the file can read its keys from a file of its own,
+with `import`. The file holds what the table would, without the header, so a
+look can be shared with other programs that use styletto, such as allock,
+and the configuration can be split by module:
+
+```toml
+[appearance]
+import = "~/.config/styletto/styletto.toml"
+material = "glass"   # written over what the file says
+
+[zone]
+import = "zones.toml"
+
+[tempo]
+import = "tempo.toml"
+```
+
+```toml
+# zones.toml
+[clock]
+items = ["clock"]
+
+[status]
+items = ["battery", "bluetooth"]
+```
+
+The keys set beside `import` are written over the file's, table into table.
+A relative path is from the configuration's folder, and `~/` is the home
+folder. A file that cannot be read or does not parse is logged, and the
+table is read as written; once it is there it is read. An imported file
+imports nothing in turn: its own `import` is logged and left out.
 
 ## Three levels
 

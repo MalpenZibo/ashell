@@ -1,12 +1,13 @@
 pub mod catalogue;
+mod import;
 mod layout;
 
-use std::ffi::OsString;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use futures::StreamExt;
 use guido::prelude::*;
-use inotify::{EventMask, Inotify, WatchDescriptor, WatchMask, Watches};
+use inotify::{Event, EventMask, Inotify, WatchDescriptor, WatchMask, Watches};
 use serde::Deserialize;
 use styletto::foundations::tokens::Space;
 use styletto::theme::config::UiConfig;
@@ -258,9 +259,20 @@ pub struct Parsed {
 }
 
 pub fn parse(text: &str) -> Result<Parsed, toml::de::Error> {
-    let file: toml::Table = toml::from_str(text)?;
+    Ok(parse_in(text, Path::new("."))?.0)
+}
 
-    Ok(layout::read(&file))
+/// `text` read as a config in `folder`, its imports followed: what it says,
+/// and the files it imports.
+fn parse_in(text: &str, folder: &Path) -> Result<(Parsed, Vec<PathBuf>), toml::de::Error> {
+    let mut file: toml::Table = toml::from_str(text)?;
+    let mut problems = Vec::new();
+    let imported = import::follow(&mut file, folder, &mut problems);
+    let mut parsed = layout::read(&file);
+    problems.append(&mut parsed.problems);
+    parsed.problems = problems;
+
+    Ok((parsed, imported))
 }
 
 pub fn path() -> Option<PathBuf> {
@@ -272,30 +284,30 @@ pub fn path() -> Option<PathBuf> {
     Some(base.join("ashell").join("ashell-experimental.toml"))
 }
 
-pub fn load() -> Config {
-    reload().unwrap_or_default()
-}
-
-pub fn reload() -> Option<Config> {
+/// The config read again, with the files it imports. `None` while it cannot
+/// be read: the bars stay as they are.
+fn reload() -> Option<(Config, Vec<PathBuf>)> {
     let Some(path) = path() else {
-        return Some(Config::default());
+        return Some((Config::default(), Vec::new()));
     };
 
     let text = match std::fs::read_to_string(&path) {
         Ok(text) => text,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Some(Config::default()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Some((Config::default(), Vec::new()));
+        }
         Err(err) => {
             log::error!("{}: {err}", path.display());
             return None;
         }
     };
 
-    match parse(&text) {
-        Ok(parsed) => {
+    match parse_in(&text, path.parent().unwrap_or(Path::new("."))) {
+        Ok((parsed, imported)) => {
             for problem in &parsed.problems {
                 log::warn!("{}: {problem}", path.display());
             }
-            Some(parsed.config)
+            Some((parsed.config, imported))
         }
         Err(err) => {
             log::error!("{}: {err}", path.display());
@@ -305,11 +317,12 @@ pub fn reload() -> Option<Config> {
 }
 
 pub fn watched() -> Signal<Config> {
-    let config = create_signal(load());
+    let (read, imported) = reload().unwrap_or_default();
+    let config = create_signal(read);
     let writer = config.writer();
 
     create_task(move |_| async move {
-        if let Err(err) = watch(writer).await {
+        if let Err(err) = watch(writer, imported).await {
             log::error!("the configuration is not watched, edits need a restart: {err}");
         }
     });
@@ -317,20 +330,15 @@ pub fn watched() -> Signal<Config> {
     config.read_only()
 }
 
-async fn watch(config: WriteSignal<Config>) -> std::io::Result<()> {
+async fn watch(config: WriteSignal<Config>, mut imported: Vec<PathBuf>) -> std::io::Result<()> {
     let path = path().ok_or_else(|| std::io::Error::other("no $XDG_CONFIG_HOME nor $HOME"))?;
     if let Some(folder) = path.parent() {
         std::fs::create_dir_all(folder)?;
     }
 
-    // A symlink is watched where it is, for the link made, deleted or
-    // replaced, and where it points, for the file edited; pointed elsewhere,
-    // it is watched there.
     let inotify = Inotify::init()?;
-    let mut watches = inotify.watches();
-    let link = watch_file(&mut watches, &path)?;
-    let mut target = pointed_to(&path);
-    let mut pointed = Some(watch_file(&mut watches, &target)?);
+    let mut watching = Watching::new(inotify.watches());
+    watching.follow(files(&path, &imported));
 
     // The events that come together are read together: an editor that moves
     // the file away and writes it again makes the bars once, from the new
@@ -340,63 +348,104 @@ async fn watch(config: WriteSignal<Config>) -> std::io::Result<()> {
     while let Some(events) = events.next().await {
         let mut touched = false;
         for event in events {
-            let event = event?;
-            let is = |(wd, name): &Watched| event.wd == *wd && event.name.as_deref() == Some(name);
-            // A file made is read once written; a link made, now.
-            let made = event.mask.contains(EventMask::CREATE);
-            touched |= (pointed.as_ref().is_some_and(is) && !made)
-                || (is(&link) && (!made || path.is_symlink()));
+            touched |= watching.touches(&event?);
         }
         if !touched {
             continue;
         }
 
-        let now = pointed_to(&path);
-        if now != target {
-            let next = watch_file(&mut watches, &now)
-                .inspect_err(|err| log::warn!("{}: not watched: {err}", now.display()))
-                .ok();
-            let wd = |watched: &Option<Watched>| watched.as_ref().map(|(wd, _)| wd.clone());
-            if let Some(old) = wd(&pointed)
-                && old != link.0
-                && Some(&old) != wd(&next).as_ref()
-            {
-                let _ = watches.remove(old);
-            }
-            (target, pointed) = (now, next);
-        }
-
-        // A file deleted or moved away reads as the default bar. The bars are
-        // made again only if what is read differs.
-        if let Some(read) = reload() {
+        // A file deleted or moved away reads as the default bar, an import
+        // gone as the table written. The bars are made again only if what is
+        // read differs.
+        if let Some((read, now)) = reload() {
             log::info!("configuration read again");
             config.set(read);
+            imported = now;
         }
+        watching.follow(files(&path, &imported));
     }
 
     Ok(())
 }
 
-type Watched = (WatchDescriptor, OsString);
+/// The files whose change changes the config: it and the files it imports,
+/// each where it is, for a link made, deleted or replaced, and where it
+/// points, for the file edited.
+fn files(path: &Path, imported: &[PathBuf]) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for file in std::iter::once(path).chain(imported.iter().map(PathBuf::as_path)) {
+        for file in [file.to_path_buf(), pointed_to(file)] {
+            if !files.contains(&file) {
+                files.push(file);
+            }
+        }
+    }
 
-/// Watches the folder `file` is in for it.
-fn watch_file(watches: &mut Watches, file: &Path) -> std::io::Result<Watched> {
-    let (Some(folder), Some(name)) = (file.parent(), file.file_name()) else {
-        return Err(std::io::Error::other(format!(
-            "{} is no file",
-            file.display()
-        )));
-    };
-    let wd = watches.add(
-        folder,
-        WatchMask::CLOSE_WRITE
-            | WatchMask::CREATE
-            | WatchMask::MOVED_TO
-            | WatchMask::DELETE
-            | WatchMask::MOVED_FROM,
-    )?;
+    files
+}
 
-    Ok((wd, name.to_os_string()))
+/// The folders of the files followed, each watched once for them.
+struct Watching {
+    watches: Watches,
+    folders: HashMap<PathBuf, WatchDescriptor>,
+    files: Vec<PathBuf>,
+}
+
+impl Watching {
+    fn new(watches: Watches) -> Self {
+        Self {
+            watches,
+            folders: HashMap::new(),
+            files: Vec::new(),
+        }
+    }
+
+    /// Follows `files` from now on, and no other.
+    fn follow(&mut self, files: Vec<PathBuf>) {
+        let folders: Vec<&Path> = files.iter().filter_map(|file| file.parent()).collect();
+
+        self.folders.retain(|folder, wd| {
+            let kept = folders.contains(&folder.as_path());
+            if !kept {
+                let _ = self.watches.remove(wd.clone());
+            }
+
+            kept
+        });
+        for folder in folders {
+            if self.folders.contains_key(folder) {
+                continue;
+            }
+            let mask = WatchMask::CLOSE_WRITE
+                | WatchMask::CREATE
+                | WatchMask::MOVED_TO
+                | WatchMask::DELETE
+                | WatchMask::MOVED_FROM;
+
+            match self.watches.add(folder, mask) {
+                Ok(wd) => {
+                    self.folders.insert(folder.to_path_buf(), wd);
+                }
+                Err(err) => log::warn!("{}: not watched: {err}", folder.display()),
+            }
+        }
+        self.files = files;
+    }
+
+    /// Whether `event` changed a file followed. A file made is read once
+    /// written; a link made, now.
+    fn touches(&self, event: &Event<std::ffi::OsString>) -> bool {
+        let made = event.mask.contains(EventMask::CREATE);
+
+        self.files.iter().any(|file| {
+            event.name.as_deref() == file.file_name()
+                && file
+                    .parent()
+                    .and_then(|folder| self.folders.get(folder))
+                    .is_some_and(|wd| *wd == event.wd)
+                && (!made || file.is_symlink())
+        })
+    }
 }
 
 /// The file a symlink points to, through every link on the way, or the file
@@ -426,7 +475,9 @@ fn pointed_to(path: &Path) -> PathBuf {
 mod tests {
     use std::os::unix::fs::symlink;
 
-    use super::pointed_to;
+    use inotify::Inotify;
+
+    use super::{Watching, files, pointed_to};
 
     #[test]
     fn a_link_is_followed_to_where_it_points_even_with_nothing_there() {
@@ -447,6 +498,42 @@ mod tests {
 
         std::fs::write(dotfiles.join("bar.toml"), "").unwrap();
         assert_eq!(pointed_to(&file), dotfiles.join("bar.toml"));
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn an_imported_file_is_followed_from_when_it_comes_until_it_is_no_longer_imported() {
+        let dir = std::env::temp_dir().join(format!("ashell-watching-{}", std::process::id()));
+        let (config, shared) = (dir.join("config"), dir.join("shared"));
+        std::fs::create_dir_all(&config).unwrap();
+        std::fs::create_dir_all(&shared).unwrap();
+        let dir = std::fs::canonicalize(&dir).unwrap();
+        let (path, look) = (dir.join("config/bar.toml"), dir.join("shared/look.toml"));
+
+        let mut inotify = Inotify::init().unwrap();
+        let mut watching = Watching::new(inotify.watches());
+        let mut buffer = [0; 1024];
+        let mut touched = |inotify: &mut Inotify, watching: &Watching| {
+            inotify
+                .read_events(&mut buffer)
+                .map(|events| events.into_iter().any(|e| watching.touches(&e.to_owned())))
+                .unwrap_or(false)
+        };
+
+        watching.follow(files(&path, std::slice::from_ref(&look)));
+        std::fs::write(&look, "theme = \"nord\"").unwrap();
+        assert!(touched(&mut inotify, &watching));
+
+        std::fs::write(shared.join("other.toml"), "").unwrap();
+        assert!(!touched(&mut inotify, &watching));
+
+        watching.follow(files(&path, &[]));
+        std::fs::write(&look, "theme = \"dracula\"").unwrap();
+        assert!(!touched(&mut inotify, &watching));
+
+        std::fs::write(&path, "").unwrap();
+        assert!(touched(&mut inotify, &watching));
 
         std::fs::remove_dir_all(&dir).unwrap();
     }

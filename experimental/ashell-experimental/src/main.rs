@@ -3,6 +3,8 @@ mod bar;
 mod config;
 mod i18n;
 mod modules;
+#[cfg(test)]
+mod testing;
 
 #[tokio::main]
 async fn main() {

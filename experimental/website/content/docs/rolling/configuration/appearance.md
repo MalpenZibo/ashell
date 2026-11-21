@@ -28,6 +28,10 @@ sans = "Inter"
 mono = "JetBrains Mono"
 ```
 
+The same keys can live in a file of their own, shared with other programs
+that use styletto, and be read with `import = "path"`; see
+[imports](@/docs/rolling/configuration/_index.md#imports).
+
 ## Colours
 
 One source of colours, and the colours you want set over it:
