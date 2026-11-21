@@ -431,6 +431,7 @@ items = [
     { item = "brightness", show = "always" },
     "peripheral_battery",
     "battery",
+    "battery_time",
 ]
 "#;
 

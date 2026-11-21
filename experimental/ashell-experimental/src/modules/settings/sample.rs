@@ -12,7 +12,7 @@ use guido::prelude::*;
 use super::{Idle, Settings};
 use crate::services::fixed;
 
-fn battery(capacity: i64, status: BatteryStatus) -> BatteryData {
+pub(super) fn battery(capacity: i64, status: BatteryStatus) -> BatteryData {
     BatteryData {
         capacity,
         status,

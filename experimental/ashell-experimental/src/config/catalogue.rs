@@ -2,12 +2,29 @@ use serde::Deserialize;
 
 use crate::modules::ModuleId;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
+/// When an item shows, if it has anything to show.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Show {
     Always,
+    /// In the states its module calls worth showing.
     Notable,
     Never,
+    /// In any of these states of its own, by their names in its module.
+    States(Vec<&'static str>),
+}
+
+impl Show {
+    /// Whether an item shows, `is` saying whether it is in a state and
+    /// `notable` naming those it is worth showing in: an item with none is
+    /// always worth it.
+    pub fn admits(&self, notable: &[&str], is: impl Fn(&str) -> bool) -> bool {
+        match self {
+            Show::Always => true,
+            Show::Notable => notable.is_empty() || notable.iter().any(|state| is(state)),
+            Show::Never => false,
+            Show::States(states) => states.iter().any(|state| is(state)),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -186,6 +203,7 @@ items! {
     Network = "network", Notable, Settings, -;
     Vpn = "vpn", Notable, Settings, -;
     Battery = "battery", Always, Settings, Settings;
+    BatteryTime = "battery_time", Always, Settings, Settings;
     PeripheralBattery = "peripheral_battery", Notable, Settings, Settings;
     KeyboardLayout = "keyboard_layout", Notable, -, -;
     KeyboardSubmap = "keyboard_submap", Notable, -, -;
@@ -266,7 +284,7 @@ pub fn builtin_zone(name: &str) -> Option<ZoneDefaults> {
                 Network,
                 Battery,
             ],
-            &[System, Updates],
+            &[System, Updates, BatteryTime],
             Open::Panel(Panel::Settings),
         ),
         "privacy" => zone(&[Privacy], &[], Open::Nothing),

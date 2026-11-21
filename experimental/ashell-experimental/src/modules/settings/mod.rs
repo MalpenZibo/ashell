@@ -14,7 +14,7 @@ use guido::prelude::*;
 use toml::Table;
 
 use super::{ItemView, Spec};
-use crate::config::{Action, Gestures, Item, ItemId, Panel};
+use crate::config::{Action, Gestures, Item, ItemId};
 use crate::services::{Linked, link};
 
 /// The module's state, shared by every item it draws.
@@ -84,29 +84,27 @@ impl Idle {
         let writer = inhibited.writer();
 
         let toggle = create_service::<(), _, _>(move |mut rx, _| async move {
-            let mut inhibitor = None;
-
-            while rx.recv().await.is_some() {
-                if inhibitor.is_none() {
-                    match IdleInhibitor::connect() {
-                        Ok(connected) => inhibitor = Some(connected),
-                        Err(err) => {
-                            log::warn!("settings: no idle inhibitor: {err}");
-                            writer.set(None);
-                            return;
-                        }
-                    }
+            if rx.recv().await.is_none() {
+                return;
+            }
+            let mut inhibitor = match IdleInhibitor::connect() {
+                Ok(inhibitor) => inhibitor,
+                Err(err) => {
+                    log::warn!("settings: no idle inhibitor: {err}");
+                    writer.set(None);
+                    return;
                 }
+            };
 
-                let Some(inhibitor) = inhibitor.as_mut() else {
-                    continue;
-                };
-
+            loop {
                 if let Err(err) = inhibitor.toggle() {
                     log::warn!("settings: the idle inhibitor did not toggle: {err}");
                 }
-
                 writer.set(Some(inhibitor.is_inhibited()));
+
+                if rx.recv().await.is_none() {
+                    return;
+                }
             }
         });
 
@@ -124,11 +122,12 @@ const BRIGHTNESS_UP: &str = "brightness_up";
 const BRIGHTNESS_DOWN: &str = "brightness_down";
 
 pub const SPEC: Spec = Spec {
-    name: "settings",
     actions,
     default_gestures,
     check_options,
-    panel_width,
+    states: items::states,
+    notable: items::notable,
+    ..Spec::bare("settings")
 };
 
 fn actions(id: ItemId) -> &'static [&'static str] {
@@ -143,23 +142,16 @@ fn actions(id: ItemId) -> &'static [&'static str] {
 
 /// ashell's: the wheel on the brightness sets it.
 fn default_gestures(id: ItemId) -> Gestures {
-    let wheel = |up, down| Gestures {
-        scroll_up: Some(Action::Named(up)),
-        scroll_down: Some(Action::Named(down)),
-        ..Gestures::default()
-    };
-
     match id {
-        ItemId::Brightness => wheel(BRIGHTNESS_UP, BRIGHTNESS_DOWN),
+        ItemId::Brightness => Gestures {
+            scroll_up: Some(Action::Named(BRIGHTNESS_UP)),
+            scroll_down: Some(Action::Named(BRIGHTNESS_DOWN)),
+            ..Gestures::default()
+        },
         _ => Gestures::default(),
     }
 }
 
 fn check_options(id: ItemId, options: &Table) -> Vec<String> {
     items::Options::read(id, options).1
-}
-
-/// No panel yet.
-fn panel_width(_panel: Panel) -> f32 {
-    0.0
 }

@@ -5,7 +5,7 @@ use styletto::foundations::tokens::{Space, size};
 use styletto::theme::config::UiConfig;
 use toml::{Table, Value};
 
-use super::catalogue::{Action, Gestures, ItemId, Open, builtin_zone};
+use super::catalogue::{Action, Gestures, ItemId, Open, Show, builtin_zone};
 use crate::modules::{self, ModuleId};
 
 use super::{
@@ -537,7 +537,9 @@ impl Reader {
                 let name = self.string(&format!("{at}.item"), name)?;
                 let mut item = Item::new(self.item_id(at, name)?);
 
-                if let Some(show) = self.get(at, table, "show") {
+                if let Some(show) = table.get("show")
+                    && let Some(show) = self.show(&format!("{at}.show"), item.id, show)
+                {
                     item.show = show;
                 }
                 if let Some(open) = self.get(at, table, "open") {
@@ -570,6 +572,50 @@ impl Reader {
                 self.warn(at, "expected an item, or a table with `item`");
                 None
             }
+        }
+    }
+
+    /// `"always"`, `"notable"`, `"never"`, or a list of the item's states.
+    fn show(&mut self, at: &str, item: ItemId, value: &Value) -> Option<Show> {
+        let known = modules::states(item);
+
+        match value {
+            Value::Array(_) if known.is_empty() => {
+                self.warn(at, format!("{} has no states", item.name()));
+                None
+            }
+            Value::Array(names) => {
+                let mut states = Vec::new();
+
+                for (index, name) in names.iter().enumerate() {
+                    let at = format!("{at}[{index}]");
+                    let Some(name) = self.string(&at, name) else {
+                        continue;
+                    };
+
+                    match known.iter().find(|state| **state == name) {
+                        Some(state) => states.push(*state),
+                        None => self.warn(
+                            &at,
+                            format!("{} has no state named \"{name}\"", item.name()),
+                        ),
+                    }
+                }
+
+                Some(Show::States(states))
+            }
+            _ => match value.as_str() {
+                Some("always") => Some(Show::Always),
+                Some("notable") => Some(Show::Notable),
+                Some("never") => Some(Show::Never),
+                _ => {
+                    self.warn(
+                        at,
+                        "expected \"always\", \"notable\", \"never\" or a list of states",
+                    );
+                    None
+                }
+            },
         }
     }
 
@@ -1203,7 +1249,7 @@ center = [\"clock\"]
             end = ["status"]
 
             [zone.status]
-            items = [{ item = "battery", show = "notable", style = "ring", open = "none" }]
+            items = [{ item = "battery", show = "notable", glyph = "ring", open = "none" }]
             "#,
         );
 
@@ -1211,8 +1257,48 @@ center = [\"clock\"]
         assert_eq!(item.show, Show::Notable);
         assert_eq!(item.open, Some(Open::Nothing));
         assert_eq!(
-            item.options.get("style").and_then(Value::as_str),
+            item.options.get("glyph").and_then(Value::as_str),
             Some("ring")
+        );
+    }
+
+    #[test]
+    fn an_item_shows_in_the_states_listed_and_names_those_it_lacks() {
+        let parsed = read(
+            r#"
+            [bar.main]
+            end = ["status"]
+
+            [zone.status]
+            items = [{ item = "battery", show = ["alert", "charging", "sleeping"] }]
+            "#,
+        );
+
+        let item = &place(&parsed.config.bars[0], 2)[0].zones()[0].items[0];
+        assert_eq!(item.show, Show::States(vec!["alert", "charging"]));
+        assert_eq!(
+            parsed.problems,
+            [r#"zone.status.items[0].show[2]: battery has no state named "sleeping""#]
+        );
+    }
+
+    #[test]
+    fn a_list_of_states_on_an_item_without_any_keeps_its_default() {
+        let parsed = read(
+            r#"
+            [bar.main]
+            end = ["clock"]
+
+            [zone.clock]
+            items = [{ item = "clock", show = ["ticking"] }]
+            "#,
+        );
+
+        let item = &place(&parsed.config.bars[0], 2)[0].zones()[0].items[0];
+        assert_eq!(item.show, Show::Always);
+        assert_eq!(
+            parsed.problems,
+            ["zone.clock.items[0].show: clock has no states"]
         );
     }
 

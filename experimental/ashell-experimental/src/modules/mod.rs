@@ -14,7 +14,7 @@ use std::rc::Rc;
 use guido::prelude::*;
 use toml::Table;
 
-use crate::config::{Config, Gestures, Item, ItemId, Panel, Show};
+use crate::config::{Config, Gestures, Item, ItemId, Panel};
 use configurator::Configurator;
 use settings::Settings;
 use tempo::{Tempo, TempoConfig};
@@ -47,18 +47,24 @@ pub struct Spec {
     pub default_gestures: fn(ItemId) -> Gestures,
     /// What is wrong with an item's own options.
     pub check_options: fn(ItemId, &Table) -> Vec<String>,
+    /// The states an item can be in, by name, for its `show`.
+    pub states: fn(ItemId) -> &'static [&'static str],
+    /// Those of its states it is worth showing in, for `show = "notable"`.
+    pub notable: fn(ItemId) -> &'static [&'static str],
     pub panel_width: fn(Panel) -> f32,
 }
 
 impl Spec {
-    /// A module whose items have no actions, gestures or options of their
-    /// own, and that draws no panel.
+    /// A module whose items have no actions, gestures, options or states of
+    /// their own, and that draws no panel.
     pub const fn bare(name: &'static str) -> Self {
         Self {
             name,
             actions: |_| &[],
             default_gestures: |_| Gestures::default(),
             check_options: |_, _| Vec::new(),
+            states: |_| &[],
+            notable: |_| &[],
             panel_width: |_| 0.0,
         }
     }
@@ -67,6 +73,15 @@ impl Spec {
 pub fn actions(id: ItemId) -> &'static [&'static str] {
     id.module()
         .map_or(&[], |module| (module.spec().actions)(id))
+}
+
+pub fn states(id: ItemId) -> &'static [&'static str] {
+    id.module().map_or(&[], |module| (module.spec().states)(id))
+}
+
+pub fn notable(id: ItemId) -> &'static [&'static str] {
+    id.module()
+        .map_or(&[], |module| (module.spec().notable)(id))
 }
 
 pub fn default_gestures(id: ItemId) -> Gestures {
@@ -104,30 +119,17 @@ impl Configs {
                 self.tempo = config;
                 problems
             }
-            ModuleId::Settings => table
-                .keys()
-                .map(|key| format!("settings.{key}: unknown key, ignored"))
-                .collect(),
-            ModuleId::Config => configurator::check(table),
+            ModuleId::Settings | ModuleId::Config => unknown_keys(module, table),
         }
     }
 }
 
-/// Whether an item shows: it `has` something to, and its `show` lets it,
-/// `Notable` only while it is `notable`.
-pub fn shown(
-    show: Show,
-    has: impl Fn() -> bool + 'static,
-    notable: impl Fn() -> bool + 'static,
-) -> Memo<bool> {
-    create_memo(move || {
-        has()
-            && match show {
-                Show::Always => true,
-                Show::Notable => notable(),
-                Show::Never => false,
-            }
-    })
+/// The keys of a table that has none of its own yet, each named.
+fn unknown_keys(module: ModuleId, table: &Table) -> Vec<String> {
+    table
+        .keys()
+        .map(|key| format!("{}.{key}: unknown key, ignored", module.spec().name))
+        .collect()
 }
 
 /// An item as its module draws it.
@@ -137,6 +139,61 @@ pub struct ItemView {
     pub shown: Memo<bool>,
     /// Runs one of its module's [`actions`].
     pub act: Rc<dyn Fn(&'static str)>,
+}
+
+/// How an item with a value draws it: its icon, the value, or both.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Style {
+    Icon,
+    Value,
+    IconValue,
+}
+
+impl Style {
+    /// The table's `style`, `default` while unset; a wrong one is named in
+    /// `problems` and `default` taken.
+    pub fn read(table: &Table, default: Self, problems: &mut Vec<String>) -> Self {
+        match table.get("style").map(toml::Value::as_str) {
+            None => default,
+            Some(Some("icon")) => Style::Icon,
+            Some(Some("value")) => Style::Value,
+            Some(Some("icon-value")) => Style::IconValue,
+            Some(_) => {
+                problems.push(r#"style: expected "icon", "value" or "icon-value""#.to_string());
+                default
+            }
+        }
+    }
+
+    pub fn icon(self) -> bool {
+        self != Style::Value
+    }
+
+    pub fn value(self) -> bool {
+        self != Style::Icon
+    }
+}
+
+/// Names in `problems` each of an item's options not among the `known`.
+pub fn unknown_options(id: ItemId, table: &Table, known: &[&str], problems: &mut Vec<String>) {
+    for key in table.keys() {
+        if !known.contains(&key.as_str()) {
+            problems.push(format!("{key}: unknown option of {}, ignored", id.name()));
+        }
+    }
+}
+
+/// Whether `item` shows: only with something to show, and then as its
+/// `show` says, `is` saying whether it is in one of its states.
+pub fn shown(
+    item: &Item,
+    has: impl Fn() -> bool + 'static,
+    is: impl Fn(&str) -> bool + 'static,
+) -> Memo<bool> {
+    let show = item.show.clone();
+    let notable = notable(item.id);
+
+    create_memo(move || has() && show.admits(notable, &is))
 }
 
 /// Every module, made once for the whole shell: the bars made again on a

@@ -10,7 +10,7 @@ use futures::stream::{FuturesUnordered, Stream, StreamExt};
 use guido::prelude::*;
 
 /// What every service offers: a connection, its snapshots, its commands.
-pub trait Backend: Clone + Send + Sync + Sized + 'static {
+pub trait Backend: Clone + Send + Sync + 'static {
     type Data: Clone + PartialEq + Default + Send + Sync + 'static;
     type Command: Send + 'static;
 

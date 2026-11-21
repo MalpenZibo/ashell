@@ -44,12 +44,12 @@ keeps the last forecast and is tried again sooner.
 
 ## Items
 
-| Item | Shows | Empty when | `notable` when | Opens |
-| ---- | ----- | ---------- | -------------- | ----- |
-| `clock` | the time | never | always | `calendar` |
-| `date` | the date | never | always | `calendar` |
-| `weather` | the sky now, and how warm | no weather yet, or none configured | it rains, snows or storms | `calendar` |
-| `forecast` | the next hours: when, the sky, how warm | no weather yet, or none configured | rain, snow or a storm is coming in them | `calendar` |
+| Item | Shows | Empty when | States | `notable` when | Opens |
+| ---- | ----- | ---------- | ------ | -------------- | ----- |
+| `clock` | the time | never | none | always | `calendar` |
+| `date` | the date | never | none | always | `calendar` |
+| `weather` | the sky now, and how warm | no weather yet, or none configured | `wet`: it rains, snows or storms | `wet` | `calendar` |
+| `forecast` | the next hours: when, the sky, how warm | no weather yet, or none configured | `wet`: rain, snow or a storm is coming in them | `wet` | `calendar` |
 
 An empty item never shows, whatever its `show`.
 
@@ -60,7 +60,7 @@ An empty item never shows, whatever its `show`.
 | `clock` | `format` | a [date format](https://docs.rs/chrono/latest/chrono/format/strftime/index.html) | `"%R"` |
 | `clock` | `formats` | a list of date formats, gone through with a right click | the `format` alone |
 | `date` | `format` | a date format | `"%a %-d"` |
-| `weather` | `style` | `"icon"`, `"icon-temperature"` | `"icon-temperature"` |
+| `weather` | `style` | `"icon"`, `"value"`, `"icon-value"`: the sky, how warm, or both | `"icon-value"` |
 | `forecast` | `hours` | 1 to 12 | 6 |
 
 The stable ashell's one line of date and time is a `clock` with that format,

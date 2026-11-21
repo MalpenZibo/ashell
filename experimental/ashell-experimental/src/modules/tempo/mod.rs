@@ -160,11 +160,13 @@ const NEXT_TIMEZONE: &str = "next_timezone";
 const PREVIOUS_TIMEZONE: &str = "previous_timezone";
 
 pub const SPEC: Spec = Spec {
-    name: "tempo",
     actions,
     default_gestures,
     check_options,
+    states: items::states,
+    notable: items::states,
     panel_width,
+    ..Spec::bare("tempo")
 };
 
 fn actions(id: ItemId) -> &'static [&'static str] {
