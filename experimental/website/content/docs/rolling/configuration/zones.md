@@ -30,6 +30,7 @@ Naming a zone in a node uses its defaults:
 | `tray` | `tray` | | nothing |
 | `updates` | `updates` | | `updates` |
 | `keyboard` | `keyboard_layout`, `keyboard_submap` | | nothing |
+| `config` | `config` | | the config window |
 
 ## `[zone.<name>]`
 
@@ -50,7 +51,7 @@ open  = "system"
 | --- | ------ | ------------ |
 | `items` | a list of items | The resting row, in the order written. |
 | `details` | a list of items | The row shown on hover; empty for none. |
-| `open` | a panel, or `"none"` | What a click on the zone does. |
+| `open` | a panel, `"config"`, or `"none"` | What a click on the zone does: `"config"` opens the config window. |
 
 A zone that is not placed in any node is reported, and not shown.
 
@@ -66,7 +67,7 @@ items = ["battery", { item = "system", show = "notable", open = "system" }]
 | --- | ------ | ------------ |
 | `item` | an item's name | Which item; required. |
 | `show` | `always`, `notable`, `never` | When it is visible. |
-| `open` | a panel, or `"none"` | What a click on this item does, over its zone's. |
+| `open` | a panel, `"config"`, or `"none"` | What a click on this item does, over its zone's. |
 | `right_click`, `middle_click`, `scroll_up`, `scroll_down` | an action | What the gesture does: see [Gestures](#gestures). |
 | other keys | | The item's own options, as its module documents them. |
 
@@ -89,6 +90,7 @@ The items, with when they show and what they open by default:
 | `brightness` | never | `settings` |
 | `battery` | always | `settings` |
 | `keyboard_layout`, `keyboard_submap` | notable | the zone's |
+| `config` | always | the config window |
 
 An item with nothing to show never shows, whatever its `show`: no window
 focused, no battery, the weather not fetched yet. `notable` is about an item
@@ -110,7 +112,8 @@ An action is one of:
 
 - an action of the item's, by name, as its module documents them:
   `"cycle_format"`, `"next_timezone"`;
-- a panel to open, `{ open = "calendar" }`;
+- a panel to open, `{ open = "calendar" }`, or the config window,
+  `{ open = "config" }`;
 - a command to run with the shell, `{ run = "pavucontrol" }`;
 - `"none"`, to switch off what the item does by default.
 

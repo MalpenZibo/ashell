@@ -1,5 +1,5 @@
 pub mod catalogue;
-mod import;
+pub mod import;
 mod layout;
 
 use std::collections::HashMap;
@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use futures::StreamExt;
 use guido::prelude::*;
 use inotify::{Event, EventMask, Inotify, WatchDescriptor, WatchMask, Watches};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use styletto::foundations::tokens::Space;
 use styletto::theme::config::UiConfig;
 
@@ -112,7 +112,7 @@ impl Padding {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Position {
     #[default]
@@ -284,6 +284,11 @@ pub fn path() -> Option<PathBuf> {
     Some(base.join("ashell").join("ashell-experimental.toml"))
 }
 
+/// The folder the imports of the config at `path` are read from.
+pub fn folder(path: &Path) -> &Path {
+    path.parent().unwrap_or(Path::new("."))
+}
+
 /// The config read again, with the files it imports. `None` while it cannot
 /// be read: the bars stay as they are.
 fn reload() -> Option<(Config, Vec<PathBuf>)> {
@@ -302,7 +307,7 @@ fn reload() -> Option<(Config, Vec<PathBuf>)> {
         }
     };
 
-    match parse_in(&text, path.parent().unwrap_or(Path::new("."))) {
+    match parse_in(&text, folder(&path)) {
         Ok((parsed, imported)) => {
             for problem in &parsed.problems {
                 log::warn!("{}: {problem}", path.display());

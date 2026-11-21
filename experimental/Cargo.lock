@@ -149,6 +149,7 @@ dependencies = [
  "styletto",
  "tokio",
  "toml 0.9.12+spec-1.1.0",
+ "toml_edit",
  "webp",
 ]
 
@@ -1071,7 +1072,7 @@ dependencies = [
 [[package]]
 name = "guido"
 version = "0.13.0"
-source = "git+https://github.com/MalpenZibo/guido?branch=main#9329e761994396c73fd1450dc09f48ae69339934"
+source = "git+https://github.com/MalpenZibo/guido?branch=main#043ae7d4ef6d023f36f1e3aa8956dfd42d526ab8"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -1100,7 +1101,7 @@ dependencies = [
 [[package]]
 name = "guido-macros"
 version = "0.13.0"
-source = "git+https://github.com/MalpenZibo/guido?branch=main#9329e761994396c73fd1450dc09f48ae69339934"
+source = "git+https://github.com/MalpenZibo/guido?branch=main#043ae7d4ef6d023f36f1e3aa8956dfd42d526ab8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3023,7 +3024,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 [[package]]
 name = "styletto"
 version = "0.1.0"
-source = "git+https://github.com/MalpenZibo/styletto?branch=main#61e4a8e44fbb85227be9a60a9f14a1ccfd60665a"
+source = "git+https://github.com/MalpenZibo/styletto?branch=main#6a2c7f4025ca8b2f8ce00f70c3e88330c4b02b4d"
 dependencies = [
  "guido",
  "image",
@@ -3269,6 +3270,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
 dependencies = [
  "serde_core",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.23.10+spec-1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84c8b9f757e028cee9fa244aea147aab2a9ec09d5325a9b01e0a49730c2b5269"
+dependencies = [
+ "indexmap",
+ "toml_datetime",
+ "toml_parser",
+ "toml_writer",
+ "winnow 0.7.15",
 ]
 
 [[package]]
@@ -4157,6 +4171,9 @@ name = "winnow"
 version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "winnow"

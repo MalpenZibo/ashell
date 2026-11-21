@@ -23,6 +23,7 @@ serde.workspace = true
 styletto.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 toml = { version = "0.9", features = ["preserve_order"] }
+toml_edit = "0.23"
 
 [dev-dependencies]
 guido = { workspace = true, features = ["testing"] }

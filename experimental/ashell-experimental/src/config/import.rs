@@ -25,7 +25,7 @@ pub fn follow(file: &mut Table, folder: &Path, problems: &mut Vec<String>) -> Ve
             problems.push(format!("{name}.import: expected a path"));
             continue;
         };
-        let path = folder.join(expand_home(import));
+        let path = resolve(folder, import);
         let read = std::fs::read_to_string(&path)
             .map_err(|err| err.to_string())
             .and_then(|text| {
@@ -53,6 +53,11 @@ pub fn follow(file: &mut Table, folder: &Path, problems: &mut Vec<String>) -> Ve
     }
 
     imported
+}
+
+/// Where `import`, as written in a file in `folder`, points.
+pub fn resolve(folder: &Path, import: &str) -> PathBuf {
+    folder.join(expand_home(import))
 }
 
 /// `~/` as the home folder.

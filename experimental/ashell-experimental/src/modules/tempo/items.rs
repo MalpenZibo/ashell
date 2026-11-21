@@ -10,7 +10,7 @@ use toml::{Table, Value};
 
 use super::{CYCLE_FORMAT, Tempo, sky, time};
 use crate::config::{Item, ItemId, Show};
-use crate::modules::ItemView;
+use crate::modules::{ItemView, shown};
 
 const CLOCK_FORMAT: &str = "%R";
 const DATE_FORMAT: &str = "%a %-d";
@@ -137,21 +137,6 @@ pub fn view(tempo: Tempo, item: &Item) -> ItemView {
         Options::Weather { temperature } => weather(tempo, show, temperature),
         Options::Forecast { hours } => forecast(tempo, show, hours),
     }
-}
-
-fn shown(
-    show: Show,
-    has: impl Fn() -> bool + 'static,
-    notable: impl Fn() -> bool + 'static,
-) -> Memo<bool> {
-    create_memo(move || {
-        has()
-            && match show {
-                Show::Always => true,
-                Show::Notable => notable(),
-                Show::Never => false,
-            }
-    })
 }
 
 fn clock(tempo: Tempo, show: Show, formats: Vec<String>) -> ItemView {

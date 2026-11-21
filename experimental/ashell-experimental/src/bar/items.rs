@@ -10,15 +10,16 @@ use styletto::components::button::{pill, pill_text};
 use styletto::foundations::control::Size;
 use styletto::foundations::tokens::size;
 
-use crate::config::{Action, Item, Open, Panel};
+use crate::config::{Action, Item, Open};
 use crate::modules::{ItemView, Modules};
 
 /// How far a wheel or a finger scrolls for one step of `scroll_up` or
 /// `scroll_down`: a notch of the wheel, as guido counts it.
 const SCROLL_STEP: f32 = 40.0;
 
-/// Opens a panel under the zone the item is in.
-pub(super) type Opens = Rc<dyn Fn(Panel)>;
+/// Opens what an item or a zone opens: a panel under the zone the item is
+/// in, or the config window.
+pub(super) type Opens = Rc<dyn Fn(Open)>;
 
 /// The zone's resting row, its items drawn by their modules, or `None` while
 /// no module draws any of them: the zone is then its placeholder.
@@ -71,8 +72,8 @@ fn placeholder(item: &Item, zone_open: Open, opens: Opens) -> Container {
         .child(pill_text(item.id.name().to_string()));
 
     match item.open {
-        Some(Open::Panel(panel)) if item.open != Some(zone_open) => {
-            view.on_click(move || opens(panel))
+        Some(open) if open != zone_open && open != Open::Nothing => {
+            view.on_click(move || opens(open))
         }
         _ => view,
     }
@@ -87,7 +88,7 @@ fn drawn(item: &Item, view: ItemView, zone_open: Open, opens: Opens) -> Containe
 
         move || match &action {
             Action::Named(name) => act(name),
-            Action::Open(panel) => opens(*panel),
+            Action::Open(open) => opens(*open),
             Action::Run(command) => run_command(command.clone()),
             Action::None => {}
         }
@@ -97,8 +98,8 @@ fn drawn(item: &Item, view: ItemView, zone_open: Open, opens: Opens) -> Containe
 
     match item.open {
         Some(open) if open == zone_open => {}
-        Some(Open::Panel(panel)) => view = view.on_click(run(Action::Open(panel))),
         Some(Open::Nothing) => view = view.on_click(|| {}),
+        Some(open) => view = view.on_click(run(Action::Open(open))),
         None => {}
     }
 

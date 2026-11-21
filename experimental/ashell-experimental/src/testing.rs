@@ -22,6 +22,10 @@ impl Folder {
 
         self
     }
+
+    pub fn read(&self, name: &str) -> String {
+        std::fs::read_to_string(self.join(name)).unwrap()
+    }
 }
 
 impl Deref for Folder {

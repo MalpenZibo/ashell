@@ -595,8 +595,8 @@ impl Reader {
 
                 if table.contains_key("open") {
                     return self.get::<Open>(at, table, "open").map(|open| match open {
-                        Open::Panel(panel) => Action::Open(panel),
                         Open::Nothing => Action::None,
+                        open => Action::Open(open),
                     });
                 }
 
@@ -1266,7 +1266,7 @@ center = [\"clock\"]
 
         assert!(
             problems.contains(
-                "zone.hot.open: \"calendr\": expected \"none\" or a panel, one of settings, calendar,"
+                "zone.hot.open: \"calendr\": expected \"none\", \"config\" or a panel, one of settings, calendar,"
             ),
             "{problems}"
         );
@@ -1306,7 +1306,7 @@ center = [\"clock\"]
         );
         assert_eq!(
             items[2].gestures.right_click,
-            Some(Action::Open(Panel::Calendar))
+            Some(Action::Open(Open::Panel(Panel::Calendar)))
         );
         assert_eq!(items[2].gestures.scroll_down, Some(Action::None));
         assert!(items[1].options.is_empty());
@@ -1333,7 +1333,7 @@ center = [\"clock\"]
         for expected in [
             "zone.clock.items[0].right_click: date has no action named \"cycle_format\"",
             "zone.clock.items[0]: format: \"%Q\" is not a date format",
-            "zone.clock.items[1].middle_click.open: \"nowhere\": expected \"none\" or a panel",
+            "zone.clock.items[1].middle_click.open: \"nowhere\": expected \"none\", \"config\" or a panel",
             "zone.clock.items[1]: colour: unknown option of clock",
             "zone.clock.items[2]: hours: expected a number from 1 to 12",
         ] {
