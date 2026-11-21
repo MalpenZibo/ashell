@@ -10,7 +10,7 @@ use styletto::{centered_row, foundations::motion};
 use super::items::{self, Opens};
 use super::{
     Ctx, GROUP, Host, NodeId, Opened, Outline, Placed, Refs, State, at_rest, group_height,
-    host_rect, hosting, hosting_details, panel_view, panel_width, placeholder, under_zone,
+    host_rect, hosting, hosting_details, hung_at, panel_view, panel_width, panel_x, placeholder,
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
 use crate::modules::Modules;
@@ -97,7 +97,12 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
             }
 
             let group = at_rest(shape_ref.layout_rect().get_untracked(), place.position);
-            let x = under_zone(opened, group.x + group.width / 2.0, &place);
+            let x = hung_at(
+                list.1,
+                group,
+                panel_x(opened, &place),
+                panel_width(opened.panel),
+            );
             let (side, gap) = (place.position.side(), place.neck.panel);
 
             // From the edge of what hosts it, past the group's own if that
@@ -115,7 +120,7 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
                 Translate::new(x, side * (edge + gap)),
                 Translate::new(x, side * edge),
             )
-            .align_self(place.position.hung(Place::Center))
+            .align_self(place.position.hung(list.1))
         },
     );
 
@@ -133,8 +138,8 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
 /// which says what it draws of its edge (see `rimmed`).
 pub(super) fn split_off(opened: Opened, host: Host, outline: Outline, ctx: &Ctx) -> Container {
     let rect = host_rect(host, ctx);
-    let middle = rect.x + rect.width / 2.0;
-    let x = under_zone(opened, middle, ctx);
+    let hung = ctx.groups[&opened.group].list.1;
+    let x = hung_at(hung, rect, panel_x(opened, ctx), panel_width(opened.panel));
     let side = ctx.position.side();
     let group = ctx.refs.nodes[&opened.group].layout_rect().get_untracked();
     let gap = ctx.neck.panel;
@@ -142,14 +147,17 @@ pub(super) fn split_off(opened: Opened, host: Host, outline: Outline, ctx: &Ctx)
     // Half the host at rest back from the edge it hangs from: its middle once
     // the details it may have grown with are back.
     let (left, width) = span(group.x, group.width, ctx.neck.reach);
-    let from = Translate::new(left + width / 2.0 - middle, -side * (rect.height / 2.0));
+    let from = Translate::new(
+        hung_at(hung, rect, left + width / 2.0, width),
+        -side * (rect.height / 2.0),
+    );
     let to = Translate::new(x, side * gap);
 
     rimmed(
         panel_shape(opened.panel, ctx.modules, to, from, width),
         outline,
     )
-    .align_self(ctx.position.hung(Place::Center))
+    .align_self(ctx.position.hung(hung))
 }
 
 /// The details of the groups in one list of nodes that have no shape of

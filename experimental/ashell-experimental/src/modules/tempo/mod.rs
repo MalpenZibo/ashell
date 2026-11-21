@@ -200,5 +200,5 @@ fn check_options(id: ItemId, options: &Table) -> Vec<String> {
 }
 
 fn panel_width(_panel: Panel) -> f32 {
-    calendar::WIDTH
+    calendar::width()
 }

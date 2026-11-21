@@ -59,7 +59,7 @@ background = "#fdf6e3"
 
 | Key | Values | What it does |
 | --- | ------ | ------------ |
-| `density` | `compact`, `default`, `comfortable` | Moves type, controls, icons and space one step down or up. |
+| `density` | `compact`, `default`, `comfortable` | Moves type, controls, icons and space one step down or up; the panels grow or shrink with them. |
 | `shape` | `square`, `soft` (default), `round` | Moves every corner one step; a pill stays a pill. The islands' corners follow it. |
 | `material` | `solid` (default), `translucent`, `glass` | The islands' opacity (1, 0.86, 0.75) and blur behind them. |
 | `motion` | `full` (default), `reduced`, `none` | Springs, fades only, or instant changes. |

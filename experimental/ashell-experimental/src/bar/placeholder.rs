@@ -8,7 +8,7 @@ use styletto::ui;
 use crate::config::Panel;
 
 pub fn panel_width() -> f32 {
-    size::S100.px()
+    size::scaled(size::S100.px())
 }
 
 pub fn zone<F: Fn() + 'static>(name: &str, click: F) -> impl Widget + use<F> {
