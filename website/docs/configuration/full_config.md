@@ -44,8 +44,9 @@ right = [ "SystemInfo", "MediaPlayer", [ "Tray", "Tempo", "Privacy", "Settings" 
 # right = [ [ "Tempo", "Privacy", "Settings" ] ]
 #
 # Every built-in module name: "Updates", "Workspaces", "WindowTitle",
-# "Minimap", "SystemInfo", "KeyboardLayout", "KeyboardSubmap", "Tray",
-# "Tempo", "Privacy", "Settings", "MediaPlayer", "Notifications".
+# "Minimap", "SystemInfo", "KeyboardLayout", "KeyboardSubmap",
+# "KeyboardLocks", "Tray", "Tempo", "Privacy", "Settings", "MediaPlayer",
+# "Notifications".
 # Any other name refers to a [[CustomModule]] with that `name`.
 
 # ── Updates ───────────────────────────────────────────────────────────────────
@@ -93,6 +94,13 @@ truncate_title_after_length = 150 # (default) 0 means no truncation; capped at 2
 
 [keyboard_layout]
 # labels = { "English (US)" = "EN", "Italian" = "IT" }  # (default: {}) map layout names to short labels
+
+# ── Keyboard Locks ────────────────────────────────────────────────────────────
+
+[keyboard_locks]
+caps_lock = "ActiveOnly"    # (default) "ActiveOnly", "AlwaysVisible" (dimmed while off) or "Hidden"
+num_lock = "ActiveOnly"     # (default)
+scroll_lock = "ActiveOnly"  # (default)
 
 # ── System Info ───────────────────────────────────────────────────────────────
 

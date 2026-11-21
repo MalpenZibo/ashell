@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Keyboard
 
-There are two keyboard modules available in the status bar.
+There are three keyboard modules available in the status bar.
 
 ## Keyboard Layout
 
@@ -46,3 +46,31 @@ submap is active, and it is available on Hyprland and MangoWC only (on MangoWC
 the equivalent concept is the *key mode*, and the `default` mode counts as no
 submap). You can find more information
 about submap in the [Hyprland documentation](https://wiki.hypr.land/Configuring/Binds/#submaps) or the [MangoWC documentation](https://mangowm.github.io/docs/bindings/keys#key-modes-submaps).
+
+## Keyboard Locks
+
+This module shows Caps Lock, Num Lock and Scroll Lock. It works on every
+compositor and needs no permissions: it reads the keyboards' lock LEDs, which
+any user can read. A lock no connected keyboard has a LED for is never shown.
+
+The LEDs are read four times a second while the keyboard or the mouse are in
+use, and not at all once they have been left alone for a few seconds, e.g. on
+the lock screen: a lock changes when a key is pressed, so a change shows up at
+most a quarter of a second later.
+
+On a compositor without the `ext-idle-notify-v1` protocol they are read four
+times a second all the time.
+
+`caps_lock`, `num_lock` and `scroll_lock` set when each lock is shown:
+
+- `ActiveOnly` (default): only while it is on.
+- `AlwaysVisible`: always, dimmed while it is off.
+- `Hidden`: never.
+
+### Example
+
+```toml
+[keyboard_locks]
+caps_lock = "AlwaysVisible"
+scroll_lock = "Hidden"
+```

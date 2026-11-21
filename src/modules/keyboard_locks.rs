@@ -1,0 +1,105 @@
+use crate::{
+    components::icons::{StaticIcon, icon_mono},
+    config::{KeyboardLocksModuleConfig, LockVisibility, ModuleName},
+    services::{ReadOnlyService, ServiceEvent, keyboard_locks::KeyboardLocksService},
+    theme::use_theme,
+};
+use iced::{
+    Alignment, Element, Subscription, Theme,
+    widget::{Row, text},
+};
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Event(ServiceEvent<KeyboardLocksService>),
+    ConfigReloaded(KeyboardLocksModuleConfig),
+}
+
+pub struct KeyboardLocks {
+    config: KeyboardLocksModuleConfig,
+    service: Option<KeyboardLocksService>,
+}
+
+impl KeyboardLocks {
+    pub fn new(config: KeyboardLocksModuleConfig) -> Self {
+        Self {
+            config,
+            service: None,
+        }
+    }
+
+    pub fn update(&mut self, message: Message) {
+        match message {
+            Message::Event(event) => match event {
+                ServiceEvent::Init(service) => self.service = Some(service),
+                ServiceEvent::Update(data) => {
+                    if let Some(service) = self.service.as_mut() {
+                        service.update(data);
+                    }
+                }
+                ServiceEvent::Error(_) => {}
+            },
+            Message::ConfigReloaded(config) => self.config = config,
+        }
+    }
+
+    pub fn view(&self) -> Option<Element<'_, Message>> {
+        let service = self.service.as_ref()?;
+        let (spacing, size, text_color) = use_theme(|theme| {
+            (
+                theme.module_spacing(&ModuleName::KeyboardLocks, theme.space.xs),
+                theme.module_font_size(&ModuleName::KeyboardLocks, theme.font_size.md),
+                theme.module_text_color(&ModuleName::KeyboardLocks),
+            )
+        });
+        // A lock that is off dims the module's own text color
+        let off = move |theme: &Theme| {
+            text_color
+                .map_or(theme.palette().text, |color| color.color(theme))
+                .scale_alpha(0.4)
+        };
+
+        let indicators = [
+            (
+                self.config.caps_lock,
+                service.caps_lock,
+                StaticIcon::CapsLock,
+            ),
+            (self.config.num_lock, service.num_lock, StaticIcon::NumLock),
+            (
+                self.config.scroll_lock,
+                service.scroll_lock,
+                StaticIcon::ScrollLock,
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(visibility, on, icon)| {
+            let on = on?;
+            let shown = match visibility {
+                LockVisibility::Hidden => false,
+                LockVisibility::ActiveOnly => on,
+                LockVisibility::AlwaysVisible => true,
+            };
+            shown.then(|| {
+                icon_mono(icon)
+                    .size(size)
+                    .style(move |theme: &Theme| text::Style {
+                        color: (!on).then(|| off(theme)),
+                    })
+                    .into()
+            })
+        })
+        .collect::<Vec<_>>();
+
+        (!indicators.is_empty()).then(|| {
+            Row::from_vec(indicators)
+                .align_y(Alignment::Center)
+                .spacing(spacing)
+                .into()
+        })
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        KeyboardLocksService::subscribe().map(Message::Event)
+    }
+}

@@ -20,6 +20,7 @@ pub struct App {
     pub system_info: SystemInfo,             // CPU/RAM/disk/network stats
     pub keyboard_layout: KeyboardLayout,     // Keyboard layout indicator
     pub keyboard_submap: KeyboardSubmap,     // Hyprland submap display
+    pub keyboard_locks: KeyboardLocks,       // Caps/Num/Scroll Lock indicators
     pub tray: TrayModule,                    // System tray
     pub tempo: Tempo,                        // Clock/calendar/weather
     pub privacy: Privacy,                    // Mic/camera/screenshare indicators
