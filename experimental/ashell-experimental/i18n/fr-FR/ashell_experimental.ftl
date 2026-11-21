@@ -33,3 +33,27 @@ weather-thunderstorm = Orage faible ou modéré
 weather-thunderstorm-hail-slight = Orage avec grêle légère
 weather-thunderstorm-hail-heavy = Orage avec grêle forte
 weather-unknown = Condition météo inconnue
+
+## Clock
+tempo-tab-calendar = Calendrier
+tempo-tab-alarms = Alarmes
+tempo-tab-timer = Minuteur
+tempo-tab-stopwatch = Chronomètre
+tempo-no-alarms = Aucune alarme
+tempo-add-alarm = Ajouter une alarme
+tempo-alarm = Alarme
+tempo-repeat-never = Jamais
+tempo-repeat-weekdays = Jours de semaine
+tempo-repeat-weekends = Week-end
+tempo-repeat-everyday = Tous les jours
+tempo-save = Enregistrer
+tempo-cancel = Annuler
+tempo-snooze = Rappel
+tempo-dismiss = Ignorer
+tempo-start = Démarrer
+tempo-pause = Pause
+tempo-add-minute = +1 min
+tempo-lap = Tour
+tempo-lap-n = Tour { $n }
+tempo-timer-finished = Temps écoulé
+tempo-minutes = { $n } min

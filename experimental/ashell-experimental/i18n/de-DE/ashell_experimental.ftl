@@ -33,3 +33,27 @@ weather-thunderstorm = Gewitter
 weather-thunderstorm-hail-slight = Gewitter mit leichtem Hagel
 weather-thunderstorm-hail-heavy = Gewitter mit starkem Hagel
 weather-unknown = Unbekanntes Wetter
+
+## Clock
+tempo-tab-calendar = Kalender
+tempo-tab-alarms = Wecker
+tempo-tab-timer = Timer
+tempo-tab-stopwatch = Stoppuhr
+tempo-no-alarms = Keine Wecker
+tempo-add-alarm = Wecker hinzufügen
+tempo-alarm = Wecker
+tempo-repeat-never = Nie
+tempo-repeat-weekdays = Wochentags
+tempo-repeat-weekends = Wochenende
+tempo-repeat-everyday = Jeden Tag
+tempo-save = Speichern
+tempo-cancel = Abbrechen
+tempo-snooze = Später
+tempo-dismiss = Verwerfen
+tempo-start = Start
+tempo-pause = Pause
+tempo-add-minute = +1 Min.
+tempo-lap = Runde
+tempo-lap-n = Runde { $n }
+tempo-timer-finished = Zeit ist um
+tempo-minutes = { $n } Min.

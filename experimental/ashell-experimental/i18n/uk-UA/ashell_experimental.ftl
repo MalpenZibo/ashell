@@ -33,3 +33,27 @@ weather-thunderstorm = Слабка або помірна гроза
 weather-thunderstorm-hail-slight = Гроза з дрібним градом
 weather-thunderstorm-hail-heavy = Гроза з сильним градом
 weather-unknown = Невідомі погодні умови
+
+## Clock
+tempo-tab-calendar = Календар
+tempo-tab-alarms = Будильники
+tempo-tab-timer = Таймер
+tempo-tab-stopwatch = Секундомір
+tempo-no-alarms = Немає будильників
+tempo-add-alarm = Додати будильник
+tempo-alarm = Будильник
+tempo-repeat-never = Ніколи
+tempo-repeat-weekdays = Будні
+tempo-repeat-weekends = Вихідні
+tempo-repeat-everyday = Щодня
+tempo-save = Зберегти
+tempo-cancel = Скасувати
+tempo-snooze = Відкласти
+tempo-dismiss = Вимкнути
+tempo-start = Старт
+tempo-pause = Пауза
+tempo-add-minute = +1 хв
+tempo-lap = Коло
+tempo-lap-n = Коло { $n }
+tempo-timer-finished = Час вийшов
+tempo-minutes = { $n } хв

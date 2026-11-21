@@ -1,13 +1,19 @@
 //! The time, the date and the weather: the `clock`, `date`, `weather` and
-//! `forecast` items, and the `calendar` panel.
+//! `forecast` items, and the calendar panel: the calendar, alarms, the timer
+//! and the stopwatch.
 
+mod alarms;
 mod calendar;
+mod clock;
 mod config;
+mod duration;
 mod items;
 #[cfg(test)]
 pub mod sample;
 mod sky;
+mod stopwatch;
 mod time;
+mod timer;
 
 use std::pin::pin;
 use std::time::Duration;
@@ -36,6 +42,9 @@ pub struct Tempo {
     weather: Signal<Option<WeatherData>>,
     /// The place of the weather, hidden for a screenshot.
     place_hidden: RwSignal<bool>,
+    /// The calendar panel: its open tab, the alarms, the timer and the
+    /// stopwatch.
+    clock: clock::Clock,
 }
 
 impl Tempo {
@@ -100,6 +109,7 @@ impl Tempo {
             zone,
             weather: weather.read_only(),
             place_hidden: create_signal(false),
+            clock: clock::Clock::new(),
         }
     }
 
@@ -117,6 +127,7 @@ impl Tempo {
             zone: create_signal(0),
             weather: create_signal(weather).read_only(),
             place_hidden: create_signal(false),
+            clock: clock::Clock::fixed(),
         }
     }
 
@@ -151,7 +162,7 @@ impl Tempo {
 
     /// Its one panel, the calendar.
     pub fn panel(self, _panel: Panel) -> Container {
-        calendar::view(self)
+        clock::view(self)
     }
 }
 
@@ -171,6 +182,9 @@ fn actions(id: ItemId) -> &'static [&'static str] {
     match id {
         ItemId::Clock => &[CYCLE_FORMAT, NEXT_TIMEZONE, PREVIOUS_TIMEZONE],
         ItemId::Date => &[NEXT_TIMEZONE, PREVIOUS_TIMEZONE],
+        ItemId::Timer => timer::ACTIONS,
+        ItemId::Stopwatch => stopwatch::ACTIONS,
+        ItemId::Alarm => alarms::ACTIONS,
         _ => &[],
     }
 }
@@ -191,6 +205,18 @@ fn default_gestures(id: ItemId) -> Gestures {
             ..zones
         },
         ItemId::Date => zones,
+        ItemId::Timer => Gestures {
+            right_click: named(timer::TOGGLE),
+            ..Gestures::default()
+        },
+        ItemId::Stopwatch => Gestures {
+            right_click: named(stopwatch::TOGGLE),
+            ..Gestures::default()
+        },
+        ItemId::Alarm => Gestures {
+            right_click: named(alarms::SNOOZE),
+            ..Gestures::default()
+        },
         _ => Gestures::default(),
     }
 }
@@ -200,5 +226,5 @@ fn check_options(id: ItemId, options: &Table) -> Vec<String> {
 }
 
 fn panel_width(_panel: Panel) -> f32 {
-    calendar::WIDTH
+    clock::WIDTH
 }

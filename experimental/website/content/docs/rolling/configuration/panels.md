@@ -9,8 +9,8 @@ them, and flow down.
 
 {% <note kind="info" title="Placeholders"> %}
 The panels are placeholders for now, sized like the real ones, but for the
-[calendar](@/docs/rolling/configuration/tempo.md#the-calendar): how they open
-and close is what is in place.
+[calendar](@/docs/rolling/configuration/tempo.md#the-calendar-panel): how it
+opens and closes, and its tabs, are in place.
 {% </note> %}
 
 ## `panels`

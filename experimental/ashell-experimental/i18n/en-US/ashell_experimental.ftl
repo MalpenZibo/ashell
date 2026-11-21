@@ -39,3 +39,27 @@ weather-thunderstorm = Slight or moderate thunderstorm
 weather-thunderstorm-hail-slight = Thunderstorm with slight hail
 weather-thunderstorm-hail-heavy = Thunderstorm with heavy hail
 weather-unknown = Unknown weather condition
+
+## Clock
+tempo-tab-calendar = Calendar
+tempo-tab-alarms = Alarms
+tempo-tab-timer = Timer
+tempo-tab-stopwatch = Stopwatch
+tempo-no-alarms = No alarms
+tempo-add-alarm = Add alarm
+tempo-alarm = Alarm
+tempo-repeat-never = Never
+tempo-repeat-weekdays = Weekdays
+tempo-repeat-weekends = Weekends
+tempo-repeat-everyday = Every day
+tempo-save = Save
+tempo-cancel = Cancel
+tempo-snooze = Snooze
+tempo-dismiss = Dismiss
+tempo-start = Start
+tempo-pause = Pause
+tempo-add-minute = +1 min
+tempo-lap = Lap
+tempo-lap-n = Lap { $n }
+tempo-timer-finished = Time is up
+tempo-minutes = { $n } min

@@ -159,6 +159,9 @@ items! {
     Date = "date", Always, Calendar, Tempo;
     Weather = "weather", Always, Calendar, Tempo;
     Forecast = "forecast", Always, Calendar, Tempo;
+    Timer = "timer", Notable, Calendar, Tempo;
+    Stopwatch = "stopwatch", Notable, Calendar, Tempo;
+    Alarm = "alarm", Notable, Calendar, Tempo;
     Notifications = "notifications", Notable, Notifications, -;
     Notices = "notices", Notable, Notifications, -;
     Media = "media", Notable, Media, -;
