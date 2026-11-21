@@ -94,7 +94,7 @@ src/
 │   │   ├── niri.rs           # Niri IPC integration
 │   │   ├── mangowc.rs        # MangoWC integration (`mmsg` IPC)
 │   │   └── generic.rs        # Generic Wayland fallback (ext-workspace, foreign-toplevel)
-│   ├── audio.rs             # PulseAudio/PipeWire audio service
+│   ├── audio.rs             # iced glue for the ashell-services audio service
 │   ├── brightness.rs        # iced glue for the ashell-services brightness service
 │   ├── bluetooth.rs         # iced glue for the ashell-services Bluetooth service
 │   ├── network/
