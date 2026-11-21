@@ -289,8 +289,8 @@ fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
         .padding(size::S3.px())
         .corners(radius::MEDIUM.corners())
         .gradient(LinearGradient::diagonal(
-            t.colors.accent.with_alpha(0.28),
-            t.colors.accent.with_alpha(0.04),
+            t.colors.accent.fill.with_alpha(0.28),
+            t.colors.accent.fill.with_alpha(0.04),
         ))
         .layout(Flex::column())
         .child(
@@ -301,7 +301,7 @@ fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
                         icon(
                             sky::icon(c.code, c.is_day),
                             icon_box::XLARGE.px(),
-                            sky::ink(c.code, t.colors.accent, t.colors.text),
+                            sky::ink(c.code, t.colors.accent.text, t.colors.text),
                         )
                     })
                 })
@@ -374,7 +374,7 @@ fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
                                 .child(icon(
                                     sky::icon(hour.code, hour.is_day),
                                     icon_box::SMALL.px(),
-                                    sky::ink(hour.code, t.colors.accent, t.colors.text),
+                                    sky::ink(hour.code, t.colors.accent.text, t.colors.text),
                                 ))
                                 .child(
                                     typed(
@@ -555,7 +555,7 @@ fn cell(
     let outside = day.month() != first.month();
 
     let ink = if is_today {
-        t.colors.on_accent
+        t.colors.accent.on
     } else if outside {
         t.colors.dim.with_alpha(opacity::DISABLED)
     } else {
@@ -571,7 +571,7 @@ fn cell(
         .background(
             (move || {
                 if is_today {
-                    t.colors.accent
+                    t.colors.accent.fill
                 } else if picked() {
                     t.colors.surface2
                 } else {
@@ -600,9 +600,9 @@ fn cell(
         )
         .child(sky.map(|code| {
             let tint = if is_today {
-                t.colors.on_accent
+                t.colors.accent.on
             } else {
-                self::sky::ink(code, t.colors.accent, t.colors.sub)
+                self::sky::ink(code, t.colors.accent.text, t.colors.sub)
             };
 
             icon(self::sky::icon(code, true), icon_box::XSMALL.px(), tint)
@@ -613,7 +613,7 @@ fn cell(
             .when_hovered(move |s| {
                 s.background(move || {
                     if is_today {
-                        t.colors.accent
+                        t.colors.accent.fill
                     } else {
                         t.colors.surface
                     }

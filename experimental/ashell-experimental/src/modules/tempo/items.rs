@@ -212,7 +212,7 @@ fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
                 icon(
                     sky::icon(code, is_day),
                     icon_box::SMALL.px(),
-                    sky::ink(code, t.colors.accent, t.colors.sub),
+                    sky::ink(code, t.colors.accent.text, t.colors.sub),
                 )
             })
         })
@@ -280,7 +280,7 @@ fn forecast(tempo: Tempo, show: Show, hours: usize) -> ItemView {
                         .child(icon(
                             sky::icon(hour.code, hour.is_day),
                             icon_box::XSMALL.px(),
-                            sky::ink(hour.code, t.colors.accent, t.colors.sub),
+                            sky::ink(hour.code, t.colors.accent.text, t.colors.sub),
                         ))
                         .child(
                             typed(sky::degrees(hour.temperature), ty::LABEL_XSMALL.tabular())
