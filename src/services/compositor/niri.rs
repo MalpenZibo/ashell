@@ -9,7 +9,11 @@ use niri_ipc::{
     Action, Event, Reply, Request, Response, WorkspaceReferenceArg,
     state::{EventStreamState, EventStreamStatePart},
 };
-use std::{collections::HashMap, env, os::unix::net::UnixStream as StdUnixStream};
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    os::unix::net::UnixStream as StdUnixStream,
+};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
@@ -258,8 +262,33 @@ async fn app_window_id(pid: Option<u32>, apps: &[String], title: Option<&str>) -
         .ok_or_else(|| anyhow!("No window found for pid {pid:?} or apps {apps:?}"))
 }
 
-/// `_outputs` holds each output's logical size by name, for consumers to come.
-fn map_state(niri: &EventStreamState, _outputs: &HashMap<String, (u32, u32)>) -> CompositorState {
+/// The `(workspace id, column index)` of every tabbed column, from tiled
+/// windows given as `(workspace id, column index, tile height)`.
+///
+/// niri doesn't report a column's display mode over IPC, but gives every tab
+/// of a tabbed column the full column height. So two or more tabs add up to
+/// more than the output's logical height, while a normal column's stacked
+/// tiles always fit on it. Without the output height nothing is detected.
+fn tabbed_columns(
+    tiles: impl IntoIterator<Item = (u64, usize, f64)>,
+    output_height: impl Fn(u64) -> Option<f64>,
+) -> HashSet<(u64, usize)> {
+    let mut columns: HashMap<(u64, usize), (usize, f64)> = HashMap::new();
+    for (ws_id, col, h) in tiles {
+        let (count, sum) = columns.entry((ws_id, col)).or_default();
+        *count += 1;
+        *sum += h;
+    }
+    columns
+        .into_iter()
+        .filter(|&((ws_id, _), (count, sum))| {
+            count > 1 && output_height(ws_id).is_some_and(|out_h| sum > out_h)
+        })
+        .map(|(key, _)| key)
+        .collect()
+}
+
+fn map_state(niri: &EventStreamState, outputs: &HashMap<String, (u32, u32)>) -> CompositorState {
     let output_to_active_ws: HashMap<_, _> = niri
         .workspaces
         .workspaces
@@ -380,22 +409,46 @@ fn map_state(niri: &EventStreamState, _outputs: &HashMap<String, (u32, u32)>) ->
             })
         });
 
+    // Column of a tiled window: (workspace id, column index).
+    let column_of = |w: &niri_ipc::Window| {
+        w.workspace_id
+            .zip(w.layout.pos_in_scrolling_layout)
+            .map(|(wid, (col, _))| (wid, col))
+    };
+    let tabbed = tabbed_columns(
+        niri.windows
+            .windows
+            .values()
+            .filter_map(|w| column_of(w).map(|(wid, col)| (wid, col, w.layout.tile_size.1))),
+        |wid| {
+            let output = niri.workspaces.workspaces.get(&wid)?.output.as_ref()?;
+            outputs.get(output).map(|&(_, h)| h as f64)
+        },
+    );
+
     let windows: Vec<CompositorWindow> = niri
         .windows
         .windows
         .values()
-        .map(|w| CompositorWindow {
-            id: w.id,
-            workspace_id: w.workspace_id.map(|wid| wid as i32),
-            is_focused: w.is_focused,
-            is_floating: w.is_floating,
-            is_urgent: w.is_urgent,
-            tile_position: w
-                .layout
-                .pos_in_scrolling_layout
-                .map(|(c, r)| (c as u32, r as u32)),
-            tile_width: w.layout.tile_size.0 as f32,
-            tile_height: w.layout.tile_size.1 as f32,
+        .map(|w| {
+            // A tabbed column is a single slot holding every window as a tab,
+            // in niri's tile order.
+            let is_tab = column_of(w).is_some_and(|key| tabbed.contains(&key));
+            let (tile_position, tab_index) = match w.layout.pos_in_scrolling_layout {
+                Some((c, r)) if is_tab => (Some((c as u32, 1)), Some(r as u32 - 1)),
+                pos => (pos.map(|(c, r)| (c as u32, r as u32)), None),
+            };
+            CompositorWindow {
+                id: w.id,
+                workspace_id: w.workspace_id.map(|wid| wid as i32),
+                is_focused: w.is_focused,
+                is_floating: w.is_floating,
+                is_urgent: w.is_urgent,
+                tile_position,
+                tab_index,
+                tile_width: w.layout.tile_size.0 as f32,
+                tile_height: w.layout.tile_size.1 as f32,
+            }
         })
         .collect();
 
@@ -482,5 +535,39 @@ mod tests {
         };
         assert!(!outputs_may_have_changed(&scrolled, &state));
         assert!(!outputs_may_have_changed(&unknown, &state));
+    }
+
+    // Tile heights niri reports for a two-window column next to a one-window
+    // column, normal and tabbed, on a 1080px-tall output.
+    const OUTPUT_H: f64 = 1080.0;
+
+    fn detect(tiles: &[(u64, usize, f64)], output_h: Option<f64>) -> HashSet<(u64, usize)> {
+        tabbed_columns(tiles.iter().copied(), |_| output_h)
+    }
+
+    #[test]
+    fn tabbed_column_detected_by_height() {
+        let tabbed = [(1, 1, 1041.0), (1, 1, 1041.0), (1, 2, 1041.0)];
+        assert_eq!(detect(&tabbed, Some(OUTPUT_H)), HashSet::from([(1, 1)]));
+    }
+
+    #[test]
+    fn normal_column_not_detected() {
+        let normal = [(1, 1, 517.0), (1, 1, 516.0), (1, 2, 1041.0)];
+        assert!(detect(&normal, Some(OUTPUT_H)).is_empty());
+    }
+
+    #[test]
+    fn nothing_detected_without_output_height() {
+        let tabbed = [(1, 1, 1041.0), (1, 1, 1041.0)];
+        assert!(detect(&tabbed, None).is_empty());
+    }
+
+    #[test]
+    fn columns_are_per_workspace() {
+        // Column 1 on two workspaces: only the one whose tiles overflow is
+        // tabbed.
+        let tiles = [(1, 1, 1041.0), (1, 1, 1041.0), (2, 1, 517.0), (2, 1, 516.0)];
+        assert_eq!(detect(&tiles, Some(OUTPUT_H)), HashSet::from([(1, 1)]));
     }
 }

@@ -114,14 +114,19 @@ pub struct CompositorWindow {
     pub is_focused: bool,
     pub is_floating: bool,
     pub is_urgent: bool,
-    /// Position in a tile grid (column, row), if the compositor lays this
+    /// Layout slot in a tile grid (column, row), if the compositor lays this
     /// window out in a grid. Only relative ordering is meaningful; the
-    /// origin index is compositor-defined.
+    /// origin index is compositor-defined. Tabs share their slot, ordered by
+    /// [`Self::tab_index`].
     pub tile_position: Option<(u32, u32)>,
     /// Tile dimensions in logical pixels (including decorations), used
     /// for proportional minimap sizing.
     pub tile_width: f32,
     pub tile_height: f32,
+    /// Position among the tabs sharing this window's slot, of which only one
+    /// is shown at a time. `None` for a window that has its slot to itself,
+    /// and where the compositor doesn't report tabs.
+    pub tab_index: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default)]
