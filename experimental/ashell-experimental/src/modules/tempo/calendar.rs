@@ -5,7 +5,7 @@ use ashell_i18n::{chrono_locale, t};
 use ashell_services::weather::WeatherData;
 use chrono::{Datelike, Months, NaiveDate, Timelike, Weekday};
 use guido::prelude::*;
-use styletto::components::button::{Fill, chip_button, icon_button};
+use styletto::components::button::{Fill, button};
 use styletto::components::roll;
 use styletto::foundations::control::Size;
 use styletto::foundations::tokens::{icon as icon_box, opacity, radius, size};
@@ -16,8 +16,15 @@ use styletto::{Icon, centered_row, foundations::motion, icon, ui};
 use super::config::TimeZone;
 use super::{Tempo, sky, time};
 
-pub const WIDTH: f32 = 600.0;
-const LEFT: f32 = 260.0;
+/// The panel's width, following the density.
+pub fn width() -> f32 {
+    size::scaled(600.0)
+}
+
+/// The clock's column, following the density.
+fn left() -> f32 {
+    size::scaled(260.0)
+}
 /// How many hours of forecast the weather card shows.
 const HOURS: usize = 6;
 /// The hours of a day the card shows for it.
@@ -29,12 +36,12 @@ pub fn view(tempo: Tempo) -> Container {
     let has_weather = create_memo(move || tempo.weather.with(Option::is_some));
 
     container()
-        .width(WIDTH)
+        .width(width())
         .padding(size::S4.px())
         .layout(Flex::row().spacing(size::S4.px()))
         .child(
             container()
-                .width(LEFT)
+                .width(left())
                 .layout(Flex::column().spacing(size::S3.px()))
                 .child(clock(tempo))
                 .child(zones(tempo))
@@ -446,20 +453,22 @@ fn month(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
                         .layout(centered_row(size::S1.px()))
                         .child(move || {
                             (offset.get() != 0 || chosen.get().is_some()).then(|| {
-                                chip_button(t!("tempo-today")).on_click(move || {
+                                button().label(t!("tempo-today")).on_click(move || {
                                     offset.set(0);
                                     chosen.set(None);
                                 })
                             })
                         })
                         .child(
-                            icon_button(Icon::ChevronLeft)
+                            button()
+                                .icon(Icon::ChevronLeft)
                                 .size(Size::Sm)
                                 .fill(Fill::Ghost)
                                 .on_click(step(-1)),
                         )
                         .child(
-                            icon_button(Icon::ChevronRight)
+                            button()
+                                .icon(Icon::ChevronRight)
                                 .size(Size::Sm)
                                 .fill(Fill::Ghost)
                                 .on_click(step(1)),
