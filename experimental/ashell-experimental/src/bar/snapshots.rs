@@ -432,6 +432,8 @@ items = [
     "peripheral_battery",
     "battery",
     "battery_time",
+    { item = "volume", show = "always", style = "icon-value" },
+    "microphone",
 ]
 
 [settings]

@@ -13,6 +13,7 @@ publish = false
 anyhow = "1"
 ashell-i18n.workspace = true
 ashell-services = { workspace = true, features = [
+    "audio",
     "bluetooth",
     "brightness",
     "idle_inhibitor",

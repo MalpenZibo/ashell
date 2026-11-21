@@ -3,6 +3,7 @@
 
 use std::future::Future;
 
+use ashell_services::audio::{Audio, AudioCommand, AudioData};
 use ashell_services::bluetooth::{Bluetooth, BluetoothCommand, BluetoothData};
 use ashell_services::brightness::{Brightness, BrightnessCommand, BrightnessData};
 use ashell_services::upower::{UPower, UPowerCommand, UPowerData};
@@ -50,6 +51,24 @@ macro_rules! backend {
 backend!(Bluetooth => BluetoothData, BluetoothCommand);
 backend!(Brightness => Option<BrightnessData>, BrightnessCommand, latest = true);
 backend!(UPower => UPowerData, UPowerCommand);
+
+/// Its commands only queue for the server's thread: they do not wait.
+impl Backend for Audio {
+    type Data = AudioData;
+    type Command = AudioCommand;
+
+    async fn connect() -> anyhow::Result<Self> {
+        Audio::connect().await
+    }
+
+    fn updates(&self) -> impl Stream<Item = AudioData> + Send + 'static {
+        Audio::updates(self)
+    }
+
+    async fn execute(&self, command: AudioCommand) -> anyhow::Result<()> {
+        Audio::execute(self, command)
+    }
+}
 
 /// A service as the UI sees it: its latest snapshot, the default one until
 /// the first comes, and where its commands go.

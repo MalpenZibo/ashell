@@ -1,7 +1,9 @@
-//! A laptop on its battery, with headphones on Bluetooth: for pictures.
+//! A laptop on its battery, with headphones on Bluetooth and the microphone
+//! muted: for pictures.
 
 use std::time::Duration;
 
+use ashell_services::audio::{AudioData, Device, NORMAL_VOLUME, Port, PortKind};
 use ashell_services::bluetooth::{BluetoothData, BluetoothDevice, BluetoothState};
 use ashell_services::brightness::BrightnessData;
 use ashell_services::upower::{
@@ -65,9 +67,50 @@ pub fn settings(config: Memo<super::SettingsConfig>) -> Settings {
         discovering: false,
     };
 
+    let device = |name: &str, description: &str, volume: u32, is_mute| Device {
+        name: name.into(),
+        description: description.into(),
+        volume,
+        is_mute,
+        ports: Vec::new(),
+        active_port: None,
+    };
+    let port = |name: &str, kind| Port {
+        name: name.into(),
+        description: name.into(),
+        kind,
+    };
+    let audio = AudioData {
+        default_sink: "speakers".into(),
+        default_source: "microphone".into(),
+        sinks: vec![
+            Device {
+                ports: vec![
+                    port("Speakers", PortKind::Speaker),
+                    port("Headphones", PortKind::Headphones),
+                ],
+                active_port: Some("Speakers".into()),
+                ..device(
+                    "speakers",
+                    "Built-in audio",
+                    NORMAL_VOLUME * 45 / 100,
+                    false,
+                )
+            },
+            device("monitor", "Monitor", NORMAL_VOLUME, false),
+        ],
+        sources: vec![device(
+            "microphone",
+            "Microphone",
+            NORMAL_VOLUME * 80 / 100,
+            true,
+        )],
+    };
+
     Settings {
         config,
         upower: fixed(upower),
+        audio: fixed(audio),
         bluetooth: fixed(bluetooth),
         brightness: fixed(Some(BrightnessData {
             current: 600,

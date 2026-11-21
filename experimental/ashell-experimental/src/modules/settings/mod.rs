@@ -1,6 +1,7 @@
 //! The machine's state, and what of it can be set from the bar: the
 //! `battery`, `peripheral_battery`, `power_profile`, `bluetooth`,
-//! `idle_inhibitor` and `brightness` items, and the `settings` panel.
+//! `idle_inhibitor`, `brightness`, `volume` and `microphone` items, and the
+//! `settings` panel.
 
 mod config;
 mod items;
@@ -8,6 +9,7 @@ mod panel;
 #[cfg(test)]
 pub mod sample;
 
+use ashell_services::audio::{Audio, AudioCommand, AudioData, Device, NORMAL_VOLUME, Route};
 use ashell_services::bluetooth::{Bluetooth, BluetoothCommand};
 use ashell_services::brightness::{Brightness, BrightnessCommand};
 use ashell_services::idle_inhibitor::IdleInhibitor;
@@ -26,6 +28,7 @@ pub use config::SettingsConfig;
 pub struct Settings {
     config: Memo<SettingsConfig>,
     upower: Linked<UPower>,
+    audio: Linked<Audio>,
     bluetooth: Linked<Bluetooth>,
     brightness: Linked<Brightness>,
     idle: Idle,
@@ -44,6 +47,7 @@ impl Settings {
         Self {
             config,
             upower: link(),
+            audio: link(),
             bluetooth: link(),
             brightness: link(),
             idle: Idle::new(),
@@ -66,8 +70,48 @@ impl Settings {
             TOGGLE_IDLE_INHIBITOR => self.idle.toggle.send(()),
             BRIGHTNESS_UP => self.step_brightness(true),
             BRIGHTNESS_DOWN => self.step_brightness(false),
+            TOGGLE_MUTE => self.audio.commands.send(Sound::Output.toggle_mute()),
+            VOLUME_UP => self.step_volume(Sound::Output, true),
+            VOLUME_DOWN => self.step_volume(Sound::Output, false),
+            TOGGLE_MICROPHONE_MUTE => self.audio.commands.send(Sound::Input.toggle_mute()),
+            MICROPHONE_UP => self.step_volume(Sound::Input, true),
+            MICROPHONE_DOWN => self.step_volume(Sound::Input, false),
             _ => {}
         }
+    }
+
+    /// `volume_step` of 100%, up to the sound's limit or where it already is
+    /// above it.
+    fn step_volume(self, sound: Sound, up: bool) {
+        let Some(current) = self
+            .audio
+            .data
+            .with_untracked(|data| sound.device(data).map(|d| d.volume))
+        else {
+            return;
+        };
+        let (step, max) = self.config.into_signal().with_untracked(|config| {
+            (
+                volume(config.volume_step as f32),
+                volume(sound.max_percent(config) as f32),
+            )
+        });
+        let volume = if up {
+            (current + step).min(max.max(current))
+        } else {
+            current.saturating_sub(step)
+        };
+
+        self.audio.commands.send(sound.set(volume));
+    }
+
+    /// Sets `sound` to `percent` of 100%, unmuting it.
+    fn set_volume(self, sound: Sound, percent: f32) {
+        if self.audio.data.with_untracked(|data| sound.muted(data)) {
+            self.audio.commands.send(sound.unmute());
+        }
+
+        self.audio.commands.send(sound.set(volume(percent)));
     }
 
     /// Sets the backlight to `percent`, never under its lowest level that
@@ -98,6 +142,110 @@ impl Settings {
 
         self.brightness.commands.send(BrightnessCommand(value));
     }
+}
+
+/// The output or the input: what the volume or the microphone controls.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Sound {
+    Output,
+    Input,
+}
+
+impl Sound {
+    /// The default sink, or the default source.
+    fn device(self, data: &AudioData) -> Option<&Device> {
+        match self {
+            Sound::Output => data.active_sink(),
+            Sound::Input => data.active_source(),
+        }
+    }
+
+    /// The name of the default sink, or of the default source.
+    fn default(self, data: &AudioData) -> &str {
+        match self {
+            Sound::Output => &data.default_sink,
+            Sound::Input => &data.default_source,
+        }
+    }
+
+    /// What can be chosen for it: each device, through each of its ports.
+    fn routes(self, data: &AudioData) -> Box<dyn Iterator<Item = Route<'_>> + '_> {
+        match self {
+            Sound::Output => Box::new(data.sink_routes()),
+            Sound::Input => Box::new(data.source_routes()),
+        }
+    }
+
+    /// Whether there is more than one route to choose from.
+    fn several(self, data: &AudioData) -> bool {
+        match self {
+            Sound::Output => data.has_multiple_sinks(),
+            Sound::Input => data.has_multiple_sources(),
+        }
+    }
+
+    fn muted(self, data: &AudioData) -> bool {
+        self.device(data).is_some_and(|device| device.is_mute)
+    }
+
+    /// How loud, in percent of 100%: zero while muted, as ashell's slider.
+    fn percent(self, data: &AudioData) -> Option<f32> {
+        self.device(data).map(|device| {
+            if device.is_mute {
+                0.0
+            } else {
+                percent(device.volume)
+            }
+        })
+    }
+
+    /// How loud it can be set, in percent: the output to `max_volume`, as
+    /// ashell's, the input to 100.
+    fn max_percent(self, config: &SettingsConfig) -> u32 {
+        match self {
+            Sound::Output => config.max_volume,
+            Sound::Input => 100,
+        }
+    }
+
+    fn set(self, volume: u32) -> AudioCommand {
+        match self {
+            Sound::Output => AudioCommand::SinkVolume(volume),
+            Sound::Input => AudioCommand::SourceVolume(volume),
+        }
+    }
+
+    /// Makes `device` the default, through `port` when it has several.
+    fn choose(self, device: String, port: Option<String>) -> AudioCommand {
+        match self {
+            Sound::Output => AudioCommand::DefaultSink(device, port),
+            Sound::Input => AudioCommand::DefaultSource(device, port),
+        }
+    }
+
+    fn toggle_mute(self) -> AudioCommand {
+        match self {
+            Sound::Output => AudioCommand::ToggleSinkMute,
+            Sound::Input => AudioCommand::ToggleSourceMute,
+        }
+    }
+
+    fn unmute(self) -> AudioCommand {
+        match self {
+            Sound::Output => AudioCommand::SetSinkMute(false),
+            Sound::Input => AudioCommand::SetSourceMute(false),
+        }
+    }
+}
+
+/// A device's raw `volume`, in percent of 100%.
+fn percent(volume: u32) -> f32 {
+    volume as f32 * 100.0 / NORMAL_VOLUME as f32
+}
+
+/// `percent` of 100%, as a device's raw volume.
+fn volume(percent: f32) -> u32 {
+    (percent / 100.0 * NORMAL_VOLUME as f32).round() as u32
 }
 
 impl Idle {
@@ -144,6 +292,12 @@ const TOGGLE_BLUETOOTH: &str = "toggle_bluetooth";
 const TOGGLE_IDLE_INHIBITOR: &str = "toggle_idle_inhibitor";
 const BRIGHTNESS_UP: &str = "brightness_up";
 const BRIGHTNESS_DOWN: &str = "brightness_down";
+const TOGGLE_MUTE: &str = "toggle_mute";
+const VOLUME_UP: &str = "volume_up";
+const VOLUME_DOWN: &str = "volume_down";
+const TOGGLE_MICROPHONE_MUTE: &str = "toggle_microphone_mute";
+const MICROPHONE_UP: &str = "microphone_up";
+const MICROPHONE_DOWN: &str = "microphone_down";
 
 pub const SPEC: Spec = Spec {
     actions,
@@ -161,19 +315,28 @@ fn actions(id: ItemId) -> &'static [&'static str] {
         ItemId::Bluetooth => &[TOGGLE_BLUETOOTH],
         ItemId::IdleInhibitor => &[TOGGLE_IDLE_INHIBITOR],
         ItemId::Brightness => &[BRIGHTNESS_UP, BRIGHTNESS_DOWN],
+        ItemId::Volume => &[TOGGLE_MUTE, VOLUME_UP, VOLUME_DOWN],
+        ItemId::Microphone => &[TOGGLE_MICROPHONE_MUTE, MICROPHONE_UP, MICROPHONE_DOWN],
         _ => &[],
     }
 }
 
-/// ashell's: the wheel on the brightness sets it.
+/// ashell's: the wheel on the brightness, the volume and the microphone
+/// sets them.
 fn default_gestures(id: ItemId) -> Gestures {
     match id {
-        ItemId::Brightness => Gestures {
-            scroll_up: Some(Action::Named(BRIGHTNESS_UP)),
-            scroll_down: Some(Action::Named(BRIGHTNESS_DOWN)),
-            ..Gestures::default()
-        },
+        ItemId::Brightness => wheel(BRIGHTNESS_UP, BRIGHTNESS_DOWN),
+        ItemId::Volume => wheel(VOLUME_UP, VOLUME_DOWN),
+        ItemId::Microphone => wheel(MICROPHONE_UP, MICROPHONE_DOWN),
         _ => Gestures::default(),
+    }
+}
+
+fn wheel(up: &'static str, down: &'static str) -> Gestures {
+    Gestures {
+        scroll_up: Some(Action::Named(up)),
+        scroll_down: Some(Action::Named(down)),
+        ..Gestures::default()
     }
 }
 

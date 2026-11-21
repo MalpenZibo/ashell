@@ -22,10 +22,10 @@ in between: they are two configuration files, not two modes.
 There are no releases: it is built from `main` and changes with it. The
 layout, the islands, the panels and the details are in place; the time, the
 weather, the calendar, the batteries, the power profile, Bluetooth, the idle
-inhibitor and the brightness have their data, and the settings panel has the
-battery, the power buttons, the brightness, the toggles and the Bluetooth
-devices. The other zones and panels still show placeholders sized like the
-real thing. The
+inhibitor, the brightness and the volume have their data, and the settings
+panel has the battery, the power buttons, the sliders, the toggles, the
+outputs and inputs and the Bluetooth devices. The other zones and panels
+still show placeholders sized like the real thing. The
 [stable ashell](https://malpenzibo.github.io/ashell/) is the one to use every
 day.
 {% </note> %}
