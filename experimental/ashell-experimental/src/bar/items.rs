@@ -35,29 +35,32 @@ pub(super) fn zone(
     drawn.then(|| container().child(pill().on_click(click).children(items)))
 }
 
-/// A zone's details: its items, those no module draws yet as placeholders.
+/// A zone's details: its items, as [`row`] has them.
 pub(super) fn details(items: &[Item], open: Open, modules: Modules, opens: Opens) -> Container {
     container()
         .layout(centered_row(size::S1.px()))
         .children(row(items, open, modules, opens).0)
 }
 
-/// The items, a placeholder for each one no module draws, and whether any
-/// module drew one.
+/// The items the modules draw, and whether there is any. While there is
+/// none, a placeholder for each item; once there is one, those no module
+/// draws yet are left out, so a zone being built shows only what is done.
 fn row(items: &[Item], open: Open, modules: Modules, opens: Opens) -> (Vec<Container>, bool) {
-    let mut any_drawn = false;
-    let views = items
+    let views: Vec<_> = items
         .iter()
-        .map(|item| match modules.item(item) {
-            Some(view) => {
-                any_drawn = true;
-                drawn(item, view, open, opens.clone())
-            }
-            None => placeholder(item, open, opens.clone()),
+        .map(|item| (item, modules.item(item)))
+        .collect();
+    let any_drawn = views.iter().any(|(_, view)| view.is_some());
+
+    let row = views
+        .into_iter()
+        .filter_map(|(item, view)| match view {
+            Some(view) => Some(drawn(item, view, open, opens.clone())),
+            None => (!any_drawn).then(|| placeholder(item, open, opens.clone())),
         })
         .collect();
 
-    (views, any_drawn)
+    (row, any_drawn)
 }
 
 /// An item no module draws yet: its name where a pill's text would be, but

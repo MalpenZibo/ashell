@@ -66,9 +66,11 @@ the gap between the ends. A group that grows in the centre stays centred.
 ## What shows
 
 {% <note kind="info" title="Not all drawn yet"> %}
-Only the items of [`tempo`](@/docs/rolling/configuration/tempo.md) have
-their data and hide as their `show` says; the others are placeholders and
-always show. A zone or a group with nothing visible still takes its room
+Only the items of [`tempo`](@/docs/rolling/configuration/tempo.md) and
+[`settings`](@/docs/rolling/configuration/settings.md) have their data and
+hide as their `show` says; the others are left out of a zone that has items
+drawn, and are placeholders that always show in one that has none. A zone or
+a group with nothing visible still takes its room
 for now: what follows is how the bar will behave once that is in place.
 {% </note> %}
 

@@ -10,9 +10,10 @@ is one piece of information: the battery, the time, the window's title.
 {% <note kind="info" title="Placeholders"> %}
 The items of [`tempo`](@/docs/rolling/configuration/tempo.md) and
 [`settings`](@/docs/rolling/configuration/settings.md) are drawn, with their
-`show`, `open` and gestures. The others show placeholders for
-now, sized like the real ones; a zone none of whose items is drawn yet is
-one placeholder with its name.
+`show`, `open` and gestures. The others are left out of a zone that has
+items drawn; a zone none of whose items is drawn yet is one placeholder with
+its name, and its details show a placeholder for each item, sized like the
+real ones.
 {% </note> %}
 
 ## Built-in zones
