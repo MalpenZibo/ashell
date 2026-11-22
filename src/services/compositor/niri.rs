@@ -87,6 +87,10 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
     let mut internal_state = EventStreamState::default();
 
+    // Outputs aren't part of the event stream, so fetch them up front and
+    // refresh them on the events that follow an output change.
+    let mut outputs = fetch_outputs().await.unwrap_or_default();
+
     // 6. Loop forever using the SAME reader
     loop {
         line.clear();
@@ -112,11 +116,18 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
             }
         };
 
+        // Checked before applying, against the tile sizes known so far.
+        let need_outputs_refresh = outputs_may_have_changed(&event, &internal_state);
+
         // Apply to internal Niri state tracker
         internal_state.apply(event);
 
+        if need_outputs_refresh && let Ok(fresh) = fetch_outputs().await {
+            outputs = fresh;
+        }
+
         // Map to generic Ashell state
-        let state = map_state(&internal_state);
+        let state = map_state(&internal_state, &outputs);
 
         // Emit Update
         let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
@@ -125,6 +136,56 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
     }
 
     Ok(())
+}
+
+/// Whether `event` may follow a change to an output's logical size, given the
+/// state before it's applied. niri has no output event, so this goes by what
+/// an output change brings along:
+/// - hotplug moves workspaces between outputs (`WorkspacesChanged`), also
+///   when a different monitor comes back on the same connector;
+/// - a mode, scale or transform change in the config reloads it
+///   (`ConfigLoaded`);
+/// - a change at runtime (`niri msg output`) resizes the tiles on that output
+///   (`WindowLayoutsChanged` with a new tile size). Scrolling only moves tiles,
+///   so it doesn't count.
+fn outputs_may_have_changed(event: &Event, state: &EventStreamState) -> bool {
+    match event {
+        Event::WorkspacesChanged { .. } | Event::ConfigLoaded { .. } => true,
+        Event::WindowLayoutsChanged { changes } => changes.iter().any(|(id, layout)| {
+            state
+                .windows
+                .windows
+                .get(id)
+                .is_some_and(|w| w.layout.tile_size != layout.tile_size)
+        }),
+        _ => false,
+    }
+}
+
+/// Logical size of every output with a mode, by output name.
+async fn fetch_outputs() -> Result<HashMap<String, (u32, u32)>> {
+    let mut stream = connect().await?;
+
+    let request_json = serde_json::to_string(&Request::Outputs)? + "\n";
+    stream.write_all(request_json.as_bytes()).await?;
+    stream.flush().await?;
+
+    let mut reader = BufReader::new(stream);
+    let mut response_line = String::new();
+    reader.read_line(&mut response_line).await?;
+
+    let reply: Reply = serde_json::from_str(&response_line).context("parse outputs reply")?;
+    let response = reply.map_err(|e| anyhow!("Niri error fetching outputs: {}", e))?;
+    match response {
+        Response::Outputs(outputs) => Ok(outputs
+            .into_iter()
+            .filter_map(|(name, out)| out.logical.map(|l| (name, (l.width, l.height))))
+            .collect()),
+        other => Err(anyhow!(
+            "Unexpected response to Outputs request: {:?}",
+            other
+        )),
+    }
 }
 
 async fn connect() -> Result<UnixStream> {
@@ -197,7 +258,8 @@ async fn app_window_id(pid: Option<u32>, apps: &[String], title: Option<&str>) -
         .ok_or_else(|| anyhow!("No window found for pid {pid:?} or apps {apps:?}"))
 }
 
-fn map_state(niri: &EventStreamState) -> CompositorState {
+/// `_outputs` holds each output's logical size by name, for consumers to come.
+fn map_state(niri: &EventStreamState, _outputs: &HashMap<String, (u32, u32)>) -> CompositorState {
     let output_to_active_ws: HashMap<_, _> = niri
         .workspaces
         .workspaces
@@ -356,5 +418,69 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         windows,
         keyboard_layout,
         submap: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use niri_ipc::{Window, WindowLayout};
+
+    fn window(id: u64, tile_size: (f64, f64), view_pos: Option<(f64, f64)>) -> Window {
+        Window {
+            id,
+            title: None,
+            app_id: None,
+            pid: None,
+            workspace_id: Some(1),
+            is_focused: false,
+            is_floating: false,
+            is_urgent: false,
+            layout: WindowLayout {
+                pos_in_scrolling_layout: Some((1, 1)),
+                tile_size,
+                window_size: (0, 0),
+                tile_pos_in_workspace_view: view_pos,
+                window_offset_in_tile: (0.0, 0.0),
+            },
+            focus_timestamp: None,
+        }
+    }
+
+    fn state_with(windows: Vec<Window>) -> EventStreamState {
+        let mut state = EventStreamState::default();
+        state.apply(Event::WindowsChanged { windows });
+        state
+    }
+
+    #[test]
+    fn hotplug_and_config_reload_refresh_outputs() {
+        let state = EventStreamState::default();
+        let hotplug = Event::WorkspacesChanged { workspaces: vec![] };
+        let reload = Event::ConfigLoaded { failed: false };
+        assert!(outputs_may_have_changed(&hotplug, &state));
+        assert!(outputs_may_have_changed(&reload, &state));
+    }
+
+    #[test]
+    fn resized_tiles_refresh_outputs() {
+        let state = state_with(vec![window(1, (800.0, 1000.0), Some((0.0, 40.0)))]);
+        let rescaled = Event::WindowLayoutsChanged {
+            changes: vec![(1, window(1, (400.0, 500.0), Some((0.0, 40.0))).layout)],
+        };
+        assert!(outputs_may_have_changed(&rescaled, &state));
+    }
+
+    #[test]
+    fn scrolling_does_not_refresh_outputs() {
+        let state = state_with(vec![window(1, (800.0, 1000.0), Some((0.0, 40.0)))]);
+        let scrolled = Event::WindowLayoutsChanged {
+            changes: vec![(1, window(1, (800.0, 1000.0), Some((-200.0, 40.0))).layout)],
+        };
+        let unknown = Event::WindowLayoutsChanged {
+            changes: vec![(2, window(2, (400.0, 500.0), None).layout)],
+        };
+        assert!(!outputs_may_have_changed(&scrolled, &state));
+        assert!(!outputs_may_have_changed(&unknown, &state));
     }
 }
