@@ -9,7 +9,11 @@ use niri_ipc::{
     Action, Event, Reply, Request, Response, WorkspaceReferenceArg,
     state::{EventStreamState, EventStreamStatePart},
 };
-use std::{collections::HashMap, env, os::unix::net::UnixStream as StdUnixStream};
+use std::{
+    collections::{BTreeMap, HashMap},
+    env,
+    os::unix::net::UnixStream as StdUnixStream,
+};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
@@ -87,6 +91,10 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
     let mut internal_state = EventStreamState::default();
 
+    // Outputs aren't part of the event stream, so fetch them up front and
+    // refresh them on the events that follow an output change.
+    let mut outputs = fetch_outputs().await.unwrap_or_default();
+
     // 6. Loop forever using the SAME reader
     loop {
         line.clear();
@@ -112,11 +120,18 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
             }
         };
 
+        // Checked before applying, against the tile sizes known so far.
+        let need_outputs_refresh = outputs_may_have_changed(&event, &internal_state);
+
         // Apply to internal Niri state tracker
         internal_state.apply(event);
 
+        if need_outputs_refresh && let Ok(fresh) = fetch_outputs().await {
+            outputs = fresh;
+        }
+
         // Map to generic Ashell state
-        let state = map_state(&internal_state);
+        let state = map_state(&internal_state, &outputs);
 
         // Emit Update
         let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
@@ -125,6 +140,56 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
     }
 
     Ok(())
+}
+
+/// Whether `event` may follow a change to an output's logical size, given the
+/// state before it's applied. niri has no output event, so this goes by what
+/// an output change brings along:
+/// - hotplug moves workspaces between outputs (`WorkspacesChanged`), also
+///   when a different monitor comes back on the same connector;
+/// - a mode, scale or transform change in the config reloads it
+///   (`ConfigLoaded`);
+/// - a change at runtime (`niri msg output`) resizes the tiles on that output
+///   (`WindowLayoutsChanged` with a new tile size). Scrolling only moves tiles,
+///   so it doesn't count.
+fn outputs_may_have_changed(event: &Event, state: &EventStreamState) -> bool {
+    match event {
+        Event::WorkspacesChanged { .. } | Event::ConfigLoaded { .. } => true,
+        Event::WindowLayoutsChanged { changes } => changes.iter().any(|(id, layout)| {
+            state
+                .windows
+                .windows
+                .get(id)
+                .is_some_and(|w| w.layout.tile_size != layout.tile_size)
+        }),
+        _ => false,
+    }
+}
+
+/// Logical size of every output with a mode, by output name.
+async fn fetch_outputs() -> Result<HashMap<String, (u32, u32)>> {
+    let mut stream = connect().await?;
+
+    let request_json = serde_json::to_string(&Request::Outputs)? + "\n";
+    stream.write_all(request_json.as_bytes()).await?;
+    stream.flush().await?;
+
+    let mut reader = BufReader::new(stream);
+    let mut response_line = String::new();
+    reader.read_line(&mut response_line).await?;
+
+    let reply: Reply = serde_json::from_str(&response_line).context("parse outputs reply")?;
+    let response = reply.map_err(|e| anyhow!("Niri error fetching outputs: {}", e))?;
+    match response {
+        Response::Outputs(outputs) => Ok(outputs
+            .into_iter()
+            .filter_map(|(name, out)| out.logical.map(|l| (name, (l.width, l.height))))
+            .collect()),
+        other => Err(anyhow!(
+            "Unexpected response to Outputs request: {:?}",
+            other
+        )),
+    }
 }
 
 async fn connect() -> Result<UnixStream> {
@@ -197,7 +262,51 @@ async fn app_window_id(pid: Option<u32>, apps: &[String], title: Option<&str>) -
         .ok_or_else(|| anyhow!("No window found for pid {pid:?} or apps {apps:?}"))
 }
 
-fn map_state(niri: &EventStreamState) -> CompositorState {
+/// The top-left of a workspace's view onto its scrolling layout, in the
+/// minimap's workspace-layout space: columns laid side by side, each as wide
+/// as its widest tile, column 1 at x = 0, every column's top tile at y = 0.
+/// Tiled windows are given as `(column index, row, tile width, position
+/// within the view)`.
+///
+/// niri reports a tiled window's position within the view only while the
+/// window is on screen, so one visible window anchors the view: its column's
+/// x minus its x in the view, and minus its y in the view, which counts the
+/// outer gap and any bar's exclusive zone above the columns. The leftmost
+/// visible column is used, and in it the topmost tile that reports a
+/// position (the top of the column: niri doesn't scroll columns
+/// vertically). The minimap leaves out the gaps niri puts between columns,
+/// so the anchor is exact and the error grows only to its right. An empty
+/// layout has its view at the origin. `None` when no tiled window reports a
+/// position, as with niri releases that predate niri-wm/niri#4711.
+fn scrolling_view_point(
+    tiles: impl IntoIterator<Item = (usize, usize, f64, Option<(f64, f64)>)>,
+) -> Option<(f64, f64)> {
+    // Per column: the widest tile, and the topmost tile reporting a position.
+    type Column = (f64, Option<(usize, (f64, f64))>);
+    let mut columns: BTreeMap<usize, Column> = BTreeMap::new();
+    for (col, row, width, pos) in tiles {
+        let (w, top) = columns.entry(col).or_default();
+        *w = w.max(width);
+        if let Some(pos) = pos
+            && top.is_none_or(|(top_row, _)| row < top_row)
+        {
+            *top = Some((row, pos));
+        }
+    }
+    if columns.is_empty() {
+        return Some((0.0, 0.0));
+    }
+    let mut col_x = 0.0;
+    for (w, top) in columns.into_values() {
+        if let Some((_, (x, y))) = top {
+            return Some((col_x - x, -y));
+        }
+        col_x += w;
+    }
+    None
+}
+
+fn map_state(niri: &EventStreamState, outputs: &HashMap<String, (u32, u32)>) -> CompositorState {
     let output_to_active_ws: HashMap<_, _> = niri
         .workspaces
         .workspaces
@@ -284,6 +393,26 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         }
     }
 
+    // Scrolling view position of every workspace, in the minimap's
+    // workspace-layout space (column 1 at x = 0).
+    let view_points: HashMap<u64, Option<(f64, f64)>> = niri
+        .workspaces
+        .workspaces
+        .keys()
+        .map(|&wid| {
+            let tiles = niri.windows.windows.values().filter_map(|w| {
+                let (col, row) = w.layout.pos_in_scrolling_layout?;
+                (w.workspace_id == Some(wid)).then_some((
+                    col,
+                    row,
+                    w.layout.tile_size.0,
+                    w.layout.tile_pos_in_workspace_view,
+                ))
+            });
+            (wid, scrolling_view_point(tiles))
+        })
+        .collect();
+
     let monitors: Vec<CompositorMonitor> = outputs_sorted
         .iter()
         .enumerate()
@@ -294,6 +423,12 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
             active_workspace_id: output_to_active_ws.get(*name).copied().unwrap_or(-1),
             active_workspace_name: String::new(),
             special_workspace_name: String::new(),
+            logical_size: outputs.get(*name).copied(),
+            // The output's view point is its active workspace's.
+            view_point: output_to_active_ws
+                .get(*name)
+                .and_then(|&wid| view_points.get(&(wid as u64)).copied().flatten())
+                .map(|(x, y)| (x as f32, y as f32)),
         })
         .collect();
 
@@ -334,6 +469,17 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
                 .map(|(c, r)| (c as u32, r as u32)),
             tile_width: w.layout.tile_size.0 as f32,
             tile_height: w.layout.tile_size.1 as f32,
+            // Floating position is viewport-relative in the IPC; add the
+            // workspace's view point to get workspace-layout coordinates.
+            floating_pos: if w.is_floating {
+                w.layout.tile_pos_in_workspace_view.and_then(|(tx, ty)| {
+                    w.workspace_id
+                        .and_then(|wid| view_points.get(&wid).copied().flatten())
+                        .map(|(vx, vy)| ((tx + vx) as f32, (ty + vy) as f32))
+                })
+            } else {
+                None
+            },
         })
         .collect();
 
@@ -356,5 +502,113 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         windows,
         keyboard_layout,
         submap: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use niri_ipc::{Window, WindowLayout};
+
+    fn window(id: u64, tile_size: (f64, f64), view_pos: Option<(f64, f64)>) -> Window {
+        Window {
+            id,
+            title: None,
+            app_id: None,
+            pid: None,
+            workspace_id: Some(1),
+            is_focused: false,
+            is_floating: false,
+            is_urgent: false,
+            layout: WindowLayout {
+                pos_in_scrolling_layout: Some((1, 1)),
+                tile_size,
+                window_size: (0, 0),
+                tile_pos_in_workspace_view: view_pos,
+                window_offset_in_tile: (0.0, 0.0),
+            },
+            focus_timestamp: None,
+        }
+    }
+
+    fn state_with(windows: Vec<Window>) -> EventStreamState {
+        let mut state = EventStreamState::default();
+        state.apply(Event::WindowsChanged { windows });
+        state
+    }
+
+    #[test]
+    fn hotplug_and_config_reload_refresh_outputs() {
+        let state = EventStreamState::default();
+        let hotplug = Event::WorkspacesChanged { workspaces: vec![] };
+        let reload = Event::ConfigLoaded { failed: false };
+        assert!(outputs_may_have_changed(&hotplug, &state));
+        assert!(outputs_may_have_changed(&reload, &state));
+    }
+
+    #[test]
+    fn resized_tiles_refresh_outputs() {
+        let state = state_with(vec![window(1, (800.0, 1000.0), Some((0.0, 40.0)))]);
+        let rescaled = Event::WindowLayoutsChanged {
+            changes: vec![(1, window(1, (400.0, 500.0), Some((0.0, 40.0))).layout)],
+        };
+        assert!(outputs_may_have_changed(&rescaled, &state));
+    }
+
+    #[test]
+    fn scrolling_does_not_refresh_outputs() {
+        let state = state_with(vec![window(1, (800.0, 1000.0), Some((0.0, 40.0)))]);
+        let scrolled = Event::WindowLayoutsChanged {
+            changes: vec![(1, window(1, (800.0, 1000.0), Some((-200.0, 40.0))).layout)],
+        };
+        let unknown = Event::WindowLayoutsChanged {
+            changes: vec![(2, window(2, (400.0, 500.0), None).layout)],
+        };
+        assert!(!outputs_may_have_changed(&scrolled, &state));
+        assert!(!outputs_may_have_changed(&unknown, &state));
+    }
+
+    #[test]
+    fn view_anchored_on_leftmost_visible_column() {
+        // Columns 1 and 2 scrolled off to the left; column 3 starts 20px into
+        // the view, column 4 further right.
+        let tiles = [
+            (1, 1, 800.0, None),
+            (2, 1, 600.0, None),
+            (2, 2, 400.0, None),
+            (3, 1, 500.0, Some((20.0, 12.0))),
+            (4, 1, 500.0, Some((536.0, 12.0))),
+        ];
+        assert_eq!(scrolling_view_point(tiles), Some((1400.0 - 20.0, -12.0)));
+    }
+
+    #[test]
+    fn view_left_of_first_column() {
+        // Gap (and centering) space left of column 1 puts the view at a
+        // negative x.
+        let tiles = [(1, 1, 800.0, Some((16.0, 16.0)))];
+        assert_eq!(scrolling_view_point(tiles), Some((-16.0, -16.0)));
+    }
+
+    #[test]
+    fn view_starts_above_columns_by_bar_and_gap() {
+        // A 42.4px top bar plus a 12px gap put the column tops at y = 54.4 in
+        // the view, so the view starts that far above them. A lower tile
+        // doesn't move the anchor, whatever order the tiles come in.
+        let tiles = [
+            (1, 2, 1000.0, Some((12.0, 600.0))),
+            (1, 1, 1000.0, Some((12.0, 54.4))),
+        ];
+        assert_eq!(scrolling_view_point(tiles), Some((-12.0, -54.4)));
+    }
+
+    #[test]
+    fn view_of_empty_layout_is_at_origin() {
+        assert_eq!(scrolling_view_point([]), Some((0.0, 0.0)));
+    }
+
+    #[test]
+    fn view_unknown_without_reported_positions() {
+        assert_eq!(scrolling_view_point([(1, 1, 800.0, None)]), None);
     }
 }
