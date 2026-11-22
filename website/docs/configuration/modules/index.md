@@ -61,9 +61,15 @@ bar's output, laid out by column and row with proportional sizes, with
 the focused tile highlighted and urgent windows shown in the danger
 color. Floating windows have no grid position and aren't shown.
 
+A tabbed column is drawn as a single tile with a strip of tab segments
+on its left edge. When the column has focus, the tile and the focused
+tab's segment are highlighted; an urgent tab shows its segment
+in the danger color, or the whole tile when it's too small for the
+strip. Niri doesn't report a column's display mode, so ashell detects
+tabbed columns from their tile sizes, which needs the output's size.
+
 Only the Niri backend provides the window layout today; on other
-compositors the module stays hidden. Tabbed columns are drawn as
-stacked tiles, since niri doesn't report a column's display mode.
+compositors the module stays hidden.
 
 ### SystemInfo
 

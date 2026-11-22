@@ -9,7 +9,11 @@ use niri_ipc::{
     Action, Event, Reply, Request, Response, WorkspaceReferenceArg,
     state::{EventStreamState, EventStreamStatePart},
 };
-use std::{collections::HashMap, env, os::unix::net::UnixStream as StdUnixStream};
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    os::unix::net::UnixStream as StdUnixStream,
+};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
@@ -87,6 +91,10 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
     let mut internal_state = EventStreamState::default();
 
+    // Outputs aren't part of the event stream, so fetch them up front and
+    // refresh them on the events that follow an output change.
+    let mut outputs = fetch_outputs().await.unwrap_or_default();
+
     // 6. Loop forever using the SAME reader
     loop {
         line.clear();
@@ -112,11 +120,18 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
             }
         };
 
+        // Checked before applying, against the tile sizes known so far.
+        let need_outputs_refresh = outputs_may_have_changed(&event, &internal_state);
+
         // Apply to internal Niri state tracker
         internal_state.apply(event);
 
+        if need_outputs_refresh && let Ok(fresh) = fetch_outputs().await {
+            outputs = fresh;
+        }
+
         // Map to generic Ashell state
-        let state = map_state(&internal_state);
+        let state = map_state(&internal_state, &outputs);
 
         // Emit Update
         let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
@@ -125,6 +140,56 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
     }
 
     Ok(())
+}
+
+/// Whether `event` may follow a change to an output's logical size, given the
+/// state before it's applied. niri has no output event, so this goes by what
+/// an output change brings along:
+/// - hotplug moves workspaces between outputs (`WorkspacesChanged`), also
+///   when a different monitor comes back on the same connector;
+/// - a mode, scale or transform change in the config reloads it
+///   (`ConfigLoaded`);
+/// - a change at runtime (`niri msg output`) resizes the tiles on that output
+///   (`WindowLayoutsChanged` with a new tile size). Scrolling only moves tiles,
+///   so it doesn't count.
+fn outputs_may_have_changed(event: &Event, state: &EventStreamState) -> bool {
+    match event {
+        Event::WorkspacesChanged { .. } | Event::ConfigLoaded { .. } => true,
+        Event::WindowLayoutsChanged { changes } => changes.iter().any(|(id, layout)| {
+            state
+                .windows
+                .windows
+                .get(id)
+                .is_some_and(|w| w.layout.tile_size != layout.tile_size)
+        }),
+        _ => false,
+    }
+}
+
+/// Logical size of every output with a mode, by output name.
+async fn fetch_outputs() -> Result<HashMap<String, (u32, u32)>> {
+    let mut stream = connect().await?;
+
+    let request_json = serde_json::to_string(&Request::Outputs)? + "\n";
+    stream.write_all(request_json.as_bytes()).await?;
+    stream.flush().await?;
+
+    let mut reader = BufReader::new(stream);
+    let mut response_line = String::new();
+    reader.read_line(&mut response_line).await?;
+
+    let reply: Reply = serde_json::from_str(&response_line).context("parse outputs reply")?;
+    let response = reply.map_err(|e| anyhow!("Niri error fetching outputs: {}", e))?;
+    match response {
+        Response::Outputs(outputs) => Ok(outputs
+            .into_iter()
+            .filter_map(|(name, out)| out.logical.map(|l| (name, (l.width, l.height))))
+            .collect()),
+        other => Err(anyhow!(
+            "Unexpected response to Outputs request: {:?}",
+            other
+        )),
+    }
 }
 
 async fn connect() -> Result<UnixStream> {
@@ -197,7 +262,33 @@ async fn app_window_id(pid: Option<u32>, apps: &[String], title: Option<&str>) -
         .ok_or_else(|| anyhow!("No window found for pid {pid:?} or apps {apps:?}"))
 }
 
-fn map_state(niri: &EventStreamState) -> CompositorState {
+/// The `(workspace id, column index)` of every tabbed column, from tiled
+/// windows given as `(workspace id, column index, tile height)`.
+///
+/// niri doesn't report a column's display mode over IPC, but gives every tab
+/// of a tabbed column the full column height. So two or more tabs add up to
+/// more than the output's logical height, while a normal column's stacked
+/// tiles always fit on it. Without the output height nothing is detected.
+fn tabbed_columns(
+    tiles: impl IntoIterator<Item = (u64, usize, f64)>,
+    output_height: impl Fn(u64) -> Option<f64>,
+) -> HashSet<(u64, usize)> {
+    let mut columns: HashMap<(u64, usize), (usize, f64)> = HashMap::new();
+    for (ws_id, col, h) in tiles {
+        let (count, sum) = columns.entry((ws_id, col)).or_default();
+        *count += 1;
+        *sum += h;
+    }
+    columns
+        .into_iter()
+        .filter(|&((ws_id, _), (count, sum))| {
+            count > 1 && output_height(ws_id).is_some_and(|out_h| sum > out_h)
+        })
+        .map(|(key, _)| key)
+        .collect()
+}
+
+fn map_state(niri: &EventStreamState, outputs: &HashMap<String, (u32, u32)>) -> CompositorState {
     let output_to_active_ws: HashMap<_, _> = niri
         .workspaces
         .workspaces
@@ -318,22 +409,46 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
             })
         });
 
+    // Column of a tiled window: (workspace id, column index).
+    let column_of = |w: &niri_ipc::Window| {
+        w.workspace_id
+            .zip(w.layout.pos_in_scrolling_layout)
+            .map(|(wid, (col, _))| (wid, col))
+    };
+    let tabbed = tabbed_columns(
+        niri.windows
+            .windows
+            .values()
+            .filter_map(|w| column_of(w).map(|(wid, col)| (wid, col, w.layout.tile_size.1))),
+        |wid| {
+            let output = niri.workspaces.workspaces.get(&wid)?.output.as_ref()?;
+            outputs.get(output).map(|&(_, h)| h as f64)
+        },
+    );
+
     let windows: Vec<CompositorWindow> = niri
         .windows
         .windows
         .values()
-        .map(|w| CompositorWindow {
-            id: w.id,
-            workspace_id: w.workspace_id.map(|wid| wid as i32),
-            is_focused: w.is_focused,
-            is_floating: w.is_floating,
-            is_urgent: w.is_urgent,
-            tile_position: w
-                .layout
-                .pos_in_scrolling_layout
-                .map(|(c, r)| (c as u32, r as u32)),
-            tile_width: w.layout.tile_size.0 as f32,
-            tile_height: w.layout.tile_size.1 as f32,
+        .map(|w| {
+            // A tabbed column is a single slot holding every window as a tab,
+            // in niri's tile order.
+            let is_tab = column_of(w).is_some_and(|key| tabbed.contains(&key));
+            let (tile_position, tab_index) = match w.layout.pos_in_scrolling_layout {
+                Some((c, r)) if is_tab => (Some((c as u32, 1)), Some(r as u32 - 1)),
+                pos => (pos.map(|(c, r)| (c as u32, r as u32)), None),
+            };
+            CompositorWindow {
+                id: w.id,
+                workspace_id: w.workspace_id.map(|wid| wid as i32),
+                is_focused: w.is_focused,
+                is_floating: w.is_floating,
+                is_urgent: w.is_urgent,
+                tile_position,
+                tab_index,
+                tile_width: w.layout.tile_size.0 as f32,
+                tile_height: w.layout.tile_size.1 as f32,
+            }
         })
         .collect();
 
@@ -356,5 +471,103 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         windows,
         keyboard_layout,
         submap: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use niri_ipc::{Window, WindowLayout};
+
+    fn window(id: u64, tile_size: (f64, f64), view_pos: Option<(f64, f64)>) -> Window {
+        Window {
+            id,
+            title: None,
+            app_id: None,
+            pid: None,
+            workspace_id: Some(1),
+            is_focused: false,
+            is_floating: false,
+            is_urgent: false,
+            layout: WindowLayout {
+                pos_in_scrolling_layout: Some((1, 1)),
+                tile_size,
+                window_size: (0, 0),
+                tile_pos_in_workspace_view: view_pos,
+                window_offset_in_tile: (0.0, 0.0),
+            },
+            focus_timestamp: None,
+        }
+    }
+
+    fn state_with(windows: Vec<Window>) -> EventStreamState {
+        let mut state = EventStreamState::default();
+        state.apply(Event::WindowsChanged { windows });
+        state
+    }
+
+    #[test]
+    fn hotplug_and_config_reload_refresh_outputs() {
+        let state = EventStreamState::default();
+        let hotplug = Event::WorkspacesChanged { workspaces: vec![] };
+        let reload = Event::ConfigLoaded { failed: false };
+        assert!(outputs_may_have_changed(&hotplug, &state));
+        assert!(outputs_may_have_changed(&reload, &state));
+    }
+
+    #[test]
+    fn resized_tiles_refresh_outputs() {
+        let state = state_with(vec![window(1, (800.0, 1000.0), Some((0.0, 40.0)))]);
+        let rescaled = Event::WindowLayoutsChanged {
+            changes: vec![(1, window(1, (400.0, 500.0), Some((0.0, 40.0))).layout)],
+        };
+        assert!(outputs_may_have_changed(&rescaled, &state));
+    }
+
+    #[test]
+    fn scrolling_does_not_refresh_outputs() {
+        let state = state_with(vec![window(1, (800.0, 1000.0), Some((0.0, 40.0)))]);
+        let scrolled = Event::WindowLayoutsChanged {
+            changes: vec![(1, window(1, (800.0, 1000.0), Some((-200.0, 40.0))).layout)],
+        };
+        let unknown = Event::WindowLayoutsChanged {
+            changes: vec![(2, window(2, (400.0, 500.0), None).layout)],
+        };
+        assert!(!outputs_may_have_changed(&scrolled, &state));
+        assert!(!outputs_may_have_changed(&unknown, &state));
+    }
+
+    // Tile heights niri reports for a two-window column next to a one-window
+    // column, normal and tabbed, on a 1080px-tall output.
+    const OUTPUT_H: f64 = 1080.0;
+
+    fn detect(tiles: &[(u64, usize, f64)], output_h: Option<f64>) -> HashSet<(u64, usize)> {
+        tabbed_columns(tiles.iter().copied(), |_| output_h)
+    }
+
+    #[test]
+    fn tabbed_column_detected_by_height() {
+        let tabbed = [(1, 1, 1041.0), (1, 1, 1041.0), (1, 2, 1041.0)];
+        assert_eq!(detect(&tabbed, Some(OUTPUT_H)), HashSet::from([(1, 1)]));
+    }
+
+    #[test]
+    fn normal_column_not_detected() {
+        let normal = [(1, 1, 517.0), (1, 1, 516.0), (1, 2, 1041.0)];
+        assert!(detect(&normal, Some(OUTPUT_H)).is_empty());
+    }
+
+    #[test]
+    fn nothing_detected_without_output_height() {
+        let tabbed = [(1, 1, 1041.0), (1, 1, 1041.0)];
+        assert!(detect(&tabbed, None).is_empty());
+    }
+
+    #[test]
+    fn columns_are_per_workspace() {
+        // Column 1 on two workspaces: only the one whose tiles overflow is
+        // tabbed.
+        let tiles = [(1, 1, 1041.0), (1, 1, 1041.0), (2, 1, 517.0), (2, 1, 516.0)];
+        assert_eq!(detect(&tiles, Some(OUTPUT_H)), HashSet::from([(1, 1)]));
     }
 }
