@@ -2,8 +2,8 @@ use guido::prelude::*;
 use styletto::components::button::{pill, pill_text};
 use styletto::foundations::control::Size;
 use styletto::foundations::tokens::{radius, size};
+use styletto::look;
 use styletto::primitives::text::{caption, heading};
-use styletto::ui;
 
 use crate::config::Panel;
 
@@ -16,13 +16,13 @@ pub fn zone<F: Fn() + 'static>(name: &str, click: F) -> impl Widget + use<F> {
 }
 
 pub fn panel(panel: Panel) -> Container {
-    let t = ui();
+    let t = look();
     let row = || {
         container()
             .width(fill())
             .height(Size::Md.height())
             .corners(radius::MEDIUM.corners())
-            .background(t.colors.surface)
+            .background(t.eased(|c| c.surface))
     };
 
     container()

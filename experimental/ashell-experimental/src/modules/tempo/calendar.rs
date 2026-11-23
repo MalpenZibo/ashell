@@ -11,7 +11,8 @@ use styletto::foundations::control::Size;
 use styletto::foundations::tokens::{icon as icon_box, opacity, radius, size};
 use styletto::foundations::typography as ty;
 use styletto::primitives::text::{caption, typed};
-use styletto::{Icon, centered_row, foundations::motion, icon, ui};
+use styletto::theme::palette::Palette;
+use styletto::{Icon, centered_row, foundations::motion, icon, look};
 
 use super::config::TimeZone;
 use super::{Tempo, sky, time};
@@ -53,7 +54,7 @@ pub fn view(tempo: Tempo) -> Container {
 /// The time, its hours and minutes large, its seconds and AM/PM marker
 /// small, and the day under it.
 fn clock(tempo: Tempo) -> Container {
-    let t = ui();
+    let t = look();
     let time::Clock {
         before,
         time,
@@ -62,7 +63,7 @@ fn clock(tempo: Tempo) -> Container {
     let written = move |format: &str| time::format(tempo.now.get(), tempo.zone().as_ref(), format);
     let small = |text: Memo<String>| {
         typed(move || text.get(), ty::TITLE_MEDIUM.tabular())
-            .color(t.colors.dim)
+            .color(t.eased(|c| c.dim))
             .nowrap()
     };
     let marker_first = !before.is_empty();
@@ -85,13 +86,13 @@ fn clock(tempo: Tempo) -> Container {
                 .child(
                     roll::rolling(move || time.get())
                         .look(ty::DISPLAY_MEDIUM.em())
-                        .color(t.colors.text),
+                        .color(t.color(|c| c.text)),
                 )
                 .child(small(after)),
         )
         .child(
             typed(move || day.get(), ty::LABEL_MEDIUM)
-                .color(t.colors.sub)
+                .color(t.eased(|c| c.sub))
                 .nowrap(),
         )
 }
@@ -99,7 +100,7 @@ fn clock(tempo: Tempo) -> Container {
 /// `[tempo] timezones`, each with its time: choosing one tells the time in
 /// it.
 fn zones(tempo: Tempo) -> Container {
-    let t = ui();
+    let t = look();
     let formats = time::Formats::of_locale();
 
     container()
@@ -115,7 +116,7 @@ fn zones(tempo: Tempo) -> Container {
                 .enumerate()
                 .map(|(index, zone)| {
                     let on = index == active;
-                    let ink = if on { t.colors.text } else { t.colors.sub };
+                    let ink = move |c: &Palette| if on { c.text } else { c.sub };
                     let name = zone.name.clone();
                     let format = formats.time.clone();
                     let when =
@@ -126,22 +127,22 @@ fn zones(tempo: Tempo) -> Container {
                         .height(Size::Sm.height())
                         .padding([0.0, size::S2.px()])
                         .corners(radius::SMALL.corners())
-                        .background(if on {
-                            t.colors.surface2
-                        } else {
-                            Color::TRANSPARENT
-                        })
-                        .when_hovered(move |s| s.background(t.colors.surface))
+                        .background(t.color(
+                            move |c| {
+                                if on { c.surface2 } else { Color::TRANSPARENT }
+                            },
+                        ))
+                        .when_hovered(move |s| s.background(t.color(|c| c.surface)))
                         .on_click(move || tempo.zone.set(index))
                         .layout(
                             Flex::row()
                                 .main_alignment(MainAlignment::SpaceBetween)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(typed(name, ty::LABEL_SMALL).color(ink).nowrap())
+                        .child(typed(name, ty::LABEL_SMALL).color(t.eased(ink)).nowrap())
                         .child(
                             typed(move || when.get(), ty::LABEL_SMALL.tabular())
-                                .color(ink)
+                                .color(t.eased(ink))
                                 .nowrap(),
                         )
                 })
@@ -252,7 +253,7 @@ fn card_for(
 /// The weather now and the next hours, or a day of the forecast and its
 /// hours, on the accent's soft gradient.
 fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
-    let t = ui();
+    let t = look();
     let formats = time::Formats::of_locale();
 
     let card = create_memo(move || {
@@ -288,10 +289,13 @@ fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
         .width(fill())
         .padding(size::S3.px())
         .corners(radius::MEDIUM.corners())
-        .gradient(LinearGradient::diagonal(
-            t.colors.accent.fill.with_alpha(0.28),
-            t.colors.accent.fill.with_alpha(0.04),
-        ))
+        .gradient(motion::eased_color(move || {
+            let accent = t.colors().accent.fill;
+            Some(LinearGradient::diagonal(
+                accent.with_alpha(0.28),
+                accent.with_alpha(0.04),
+            ))
+        }))
         .layout(Flex::column())
         .child(
             container()
@@ -301,7 +305,7 @@ fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
                         icon(
                             sky::icon(c.code, c.is_day),
                             icon_box::XLARGE.px(),
-                            sky::ink(c.code, t.colors.accent.text, t.colors.text),
+                            t.color(move |p| sky::ink(c.code, p.accent.text, p.text)),
                         )
                     })
                 })
@@ -310,7 +314,7 @@ fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
                         .layout(Flex::column().spacing(size::S1.px()))
                         .child(
                             typed(read(|c| c.figure.clone()), ty::DISPLAY_SMALL.em().tabular())
-                                .color(t.colors.text)
+                                .color(t.eased(|c| c.text))
                                 .nowrap(),
                         )
                         .child(caption(read(|c| c.what.clone()))),
@@ -333,7 +337,7 @@ fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
                                 }
                             },
                             icon_box::XSMALL.px(),
-                            t.colors.sub,
+                            t.color(|c| c.sub),
                         ))
                         .child(caption(move || {
                             if tempo.place_hidden.get() {
@@ -368,20 +372,20 @@ fn card(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
                                 )
                                 .child(
                                     typed(hour.when, ty::LABEL_XSMALL.tabular())
-                                        .color(t.colors.sub)
+                                        .color(t.eased(|c| c.sub))
                                         .nowrap(),
                                 )
                                 .child(icon(
                                     sky::icon(hour.code, hour.is_day),
                                     icon_box::SMALL.px(),
-                                    sky::ink(hour.code, t.colors.accent.text, t.colors.text),
+                                    t.color(move |c| sky::ink(hour.code, c.accent.text, c.text)),
                                 ))
                                 .child(
                                     typed(
                                         sky::degrees(hour.temperature),
                                         ty::LABEL_XSMALL.em().tabular(),
                                     )
-                                    .color(t.colors.text)
+                                    .color(t.eased(|c| c.text))
                                     .nowrap(),
                                 )
                         })
@@ -402,7 +406,7 @@ const WEEK: [Weekday; 7] = [
 
 /// The month, from Monday, today marked, with a way to the months around it.
 fn month(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
-    let t = ui();
+    let t = look();
 
     // How many months from this one the panel shows.
     let offset = create_signal(0i32);
@@ -443,7 +447,7 @@ fn month(tempo: Tempo, chosen: RwSignal<Option<NaiveDate>>) -> Container {
                         },
                         ty::TITLE_XSMALL.em(),
                     )
-                    .color(t.colors.text)
+                    .color(t.eased(|c| c.text))
                     .nowrap(),
                 )
                 .child(
@@ -524,7 +528,7 @@ fn week(cells: Vec<Container>) -> Container {
 }
 
 fn weekday(day: Weekday) -> Container {
-    let t = ui();
+    let t = look();
     let name = NaiveDate::from_isoywd_opt(2000, 20, day)
         .expect("a week of 2000")
         .format_localized("%a", chrono_locale())
@@ -536,7 +540,7 @@ fn weekday(day: Weekday) -> Container {
         .layout(Flex::column().center())
         .child(
             typed(name, ty::LABEL_XSMALL.em())
-                .color(t.colors.dim)
+                .color(t.eased(|c| c.dim))
                 .nowrap(),
         )
 }
@@ -550,16 +554,18 @@ fn cell(
     sky: Option<u32>,
     chosen: RwSignal<Option<NaiveDate>>,
 ) -> Container {
-    let t = ui();
+    let t = look();
     let is_today = day == today;
     let outside = day.month() != first.month();
 
-    let ink = if is_today {
-        t.colors.accent.on
-    } else if outside {
-        t.colors.dim.with_alpha(opacity::DISABLED)
-    } else {
-        t.colors.text
+    let ink = move |c: &Palette| {
+        if is_today {
+            c.accent.on
+        } else if outside {
+            c.dim.with_alpha(opacity::DISABLED)
+        } else {
+            c.text
+        }
     };
 
     let picked = move || !is_today && chosen.get() == Some(day);
@@ -569,11 +575,11 @@ fn cell(
         .height(size::S10.px())
         .corners(radius::SMALL.corners())
         .background(
-            (move || {
+            t.color(move |c| {
                 if is_today {
-                    t.colors.accent.fill
+                    c.accent.fill
                 } else if picked() {
-                    t.colors.surface2
+                    c.surface2
                 } else {
                     Color::TRANSPARENT
                 }
@@ -595,15 +601,17 @@ fn cell(
                     ty::LABEL_SMALL.tabular()
                 },
             )
-            .color(ink)
+            .color(t.eased(ink))
             .nowrap(),
         )
         .child(sky.map(|code| {
-            let tint = if is_today {
-                t.colors.accent.on
-            } else {
-                self::sky::ink(code, t.colors.accent.text, t.colors.sub)
-            };
+            let tint = t.color(move |c| {
+                if is_today {
+                    c.accent.on
+                } else {
+                    self::sky::ink(code, c.accent.text, c.sub)
+                }
+            });
 
             icon(self::sky::icon(code, true), icon_box::XSMALL.px(), tint)
         }));
@@ -611,13 +619,7 @@ fn cell(
     match sky {
         Some(_) => base
             .when_hovered(move |s| {
-                s.background(move || {
-                    if is_today {
-                        t.colors.accent.fill
-                    } else {
-                        t.colors.surface
-                    }
-                })
+                s.background(t.color(move |c| if is_today { c.accent.fill } else { c.surface }))
             })
             .on_click(move || chosen.set((!is_today).then_some(day))),
         None => base,

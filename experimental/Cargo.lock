@@ -3024,7 +3024,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 [[package]]
 name = "styletto"
 version = "0.1.0"
-source = "git+https://github.com/MalpenZibo/styletto?branch=main#6a2c7f4025ca8b2f8ce00f70c3e88330c4b02b4d"
+source = "git+https://github.com/MalpenZibo/styletto?branch=main#42ccd7b9d4c8eea116aabdcafa8301cc0fbdd6d8"
 dependencies = [
  "guido",
  "image",

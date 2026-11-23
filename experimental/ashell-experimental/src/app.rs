@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use guido::prelude::*;
-use styletto::provide_ui;
+use styletto::theme::config::UiConfig;
 use styletto::ui::Ui;
+use styletto::{provide_ui, themed};
 
 use crate::bar;
 use crate::config::{self, Config};
@@ -18,23 +19,37 @@ pub fn run() {
         // No file yet: the config window makes one.
         let first_start = config::path().is_some_and(|path| !path.exists());
         let config = config::watched();
+        // The wallpaper read before anything is drawn, so the bars open in
+        // its colours rather than easing into them from the theme's.
+        config.with_untracked(|config| config.appearance.read_wallpaper_blocking());
 
         let modules = Modules::new(config);
         if first_start {
             modules.configure(Shown::Steps);
         }
         provide_context(modules);
-        // A wallpaper is read again only when the appearance changes.
+        // The look is worked out again only when the appearance changes, or
+        // its wallpaper is read again.
         let appearance = create_memo(move || config.with(|config| config.appearance.clone()));
         let ui = create_memo(move || appearance.with(|appearance| appearance.ui(None)));
+        // What the bars hold, their look and the modules' settings left out:
+        // a new look repaints them, or makes them again, in their surfaces,
+        // and the modules follow their settings themselves.
+        let held = create_memo(move || {
+            config.with(|config| Config {
+                appearance: UiConfig::default(),
+                modules: Default::default(),
+                ..config.clone()
+            })
+        });
 
-        // On every change of the configuration the bars made are closed and
-        // made again from it.
-        create_effect(move || bars(config.get(), ui.get()));
+        // On every change of what the bars hold, the bars made are closed
+        // and made again.
+        create_effect(move || bars(held.get(), ui));
     });
 }
 
-fn bars(config: Config, ui: Ui) {
+fn bars(config: Config, ui: Memo<Ui>) {
     // `bar::surface` sizes the reserved space in the configured density.
     provide_ui(ui);
 
@@ -85,10 +100,16 @@ fn bars(config: Config, ui: Ui) {
             let bar = config.bars[index].clone();
             let surface_config = bar::surface(&bar).output(info.id);
 
+            // New sizes make the bar again in its surface, and the space it
+            // reserves follows them.
             let surface = spawn_surface(surface_config, move || {
-                provide_ui(ui);
+                themed(ui, move || {
+                    expect_context::<SurfaceHandle>().set_exclusive_zone(bar::reserved(&bar));
 
-                bar::view(&bar)
+                    bar::view(&bar)
+                })
+                .width(fill())
+                .height(fill())
             });
 
             surfaces.insert((info.id, index), surface);

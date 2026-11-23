@@ -76,7 +76,7 @@ impl Neck {
     }
 }
 
-fn reserved(bar: &Bar) -> u32 {
+pub fn reserved(bar: &Bar) -> u32 {
     (bar.padding.top.px() + group_height() + bar.padding.bottom.px()).round() as u32
 }
 

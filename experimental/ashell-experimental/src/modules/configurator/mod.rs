@@ -2,8 +2,9 @@
 //! `config` item, it chooses the bar to start from and edits the look, each
 //! change saved and shown on the bars as it is made.
 //!
-//! It is a surface of its own, not a panel: the bars are made again on each
-//! change of the look, and a panel would close with them.
+//! It is a surface of its own, not a panel: the bars are made again when
+//! another bar is chosen or the look's sizes change, and a panel would close
+//! with them.
 
 mod files;
 mod window;
