@@ -75,6 +75,7 @@ pub fn spawn(
         .background_color(Color::TRANSPARENT);
 
     spawn_surface(surface, move || {
+        crate::i18n::provide_to_styletto();
         let state = State::new(config);
         // The first start begins at the bar; the settings at the look, the
         // more often changed.
