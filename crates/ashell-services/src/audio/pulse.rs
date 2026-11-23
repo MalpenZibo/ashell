@@ -325,25 +325,25 @@ fn apply(
     context: &mut Context,
     introspector: &mut Introspector,
 ) {
-    let sink = data.active_sink().map(|sink| sink.name.as_str());
-    let source = data.active_source().map(|source| source.name.as_str());
+    let sink = data.active_sink();
+    let source = data.active_source();
 
     match command {
         AudioCommand::ToggleSinkMute => {
-            if let Some(sink) = data.active_sink() {
+            if let Some(sink) = sink {
                 introspector.set_sink_mute_by_name(&sink.name, !sink.is_mute, None);
             }
         }
         AudioCommand::SetSinkMute(mute) => {
             if let Some(sink) = sink {
-                introspector.set_sink_mute_by_name(sink, mute, None);
+                introspector.set_sink_mute_by_name(&sink.name, mute, None);
             }
         }
         // Scaled over the channels the server has now, so their balance stays
         AudioCommand::SinkVolume(volume) => {
             if let Some(sink) = sink {
                 let mut setter = context.introspect();
-                introspector.get_sink_info_by_name(sink, move |item| {
+                introspector.get_sink_info_by_name(&sink.name, move |item| {
                     if let ListResult::Item(info) = item
                         && let Some(name) = info.name.as_deref()
                         && let Some(channels) = scaled(info.volume, volume)
@@ -354,19 +354,19 @@ fn apply(
             }
         }
         AudioCommand::ToggleSourceMute => {
-            if let Some(source) = data.active_source() {
+            if let Some(source) = source {
                 introspector.set_source_mute_by_name(&source.name, !source.is_mute, None);
             }
         }
         AudioCommand::SetSourceMute(mute) => {
             if let Some(source) = source {
-                introspector.set_source_mute_by_name(source, mute, None);
+                introspector.set_source_mute_by_name(&source.name, mute, None);
             }
         }
         AudioCommand::SourceVolume(volume) => {
             if let Some(source) = source {
                 let mut setter = context.introspect();
-                introspector.get_source_info_by_name(source, move |item| {
+                introspector.get_source_info_by_name(&source.name, move |item| {
                     if let ListResult::Item(info) = item
                         && let Some(name) = info.name.as_deref()
                         && let Some(channels) = scaled(info.volume, volume)
