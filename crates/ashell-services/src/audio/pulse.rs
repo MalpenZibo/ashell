@@ -148,6 +148,21 @@ impl Server {
             ready: Cell::new(false),
         });
 
+        // An event names only what changed, which is asked for again. The
+        // callback is in place before the first fetches, so an event landing
+        // while they run is not lost.
+        let events = self.context.introspect();
+        let fetching = shared.clone();
+        self.context
+            .set_subscribe_callback(Some(Box::new(
+                move |facility, _operation, _index| match facility {
+                    Some(Facility::Server) => drop(fetch_server(&events, &fetching)),
+                    Some(Facility::Sink) => drop(fetch_sinks(&events, &fetching)),
+                    Some(Facility::Source) => drop(fetch_sources(&events, &fetching)),
+                    _ => {}
+                },
+            )));
+
         self.context.subscribe(
             InterestMaskSet::SERVER | InterestMaskSet::SINK | InterestMaskSet::SOURCE,
             |subscribed| {
@@ -163,19 +178,6 @@ impl Server {
         self.wait(&fetch_sources(&introspector, &shared))?;
         shared.ready.set(true);
         data.send_modify(|_| {});
-
-        // An event names only what changed, which is asked for again
-        let events = self.context.introspect();
-        let fetching = shared.clone();
-        self.context
-            .set_subscribe_callback(Some(Box::new(
-                move |facility, _operation, _index| match facility {
-                    Some(Facility::Server) => drop(fetch_server(&events, &fetching)),
-                    Some(Facility::Sink) => drop(fetch_sinks(&events, &fetching)),
-                    Some(Facility::Source) => drop(fetch_sources(&events, &fetching)),
-                    _ => {}
-                },
-            )));
 
         // A command wakes the main loop through the pipe; reading empties it
         let _wake = self.mainloop.new_io_event(
