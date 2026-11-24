@@ -3,9 +3,12 @@
 //! notifications applications send there, and `updates()` reports them as a
 //! snapshot after every change.
 
-use crate::xdg_icons::{self, IconFile};
+use crate::{
+    snapshot::snapshots,
+    xdg_icons::{self, IconFile},
+};
 use bytes::Bytes;
-use futures::{Stream, stream};
+use futures::Stream;
 use log::info;
 use regex::Regex;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
@@ -206,13 +209,7 @@ impl Notifications {
     /// The current notifications, then a snapshot per change. A consumer that
     /// falls behind gets the latest one, never a stale list.
     pub fn updates(&self) -> impl Stream<Item = NotificationsData> + Send + 'static {
-        let mut data = self.data.clone();
-        data.mark_changed();
-        stream::unfold(data, |mut data| async move {
-            data.changed().await.ok()?;
-            let snapshot = data.borrow_and_update().clone();
-            Some((snapshot, data))
-        })
+        snapshots(self.data.clone())
     }
 
     pub async fn execute(&self, command: NotificationsCommand) -> anyhow::Result<()> {

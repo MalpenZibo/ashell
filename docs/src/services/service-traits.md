@@ -24,7 +24,7 @@ A snapshot stays cheap even when the state is large: the notifications daemon ke
 
 Each service sits behind a cargo feature of the same name, so consumers only compile the services, and pull in the system dependencies, they need. The crate has no default features.
 
-Currently migrated: Bluetooth (`bluetooth` feature), brightness (`brightness` feature), idle inhibitor (`idle_inhibitor` feature), logind (`logind` feature), notifications (`notifications` feature), privacy (`privacy` feature) and UPower (`upower` feature). Shared helpers that are not services live in plain modules, e.g. `rfkill` (soft-block state and change notifications, used by both bluetooth and network), `throttle` (a stream rate limiter) and `xdg_icons` (icon lookup by name). The optional `serde` feature derives `Deserialize` on types that appear in configuration, such as `upower::PeripheralDeviceKind`.
+Currently migrated: audio (`audio` feature), Bluetooth (`bluetooth` feature), brightness (`brightness` feature), idle inhibitor (`idle_inhibitor` feature), logind (`logind` feature), notifications (`notifications` feature), privacy (`privacy` feature) and UPower (`upower` feature). Shared helpers that are not services live in plain modules, e.g. `rfkill` (soft-block state and change notifications, used by both bluetooth and network), `throttle` (a stream rate limiter) and `xdg_icons` (icon lookup by name). The optional `serde` feature derives `Deserialize` on types that appear in configuration, such as `upower::PeripheralDeviceKind`.
 
 ## ServiceEvent
 
