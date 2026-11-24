@@ -56,12 +56,13 @@ impl Panel {
     }
 }
 
-/// `"none"`, or a panel by its name.
+/// `"none"`, a panel by its name, or `"config"`, the config window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(try_from = "String")]
 pub enum Open {
     Nothing,
     Panel(Panel),
+    Config,
 }
 
 impl TryFrom<String> for Open {
@@ -71,7 +72,7 @@ impl TryFrom<String> for Open {
         Open::parse(&name).ok_or_else(|| {
             let panels: Vec<_> = Panel::ALL.iter().map(|panel| panel.name()).collect();
             format!(
-                "\"{name}\": expected \"none\" or a panel, one of {}",
+                "\"{name}\": expected \"none\", \"config\" or a panel, one of {}",
                 panels.join(", ")
             )
         })
@@ -80,14 +81,14 @@ impl TryFrom<String> for Open {
 
 impl Open {
     pub fn parse(name: &str) -> Option<Self> {
-        if name == "none" {
-            return Some(Open::Nothing);
+        match name {
+            "none" => Some(Open::Nothing),
+            "config" => Some(Open::Config),
+            name => Panel::ALL
+                .into_iter()
+                .find(|panel| panel.name() == name)
+                .map(Open::Panel),
         }
-
-        Panel::ALL
-            .into_iter()
-            .find(|panel| panel.name() == name)
-            .map(Open::Panel)
     }
 }
 
@@ -105,6 +106,9 @@ macro_rules! drawn_by {
 macro_rules! opens {
     (-) => {
         None
+    };
+    (Config) => {
+        Some(Open::Config)
     };
     ($panel:ident) => {
         Some(Open::Panel(Panel::$panel))
@@ -185,6 +189,7 @@ items! {
     PeripheralBattery = "peripheral_battery", Notable, Settings, -;
     KeyboardLayout = "keyboard_layout", Notable, -, -;
     KeyboardSubmap = "keyboard_submap", Notable, -, -;
+    Config = "config", Always, Config, Config;
 }
 
 impl ItemId {
@@ -198,7 +203,7 @@ impl ItemId {
 pub enum Action {
     /// One of the item's [`actions`](ItemId::actions).
     Named(&'static str),
-    Open(Panel),
+    Open(Open),
     Run(String),
     None,
 }
@@ -269,6 +274,7 @@ pub fn builtin_zone(name: &str) -> Option<ZoneDefaults> {
         "tray" => zone(&[Tray], &[], Open::Nothing),
         "updates" => zone(&[Updates], &[], Open::Panel(Panel::Updates)),
         "keyboard" => zone(&[KeyboardLayout, KeyboardSubmap], &[], Open::Nothing),
+        "config" => zone(&[Config], &[], Open::Config),
         _ => return None,
     })
 }

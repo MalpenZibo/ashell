@@ -5,12 +5,12 @@ use styletto::components::roll;
 use styletto::foundations::tokens::{icon as icon_box, size};
 use styletto::foundations::typography as ty;
 use styletto::primitives::text::typed;
-use styletto::{centered_row, icon, ui};
+use styletto::{centered_row, icon, look};
 use toml::{Table, Value};
 
 use super::{CYCLE_FORMAT, Tempo, sky, time};
 use crate::config::{Item, ItemId, Show};
-use crate::modules::ItemView;
+use crate::modules::{ItemView, shown};
 
 const CLOCK_FORMAT: &str = "%R";
 const DATE_FORMAT: &str = "%a %-d";
@@ -139,23 +139,8 @@ pub fn view(tempo: Tempo, item: &Item) -> ItemView {
     }
 }
 
-fn shown(
-    show: Show,
-    has: impl Fn() -> bool + 'static,
-    notable: impl Fn() -> bool + 'static,
-) -> Memo<bool> {
-    create_memo(move || {
-        has()
-            && match show {
-                Show::Always => true,
-                Show::Notable => notable(),
-                Show::Never => false,
-            }
-    })
-}
-
 fn clock(tempo: Tempo, show: Show, formats: Vec<String>) -> ItemView {
-    let t = ui();
+    let t = look();
     let count = formats.len();
 
     let index = create_signal(0usize);
@@ -169,7 +154,7 @@ fn clock(tempo: Tempo, show: Show, formats: Vec<String>) -> ItemView {
         view: container().child(
             roll::rolling(move || text.get())
                 .look(ty::LABEL_SMALL.em())
-                .color(t.colors.text),
+                .color(t.color(|c| c.text)),
         ),
         shown: shown(show, || true, || true),
         act: Rc::new(move |action| match action {
@@ -180,14 +165,14 @@ fn clock(tempo: Tempo, show: Show, formats: Vec<String>) -> ItemView {
 }
 
 fn date(tempo: Tempo, show: Show, format: String) -> ItemView {
-    let t = ui();
+    let t = look();
 
     let text = create_memo(move || time::format(tempo.now.get(), tempo.zone().as_ref(), &format));
 
     ItemView {
         view: container().child(
             typed(move || text.get(), ty::LABEL_SMALL.tabular())
-                .color(t.colors.sub)
+                .color(t.eased(|c| c.sub))
                 .nowrap(),
         ),
         shown: shown(show, || true, || true),
@@ -196,7 +181,7 @@ fn date(tempo: Tempo, show: Show, format: String) -> ItemView {
 }
 
 fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
-    let t = ui();
+    let t = look();
 
     let now = create_memo(move || {
         tempo.weather.with(|data| {
@@ -212,7 +197,7 @@ fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
                 icon(
                     sky::icon(code, is_day),
                     icon_box::SMALL.px(),
-                    sky::ink(code, t.colors.accent, t.colors.sub),
+                    t.color(move |c| sky::ink(code, c.accent.text, c.sub)),
                 )
             })
         })
@@ -225,7 +210,7 @@ fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
                 },
                 ty::LABEL_SMALL.tabular(),
             )
-            .color(t.colors.sub)
+            .color(t.eased(|c| c.sub))
             .nowrap()
         }));
 
@@ -241,7 +226,7 @@ fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
 }
 
 fn forecast(tempo: Tempo, show: Show, hours: usize) -> ItemView {
-    let t = ui();
+    let t = look();
     let formats = time::Formats::of_locale();
 
     let coming = create_memo(move || {
@@ -274,17 +259,17 @@ fn forecast(tempo: Tempo, show: Show, hours: usize) -> ItemView {
                         .layout(centered_row(size::S0_5.px()))
                         .child(
                             typed(hour.when, ty::LABEL_XSMALL.tabular())
-                                .color(t.colors.dim)
+                                .color(t.eased(|c| c.dim))
                                 .nowrap(),
                         )
                         .child(icon(
                             sky::icon(hour.code, hour.is_day),
                             icon_box::XSMALL.px(),
-                            sky::ink(hour.code, t.colors.accent, t.colors.sub),
+                            t.color(move |c| sky::ink(hour.code, c.accent.text, c.sub)),
                         ))
                         .child(
                             typed(sky::degrees(hour.temperature), ty::LABEL_XSMALL.tabular())
-                                .color(t.colors.sub)
+                                .color(t.eased(|c| c.sub))
                                 .nowrap(),
                         )
                 })

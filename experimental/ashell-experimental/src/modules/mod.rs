@@ -5,6 +5,7 @@
 //! its [`Spec`], for what reading the configuration needs before any module
 //! exists, its table to [`Configs`], and its state to [`Modules`].
 
+pub mod configurator;
 pub mod tempo;
 
 use std::rc::Rc;
@@ -12,20 +13,23 @@ use std::rc::Rc;
 use guido::prelude::*;
 use toml::Table;
 
-use crate::config::{Config, Gestures, Item, ItemId, Panel};
+use crate::config::{Config, Gestures, Item, ItemId, Panel, Show};
+use configurator::Configurator;
 use tempo::{Tempo, TempoConfig};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleId {
     Tempo,
+    Config,
 }
 
 impl ModuleId {
-    pub const ALL: [ModuleId; 1] = [ModuleId::Tempo];
+    pub const ALL: [ModuleId; 2] = [ModuleId::Tempo, ModuleId::Config];
 
     pub fn spec(self) -> &'static Spec {
         match self {
             ModuleId::Tempo => &tempo::SPEC,
+            ModuleId::Config => &configurator::SPEC,
         }
     }
 }
@@ -40,6 +44,20 @@ pub struct Spec {
     /// What is wrong with an item's own options.
     pub check_options: fn(ItemId, &Table) -> Vec<String>,
     pub panel_width: fn(Panel) -> f32,
+}
+
+impl Spec {
+    /// A module whose items have no actions, gestures or options of their
+    /// own, and that draws no panel.
+    pub const fn bare(name: &'static str) -> Self {
+        Self {
+            name,
+            actions: |_| &[],
+            default_gestures: |_| Gestures::default(),
+            check_options: |_, _| Vec::new(),
+            panel_width: |_| 0.0,
+        }
+    }
 }
 
 pub fn actions(id: ItemId) -> &'static [&'static str] {
@@ -82,8 +100,26 @@ impl Configs {
                 self.tempo = config;
                 problems
             }
+            ModuleId::Config => configurator::check(table),
         }
     }
+}
+
+/// Whether an item shows: it `has` something to, and its `show` lets it,
+/// `Notable` only while it is `notable`.
+pub fn shown(
+    show: Show,
+    has: impl Fn() -> bool + 'static,
+    notable: impl Fn() -> bool + 'static,
+) -> Memo<bool> {
+    create_memo(move || {
+        has()
+            && match show {
+                Show::Always => true,
+                Show::Notable => notable(),
+                Show::Never => false,
+            }
+    })
 }
 
 /// An item as its module draws it.
@@ -100,6 +136,7 @@ pub struct ItemView {
 #[derive(Clone, Copy)]
 pub struct Modules {
     tempo: Tempo,
+    configurator: Configurator,
 }
 
 impl Modules {
@@ -108,6 +145,7 @@ impl Modules {
             tempo: Tempo::new(create_memo(move || {
                 config.with(|c| c.modules.tempo.clone())
             })),
+            configurator: Configurator::new(config),
         }
     }
 
@@ -120,13 +158,20 @@ impl Modules {
                 now,
                 Some(tempo::sample::weather(now)),
             ),
+            configurator: Configurator::new(config),
         }
+    }
+
+    /// Opens the config window `how`, unless it is open already.
+    pub fn configure(self, how: configurator::Shown) {
+        self.configurator.open(how);
     }
 
     /// `None` for an item no module draws yet.
     pub fn item(self, item: &Item) -> Option<ItemView> {
         match item.id.module()? {
             ModuleId::Tempo => Some(self.tempo.item(item)),
+            ModuleId::Config => Some(self.configurator.item(item)),
         }
     }
 
@@ -134,6 +179,7 @@ impl Modules {
     pub fn panel(self, panel: Panel) -> Option<Container> {
         match panel.module()? {
             ModuleId::Tempo => Some(self.tempo.panel(panel)),
+            ModuleId::Config => None,
         }
     }
 }

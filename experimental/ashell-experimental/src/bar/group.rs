@@ -14,10 +14,16 @@ use super::{
 };
 use crate::config::{Node, Open, Panel, Panels, Place, Position};
 use crate::modules::Modules;
+use crate::modules::configurator;
 
-/// Opens a panel under a zone of a group.
-fn opens(state: State, group: NodeId, zone: usize) -> Opens {
-    Rc::new(move |panel| state.toggle(Opened { group, zone, panel }))
+/// Opens what a zone of a group, or an item in it, opens: a panel under the
+/// zone, or the config window.
+fn opens(state: State, modules: Modules, group: NodeId, zone: usize) -> Opens {
+    Rc::new(move |open| match open {
+        Open::Panel(panel) => state.toggle(Opened { group, zone, panel }),
+        Open::Config => modules.configure(configurator::Shown::Settings),
+        Open::Nothing => {}
+    })
 }
 
 const CONTENT_OUT_MS: f32 = 120.0;
@@ -236,7 +242,7 @@ pub(super) fn split_details(
                     &shown.details,
                     shown.open,
                     modules,
-                    opens(state, group, zone),
+                    opens(state, modules, group, zone),
                 )
                 .height(group_height())
                 // As far in as a zone's text is in a group's row, past the
@@ -348,21 +354,14 @@ fn rest(group: &Node, state: State, refs: &Refs, modules: Modules) -> Container 
                 .enumerate()
                 .map(|(index, zone)| {
                     let (open, has_details) = (zone.open, !zone.details.is_empty());
-                    let click = move || {
-                        if let Open::Panel(panel) = open {
-                            state.toggle(Opened {
-                                group: id,
-                                zone: index,
-                                panel,
-                            });
-                        }
+                    let opens = opens(state, modules, id, index);
+                    let click = {
+                        let opens = opens.clone();
+                        move || opens(open)
                     };
 
-                    let content =
-                        items::zone(&zone.items, open, modules, opens(state, id, index), click)
-                            .unwrap_or_else(|| {
-                                container().child(placeholder::zone(&zone.name, click))
-                            });
+                    let content = items::zone(&zone.items, open, modules, opens, click.clone())
+                        .unwrap_or_else(|| container().child(placeholder::zone(&zone.name, click)));
 
                     let mut pill = container()
                         .widget_ref(refs.zones[&(id, index)])
@@ -423,7 +422,7 @@ fn details(
                 &zone.details,
                 zone.open,
                 modules,
-                opens(state, id, index),
+                opens(state, modules, id, index),
             ))
         })
     })

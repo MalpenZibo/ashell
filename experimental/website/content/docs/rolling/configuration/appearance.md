@@ -28,6 +28,18 @@ sans = "Inter"
 mono = "JetBrains Mono"
 ```
 
+The same keys can live in a file of their own, shared with other programs
+that use styletto, and be read with `import = "path"`; see
+[imports](@/docs/rolling/configuration/_index.md#imports).
+
+The `config` item opens a window that sets these keys as you watch the
+bar change. It writes them to the file `[appearance]` imports, and the keys
+written beside the import still win over it. A table with its keys written
+in the configuration is moved to `appearance.toml` beside it, and imported
+from there, unless a file of that name is already there: then nothing is
+written, and the window says why. That file holds what the window chose,
+and is written again on each change.
+
 ## Colours
 
 One source of colours, and the colours you want set over it:
@@ -38,7 +50,7 @@ One source of colours, and the colours you want set over it:
 | `dark_flavor`, `light_flavor` | The theme's flavour for each side, as `mocha` and `latte` for Catppuccin. |
 | `accent` | The accent, on each side whose flavour has it. |
 | `seed` | Both sides worked out from one colour, `"#6750a4"`. It wins over `theme`. |
-| `wallpaper` | Both sides worked out from an image, `"~/Pictures/wall.jpg"`. It wins over `seed`. |
+| `wallpaper` | Both sides worked out from an image, `"~/Pictures/wall.jpg"`. It wins over `seed`. The bar follows the image: rewritten, or a link pointed to another one, as a wallpaper changer does. |
 | `variant` | How a seed or a wallpaper spreads over the roles: `tonal-spot` (default), `vibrant`, `expressive`, `content`, `fidelity`, `neutral`, `monochrome`, `rainbow`, `fruit-salad`. |
 | `contrast` | For a seed or a wallpaper: `standard` (default), `medium`, `high`. |
 | `mode` | Which side: `auto` (default), `light`, `dark`. The bar does not read the system's preference yet, so `auto` is dark for now. |
