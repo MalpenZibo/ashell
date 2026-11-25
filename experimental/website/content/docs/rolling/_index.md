@@ -20,8 +20,9 @@ in between: they are two configuration files, not two modes.
 
 {% <note kind="warning" title="Experimental"> %}
 There are no releases: it is built from `main` and changes with it. The
-layout, the islands, the panels and the details are in place, and the time,
-the weather and the calendar have their data; the other zones and panels
+layout, the islands, the panels and the details are in place; the time, the
+weather, the calendar, the batteries, the power profile, Bluetooth, the idle
+inhibitor and the brightness have their data. The other zones and panels
 still show placeholders sized like the real thing. The
 [stable ashell](https://malpenzibo.github.io/ashell/) is the one to use every
 day.

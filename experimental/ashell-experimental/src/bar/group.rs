@@ -144,8 +144,8 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
 /// which says what it draws of its edge (see `rimmed`).
 pub(super) fn split_off(opened: Opened, host: Host, outline: Outline, ctx: &Ctx) -> Container {
     let rect = host_rect(host, ctx);
-    let hung = ctx.groups[&opened.group].list.1;
-    let x = hung_at(hung, rect, panel_x(opened, ctx), panel_width(opened.panel));
+    let middle = rect.x + rect.width / 2.0;
+    let center = panel_x(opened, ctx);
     let side = ctx.position.side();
     let group = ctx.refs.nodes[&opened.group].layout_rect().get_untracked();
     let gap = ctx.neck.panel;
@@ -153,17 +153,24 @@ pub(super) fn split_off(opened: Opened, host: Host, outline: Outline, ctx: &Ctx)
     // Half the host at rest back from the edge it hangs from: its middle once
     // the details it may have grown with are back.
     let (left, width) = span(group.x, group.width, ctx.neck.reach);
-    let from = Translate::new(
-        hung_at(hung, rect, left + width / 2.0, width),
-        -side * (rect.height / 2.0),
-    );
-    let to = Translate::new(x, side * gap);
+    let from = Translate::new(left + width / 2.0 - middle, -side * (rect.height / 2.0));
+    // It comes out of the middle of what holds it, and stays under the zone
+    // while that changes width, as when an item comes or goes.
+    let holder = match host {
+        Host::Shape(id) => ctx.refs.nodes[&id],
+        Host::Background | Host::None => ctx.refs.bar,
+    };
+    let to = move || {
+        let now = holder.layout_rect().get();
+
+        Translate::new(center - (now.x + now.width / 2.0), side * gap)
+    };
 
     rimmed(
         panel_shape(opened.panel, ctx.modules, to, from, width),
         outline,
     )
-    .align_self(ctx.position.hung(hung))
+    .align_self(ctx.position.hung(Place::Center))
 }
 
 /// The details of the groups in one list of nodes that have no shape of
@@ -474,7 +481,7 @@ fn span(left: f32, width: f32, reach: f32) -> (f32, f32) {
 fn panel_shape(
     panel: Panel,
     modules: Modules,
-    to: Translate,
+    to: impl Fn() -> Translate + 'static,
     from: Translate,
     width: f32,
 ) -> Container {
@@ -505,7 +512,7 @@ fn panel_shape(
         .corners(radius::LARGE.corners())
         .takes_input(true)
         .translate(
-            to.transition(retracting())
+            to.transition(held(retracting()))
                 .entering_from(from)
                 .exiting_to(from),
         )
@@ -543,6 +550,24 @@ fn sliding<T>() -> impl Fn(Segment<T>) -> Transition + 'static {
             motion::easing(250.0).delay(80.0)
         } else {
             motion::spring()
+        }
+    }
+}
+
+/// `transition` while a shape comes out and goes back; once it is out, a new
+/// place lands at once, so it holds still rather than chasing what holds it.
+fn held<T: 'static>(
+    transition: impl Fn(Segment<T>) -> Transition + 'static,
+) -> impl Fn(Segment<T>) -> Transition + 'static {
+    let out = create_signal(false);
+
+    move |segment| {
+        if segment.is_retarget() && out.get_untracked() {
+            Transition::new(0.0, TimingFunction::Linear)
+        } else if segment.is_enter() {
+            transition(segment).on_complete(move || out.set(true))
+        } else {
+            transition(segment)
         }
     }
 }

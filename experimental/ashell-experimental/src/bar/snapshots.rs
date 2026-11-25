@@ -417,6 +417,24 @@ details = ["forecast"]
 items = [{ item = "forecast", hours = 4 }]
 "#;
 
+/// A bar of the settings module's items, each one shown.
+const SITE_SETTINGS_BAR: &str = r#"
+[bar.main]
+padding = "s2"
+end     = ["status"]
+
+[zone.status]
+items = [
+    { item = "idle_inhibitor", show = "always" },
+    { item = "power_profile", show = "always" },
+    "bluetooth",
+    { item = "brightness", show = "always" },
+    "peripheral_battery",
+    "battery",
+    "battery_time",
+]
+"#;
+
 /// A frame read back premultiplied, as a PNG holds it: straight alpha.
 fn unpremultiplied(mut frame: ::image::RgbaImage) -> ::image::RgbaImage {
     for pixel in frame.pixels_mut() {
@@ -514,8 +532,8 @@ fn open_calendar(scene: &mut Scene) {
 }
 
 /// The pictures of the site: the ways a panel opens, for the panels' page,
-/// and tempo's items and calendar, for its own. The desktop they sit on is
-/// the page's.
+/// tempo's items and calendar, and the settings items, for their own. The
+/// desktop they sit on is the page's.
 #[test]
 #[ignore = "draws the site's pictures, asserts nothing"]
 fn site_pictures() {
@@ -540,6 +558,14 @@ fn site_pictures() {
         (960, 540),
         false,
         open_calendar,
+    );
+
+    site_picture(
+        "settings-items",
+        SITE_SETTINGS_BAR,
+        (960, 160),
+        true,
+        |_| {},
     );
 }
 

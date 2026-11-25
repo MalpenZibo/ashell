@@ -15,7 +15,6 @@ use std::rc::Rc;
 use guido::prelude::*;
 use styletto::foundations::tokens::icon as icon_box;
 use styletto::{Icon, icon, look};
-use toml::Table;
 
 use super::{ItemView, Spec, shown};
 use crate::config::{Config, Item};
@@ -77,21 +76,13 @@ impl Configurator {
                 icon_box::SMALL.px(),
                 t.color(|c| c.sub),
             )),
-            shown: shown(item.show, || true, || true),
+            shown: shown(item, || true, |_| false),
             act: Rc::new(|_| {}),
         }
     }
 }
 
 pub const SPEC: Spec = Spec::bare("config");
-
-/// Its table has no keys yet.
-pub fn check(table: &Table) -> Vec<String> {
-    table
-        .keys()
-        .map(|key| format!("config.{key}: unknown key, ignored"))
-        .collect()
-}
 
 #[cfg(test)]
 mod tests {

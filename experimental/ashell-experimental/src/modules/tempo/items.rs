@@ -9,8 +9,8 @@ use styletto::{centered_row, icon, look};
 use toml::{Table, Value};
 
 use super::{CYCLE_FORMAT, Tempo, sky, time};
-use crate::config::{Item, ItemId, Show};
-use crate::modules::{ItemView, shown};
+use crate::config::{Item, ItemId};
+use crate::modules::{ItemView, Style, shown, unknown_options};
 
 const CLOCK_FORMAT: &str = "%R";
 const DATE_FORMAT: &str = "%a %-d";
@@ -27,7 +27,7 @@ pub enum Options {
         format: String,
     },
     Weather {
-        temperature: bool,
+        style: Style,
     },
     Forecast {
         hours: usize,
@@ -43,12 +43,7 @@ impl Options {
             ItemId::Weather => &["style"],
             _ => &["hours"],
         };
-
-        for key in table.keys() {
-            if !known.contains(&key.as_str()) {
-                problems.push(format!("{key}: unknown option of {}, ignored", id.name()));
-            }
-        }
+        unknown_options(id, table, known, &mut problems);
 
         let options = match id {
             ItemId::Clock => {
@@ -85,15 +80,7 @@ impl Options {
                     .unwrap_or_else(|| DATE_FORMAT.to_string()),
             },
             ItemId::Weather => Options::Weather {
-                temperature: match table.get("style").map(Value::as_str) {
-                    None | Some(Some("icon-temperature")) => true,
-                    Some(Some("icon")) => false,
-                    Some(_) => {
-                        problems
-                            .push("style: expected \"icon\" or \"icon-temperature\"".to_string());
-                        true
-                    }
-                },
+                style: Style::read(table, Style::IconValue, &mut problems),
             },
             _ => Options::Forecast {
                 hours: match table.get("hours").map(Value::as_integer) {
@@ -128,18 +115,28 @@ fn date_format(problems: &mut Vec<String>, key: &str, value: &Value) -> Option<S
 }
 
 pub fn view(tempo: Tempo, item: &Item) -> ItemView {
-    let show = item.show;
     let (options, _) = Options::read(item.id, &item.options);
 
     match options {
-        Options::Clock { formats } => clock(tempo, show, formats),
-        Options::Date { format } => date(tempo, show, format),
-        Options::Weather { temperature } => weather(tempo, show, temperature),
-        Options::Forecast { hours } => forecast(tempo, show, hours),
+        Options::Clock { formats } => clock(tempo, item, formats),
+        Options::Date { format } => date(tempo, item, format),
+        Options::Weather { style } => weather(tempo, item, style),
+        Options::Forecast { hours } => forecast(tempo, item, hours),
     }
 }
 
-fn clock(tempo: Tempo, show: Show, formats: Vec<String>) -> ItemView {
+/// The weather calls for an umbrella.
+pub const WET: &str = "wet";
+
+/// The states of the weather's items, each the one worth showing them in.
+pub fn states(id: ItemId) -> &'static [&'static str] {
+    match id {
+        ItemId::Weather | ItemId::Forecast => &[WET],
+        _ => &[],
+    }
+}
+
+fn clock(tempo: Tempo, item: &Item, formats: Vec<String>) -> ItemView {
     let t = look();
     let count = formats.len();
 
@@ -156,7 +153,7 @@ fn clock(tempo: Tempo, show: Show, formats: Vec<String>) -> ItemView {
                 .look(ty::LABEL_SMALL.em())
                 .color(t.color(|c| c.text)),
         ),
-        shown: shown(show, || true, || true),
+        shown: shown(item, || true, |_| false),
         act: Rc::new(move |action| match action {
             CYCLE_FORMAT => index.update(|i| *i = (*i + 1) % count),
             action => tempo.zone_action(action),
@@ -164,7 +161,7 @@ fn clock(tempo: Tempo, show: Show, formats: Vec<String>) -> ItemView {
     }
 }
 
-fn date(tempo: Tempo, show: Show, format: String) -> ItemView {
+fn date(tempo: Tempo, item: &Item, format: String) -> ItemView {
     let t = look();
 
     let text = create_memo(move || time::format(tempo.now.get(), tempo.zone().as_ref(), &format));
@@ -175,12 +172,12 @@ fn date(tempo: Tempo, show: Show, format: String) -> ItemView {
                 .color(t.eased(|c| c.sub))
                 .nowrap(),
         ),
-        shown: shown(show, || true, || true),
+        shown: shown(item, || true, |_| false),
         act: Rc::new(move |action| tempo.zone_action(action)),
     }
 }
 
-fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
+fn weather(tempo: Tempo, item: &Item, style: Style) -> ItemView {
     let t = look();
 
     let now = create_memo(move || {
@@ -193,7 +190,7 @@ fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
     let view = container()
         .layout(centered_row(size::S1.px()))
         .child(move || {
-            now.get().map(|(code, is_day, _)| {
+            now.get().filter(|_| style.icon()).map(|(code, is_day, _)| {
                 icon(
                     sky::icon(code, is_day),
                     icon_box::SMALL.px(),
@@ -201,7 +198,7 @@ fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
                 )
             })
         })
-        .child(temperature.then(|| {
+        .child(style.value().then(|| {
             typed(
                 move || {
                     now.get()
@@ -217,15 +214,15 @@ fn weather(tempo: Tempo, show: Show, temperature: bool) -> ItemView {
     ItemView {
         view,
         shown: shown(
-            show,
+            item,
             move || now.with(Option::is_some),
-            move || now.get().is_some_and(|(code, _, _)| sky::wet(code)),
+            move |state| state == WET && now.get().is_some_and(|(code, _, _)| sky::wet(code)),
         ),
         act: Rc::new(|_| {}),
     }
 }
 
-fn forecast(tempo: Tempo, show: Show, hours: usize) -> ItemView {
+fn forecast(tempo: Tempo, item: &Item, hours: usize) -> ItemView {
     let t = look();
     let formats = time::Formats::of_locale();
 
@@ -279,9 +276,11 @@ fn forecast(tempo: Tempo, show: Show, hours: usize) -> ItemView {
     ItemView {
         view,
         shown: shown(
-            show,
+            item,
             move || coming.with(|hours| !hours.is_empty()),
-            move || coming.with(|hours| hours.iter().any(|hour| sky::wet(hour.code))),
+            move |state| {
+                state == WET && coming.with(|hours| hours.iter().any(|hour| sky::wet(hour.code)))
+            },
         ),
         act: Rc::new(|_| {}),
     }

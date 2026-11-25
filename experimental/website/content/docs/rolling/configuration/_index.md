@@ -105,6 +105,8 @@ bar                  an edge of the screen: where, and how things open
   zones, and how to make your own.
 - [Tempo](@/docs/rolling/configuration/tempo.md): the time, the weather and
   the calendar.
+- [Settings](@/docs/rolling/configuration/settings.md): the batteries, the
+  power profile, Bluetooth, the idle inhibitor and the brightness.
 
 ## Options flow down
 

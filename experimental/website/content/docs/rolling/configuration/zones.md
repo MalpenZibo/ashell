@@ -8,10 +8,12 @@ second row of details shown on hover, and what a click on it opens. An item
 is one piece of information: the battery, the time, the window's title.
 
 {% <note kind="info" title="Placeholders"> %}
-The items of [`tempo`](@/docs/rolling/configuration/tempo.md) are drawn,
-with their `show`, `open` and gestures. The others show placeholders for
-now, sized like the real ones; a zone none of whose items is drawn yet is
-one placeholder with its name.
+The items of [`tempo`](@/docs/rolling/configuration/tempo.md) and
+[`settings`](@/docs/rolling/configuration/settings.md) are drawn, with their
+`show`, `open` and gestures. The others are left out of a zone that has
+items drawn; a zone none of whose items is drawn yet is one placeholder with
+its name, and its details show a placeholder for each item, sized like the
+real ones.
 {% </note> %}
 
 ## Built-in zones
@@ -24,7 +26,7 @@ Naming a zone in a node uses its defaults:
 | `window` | `window` | `launcher_button`, `window_list` | nothing |
 | `media` | `media` | `media_details` | `media` |
 | `clock` | `weather`, `date`, `clock`, `notifications` | `date`, `forecast`, `notices` | `calendar` |
-| `status` | `privacy`, `airplane`, `dnd`, `idle_inhibitor`, `bluetooth`, `microphone`, `volume`, `network`, `battery` | `system`, `updates` | `settings` |
+| `status` | `privacy`, `airplane`, `dnd`, `idle_inhibitor`, `bluetooth`, `microphone`, `volume`, `network`, `battery` | `system`, `updates`, `battery_time` | `settings` |
 | `privacy` | `privacy` | | nothing |
 | `system` | `cpu`, `memory`, `temperature` | | `system` |
 | `tray` | `tray` | | nothing |
@@ -66,7 +68,7 @@ items = ["battery", { item = "system", show = "notable", open = "system" }]
 | Key | Values | What it sets |
 | --- | ------ | ------------ |
 | `item` | an item's name | Which item; required. |
-| `show` | `always`, `notable`, `never` | When it is visible. |
+| `show` | `always`, `notable`, `never`, or a list of the item's states | When it is visible. |
 | `open` | a panel, `"config"`, or `"none"` | What a click on this item does, over its zone's. |
 | `right_click`, `middle_click`, `scroll_up`, `scroll_down` | an action | What the gesture does: see [Gestures](#gestures). |
 | other keys | | The item's own options, as its module documents them. |
@@ -88,7 +90,7 @@ The items, with when they show and what they open by default:
 | `privacy` | notable | the zone's |
 | `airplane`, `dnd`, `idle_inhibitor`, `power_profile`, `bluetooth`, `microphone`, `volume`, `network`, `vpn`, `peripheral_battery` | notable | `settings` |
 | `brightness` | never | `settings` |
-| `battery` | always | `settings` |
+| `battery`, `battery_time` | always | `settings` |
 | `keyboard_layout`, `keyboard_submap` | notable | the zone's |
 | `config` | always | the config window |
 
@@ -97,6 +99,18 @@ focused, no battery, the weather not fetched yet. `notable` is about an item
 that has something to show, and shows it only when it is worth seeing: a
 player playing, many updates waiting. What it means item by item is still
 being settled.
+
+An item with states, as its module lists them, can be shown in some of them
+only: `show` is then the list, and the item shows while it is in any one of
+them. `notable` is the item's own choice of them, listed with its states; an
+item with no states is always worth showing.
+
+```toml
+items = [
+    { item = "battery", show = ["discharging", "charging", "not_charging"] },  # not once full
+    { item = "bluetooth", show = ["connected"] },
+]
+```
 
 ## Gestures
 
