@@ -1,4 +1,4 @@
-use crate::stream::channel;
+use crate::{stream::channel, udev_monitor};
 use dbus::BrightnessCtrlProxy;
 use futures::{SinkExt, Stream, channel::mpsc::Sender};
 use log::{debug, info, warn};
@@ -8,7 +8,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::io::{Interest, unix::AsyncFd};
+use tokio::io::unix::AsyncFd;
 
 mod dbus;
 
@@ -52,7 +52,7 @@ impl Brightness {
 
             loop {
                 // Enumerate once the monitor listens, so a device added in between is not missed
-                let monitor = backlight_monitor_listener();
+                let monitor = udev_monitor::listen("backlight");
                 let device = match find_backlight() {
                     Ok(device) => device,
                     Err(err) => {
@@ -306,14 +306,4 @@ fn initialize_data(device_path: &Path) -> anyhow::Result<BrightnessData> {
         current: actual_brightness,
         max: max_brightness,
     })
-}
-
-fn backlight_monitor_listener() -> anyhow::Result<AsyncFd<udev::MonitorSocket>> {
-    let socket = udev::MonitorBuilder::new()?
-        .match_subsystem("backlight")?
-        .listen()?;
-
-    // SAFETY: the socket owns its udev monitor fd until it is dropped,
-    // and `as_raw_fd` always returns that same fd.
-    Ok(unsafe { AsyncFd::register_with_interest(socket, Interest::READABLE) }?)
 }

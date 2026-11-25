@@ -36,6 +36,18 @@ idle_inhibitor = [
     "dep:wayland-protocols",
     "dep:wayland-protocols-wlr",
 ]
+keyboard_locks = [
+    "dep:anyhow",
+    "dep:log",
+    "dep:tokio",
+    "dep:udev",
+    "dep:wayland-client",
+    "dep:wayland-protocols",
+    "tokio/macros",
+    "tokio/net",
+    "tokio/time",
+    "wayland-protocols/staging",
+]
 logind = ["dep:anyhow", "dep:log", "dep:tokio", "dep:zbus", "tokio/time"]
 notifications = [
     "xdg_icons",
