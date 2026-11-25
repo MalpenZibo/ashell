@@ -27,3 +27,7 @@ website/src/pages/changelog.md
 
 # IDE
 .vscode/
+
+# Claude Code's local state
+.claude/settings.local.json
+.claude/worktrees/

@@ -53,6 +53,8 @@ Make your code review-ready before asking maintainers to look at it. This means:
 - The PR description explains what changed and why
 - You've verified the change works as intended
 
+If you work with an agent, have it follow the `prepare-pr` skill (`.agents/skills/prepare-pr/SKILL.md`) before it opens the pull request. Claude Code and other agents that read `.agents/skills` load it on their own, and agents that read `AGENTS.md` are pointed to it; point any other tool at the file. It covers these points, runs a simplify pass and a correctness review, and asks you to try the change in a real session.
+
 Don't loop maintainers into reviews before you consider the code "good". This is a hobby project maintained in people's free time — respect that time.
 
 ### Focus AI Narrowly on Review Feedback
