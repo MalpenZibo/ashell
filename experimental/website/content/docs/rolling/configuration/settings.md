@@ -22,7 +22,8 @@ items = [
 
 ## `[settings]`
 
-The commands of the panel's power buttons. One set to `""` has no button.
+The commands of the panel's power buttons. One set to `""`, or to spaces
+only, has no button.
 
 | Key | Default | Button |
 | --- | ------- | ------ |
@@ -121,10 +122,12 @@ items = [
 
 The `settings` panel has the battery, how full and how long until full or
 empty, with the lock button and the power button, which opens the power
-page. Then the brightness, a slider. Then the toggles: Bluetooth, with the
-devices connected; the power profile, a click on its icon going to the next
-one and anywhere else on the tile opening the page of the three; and the
-idle inhibitor. Last, the battery of each device that reports one.
+page while it has more than the lock. Then the brightness, a slider. Then
+the toggles, each while its service is there, the next taking the place of
+one missing: Bluetooth, with the devices connected; the power profile, a
+click on its icon going to the next one and anywhere else on the tile
+opening the page of the three; and the idle inhibitor. Last, the battery of
+each device that reports one.
 
 Each of the panel's pages opens with the same head: back, the page's name
 with what stands now under it, and the feature's icon. Where the page can

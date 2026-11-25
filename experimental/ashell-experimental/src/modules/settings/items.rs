@@ -258,7 +258,7 @@ fn without_estimate(mut battery: BatteryData) -> BatteryData {
     battery
 }
 
-pub(super) fn charging(battery: &BatteryData) -> bool {
+fn charging(battery: &BatteryData) -> bool {
     matches!(battery.status, BatteryStatus::Charging(_))
 }
 
@@ -298,14 +298,8 @@ fn battery(
 
     let battery = create_memo(move || {
         upower.with(|data| {
-            data.system_battery.map(|battery| {
-                let limited = data.charge_limit.is_some_and(|limit| limit.enabled);
-
-                (
-                    without_estimate(battery),
-                    limited && !battery.is_discharging,
-                )
-            })
+            data.system_battery
+                .map(|battery| (without_estimate(battery), held(data, &battery)))
         })
     });
     let percent = move || battery.get().map_or(0.0, |(b, _)| b.capacity as f32);
@@ -355,14 +349,22 @@ fn battery_time(settings: Settings, item: &Item) -> Drawn {
 /// charger, not the battery's state, tells charging from draining. On the
 /// charger with the charge held, as near a full charge, the firmware lets the
 /// battery drain a little and UPower estimates days to empty: none then.
-fn time_left(data: &UPowerData) -> Option<Duration> {
-    let plugged = data.on_battery == Some(false);
-
+pub(super) fn time_left(data: &UPowerData) -> Option<Duration> {
     match data.system_battery?.status {
         BatteryStatus::Charging(left) if !left.is_zero() => Some(left),
-        BatteryStatus::Discharging(left) if !left.is_zero() && !plugged => Some(left),
+        BatteryStatus::Discharging(left) if !left.is_zero() && !plugged(data) => Some(left),
         _ => None,
     }
+}
+
+/// On the charger, whatever the battery says it is doing.
+pub(super) fn plugged(data: &UPowerData) -> bool {
+    data.on_battery == Some(false)
+}
+
+/// Kept from charging by a charge limit: a success, as ashell colours it.
+pub(super) fn held(data: &UPowerData, battery: &BatteryData) -> bool {
+    data.charge_limit.is_some_and(|limit| limit.enabled) && !battery.is_discharging
 }
 
 /// "1h 12m", "45m".

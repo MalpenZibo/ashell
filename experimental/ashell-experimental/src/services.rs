@@ -14,6 +14,10 @@ pub trait Backend: Clone + Send + Sync + 'static {
     type Data: Clone + PartialEq + Default + Send + Sync + 'static;
     type Command: Send + 'static;
 
+    /// Commands that set a value, as a slider's drag does: run one at a time,
+    /// and of those sent meanwhile only the last, so the last one sent wins.
+    const LATEST: bool = false;
+
     fn connect() -> impl Future<Output = anyhow::Result<Self>> + Send;
 
     fn updates(&self) -> impl Stream<Item = Self::Data> + Send + 'static;
@@ -22,10 +26,11 @@ pub trait Backend: Clone + Send + Sync + 'static {
 }
 
 macro_rules! backend {
-    ($service:ty => $data:ty, $command:ty) => {
+    ($service:ty => $data:ty, $command:ty $(, latest = $latest:literal)?) => {
         impl Backend for $service {
             type Data = $data;
             type Command = $command;
+            $(const LATEST: bool = $latest;)?
 
             async fn connect() -> anyhow::Result<Self> {
                 <$service>::connect().await
@@ -43,7 +48,7 @@ macro_rules! backend {
 }
 
 backend!(Bluetooth => BluetoothData, BluetoothCommand);
-backend!(Brightness => Option<BrightnessData>, BrightnessCommand);
+backend!(Brightness => Option<BrightnessData>, BrightnessCommand, latest = true);
 backend!(UPower => UPowerData, UPowerCommand);
 
 /// A service as the UI sees it: its latest snapshot, the default one until
@@ -82,6 +87,12 @@ pub fn link<B: Backend>() -> Linked<B> {
 
         let mut updates = std::pin::pin!(backend.updates());
         let mut running = FuturesUnordered::new();
+        let mut waiting = None;
+        let execute = |command| {
+            let backend = backend.clone();
+
+            async move { backend.execute(command).await }
+        };
 
         loop {
             tokio::select! {
@@ -90,16 +101,16 @@ pub fn link<B: Backend>() -> Linked<B> {
                     None => break,
                 },
                 command = rx.recv() => match command {
-                    Some(command) => {
-                        let backend = backend.clone();
-
-                        running.push(async move { backend.execute(command).await });
-                    }
+                    Some(command) if B::LATEST && !running.is_empty() => waiting = Some(command),
+                    Some(command) => running.push(execute(command)),
                     None => break,
                 },
                 Some(result) = running.next(), if !running.is_empty() => {
                     if let Err(err) = result {
                         log::warn!("{name}: a command failed: {err}");
+                    }
+                    if let Some(command) = waiting.take() {
+                        running.push(execute(command));
                     }
                 }
             }

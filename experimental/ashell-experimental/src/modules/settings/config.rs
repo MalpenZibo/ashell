@@ -46,7 +46,11 @@ impl SettingsConfig {
             };
 
             match value.as_str() {
-                Some(command) => *slot = Some(command).filter(|c| !c.is_empty()).map(Into::into),
+                Some(command) => {
+                    *slot = Some(command.trim())
+                        .filter(|c| !c.is_empty())
+                        .map(Into::into)
+                }
                 None => problems.push(format!("settings.{key}: expected a command")),
             }
         }
@@ -69,12 +73,14 @@ mod tests {
             r#"
 lock = "hyprlock"
 logout = ""
+reboot = "  "
 "#,
         );
 
         assert!(problems.is_empty());
         assert_eq!(config.lock.as_deref(), Some("hyprlock"));
         assert_eq!(config.logout, None);
+        assert_eq!(config.reboot, None);
         assert_eq!(config.suspend.as_deref(), Some("systemctl suspend"));
     }
 

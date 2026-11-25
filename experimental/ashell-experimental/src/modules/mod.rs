@@ -139,8 +139,20 @@ fn unknown_keys(module: ModuleId, table: &Table) -> Vec<String> {
         .collect()
 }
 
-/// Closes the panel it is given to.
-pub type Close = Rc<dyn Fn()>;
+/// Closes the panel open in a bar: each bar declares its own, for a panel
+/// to close itself once a button in it has run.
+#[derive(Clone)]
+pub struct ClosePanel(Rc<dyn Fn()>);
+
+impl ClosePanel {
+    pub fn new(close: impl Fn() + 'static) -> Self {
+        Self(Rc::new(close))
+    }
+
+    pub fn close(&self) {
+        (self.0)()
+    }
+}
 
 /// An item as its module draws it.
 pub struct ItemView {
@@ -258,12 +270,11 @@ impl Modules {
         }
     }
 
-    /// `None` for a panel no module draws yet. `close` closes it, for what
-    /// is done once a button in it has run.
-    pub fn panel(self, panel: Panel, close: Close) -> Option<Container> {
+    /// `None` for a panel no module draws yet.
+    pub fn panel(self, panel: Panel) -> Option<Container> {
         match panel.module()? {
             ModuleId::Tempo => Some(self.tempo.panel(panel)),
-            ModuleId::Settings => Some(self.settings.panel(panel, close)),
+            ModuleId::Settings => Some(self.settings.panel(panel)),
             ModuleId::Config => None,
         }
     }

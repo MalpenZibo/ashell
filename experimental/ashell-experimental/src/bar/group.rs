@@ -122,7 +122,7 @@ pub(super) fn view(id: NodeId, ctx: &Ctx) -> Container {
 
             dropdown(
                 opened.panel,
-                &place,
+                place.modules,
                 Translate::new(x, side * (edge + gap)),
                 Translate::new(x, side * edge),
             )
@@ -166,8 +166,11 @@ pub(super) fn split_off(opened: Opened, host: Host, outline: Outline, ctx: &Ctx)
         Translate::new(center - (now.x + now.width / 2.0), side * gap)
     };
 
-    rimmed(panel_shape(opened.panel, ctx, to, from, width), outline)
-        .align_self(ctx.position.hung(Place::Center))
+    rimmed(
+        panel_shape(opened.panel, ctx.modules, to, from, width),
+        outline,
+    )
+    .align_self(ctx.position.hung(Place::Center))
 }
 
 /// The details of the groups in one list of nodes that have no shape of
@@ -318,7 +321,7 @@ fn shape(group: &Rc<Node>, shown: Memo<Shown>, ctx: &Ctx) -> Container {
                         Position::Bottom => column.child(details).child(rest),
                     }
                 }
-                Shown::Panel(panel) => panel_view(panel, modules, state),
+                Shown::Panel(panel) => panel_view(panel, modules),
             }
         }
     };
@@ -477,12 +480,12 @@ fn span(left: f32, width: f32, reach: f32) -> (f32, f32) {
 
 fn panel_shape(
     panel: Panel,
-    ctx: &Ctx,
+    modules: Modules,
     to: impl Fn() -> Translate + 'static,
     from: Translate,
     width: f32,
 ) -> Container {
-    let content = panel_view(panel, ctx.modules, ctx.state).opacity(
+    let content = panel_view(panel, modules).opacity(
         1.0.transition(fading(
             motion::easing(200.0).delay(260.0),
             motion::easing(100.0),
@@ -517,7 +520,7 @@ fn panel_shape(
         .child(content)
 }
 
-fn dropdown(panel: Panel, ctx: &Ctx, to: Translate, rim: Translate) -> Container {
+fn dropdown(panel: Panel, modules: Modules, to: Translate, rim: Translate) -> Container {
     island::edge(island::paint(container()))
         .width(natural().at_most(panel_width(panel)))
         .height(
@@ -530,7 +533,7 @@ fn dropdown(panel: Panel, ctx: &Ctx, to: Translate, rim: Translate) -> Container
         .corners(radius::LARGE.corners())
         .takes_input(true)
         .translate(to.transition(dropping()).entering_from(rim).exiting_to(rim))
-        .child(panel_view(panel, ctx.modules, ctx.state))
+        .child(panel_view(panel, modules))
 }
 
 fn dropping<T>() -> impl Fn(Segment<T>) -> Transition + 'static {

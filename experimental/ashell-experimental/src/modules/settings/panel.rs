@@ -3,11 +3,13 @@
 //! and the pages they open: power, the power profiles and Bluetooth.
 
 use ashell_i18n::t;
-use ashell_services::bluetooth::{BluetoothCommand, BluetoothState};
-use ashell_services::upower::{BatteryStatus, PowerProfile, UPowerCommand};
+use ashell_services::bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothState};
+use ashell_services::upower::{
+    BatteryData, BatteryStatus, PowerProfile, UPowerCommand, UPowerData,
+};
 use guido::prelude::*;
 use styletto::components::button::button;
-use styletto::components::level::{Levels, level_indicator};
+use styletto::components::level::{Level, Levels, level_indicator};
 use styletto::components::list::{
     back, empty, page_header, pages, row, scroll_list, section, separator,
 };
@@ -22,7 +24,7 @@ use styletto::{Icon, icon, look};
 
 use super::{Settings, items};
 use crate::command;
-use crate::modules::Close;
+use crate::modules::ClosePanel;
 
 /// As the prototype's, following the density.
 pub fn width() -> f32 {
@@ -42,7 +44,7 @@ enum Page {
     Bluetooth,
 }
 
-pub fn view(settings: Settings, close: Close) -> Container {
+pub fn view(settings: Settings) -> Container {
     let stack = create_signal(vec![Page::Main]);
 
     // At its own height while the panel grows to it: laid out at the growing
@@ -52,8 +54,8 @@ pub fn view(settings: Settings, close: Close) -> Container {
         .height(natural())
         .padding(size::S4.px())
         .child(pages(stack, move |page| match page {
-            Page::Main => main(settings, stack, close.clone()),
-            Page::Power => power(settings, stack, close.clone()),
+            Page::Main => main(settings, stack),
+            Page::Power => power(settings, stack),
             Page::PowerProfiles => power_profiles(settings, stack),
             Page::Bluetooth => bluetooth(settings, stack),
         }))
@@ -70,13 +72,13 @@ fn below_head() -> f32 {
     size::S4.px()
 }
 
-fn main(settings: Settings, stack: RwSignal<Vec<Page>>, close: Close) -> Container {
+fn main(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
     let upower = settings.upower.data;
 
     let any_peripheral = create_memo(move || upower.with(|data| !data.peripherals.is_empty()));
 
     column(sections())
-        .child(header(settings, stack, close))
+        .child(header(settings, stack))
         .child(brightness(settings))
         .child(tiles(settings, stack))
         .child(move || any_peripheral.get().then(|| peripherals(settings)))
@@ -132,9 +134,15 @@ fn column(spacing: f32) -> Container {
 }
 
 /// The battery, then the lock button and the one to the power page.
-fn header(settings: Settings, stack: RwSignal<Vec<Page>>, close: Close) -> Container {
+fn header(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
+    let close = expect_context::<ClosePanel>();
     let lock = create_memo(move || settings.config.with(|c| c.lock.clone()));
-    let has_power = create_memo(move || !settings.config.with(power_commands).is_empty());
+    // Worth a page with more than the lock, which has its own button here.
+    let has_power = create_memo(move || {
+        settings
+            .config
+            .with(|c| power_commands(c).len() > usize::from(c.lock.is_some()))
+    });
 
     container()
         .width(fill())
@@ -164,85 +172,110 @@ fn header(settings: Settings, stack: RwSignal<Vec<Page>>, close: Close) -> Conta
 }
 
 /// Runs a power button's `command`, the panel closing behind it.
-fn run(command: &str, close: &Close) {
+fn run(command: &str, close: &ClosePanel) {
     command::run(command.to_string());
-    close();
+    close.close();
+}
+
+/// The battery as the panel shows it.
+#[derive(Clone, PartialEq)]
+struct Battery {
+    capacity: i64,
+    level: Level,
+    plugged: bool,
+    note: String,
+}
+
+/// The battery, changing only with what the panel shows of it.
+fn battery_state(settings: Settings) -> Memo<Option<Battery>> {
+    let upower = settings.upower.data;
+
+    create_memo(move || {
+        upower.with(|data| {
+            data.system_battery.map(|battery| Battery {
+                capacity: battery.capacity,
+                level: items::battery_level(
+                    &battery,
+                    items::THRESHOLDS,
+                    items::held(data, &battery),
+                ),
+                plugged: items::plugged(data),
+                note: charge_note(data, &battery),
+            })
+        })
+    })
+}
+
+/// One of the battery's fields, its default while there is none.
+fn field<T: Default + 'static>(
+    state: Memo<Option<Battery>>,
+    read: fn(&Battery) -> T,
+) -> impl Fn() -> T + Copy + 'static {
+    move || state.with(|battery| battery.as_ref().map(read).unwrap_or_default())
 }
 
 /// How full the battery is, and how long until full or empty.
 fn battery(settings: Settings) -> Container {
-    let upower = settings.upower.data;
+    let state = battery_state(settings);
+    let present = create_memo(move || state.with(Option::is_some));
+    let plugged = field(state, |b| b.plugged);
 
     container().child(move || {
-        upower.with(|data| {
-            data.system_battery.map(|battery| {
-                let plugged = data.on_battery == Some(false);
-                let held =
-                    data.charge_limit.is_some_and(|limit| limit.enabled) && !battery.is_discharging;
-                let percent = battery.capacity as f32;
-
-                tag()
-                    .size(Size::Md)
-                    .child(
-                        level_indicator(Levels::BATTERY, percent)
-                            .level(items::battery_level(&battery, items::THRESHOLDS, held))
-                            .icon(plugged.then_some(Icon::BatteryCharging))
-                            .percent(true)
-                            .size(Size::Md),
-                    )
-                    .child(caption(charge_note(
-                        plugged,
-                        battery.capacity,
-                        battery.status,
-                    )))
-            })
+        present.get().then(|| {
+            tag()
+                .size(Size::Md)
+                .child(
+                    level_indicator(Levels::BATTERY, field(state, |b| b.capacity as f32))
+                        .level(field(state, |b| b.level))
+                        .icon(move || plugged().then_some(Icon::BatteryCharging))
+                        .percent(true)
+                        .size(Size::Md),
+                )
+                .child(caption(field(state, |b| b.note.clone())))
         })
     })
 }
 
 /// How full the battery is and what it is doing, for the power page's head.
 fn battery_status(settings: Settings) -> Memo<String> {
-    let upower = settings.upower.data;
+    let state = battery_state(settings);
 
     create_memo(move || {
-        upower.with(|data| {
-            data.system_battery
-                .map(|battery| {
-                    let plugged = data.on_battery == Some(false);
-                    let note = charge_note(plugged, battery.capacity, battery.status);
-
-                    if note.is_empty() {
-                        format!("{}%", battery.capacity)
-                    } else {
-                        format!("{}% · {note}", battery.capacity)
-                    }
-                })
-                .unwrap_or_default()
+        state.with(|battery| match battery {
+            Some(b) if b.note.is_empty() => format!("{}%", b.capacity),
+            Some(b) => format!("{}% · {}", b.capacity, b.note),
+            None => String::new(),
         })
     })
 }
 
-/// What the battery is doing, as ashell says it. The charger, not the
-/// battery's state, tells charging from draining: near a full charge the
-/// firmware pauses and resumes it with the charger still in.
-fn charge_note(plugged: bool, capacity: i64, status: BatteryStatus) -> String {
-    match status {
-        BatteryStatus::Charging(full_in) if !full_in.is_zero() => {
-            t!("settings-power-full-in", duration = items::span(full_in))
+/// What the battery is doing, as ashell says it, with the item's time left.
+fn charge_note(data: &UPowerData, battery: &BatteryData) -> String {
+    let plugged = items::plugged(data);
+
+    match (battery.status, items::time_left(data)) {
+        (BatteryStatus::Charging(_), Some(left)) => {
+            t!("settings-power-full-in", duration = items::span(left))
         }
-        BatteryStatus::Charging(_) => t!("settings-power-status-charging"),
-        _ if plugged && capacity >= 100 => t!("settings-power-status-full"),
+        (BatteryStatus::Charging(_), None) => t!("settings-power-status-charging"),
+        _ if matches!(battery.status, BatteryStatus::Full)
+            || plugged && battery.capacity >= 100 =>
+        {
+            t!("settings-power-status-full")
+        }
         _ if plugged => t!("settings-power-status-not-charging"),
-        BatteryStatus::Discharging(left) if !left.is_zero() => {
-            t!("settings-power-empty-in", duration = items::span(left))
-        }
+        (_, Some(left)) => t!("settings-power-empty-in", duration = items::span(left)),
         _ => String::new(),
     }
 }
 
-/// A power button: its icon, its name, its command, and whether it ends the
-/// session, which puts it after the others.
-type PowerButton = (Icon, String, String, bool);
+/// A power button: one that ends the session comes after the others.
+struct PowerButton {
+    icon: Icon,
+    label: String,
+    command: String,
+    ends: bool,
+}
 
 /// The power buttons that have a command, in the prototype's order.
 fn power_commands(config: &super::SettingsConfig) -> Vec<PowerButton> {
@@ -280,21 +313,31 @@ fn power_commands(config: &super::SettingsConfig) -> Vec<PowerButton> {
         ),
     ]
     .into_iter()
-    .filter_map(|(kind, label, command, ends)| {
-        command.clone().map(|command| (kind, label, command, ends))
+    .filter_map(|(icon, label, command, ends)| {
+        command.clone().map(|command| PowerButton {
+            icon,
+            label,
+            command,
+            ends,
+        })
     })
     .collect()
 }
 
 /// The power buttons, a row each; those that end the session after a line.
-fn power(settings: Settings, stack: RwSignal<Vec<Page>>, close: Close) -> Container {
-    let button = move |(kind, label, command, ends): PowerButton| {
+fn power(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
+    let close = expect_context::<ClosePanel>();
+    let button = move |power: PowerButton| {
         let close = close.clone();
 
-        row(label)
-            .icon(kind)
-            .tone(if ends { Tone::Danger } else { Tone::Neutral })
-            .on_click(move || run(&command, &close))
+        row(power.label)
+            .icon(power.icon)
+            .tone(if power.ends {
+                Tone::Danger
+            } else {
+                Tone::Neutral
+            })
+            .on_click(move || run(&power.command, &close))
     };
 
     column(below_head())
@@ -305,17 +348,18 @@ fn power(settings: Settings, stack: RwSignal<Vec<Page>>, close: Close) -> Contai
             mark(Icon::Power),
         ))
         .child(scroll_list(list_height()).children(move || {
-            let (stay, end): (Vec<_>, Vec<_>) = settings
-                .config
-                .with(power_commands)
-                .into_iter()
-                .partition(|(_, _, _, ends)| !ends);
-            let line = (!stay.is_empty() && !end.is_empty()).then(|| separator().into_any());
+            let buttons = settings.config.with(power_commands);
+            let line = buttons.iter().position(|b| b.ends).filter(|&at| at > 0);
 
-            stay.into_iter()
-                .map(|b| button(b).into_any())
-                .chain(line)
-                .chain(end.into_iter().map(|b| button(b).into_any()))
+            buttons
+                .into_iter()
+                .enumerate()
+                .flat_map(|(at, power)| {
+                    (Some(at) == line)
+                        .then(|| separator().into_any())
+                        .into_iter()
+                        .chain([button(power).into_any()])
+                })
                 .collect::<Vec<_>>()
         }))
 }
@@ -345,15 +389,9 @@ enum Tile {
     IdleInhibitor,
 }
 
-impl Tile {
-    fn is_small(self) -> bool {
-        self == Tile::IdleInhibitor
-    }
-}
-
 /// Bluetooth, the power profile and the idle inhibitor, each while its
-/// service is there. As ashell's, one missing leaves no gap: the next takes
-/// its place. A row is two halves, each a large tile or two small ones.
+/// service is there, two to a row. As ashell's, one missing leaves no gap:
+/// the next takes its place.
 fn tiles(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
     let bluetooth = settings.bluetooth.data;
     let upower = settings.upower.data;
@@ -381,39 +419,14 @@ fn tiles(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
     };
 
     container().width(fill()).child(move || {
-        let halves = halves(&present.get());
-
         column(size::S2.px()).children(
-            halves
+            present
+                .get()
                 .chunks(2)
-                .map(|row| {
-                    split(
-                        row.iter()
-                            .map(|half| match half.as_slice() {
-                                &[tile] if !tile.is_small() => view(tile),
-                                small => split(small.iter().map(|&tile| view(tile))),
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                })
+                .map(|row| split(row.iter().map(|&tile| view(tile))))
                 .collect::<Vec<_>>(),
         )
     })
-}
-
-/// The tiles in halves of a row: a large one alone, small ones in pairs.
-fn halves(tiles: &[Tile]) -> Vec<Vec<Tile>> {
-    let mut halves: Vec<Vec<Tile>> = Vec::new();
-
-    for &tile in tiles {
-        match halves.last_mut() {
-            Some(half) if tile.is_small() && half.len() == 1 && half[0].is_small() => {
-                half.push(tile)
-            }
-            _ => halves.push(vec![tile]),
-        }
-    }
-    halves
 }
 
 /// `parts` side by side in two equal shares, the second left empty when
@@ -435,15 +448,15 @@ fn split(parts: impl IntoIterator<Item = Container>) -> Container {
 fn bluetooth_tile(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
     let data = settings.bluetooth.data;
 
-    let state = create_memo(move || data.with(|data| data.state.clone()));
+    let active = create_memo(move || data.with(|data| data.state == BluetoothState::Active));
     let summary = bluetooth_summary(settings);
 
     container().width(fill()).child(
         tile(Icon::Bluetooth, t!("settings-bluetooth"))
             .subtitle(move || summary.get())
-            .active(move || state.get() == BluetoothState::Active)
+            .active(active)
             .on_toggle(move |_| settings.bluetooth.commands.send(BluetoothCommand::Toggle))
-            .on_open(move || stack.update(|pages| pages.push(Page::Bluetooth))),
+            .on_open(move || push(stack, Page::Bluetooth)),
     )
 }
 
@@ -479,20 +492,21 @@ fn power_profile(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
 
     let profile = create_memo(move || upower.with(|data| data.power_profile));
 
-    container().width(fill()).child(move || {
-        let profile = profile.get();
-
-        tile(items::power_profile_icon(profile), profile_name(profile))
-            .subtitle(t!("settings-power-mode"))
-            .active(profile != PowerProfile::Balanced)
-            .on_toggle(move |_| {
-                settings
-                    .upower
-                    .commands
-                    .send(UPowerCommand::TogglePowerProfile)
-            })
-            .on_open(move || push(stack, Page::PowerProfiles))
-    })
+    container().width(fill()).child(
+        tile(
+            move || items::power_profile_icon(profile.get()),
+            move || profile_name(profile.get()),
+        )
+        .subtitle(t!("settings-power-mode"))
+        .active(move || profile.get() != PowerProfile::Balanced)
+        .on_toggle(move |_| {
+            settings
+                .upower
+                .commands
+                .send(UPowerCommand::TogglePowerProfile)
+        })
+        .on_open(move || push(stack, Page::PowerProfiles)),
+    )
 }
 
 fn profile_name(profile: PowerProfile) -> String {
@@ -517,48 +531,49 @@ fn power_profiles(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
             move || profile_name(current.get()),
             mark(move || items::power_profile_icon(current.get())),
         ))
-        .child(scroll_list(list_height()).children(move || {
-            let current = current.get();
-
-            [
-                (
-                    PowerProfile::PowerSaver,
-                    t!("settings-power-profile-power-saver-description"),
-                ),
-                (
-                    PowerProfile::Balanced,
-                    t!("settings-power-profile-balanced-description"),
-                ),
-                (
-                    PowerProfile::Performance,
-                    t!("settings-power-profile-performance-description"),
-                ),
-            ]
-            .into_iter()
-            .map(|(profile, description)| {
-                row(profile_name(profile))
-                    .icon(items::power_profile_icon(profile))
-                    .subtitle(description)
-                    .checked(profile == current)
-                    .on_click(move || {
-                        settings
-                            .upower
-                            .commands
-                            .send(UPowerCommand::SetPowerProfile(profile))
-                    })
-            })
-            .collect::<Vec<_>>()
-        }))
+        .child(
+            scroll_list(list_height()).children(
+                [
+                    (
+                        PowerProfile::PowerSaver,
+                        t!("settings-power-profile-power-saver-description"),
+                    ),
+                    (
+                        PowerProfile::Balanced,
+                        t!("settings-power-profile-balanced-description"),
+                    ),
+                    (
+                        PowerProfile::Performance,
+                        t!("settings-power-profile-performance-description"),
+                    ),
+                ]
+                .into_iter()
+                .map(|(profile, description)| {
+                    row(profile_name(profile))
+                        .icon(items::power_profile_icon(profile))
+                        .subtitle(description)
+                        .checked(move || current.get() == profile)
+                        .on_click(move || {
+                            settings
+                                .upower
+                                .commands
+                                .send(UPowerCommand::SetPowerProfile(profile))
+                        })
+                })
+                .collect::<Vec<_>>(),
+            ),
+        )
 }
 
 fn idle_inhibitor(settings: Settings) -> Container {
     let inhibited = settings.idle.inhibited;
 
-    container().width(fill()).child(
+    // A small tile: half its share of the row.
+    split([container().width(fill()).child(
         small_tile(Icon::Coffee)
             .active(move || inhibited.get() == Some(true))
             .on_toggle(move |_| settings.idle.toggle.send(())),
-    )
+    )])
 }
 
 /// The devices: those known, a click connecting or disconnecting one, and
@@ -568,11 +583,23 @@ fn bluetooth(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
     let data = settings.bluetooth.data;
 
     let active = create_memo(move || data.with(|data| data.state == BluetoothState::Active));
-    let devices = create_memo(move || data.with(|data| data.devices.clone()));
+    let none = create_memo(move || data.with(|data| data.devices.is_empty()));
+    let paired = move |paired: bool| {
+        move || {
+            data.with(|data| {
+                data.devices
+                    .iter()
+                    .filter(|d| d.paired == paired)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+        }
+    };
     let discovering = create_memo(move || data.with(|data| data.discovering));
 
+    // Not again while a search runs: BlueZ turns the second one down.
     create_effect(move || {
-        if active.get() {
+        if active.get() && !data.with_untracked(|data| data.discovering) {
             settings
                 .bluetooth
                 .commands
@@ -593,70 +620,69 @@ fn bluetooth(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
 
     column(below_head()).child(header).child(move || {
         if !active.get() {
-            return Some(
-                column(0.0).child(empty(Icon::BluetoothOff, t!("settings-bluetooth-off"))),
-            );
+            return empty(Icon::BluetoothOff, t!("settings-bluetooth-off")).into_any();
+        }
+        if none.get() && !discovering.get() {
+            return empty(Icon::Bluetooth, t!("settings-bluetooth-no-devices")).into_any();
         }
 
-        let devices = devices.get();
-
-        if devices.is_empty() {
-            return Some(
-                column(0.0).child(empty(Icon::Bluetooth, t!("settings-bluetooth-no-devices"))),
-            );
-        }
-
-        let (known, nearby): (Vec<_>, Vec<_>) = devices.into_iter().partition(|d| d.paired);
-        let known = known.into_iter().map(|device| {
-            let path = device.path.clone();
-            let command = if device.connected {
-                BluetoothCommand::DisconnectDevice(path)
-            } else {
-                BluetoothCommand::ConnectDevice(path)
-            };
-
-            let note = match (device.connected, device.battery) {
-                (true, Some(level)) => format!("{} · {level}%", t!("settings-bluetooth-connected")),
-                (true, None) => t!("settings-bluetooth-connected"),
-                (false, _) => t!("settings-bluetooth-disconnected"),
-            };
-
-            row(device.name)
-                .icon(Icon::Bluetooth)
-                .subtitle(note)
-                .selected(device.connected)
-                .on_click(move || settings.bluetooth.commands.send(command.clone()))
-        });
-        let nearby = nearby.into_iter().map(|device| {
-            let path = device.path.clone();
-
-            row(device.name)
-                .icon(Icon::Bluetooth)
-                .subtitle(t!("settings-bluetooth-pair"))
-                .on_click(move || {
-                    settings
-                        .bluetooth
-                        .commands
-                        .send(BluetoothCommand::PairDevice(path.clone()))
-                })
-        });
-
-        Some(
-            column(0.0).child(
-                scroll_list(list_height())
-                    .child(section(t!("settings-bluetooth-known-devices")))
-                    .children(known)
-                    .child(section(move || {
-                        if discovering.get() {
-                            t!("settings-scanning")
-                        } else {
-                            t!("settings-bluetooth-available")
-                        }
-                    }))
-                    .children(nearby),
-            ),
-        )
+        scroll_list(list_height())
+            .child(section(t!("settings-bluetooth-known-devices")))
+            .children(keyed(
+                paired(true),
+                |device| device.path.clone(),
+                move |device| known_device(settings, device),
+            ))
+            .child(section(move || {
+                if discovering.get() {
+                    t!("settings-scanning")
+                } else {
+                    t!("settings-bluetooth-available")
+                }
+            }))
+            .children(keyed(
+                paired(false),
+                |device| device.path.clone(),
+                move |device| nearby_device(settings, device),
+            ))
+            .into_any()
     })
+}
+
+/// A paired device: a click connects or disconnects it.
+fn known_device(settings: Settings, device: BluetoothDevice) -> impl Widget {
+    let path = device.path.clone();
+    let command = if device.connected {
+        BluetoothCommand::DisconnectDevice(path)
+    } else {
+        BluetoothCommand::ConnectDevice(path)
+    };
+    let note = match (device.connected, device.battery) {
+        (true, Some(level)) => format!("{} · {level}%", t!("settings-bluetooth-connected")),
+        (true, None) => t!("settings-bluetooth-connected"),
+        (false, _) => t!("settings-bluetooth-disconnected"),
+    };
+
+    row(device.name)
+        .icon(Icon::Bluetooth)
+        .subtitle(note)
+        .selected(device.connected)
+        .on_click(move || settings.bluetooth.commands.send(command.clone()))
+}
+
+/// A device found nearby: a click pairs it.
+fn nearby_device(settings: Settings, device: BluetoothDevice) -> impl Widget {
+    let path = device.path;
+
+    row(device.name)
+        .icon(Icon::Bluetooth)
+        .subtitle(t!("settings-bluetooth-pair"))
+        .on_click(move || {
+            settings
+                .bluetooth
+                .commands
+                .send(BluetoothCommand::PairDevice(path.clone()))
+        })
 }
 
 /// A chip for each device that reports a battery: its name and how full.
@@ -667,30 +693,26 @@ fn peripherals(settings: Settings) -> Container {
 
     container()
         .width(fill())
-        .layout(Flex::row().spacing(size::S2.px()))
-        .children(move || {
-            devices
-                .get()
-                .into_iter()
-                .map(|device| {
-                    let level = items::battery_level(&device.data, items::THRESHOLDS, false);
-
-                    tag()
-                        .size(Size::Sm)
-                        .child(icon(
-                            items::peripheral_icon(device.kind),
-                            Size::Sm.icon(),
-                            look().color(move |c| c.ink(level.hue())),
-                        ))
-                        .child(
-                            typed(
-                                format!("{} · {}%", device.name, device.data.capacity),
-                                ty::LABEL_XSMALL,
-                            )
-                            .color(look().eased(|c| c.sub))
-                            .nowrap(),
+        .layout(Flex::row().spacing(size::S2.px()).wrap(true))
+        .children(keyed(
+            move || devices.get(),
+            |device| device.path.clone(),
+            |device| {
+                tag()
+                    .size(Size::Sm)
+                    .child(
+                        level_indicator(Levels(&[]), device.data.capacity as f32)
+                            .icon(Some(items::peripheral_icon(device.kind)))
+                            .level(items::battery_level(&device.data, items::THRESHOLDS, false)),
+                    )
+                    .child(
+                        typed(
+                            format!("{} · {}%", device.name, device.data.capacity),
+                            ty::LABEL_XSMALL,
                         )
-                })
-                .collect::<Vec<_>>()
-        })
+                        .color(look().eased(|c| c.sub))
+                        .nowrap(),
+                    )
+            },
+        ))
 }

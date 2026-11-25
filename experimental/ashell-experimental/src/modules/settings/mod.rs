@@ -15,7 +15,7 @@ use ashell_services::upower::{UPower, UPowerCommand};
 use guido::prelude::*;
 use toml::Table;
 
-use super::{Close, ItemView, Spec};
+use super::{ItemView, Spec};
 use crate::config::{Action, Gestures, Item, ItemId, Panel};
 use crate::services::{Linked, link};
 
@@ -55,8 +55,8 @@ impl Settings {
     }
 
     /// Its one panel.
-    pub fn panel(self, _panel: Panel, close: Close) -> Container {
-        panel::view(self, close)
+    pub fn panel(self, _panel: Panel) -> Container {
+        panel::view(self)
     }
 
     fn act(self, action: &str) {
