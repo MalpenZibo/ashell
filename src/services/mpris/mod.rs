@@ -8,7 +8,7 @@ use iced::{
         channel::mpsc::Sender,
         future::{BoxFuture, join_all},
         select,
-        stream::{AbortHandle, Abortable, Aborted, FuturesUnordered, SelectAll, pending},
+        stream::{AbortHandle, Abortable, Aborted, FuturesUnordered, SelectAll},
     },
     stream::channel,
     widget::image,
@@ -189,6 +189,7 @@ const PLAYERCTLD_SERVICE: &str = "org.mpris.MediaPlayer2.playerctld";
 // How long a player gets to act on `Raise()` (e.g. a browser switching to the
 // tab that plays the media) before the compositor is asked for its windows.
 const RAISE_SETTLE_DELAY: Duration = Duration::from_millis(150);
+const RETRY_DELAY: Duration = Duration::from_secs(5);
 
 type CoverDownloadFuture = BoxFuture<'static, Result<(String, anyhow::Result<Bytes>), Aborted>>;
 
@@ -387,9 +388,10 @@ impl MprisPlayerService {
             State::Init => Self::init(output).await,
             State::Active(data) => Self::active(output, data).await,
             State::Error => {
-                let _ = pending::<u8>().next().await;
+                debug!("MPRIS player service error, retrying in {RETRY_DELAY:?}");
 
-                State::Error
+                tokio::time::sleep(RETRY_DELAY).await;
+                State::Init
             }
         }
     }
@@ -425,9 +427,8 @@ impl MprisPlayerService {
                     select! {
                         chunk = chunks.next().fuse() => {
                             let Some(chunk) = chunk else {
-                                // D-Bus event stream ended, restart listening
-                                // TODO: Should we go to Error state instead?
-                                break;
+                                debug!("MPRIS player event stream ended, reconnecting");
+                                return State::Error;
                             };
                             debug!("MPRIS player service receive events: {chunk:?}");
                             if chunk.contains(&DbusEvent::PlayersChanged) {
