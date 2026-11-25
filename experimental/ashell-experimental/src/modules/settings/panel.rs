@@ -24,7 +24,8 @@ use styletto::{Icon, icon, look};
 
 use super::{Settings, items};
 use crate::command;
-use crate::modules::ClosePanel;
+use crate::modules::configurator::Shown;
+use crate::modules::{ClosePanel, Modules};
 
 /// As the prototype's, following the density.
 pub fn width() -> f32 {
@@ -133,9 +134,11 @@ fn column(spacing: f32) -> Container {
         .layout(Flex::column().spacing(spacing))
 }
 
-/// The battery, then the lock button and the one to the power page.
+/// The battery, then the button to the config window, the lock button and
+/// the one to the power page.
 fn header(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
     let close = expect_context::<ClosePanel>();
+    let modules = expect_context::<Modules>();
     let lock = create_memo(move || settings.config.with(|c| c.lock.clone()));
     // Worth a page with more than the lock, which has its own button here.
     let has_power = create_memo(move || {
@@ -153,6 +156,14 @@ fn header(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
                 .layout(Flex::row())
                 .child(battery(settings)),
         )
+        .child({
+            let close = close.clone();
+
+            button().icon(Icon::Settings).on_click(move || {
+                close.close();
+                modules.configure(Shown::Settings);
+            })
+        })
         .child(move || {
             lock.get().map(|lock| {
                 let close = close.clone();

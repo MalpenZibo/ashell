@@ -118,11 +118,11 @@ items = [
 
 ## The panel
 
-{{ <picture name="settings/settings-panel" alt="The settings panel: the battery with the time left, the lock and power buttons, the brightness slider, the Bluetooth, power profile and idle inhibitor tiles, and the headphones' battery" width="447" height="437" /> }}
+{{ <picture name="settings/settings-panel" alt="The settings panel: the battery with the time left, the config, lock and power buttons, the brightness slider, the Bluetooth, power profile and idle inhibitor tiles, and the headphones' battery" width="447" height="437" /> }}
 
 The `settings` panel has the battery, how full and how long until full or
-empty, with the lock button and the power button, which opens the power
-page while it has more than the lock. Then the brightness, a slider. Then
+empty, with the button to the config window, the lock button and the power
+button, which opens the power page while it has more than the lock. Then the brightness, a slider. Then
 the toggles, each while its service is there, the next taking the place of
 one missing: Bluetooth, with the devices connected; the power profile, a
 click on its icon going to the next one and anywhere else on the tile

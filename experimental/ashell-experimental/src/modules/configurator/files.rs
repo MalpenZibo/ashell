@@ -14,8 +14,6 @@ pub struct Layout {
     pub name: fn() -> String,
     pub about: fn() -> String,
     example: &'static str,
-    /// The place of `[bar.main]` whose end the config zone is put at.
-    place: &'static str,
 }
 
 pub const LAYOUTS: [Layout; 4] = [
@@ -23,36 +21,29 @@ pub const LAYOUTS: [Layout; 4] = [
         name: || t!("config-layout-ashell"),
         about: || t!("config-layout-ashell-about"),
         example: include_str!("../../../docs/examples/ashell.toml"),
-        place: "end",
     },
     Layout {
         name: || t!("config-layout-solid"),
         about: || t!("config-layout-solid-about"),
         example: include_str!("../../../docs/examples/solid.toml"),
-        place: "end",
     },
     Layout {
         name: || t!("config-layout-floating"),
         about: || t!("config-layout-floating-about"),
         example: include_str!("../../../docs/examples/floating.toml"),
-        place: "end",
     },
     Layout {
         name: || t!("config-layout-morph"),
         about: || t!("config-layout-morph-about"),
         example: include_str!("../../../docs/examples/morph.toml"),
-        place: "center",
     },
 ];
 
 impl Layout {
-    /// Its example, with the config zone to open the window again, on the
-    /// edge at `position`.
+    /// Its example, on the edge at `position`. The window opens again from
+    /// the settings panel, which every example's `status` zone opens.
     fn text(&self, position: Position) -> String {
         let mut doc: DocumentMut = self.example.parse().expect("an example is valid TOML");
-        if let Some(places) = doc["bar"]["main"][self.place].as_array_mut() {
-            places.push("config");
-        }
         set_position(&mut doc, position).expect("an example has a [bar.main]");
 
         doc.to_string()
@@ -446,11 +437,9 @@ mod tests {
         for layout in &LAYOUTS {
             for edge in [Position::Top, Position::Bottom] {
                 let text = layout.text(edge);
-                let written: toml::Table = toml::from_str(&text).unwrap();
-                let places = written["bar"]["main"][layout.place].as_array().unwrap();
                 assert!(
-                    places.iter().any(|place| place.as_str() == Some("config")),
-                    "{}: no config zone",
+                    text.contains(r#""status""#),
+                    "{}: no status zone, whose panel opens the window again",
                     (layout.name)()
                 );
 
