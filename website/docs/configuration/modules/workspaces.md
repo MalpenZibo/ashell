@@ -45,6 +45,9 @@ By default, `group_by_monitor` is `false`, which means workspaces are displayed 
 group_by_monitor = true
 ```
 
+On Niri, workspaces are numbered per output, so their natural order is already grouped by output, with outputs
+left to right as Niri lays them out.
+
 ## Showing special workspaces
 
 If you would like to make the special workspaces invisible, set the `disable_special_workspaces` to `true`.
