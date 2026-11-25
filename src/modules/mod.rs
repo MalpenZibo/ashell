@@ -242,44 +242,48 @@ impl App {
         module_name: &'a ModuleName,
     ) -> Option<(Element<'a, Message>, Option<ModulePress>)> {
         match module_name {
-            ModuleName::Custom(name) => self.custom.get(name).map(|custom| {
-                let action = match custom.module_type() {
-                    crate::config::CustomModuleType::Text => None,
-                    crate::config::CustomModuleType::Button => {
-                        let custom_message = |message| Message::Custom(name.clone(), message);
-                        let mut press = ModulePress::message(custom_message(
-                            custom_module::Message::LaunchCommand,
-                        ));
-                        if custom.config.on_right_click.is_some() {
-                            press = press.right_message(custom_message(
-                                custom_module::Message::LaunchRightClickCommand,
+            ModuleName::Custom(name) => self
+                .custom
+                .get(name)
+                .filter(|custom| custom.is_visible())
+                .map(|custom| {
+                    let action = match custom.module_type() {
+                        crate::config::CustomModuleType::Text => None,
+                        crate::config::CustomModuleType::Button => {
+                            let custom_message = |message| Message::Custom(name.clone(), message);
+                            let mut press = ModulePress::message(custom_message(
+                                custom_module::Message::LaunchCommand,
                             ));
+                            if custom.config.on_right_click.is_some() {
+                                press = press.right_message(custom_message(
+                                    custom_module::Message::LaunchRightClickCommand,
+                                ));
+                            }
+                            if custom.config.on_middle_click.is_some() {
+                                press = press.middle_message(custom_message(
+                                    custom_module::Message::LaunchMiddleClickCommand,
+                                ));
+                            }
+                            if custom.config.on_scroll_up.is_some() {
+                                press = press.scroll_up(custom_message(
+                                    custom_module::Message::LaunchScrollUpCommand,
+                                ));
+                            }
+                            if custom.config.on_scroll_down.is_some() {
+                                press = press.scroll_down(custom_message(
+                                    custom_module::Message::LaunchScrollDownCommand,
+                                ));
+                            }
+                            Some(press)
                         }
-                        if custom.config.on_middle_click.is_some() {
-                            press = press.middle_message(custom_message(
-                                custom_module::Message::LaunchMiddleClickCommand,
-                            ));
-                        }
-                        if custom.config.on_scroll_up.is_some() {
-                            press = press.scroll_up(custom_message(
-                                custom_module::Message::LaunchScrollUpCommand,
-                            ));
-                        }
-                        if custom.config.on_scroll_down.is_some() {
-                            press = press.scroll_down(custom_message(
-                                custom_module::Message::LaunchScrollDownCommand,
-                            ));
-                        }
-                        Some(press)
-                    }
-                };
-                (
-                    custom
-                        .view(id)
-                        .map(|msg| Message::Custom(name.clone(), msg)),
-                    action,
-                )
-            }),
+                    };
+                    (
+                        custom
+                            .view(id)
+                            .map(|msg| Message::Custom(name.clone(), msg)),
+                        action,
+                    )
+                }),
             ModuleName::Updates => self.updates.as_ref().map(|updates| {
                 (
                     updates.view().map(Message::Updates),

@@ -46,11 +46,15 @@ To define a custom module, use the following fields:
 A `Text` module has no interactions at all: `command`, `on_right_click`,
 `on_middle_click`, `on_scroll_up` and `on_scroll_down` are ignored, and so are
 `icon`, `icons` and `alert`. It renders only the `text` field coming from
-`listen_cmd`, and renders nothing when that field is absent or empty. The
-[`tooltip`](#tooltip) field still works on a `Text` module.
+`listen_cmd`, and is hidden from the bar when that field is absent or empty.
+The [`tooltip`](#tooltip) field still works on a `Text` module.
 
 `icons` and `alert` match against `alt`, not against `text`.
 :::
+
+A module with nothing to render is hidden from the bar instead of showing an
+empty section: a `Text` module without `text`, or a `Button` module with
+neither text nor an icon (an `icons` entry matching `alt` counts as an icon).
 
 ---
 

@@ -114,6 +114,32 @@ impl Custom {
         self.config.r#type
     }
 
+    /// Whether the module has anything to render. A module without content is
+    /// left out of the bar entirely instead of showing an empty island.
+    pub fn is_visible(&self) -> bool {
+        let has_text = self
+            .data
+            .text
+            .as_deref()
+            .is_some_and(|text| !text.is_empty());
+        match self.config.r#type {
+            crate::config::CustomModuleType::Text => has_text,
+            crate::config::CustomModuleType::Button => {
+                has_text
+                    || self
+                        .config
+                        .icon
+                        .as_deref()
+                        .is_some_and(|icon| !icon.is_empty())
+                    || self
+                        .config
+                        .icons
+                        .as_ref()
+                        .is_some_and(|icons| icons.keys().any(|re| re.is_match(&self.data.alt)))
+            }
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn data(&self) -> &CustomListenData {
         &self.data
@@ -386,5 +412,65 @@ mod tests {
             Action::CloseAllTooltipMenus
         ));
         assert!(matches!(custom.update(listen_data(None)), Action::None));
+    }
+
+    fn text_module() -> Custom {
+        let config = toml::from_str("name = \"probe\"\ntype = \"Text\"")
+            .expect("test config should deserialize");
+        Custom::new(config)
+    }
+
+    fn button_module(extra: &str) -> Custom {
+        let config = toml::from_str(&format!("name = \"probe\"\ntype = \"Button\"\n{extra}"))
+            .expect("test config should deserialize");
+        Custom::new(config)
+    }
+
+    fn update_data(custom: &mut Custom, text: Option<&str>, alt: &str) {
+        custom.update(Message::Update(CustomListenData {
+            alt: alt.to_owned(),
+            text: text.map(str::to_owned),
+            tooltip: None,
+        }));
+    }
+
+    /// A text module with an absent or empty text has nothing to render and is
+    /// hidden from the bar.
+    #[test]
+    fn text_module_hides_without_text() {
+        let mut custom = text_module();
+        assert!(!custom.is_visible());
+        update_data(&mut custom, Some(""), "");
+        assert!(!custom.is_visible());
+        update_data(&mut custom, Some("recording"), "");
+        assert!(custom.is_visible());
+        update_data(&mut custom, None, "");
+        assert!(!custom.is_visible());
+    }
+
+    /// A button with only an icon is always visible: the icon is its content.
+    #[test]
+    fn button_module_visible_with_icon_only() {
+        let custom = button_module("icon = \"󰐕\"");
+        assert!(custom.is_visible());
+    }
+
+    /// An empty icon is no icon: without text there is nothing to render.
+    #[test]
+    fn button_module_hides_with_empty_icon_and_no_text() {
+        let custom = button_module("icon = \"\"");
+        assert!(!custom.is_visible());
+    }
+
+    /// A button without icon or text is hidden, but the icons map can still
+    /// produce an icon when `alt` matches.
+    #[test]
+    fn button_module_visibility_follows_icons_map_match() {
+        let mut custom = button_module("icons.'dnd.*' = \"󰂛\"");
+        assert!(!custom.is_visible());
+        update_data(&mut custom, None, "dnd");
+        assert!(custom.is_visible());
+        update_data(&mut custom, None, "other");
+        assert!(!custom.is_visible());
     }
 }
