@@ -86,6 +86,7 @@ Scope examples: `fix(brightness)`, `feat(system_info)`, `fix(network)`
 
 - **User docs:** `website/` (Docusaurus) → https://malpenzibo.github.io/ashell/
 - **Versioned docs:** `website/versioned_docs/` are frozen snapshots of past releases. **Never modify them** — only update `website/docs/` (the "next" version).
+- Don't add links to GitHub issues or PRs in the docs.
 - **Developer guide:** `docs/` (mdbook) → https://malpenzibo.github.io/ashell/dev-guide/
 - The developer guide is AI-generated but primarily written for human readers.
 - **Most useful docs for AI agents:** architecture overview, build.rs font subsetting, anatomy-of-a-module. These capture patterns that aren't obvious from the code alone.
@@ -95,10 +96,11 @@ Scope examples: `fix(brightness)`, `feat(system_info)`, `fix(network)`
 
 - AI contributions are accepted. Frontier-class models are strongly recommended but not mandatory.
 - **You own your code:** regardless of tools used, be able to explain every change. Run `make check` before pushing.
+- **Before opening a PR** (`gh pr create` or any other way): read `.agents/skills/prepare-pr/SKILL.md` and follow its steps. Agents that support skills load it as the `prepare-pr` skill.
 - **Discuss before implementing:** open an issue or comment before working on features or large changes.
 - **Small incremental PRs:** code review is manual and done in maintainers' free time — big diffs take much longer to review.
 - **After review feedback:** focus AI narrowly on commented elements only — don't let it modify already-reviewed code.
-- **Keep docs in sync:** when a PR changes behavior that impacts documentation (README, mdbook, CLAUDE.md, website), update the relevant docs in the same PR.
+- **Keep docs in sync:** when a PR changes behavior that impacts documentation (README, mdbook, AGENTS.md, website), update the relevant docs in the same PR.
 - Full policy: `docs/src/contributing/ai-assisted-contributions.md`
 
 ## Architecture patterns
