@@ -78,6 +78,10 @@ impl Activity {
             };
 
             match read.read() {
+                // A read that consumes nothing leaves the fd readable, so
+                // clear the readiness or `readable()` returns at once and
+                // the loop spins.
+                Ok(0) => ready.clear_ready(),
                 Ok(_) => {}
                 Err(WaylandError::Io(err)) if err.kind() == std::io::ErrorKind::WouldBlock => {
                     ready.clear_ready();
