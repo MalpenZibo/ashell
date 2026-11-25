@@ -114,8 +114,12 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
         };
 
         // Niri sends no event when outputs change, but adding or removing one
-        // moves workspaces, so the layout is read again on every workspace change.
-        let refresh_outputs = matches!(event, Event::WorkspacesChanged { .. });
+        // moves workspaces and moving one reloads the config, so the layout is
+        // read again on either.
+        let refresh_outputs = matches!(
+            event,
+            Event::WorkspacesChanged { .. } | Event::ConfigLoaded { .. }
+        );
 
         // Apply to internal Niri state tracker
         internal_state.apply(event);
@@ -245,13 +249,6 @@ fn order_outputs(outputs: impl Iterator<Item = (String, Option<(i32, i32)>)>) ->
         .collect()
 }
 
-/// Niri keeps one empty, unnamed workspace at the end of every output to open
-/// new windows on. It carries nothing until it is in use, so it is shown only
-/// while it is the active workspace of its output.
-fn is_hidden_placeholder(ws: &niri_ipc::Workspace, last_idx: Option<u8>) -> bool {
-    ws.name.is_none() && ws.active_window_id.is_none() && !ws.is_active && last_idx == Some(ws.idx)
-}
-
 fn map_state(niri: &EventStreamState, output_order: &[String]) -> CompositorState {
     let output_to_active_ws: HashMap<_, _> = niri
         .workspaces
@@ -288,12 +285,6 @@ fn map_state(niri: &EventStreamState, output_order: &[String]) -> CompositorStat
             .unwrap_or(usize::MAX)
     };
 
-    let mut last_idx: HashMap<Option<&String>, u8> = HashMap::new();
-    for ws in niri.workspaces.workspaces.values() {
-        let last = last_idx.entry(ws.output.as_ref()).or_default();
-        *last = (*last).max(ws.idx);
-    }
-
     let collect_classes = super::should_collect_window_classes();
 
     // Collect window classes per workspace. Niri's idx restarts on every
@@ -317,7 +308,6 @@ fn map_state(niri: &EventStreamState, output_order: &[String]) -> CompositorStat
         .workspaces
         .workspaces
         .values()
-        .filter(|w| !is_hidden_placeholder(w, last_idx.get(&w.output.as_ref()).copied()))
         .sorted_by_key(|w| (output_rank(w.output.as_ref()), w.idx))
         .enumerate()
         .map(|(position, w)| {
@@ -485,7 +475,7 @@ mod tests {
     }
 
     #[test]
-    fn workspaces_group_by_output_without_placeholders() {
+    fn workspaces_group_by_output() {
         // Named 1-5 on the primary DP-2 and 6-9 on DP-1 to its left, each
         // output ending in niri's empty unnamed workspace.
         let mut workspaces = (1..=5)
@@ -503,11 +493,13 @@ mod tests {
                 (2, "7", "DP-1"),
                 (3, "8", "DP-1"),
                 (4, "9", "DP-1"),
-                (5, "1", "DP-2"),
-                (6, "2", "DP-2"),
-                (7, "3", "DP-2"),
-                (8, "4", "DP-2"),
-                (9, "5", "DP-2"),
+                (5, "5", "DP-1"),
+                (6, "1", "DP-2"),
+                (7, "2", "DP-2"),
+                (8, "3", "DP-2"),
+                (9, "4", "DP-2"),
+                (10, "5", "DP-2"),
+                (11, "6", "DP-2"),
             ]
         );
         assert_eq!(
@@ -518,31 +510,6 @@ mod tests {
                 .collect_vec(),
             ["DP-1", "DP-2"]
         );
-    }
-
-    #[test]
-    fn placeholder_shows_while_active() {
-        let workspaces = vec![
-            ws(1, 1, Some("1"), "DP-1", false),
-            ws(2, 2, None, "DP-1", true),
-        ];
-        let mapped = map_state(&state(workspaces), &["DP-1".to_owned()]);
-        assert_eq!(labels(&mapped), [(1, "1", "DP-1"), (2, "2", "DP-1")]);
-    }
-
-    #[test]
-    fn unnamed_workspaces_with_windows_stay() {
-        // Only the last workspace of an output is a placeholder, and one
-        // with a window is in use.
-        let mut in_use = ws(2, 2, None, "DP-1", false);
-        in_use.active_window_id = Some(7);
-        let workspaces = vec![
-            ws(1, 1, None, "DP-1", true),
-            in_use,
-            ws(3, 3, None, "DP-1", false),
-        ];
-        let mapped = map_state(&state(workspaces), &["DP-1".to_owned()]);
-        assert_eq!(labels(&mapped), [(1, "1", "DP-1"), (2, "2", "DP-1")]);
     }
 
     #[test]

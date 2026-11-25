@@ -46,8 +46,7 @@ group_by_monitor = true
 ```
 
 On Niri, workspaces are numbered per output, so their natural order is already grouped by output, with outputs
-left to right as Niri lays them out. Niri also keeps an empty unnamed workspace at the end of each output, which
-is shown only while it is the active workspace of its output.
+left to right as Niri lays them out.
 
 ## Showing special workspaces
 
