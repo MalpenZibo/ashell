@@ -26,7 +26,7 @@ Naming a zone in a node uses its defaults:
 | `window` | `window` | `launcher_button`, `window_list` | nothing |
 | `media` | `media` | `media_details` | `media` |
 | `clock` | `weather`, `date`, `clock`, `notifications` | `date`, `forecast`, `notices` | `calendar` |
-| `status` | `privacy`, `airplane`, `dnd`, `idle_inhibitor`, `bluetooth`, `microphone`, `volume`, `network`, `battery` | `system`, `updates`, `battery_time` | `settings` |
+| `status` | `privacy`, `airplane`, `dnd`, `idle_inhibitor`, `power_profile`, `volume`, `microphone`, `bluetooth`, `network`, `vpn`, `battery` | `system`, `updates`, `battery_time` | `settings` |
 | `privacy` | `privacy` | | nothing |
 | `system` | `cpu`, `memory`, `temperature` | | `system` |
 | `tray` | `tray` | | nothing |

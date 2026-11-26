@@ -1,5 +1,6 @@
 mod app;
 mod bar;
+mod command;
 mod config;
 mod i18n;
 mod modules;

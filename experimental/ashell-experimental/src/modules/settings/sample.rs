@@ -21,7 +21,7 @@ pub(super) fn battery(capacity: i64, status: BatteryStatus) -> BatteryData {
     }
 }
 
-pub fn settings() -> Settings {
+pub fn settings(config: Memo<super::SettingsConfig>) -> Settings {
     let upower = UPowerData {
         on_battery: Some(true),
         system_battery: Some(battery(
@@ -66,6 +66,7 @@ pub fn settings() -> Settings {
     };
 
     Settings {
+        config,
         upower: fixed(upower),
         bluetooth: fixed(bluetooth),
         brightness: fixed(Some(BrightnessData {

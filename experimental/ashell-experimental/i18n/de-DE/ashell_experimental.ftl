@@ -34,6 +34,38 @@ weather-thunderstorm-hail-slight = Gewitter mit leichtem Hagel
 weather-thunderstorm-hail-heavy = Gewitter mit starkem Hagel
 weather-unknown = Unbekanntes Wetter
 
+## Settings
+settings-power-suspend = Standby
+settings-power-hibernate = Ruhezustand
+settings-power-reboot = Neustart
+settings-power-shutdown = Herunterfahren
+settings-power-logout = Abmelden
+settings-power-full-in = Voll in { $duration }
+settings-power-empty-in = Leer in { $duration }
+settings-power-profile-balanced = Ausgeglichen
+settings-power-profile-performance = Leistung
+settings-power-profile-power-saver = Energie sparen
+settings-power-status-charging = Wird geladen
+settings-power-status-not-charging = Lädt nicht
+settings-power-status-full = Voll
+settings-bluetooth = Bluetooth
+settings-bluetooth-known-devices = Gekoppelte Geräte
+settings-bluetooth-available = Verfügbar
+settings-bluetooth-pair = Koppeln
+settings-bluetooth-no-devices = Keine Geräte gefunden
+settings-scanning = Wird gesucht …
+settings-power = Energie
+settings-power-lock = Sperren
+settings-power-mode = Energie-Modus
+settings-on = An
+settings-off = Aus
+settings-bluetooth-off = Bluetooth ausgeschaltet
+settings-bluetooth-connected = Verbunden
+settings-bluetooth-disconnected = Verbindung getrennt
+settings-power-profile-power-saver-description = Reduzierte Leistungsfähigkeit und niedriger Energieverbrauch
+settings-power-profile-balanced-description = Normale Leistungsfähigkeit und normaler Energieverbrauch
+settings-power-profile-performance-description = Hohe Leistungsfähigkeit und erhöhter Energieverbrauch
+
 ## The config window
 config-settings = Einstellungen
 config-page-bar = Leiste
@@ -42,7 +74,7 @@ config-edge-top = Oben
 config-edge-bottom = Unten
 config-welcome-title = Willkommen bei ashell
 config-welcome-about = Eine Statusleiste für Wayland, deren Teile, von der Lage ihrer Gruppen bis dazu, wie sich ihre Panels öffnen, in einer einzigen Datei stehen, die Sie lesen und bearbeiten können.
-config-start-from = Beginnen Sie mit einer dieser Leisten und passen Sie sie im nächsten Schritt an. Nichts ist endgültig: Der Knopf am Ende der Leiste öffnet diese Einstellungen wieder.
+config-start-from = Beginnen Sie mit einer dieser Leisten und passen Sie sie im nächsten Schritt an. Nichts ist endgültig: Sie können jederzeit hierher zurückkehren.
 config-look-title = Passen Sie sie an
 config-look-about = Die Farben, die Formen und die Schriften. Dieses Fenster und die Leiste zeigen jede Änderung, sobald Sie sie vornehmen.
 config-back = Zurück

@@ -5,9 +5,9 @@ weight = 8
 
 Settings is the module of the machine's state: the `battery`,
 `battery_time`, `peripheral_battery`, `power_profile`, `bluetooth`,
-`idle_inhibitor` and `brightness` items. The built-in `status` zone shows
-them, beside items still to come, with how long the battery has left in its
-details:
+`idle_inhibitor` and `brightness` items, and the `settings` panel. The
+built-in `status` zone shows them, beside items still to come, with how long
+the battery has left in its details:
 
 ```toml
 [zone.status]
@@ -20,15 +20,35 @@ items = [
 
 {{ <picture name="settings/settings-items" alt="The settings items: the idle inhibitor, the power profile, Bluetooth with a device connected, the brightness, the headphones' battery, and the laptop's with the time it has left" width="278" height="95" /> }}
 
+## `[settings]`
+
+The commands of the panel's power buttons. One set to `""`, or to spaces
+only, has no button.
+
+| Key | Default | Button |
+| --- | ------- | ------ |
+| `lock` | none | Lock, also beside the battery |
+| `suspend` | `"systemctl suspend"` | Suspend |
+| `hibernate` | none | Hibernate |
+| `reboot` | `"systemctl reboot"` | Reboot |
+| `shutdown` | `"shutdown now"` | Shutdown |
+| `logout` | `"loginctl kill-user $(whoami)"` | Logout |
+
+```toml
+[settings]
+lock      = "hyprlock"
+hibernate = "systemctl hibernate"
+```
+
 ## Items
 
 | Item | Shows | Empty when | States | `notable` when | Opens |
 | ---- | ----- | ---------- | ------ | -------------- | ----- |
 | `battery` | the battery: how full, and charging or not | no battery | `charging`, `discharging`, `not_charging`, `full`, `warn`, `alert` | `warn`, `alert` or `charging` | `settings` |
-| `battery_time` | how long until the battery is full or empty: "1h 12m" | no estimate | `charging`, `discharging` | `discharging` | `settings` |
+| `battery_time` | how long until the battery is full or empty: "1h 12m" | no estimate, or on the charger without charging | `charging`, `discharging` | `discharging` | `settings` |
 | `peripheral_battery` | the battery of each device that reports one: mice, keyboards, headphones, gamepads | no device reports one | each device: `charging`, `discharging`, `full`, `warn`, `alert` | a device is `warn`, `alert` or `charging`; only those show | `settings` |
 | `power_profile` | the power profile | no profiles daemon | `balanced`, `performance`, `power_saver` | it is not balanced | `settings` |
-| `bluetooth` | Bluetooth, on or off; its value is how many devices are connected | no adapter | `on`, `off`, `connected` | `connected` | `settings` |
+| `bluetooth` | Bluetooth, on or off; its value is how many devices are connected | no adapter | `on`, `off`, `connected` | `on` | `settings` |
 | `idle_inhibitor` | whether the session is kept from going idle | the compositor has no idle inhibitor | `on`, `off` | `on` | `settings` |
 | `brightness` | the screen's brightness | no backlight | none | always | `settings` |
 
@@ -98,4 +118,30 @@ items = [
 
 ## The panel
 
-The `settings` panel is still a placeholder.
+{{ <picture name="settings/settings-panel" alt="The settings panel: the battery with the time left, the config, lock and power buttons, the brightness slider, the Bluetooth, power profile and idle inhibitor tiles, and the headphones' battery" width="447" height="437" /> }}
+
+The `settings` panel has the battery, how full and how long until full or
+empty, with the button to the config window, the lock button and the power
+button, which opens the power page while it has more than the lock. Then the brightness, a slider. Then
+the toggles, each while its service is there, the next taking the place of
+one missing: Bluetooth, with the devices connected; the power profile, a
+click on its icon going to the next one and anywhere else on the tile
+opening the page of the three; and the idle inhibitor. Last, the battery of
+each device that reports one.
+
+Each of the panel's pages opens with the same head: back, the page's name
+with what stands now under it, and the feature's icon. Where the page can
+turn the feature on and off, the icon is the switch.
+
+- **Power**, from the power button: the lock and the other commands set in
+  `[settings]`, a row each, those that end the session after a line and in
+  red. The panel closes once one has run. Its head says how full the battery
+  is.
+- **Power mode**, from the power profile tile: the three profiles, each said
+  as GNOME says it, the one in use checked.
+- **Bluetooth**, from the Bluetooth tile: the devices known, a click
+  connecting or disconnecting one, and those found nearby, a click pairing
+  one. The icon at the head turns Bluetooth on or off; opening the page with
+  it on looks for devices for a while.
+
+A page's list scrolls once it is long.

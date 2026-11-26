@@ -433,6 +433,9 @@ items = [
     "battery",
     "battery_time",
 ]
+
+[settings]
+lock = "loginctl lock-session"
 "#;
 
 /// A frame read back premultiplied, as a PNG holds it: straight alpha.
@@ -522,18 +525,18 @@ fn site_picture(name: &str, bar: &str, size: (u32, u32), cut: bool, show: fn(&mu
 }
 
 fn open_calendar(scene: &mut Scene) {
-    let (group, zone) = zone_of(&scene.bar, "clock");
+    open(scene, "clock", Panel::Calendar);
+}
 
-    scene.state.toggle(Opened {
-        group,
-        zone,
-        panel: Panel::Calendar,
-    });
+fn open(scene: &mut Scene, zone: &str, panel: Panel) {
+    let (group, zone) = zone_of(&scene.bar, zone);
+
+    scene.state.toggle(Opened { group, zone, panel });
 }
 
 /// The pictures of the site: the ways a panel opens, for the panels' page,
-/// tempo's items and calendar, and the settings items, for their own. The
-/// desktop they sit on is the page's.
+/// tempo's items and calendar, and the settings items and panel, for their
+/// own. The desktop they sit on is the page's.
 #[test]
 #[ignore = "draws the site's pictures, asserts nothing"]
 fn site_pictures() {
@@ -566,6 +569,15 @@ fn site_pictures() {
         (960, 160),
         true,
         |_| {},
+    );
+    site_picture(
+        "settings-panel",
+        SITE_SETTINGS_BAR,
+        (960, 540),
+        true,
+        |scene| {
+            open(scene, "status", Panel::Settings);
+        },
     );
 }
 

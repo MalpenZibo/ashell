@@ -16,7 +16,7 @@ use toml::Table;
 
 use crate::config::{Config, Gestures, Item, ItemId, Panel};
 use configurator::Configurator;
-use settings::Settings;
+use settings::{Settings, SettingsConfig};
 use tempo::{Tempo, TempoConfig};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -107,6 +107,7 @@ pub fn panel_width(panel: Panel) -> Option<f32> {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Configs {
     pub tempo: TempoConfig,
+    pub settings: SettingsConfig,
 }
 
 impl Configs {
@@ -119,7 +120,13 @@ impl Configs {
                 self.tempo = config;
                 problems
             }
-            ModuleId::Settings | ModuleId::Config => unknown_keys(module, table),
+            ModuleId::Settings => {
+                let (config, problems) = SettingsConfig::read(table);
+
+                self.settings = config;
+                problems
+            }
+            ModuleId::Config => unknown_keys(module, table),
         }
     }
 }
@@ -130,6 +137,21 @@ fn unknown_keys(module: ModuleId, table: &Table) -> Vec<String> {
         .keys()
         .map(|key| format!("{}.{key}: unknown key, ignored", module.spec().name))
         .collect()
+}
+
+/// Closes the panel open in a bar: each bar declares its own, for a panel
+/// to close itself once a button in it has run.
+#[derive(Clone)]
+pub struct ClosePanel(Rc<dyn Fn()>);
+
+impl ClosePanel {
+    pub fn new(close: impl Fn() + 'static) -> Self {
+        Self(Rc::new(close))
+    }
+
+    pub fn close(&self) {
+        (self.0)()
+    }
 }
 
 /// An item as its module draws it.
@@ -211,7 +233,9 @@ impl Modules {
             tempo: Tempo::new(create_memo(move || {
                 config.with(|c| c.modules.tempo.clone())
             })),
-            settings: Settings::new(),
+            settings: Settings::new(create_memo(move || {
+                config.with(|c| c.modules.settings.clone())
+            })),
             configurator: Configurator::new(config),
         }
     }
@@ -225,7 +249,9 @@ impl Modules {
                 now,
                 Some(tempo::sample::weather(now)),
             ),
-            settings: settings::sample::settings(),
+            settings: settings::sample::settings(create_memo(move || {
+                config.with(|c| c.modules.settings.clone())
+            })),
             configurator: Configurator::new(config),
         }
     }
@@ -248,7 +274,7 @@ impl Modules {
     pub fn panel(self, panel: Panel) -> Option<Container> {
         match panel.module()? {
             ModuleId::Tempo => Some(self.tempo.panel(panel)),
-            ModuleId::Settings => None,
+            ModuleId::Settings => Some(self.settings.panel(panel)),
             ModuleId::Config => None,
         }
     }

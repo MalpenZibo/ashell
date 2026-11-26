@@ -41,9 +41,9 @@ steps:
 
 Each choice is written at once and shown on the bar as you make it. The
 bar goes to `ashell-experimental.toml`, the look to `appearance.toml`
-beside it, which the configuration imports. Every layout ends with the
-`config` zone, whose button opens the same two pages again, as tabs,
-the look first.
+beside it, which the configuration imports. The settings panel, which the
+`status` zone opens, has a button that opens the same two pages again, as
+tabs, the look first.
 Choosing another layout keeps the edge and the look. A configuration
 written by hand is never replaced by a layout, but its `[bar.main]` can
 still be moved to the other edge. Closing the window before choosing

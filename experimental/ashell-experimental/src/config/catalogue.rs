@@ -68,6 +68,7 @@ impl Panel {
     pub fn module(self) -> Option<ModuleId> {
         match self {
             Panel::Calendar => Some(ModuleId::Tempo),
+            Panel::Settings => Some(ModuleId::Settings),
             _ => None,
         }
     }
@@ -278,10 +279,12 @@ pub fn builtin_zone(name: &str) -> Option<ZoneDefaults> {
                 Airplane,
                 Dnd,
                 IdleInhibitor,
-                Bluetooth,
-                Microphone,
+                PowerProfile,
                 Volume,
+                Microphone,
+                Bluetooth,
                 Network,
+                Vpn,
                 Battery,
             ],
             &[System, Updates, BatteryTime],

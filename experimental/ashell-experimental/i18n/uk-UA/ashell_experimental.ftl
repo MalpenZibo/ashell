@@ -34,6 +34,38 @@ weather-thunderstorm-hail-slight = Гроза з дрібним градом
 weather-thunderstorm-hail-heavy = Гроза з сильним градом
 weather-unknown = Невідомі погодні умови
 
+## Settings
+settings-power-suspend = Призупинити
+settings-power-hibernate = Приспати
+settings-power-reboot = Перезавантажити
+settings-power-shutdown = Вимкнути
+settings-power-logout = Вийти
+settings-power-full-in = Зарядиться через { $duration }
+settings-power-empty-in = Розрядиться через { $duration }
+settings-power-profile-balanced = Збалансований
+settings-power-profile-performance = Швидкодія
+settings-power-profile-power-saver = Заощадження енергії
+settings-power-status-charging = Заряджається
+settings-power-status-not-charging = Не заряджається
+settings-power-status-full = Повністю заряджено
+settings-bluetooth = Bluetooth
+settings-bluetooth-known-devices = Пов’язані пристрої
+settings-bluetooth-available = Доступні
+settings-bluetooth-pair = Пов’язати
+settings-bluetooth-no-devices = Пристроїв не знайдено
+settings-scanning = Пошук…
+settings-power = Живлення
+settings-power-lock = Заблокувати
+settings-power-mode = Режим живлення
+settings-on = Увімкнено
+settings-off = Вимкнено
+settings-bluetooth-off = Bluetooth вимкнено
+settings-bluetooth-connected = З'єднано
+settings-bluetooth-disconnected = Роз'єднано
+settings-power-profile-power-saver-description = Знижена швидкодія та споживання енергії
+settings-power-profile-balanced-description = Стандартна швидкодія та споживання енергії
+settings-power-profile-performance-description = Висока швидкодія та споживання енергії
+
 ## The config window
 config-settings = Налаштування
 config-page-bar = Панель
@@ -42,7 +74,7 @@ config-edge-top = Згори
 config-edge-bottom = Знизу
 config-welcome-title = Ласкаво просимо до ashell
 config-welcome-about = Панель стану для Wayland, кожну частину якої, від розташування груп до того, як відкриваються її меню, описано в одному файлі, який можна читати й редагувати.
-config-start-from = Почніть з однієї з цих панелей і налаштуйте її на наступному кроці. Це не остаточний вибір: кнопка в кінці панелі знову відкриє ці налаштування.
+config-start-from = Почніть з однієї з цих панелей і налаштуйте її на наступному кроці. Це не остаточний вибір: сюди можна повернутися будь-коли.
 config-look-title = Налаштуйте під себе
 config-look-about = Кольори, форми й шрифти. Це вікно і панель показують кожну зміну одразу.
 config-back = Назад

@@ -15,7 +15,7 @@ use styletto::foundations::tokens::{Space, radius, size};
 use styletto::primitives::island;
 
 use crate::config::{Background, Bar, Holds, Host, Node, Padding, Panel, Place, Position};
-use crate::modules::Modules;
+use crate::modules::{ClosePanel, Modules};
 
 const DETAILS_DWELL: Duration = Duration::from_millis(260);
 const ZONE_SWITCH: Duration = Duration::from_millis(90);
@@ -506,6 +506,7 @@ pub fn view(bar: &Bar) -> Container {
 
 fn view_with(bar: &Bar, state: State) -> Container {
     let surface = expect_context::<SurfaceHandle>();
+    provide_context(ClosePanel::new(move || state.close()));
     let open = create_memo(move || state.opened.get().is_some());
 
     let groups = placed(bar);

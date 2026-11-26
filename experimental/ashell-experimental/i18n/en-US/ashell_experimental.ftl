@@ -40,6 +40,38 @@ weather-thunderstorm-hail-slight = Thunderstorm with slight hail
 weather-thunderstorm-hail-heavy = Thunderstorm with heavy hail
 weather-unknown = Unknown weather condition
 
+## Settings
+settings-power-suspend = Suspend
+settings-power-hibernate = Hibernate
+settings-power-reboot = Reboot
+settings-power-shutdown = Shutdown
+settings-power-logout = Logout
+settings-power-full-in = Full in { $duration }
+settings-power-empty-in = Empty in { $duration }
+settings-power-profile-balanced = Balanced
+settings-power-profile-performance = Performance
+settings-power-profile-power-saver = Power Saver
+settings-power-status-charging = Charging
+settings-power-status-not-charging = Not charging
+settings-power-status-full = Full
+settings-bluetooth = Bluetooth
+settings-bluetooth-known-devices = Known devices
+settings-bluetooth-available = Available
+settings-bluetooth-pair = Pair
+settings-bluetooth-no-devices = No devices found
+settings-scanning = Scanning...
+settings-power = Power
+settings-power-lock = Lock
+settings-power-mode = Power mode
+settings-on = On
+settings-off = Off
+settings-bluetooth-off = Bluetooth is off
+settings-bluetooth-connected = Connected
+settings-bluetooth-disconnected = Disconnected
+settings-power-profile-power-saver-description = Reduced performance and power usage
+settings-power-profile-balanced-description = Standard performance and power usage
+settings-power-profile-performance-description = High performance and power usage
+
 ## The config window
 config-settings = Settings
 config-page-bar = Bar
@@ -48,7 +80,7 @@ config-edge-top = Top
 config-edge-bottom = Bottom
 config-welcome-title = Welcome to ashell
 config-welcome-about = A status bar for Wayland whose every part, from where its groups sit to how its panels open, is written in one file you can read and edit.
-config-start-from = Start from one of these bars and make it yours in the next step. Nothing is set in stone: the button at the end of the bar brings these settings back.
+config-start-from = Start from one of these bars and make it yours in the next step. Nothing is set in stone: you can come back here whenever you like.
 config-look-title = Make it yours
 config-look-about = The colours, the shapes and the fonts. This window and the bar show each change as you make it.
 config-back = Back
