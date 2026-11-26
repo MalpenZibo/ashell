@@ -93,6 +93,11 @@ Available commands:
 | `toggle-idle-inhibitor`  | Toggle idle inhibitor                                        |
 | `set-idle-inhibitor <state>` | Turn the idle inhibitor on (`true`) or off (`false`)     |
 | `load-config <file>`     | Load another config without restarting ashell                |
+| `notifications-clear [--id <id>]` | Close all notifications, or a single notification |
+| `notifications-invoke [--id <id>] [action-key]` | Invoke an action by key and close its notification |
+| `notifications-list` | Print notifications as a JSON array, newest first |
+
+See [Notifications](./modules/notifications.md#ipc-commands) for arguments and the JSON output format.
 
 The `set-*` commands take a `true` or `false` argument (other clap bool spellings
 such as `1`/`0` or `on`/`off` are accepted too) and are useful when a script

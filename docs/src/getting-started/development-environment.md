@@ -94,6 +94,9 @@ ashell msg brightness-down
 ashell msg toggle-airplane-mode
 ashell msg toggle-idle-inhibitor
 ashell msg load-config <file>
+ashell msg notifications-list
+ashell msg notifications-invoke --id <id>
+ashell msg notifications-clear
 ```
 
 The `set-*` commands set a concrete state instead of toggling,

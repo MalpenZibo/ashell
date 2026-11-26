@@ -28,6 +28,7 @@ use iced::{
 };
 use itertools::Itertools;
 use log::{debug, error};
+use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     sync::Arc,
@@ -161,6 +162,7 @@ pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
     InvokeAction(u32, String),
+    InvokeIpc { id: Option<u32>, action: String },
     CloseNotificationById(u32),
     ClearNotifications,
     ClearGroup(String),
@@ -261,6 +263,42 @@ fn needs_wakeup(previous: Option<ToastTimer>, deadline: Instant) -> bool {
         .is_none_or(|wakeup| deadline < wakeup)
 }
 
+#[derive(Serialize)]
+struct NotificationInfo<'a> {
+    id: u32,
+    app_name: &'a str,
+    summary: &'a str,
+    body: &'a str,
+    urgency: &'static str,
+    actions: Vec<NotificationAction<'a>>,
+}
+
+#[derive(Serialize)]
+struct NotificationAction<'a> {
+    key: &'a str,
+    label: &'a str,
+}
+
+impl<'a> From<&'a Notification> for NotificationInfo<'a> {
+    fn from(notification: &'a Notification) -> Self {
+        Self {
+            id: notification.id,
+            app_name: &notification.app_name,
+            summary: &notification.summary,
+            body: &notification.body,
+            urgency: match notification.urgency {
+                Urgency::Low => "low",
+                Urgency::Normal => "normal",
+                Urgency::Critical => "critical",
+            },
+            actions: notification
+                .action_pairs()
+                .map(|(key, label)| NotificationAction { key, label })
+                .collect(),
+        }
+    }
+}
+
 pub struct Notifications {
     config: NotificationsModuleConfig,
     /// The daemon's part of `config`, built once per reload.
@@ -306,6 +344,16 @@ impl Notifications {
 
     pub fn toggle_dnd(&mut self) {
         self.dnd = !self.dnd;
+    }
+
+    /// The retained notifications as a JSON array, newest first.
+    pub fn list_json(&self) -> serde_json::Result<String> {
+        let list: Vec<_> = self
+            .notifications
+            .iter()
+            .map(|notification| NotificationInfo::from(notification.as_ref()))
+            .collect();
+        serde_json::to_string(&list)
     }
 
     fn find_notification(&self, id: u32) -> Option<&Notification> {
@@ -549,6 +597,21 @@ impl Notifications {
                     Action::TaskAndCloseMenu(task)
                 } else {
                     Action::Task(task)
+                }
+            }
+            Message::InvokeIpc { id, action } => {
+                let notification = self.notifications.iter().find(|notification| {
+                    id.is_none_or(|id| notification.id == id)
+                        && notification.action_pairs().any(|(key, _)| key == action)
+                });
+                match notification {
+                    Some(notification) => {
+                        self.invoke_and_dismiss(notification.id, Some(action), None)
+                    }
+                    None => {
+                        debug!("No notification matching id {id:?} and action {action:?}");
+                        Action::None
+                    }
                 }
             }
             Message::InvokeAction(id, action_key) => {

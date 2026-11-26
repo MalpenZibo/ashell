@@ -9,6 +9,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use crate::config;
 use crate::xdg;
@@ -20,8 +21,8 @@ use iced::futures::StreamExt;
 
 /// Maximum bytes to read from a client connection.
 const MAX_REQUEST_LEN: u64 = 4096;
-/// How long the server waits for a connected client to send its command.
-const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+/// Socket timeout for reading requests and writing query replies.
+const SOCKET_IO_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// IPC command that can be sent to the daemon.
 #[derive(Subcommand, Debug, Clone)]
@@ -111,6 +112,20 @@ pub enum IpcCommand {
         #[arg(long)]
         no_osd: bool,
     },
+    /// Close all notifications, or a single notification by ID
+    NotificationsClear {
+        #[arg(long)]
+        id: Option<u32>,
+    },
+    /// Invoke an action and close its notification
+    NotificationsInvoke {
+        #[arg(long)]
+        id: Option<u32>,
+        #[arg(default_value = "default")]
+        action: String,
+    },
+    /// Print retained notifications as a JSON array, newest first
+    NotificationsList,
     LoadConfig {
         #[arg(value_parser = config::resolve_config_arg)]
         file: PathBuf,
@@ -118,11 +133,19 @@ pub enum IpcCommand {
 }
 
 impl IpcCommand {
+    /// Queries are answered by the app with data instead of `ok` on receipt.
+    pub fn is_query(&self) -> bool {
+        matches!(self, IpcCommand::NotificationsList)
+    }
+
     pub fn no_osd(&self) -> bool {
         match self {
             IpcCommand::ToggleVisibility
             | IpcCommand::SetVisibility { .. }
-            | IpcCommand::LoadConfig { .. } => false,
+            | IpcCommand::LoadConfig { .. }
+            | IpcCommand::NotificationsClear { .. }
+            | IpcCommand::NotificationsInvoke { .. }
+            | IpcCommand::NotificationsList => false,
             IpcCommand::VolumeUp { no_osd }
             | IpcCommand::VolumeDown { no_osd }
             | IpcCommand::VolumeToggleMute { no_osd }
@@ -175,6 +198,16 @@ impl fmt::Display for IpcCommand {
             IpcCommand::SetAirplaneMode { .. } => "set-airplane-mode",
             IpcCommand::SetIdleInhibitor { .. } => "set-idle-inhibitor",
             IpcCommand::LoadConfig { .. } => "load-config",
+            IpcCommand::NotificationsClear { id: Some(id) } => {
+                return write!(f, "notifications-clear {id}");
+            }
+            IpcCommand::NotificationsClear { id: None } => "notifications-clear",
+            IpcCommand::NotificationsInvoke { id, action } => {
+                let id = id.map_or_else(|| "*".to_string(), |id| id.to_string());
+                let action = serde_json::to_string(action).map_err(|_| fmt::Error)?;
+                return write!(f, "notifications-invoke {id} {action}");
+            }
+            IpcCommand::NotificationsList => "notifications-list",
         };
         write!(f, "{base}")?;
         if let IpcCommand::LoadConfig { file } = self {
@@ -207,6 +240,34 @@ impl FromStr for IpcCommand {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self> {
+        let (name, rest) = s.split_once(' ').unwrap_or((s, ""));
+        match name {
+            "notifications-clear" => {
+                let id = if rest.is_empty() {
+                    None
+                } else {
+                    Some(rest.parse().context("invalid notification ID")?)
+                };
+                return Ok(IpcCommand::NotificationsClear { id });
+            }
+            "notifications-invoke" => {
+                let (id, action) = rest.split_once(' ').ok_or_else(|| {
+                    anyhow!("notifications-invoke requires an ID or * and an action")
+                })?;
+                let id = if id == "*" {
+                    None
+                } else {
+                    Some(id.parse().context("invalid notification ID")?)
+                };
+                return Ok(IpcCommand::NotificationsInvoke {
+                    id,
+                    action: serde_json::from_str(action)
+                        .context("invalid notification action key")?,
+                });
+            }
+            "notifications-list" if rest.is_empty() => return Ok(IpcCommand::NotificationsList),
+            _ => {}
+        }
         let (cmd, no_osd) = match s.strip_suffix(NO_OSD_SUFFIX) {
             Some(base) => (base, true),
             None => (s, false),
@@ -281,6 +342,34 @@ impl FromStr for IpcCommand {
     }
 }
 
+/// Commands are acknowledged on receipt; queries carry the reply for the app.
+#[derive(Debug, Clone)]
+pub enum IpcEvent {
+    Command(IpcCommand),
+    Query(IpcCommand, Reply),
+}
+
+/// The client connection of a query, waiting for the app's response line.
+#[derive(Debug, Clone)]
+pub struct Reply(Arc<UnixStream>);
+
+impl Reply {
+    pub async fn send(self, response: String) {
+        if let Err(e) = tokio::task::spawn_blocking(move || {
+            let stream = &*self.0;
+            if let Err(e) = stream.set_write_timeout(Some(SOCKET_IO_TIMEOUT)) {
+                log::debug!("IPC: failed to set reply timeout: {e}");
+                return;
+            }
+            write_response(stream, &response);
+        })
+        .await
+        {
+            log::error!("IPC reply failed: {e}");
+        }
+    }
+}
+
 /// `$XDG_RUNTIME_DIR/ashell.sock`, else a private (0700, ours, not a symlink)
 /// per-user dir in the temp dir so other users can't squat or spoof it.
 fn socket_path(create_dir: bool) -> Result<PathBuf> {
@@ -303,9 +392,18 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
     stream.shutdown(std::net::Shutdown::Write)?;
 
     let mut response = String::new();
-    BufReader::new((&stream).take(MAX_REQUEST_LEN))
+    // A query reply can be larger than the command size limit.
+    let response_limit = if cmd.is_query() {
+        u64::MAX
+    } else {
+        MAX_REQUEST_LEN
+    };
+    BufReader::new((&stream).take(response_limit))
         .read_line(&mut response)
         .context("read response")?;
+    if cmd.is_query() && !response.ends_with('\n') {
+        return Err(anyhow!("incomplete response"));
+    }
     let response = response.trim_end();
 
     if let Some(err) = response.strip_prefix("error ") {
@@ -378,7 +476,7 @@ fn read_request(stream: &UnixStream) -> Result<IpcCommand> {
 }
 
 /// Write a response line to the client.
-fn write_response(stream: &mut UnixStream, response: &str) {
+fn write_response(mut stream: impl Write, response: &str) {
     let msg = format!("{response}\n");
     if let Err(e) = stream.write_all(msg.as_bytes()) {
         log::debug!("IPC write response failed: {e}");
@@ -386,21 +484,22 @@ fn write_response(stream: &mut UnixStream, response: &str) {
 }
 
 /// Handle a single accepted client connection.
-fn handle_connection(mut stream: UnixStream) -> Option<IpcCommand> {
+fn handle_connection(mut stream: UnixStream) -> Option<IpcEvent> {
     // tokio's `into_std` leaves the socket nonblocking, so a read that races
     // ahead of the client's write fails with EAGAIN. Block instead, bounded so
     // a client that never writes can't stall the IPC subscription.
     if let Err(e) = stream
         .set_nonblocking(false)
-        .and_then(|()| stream.set_read_timeout(Some(REQUEST_TIMEOUT)))
+        .and_then(|()| stream.set_read_timeout(Some(SOCKET_IO_TIMEOUT)))
     {
         log::debug!("IPC: failed to make stream blocking: {e}");
     }
 
     match read_request(&stream) {
+        Ok(cmd) if cmd.is_query() => Some(IpcEvent::Query(cmd, Reply(Arc::new(stream)))),
         Ok(cmd) => {
             write_response(&mut stream, "ok");
-            Some(cmd)
+            Some(IpcEvent::Command(cmd))
         }
         Err(e) => {
             write_response(&mut stream, &format!("error {e:#}"));
@@ -439,7 +538,7 @@ fn init_listener() -> Option<tokio::net::UnixListener> {
 }
 
 /// Subscription that listens for IPC commands on the Unix socket.
-pub fn subscription() -> Subscription<IpcCommand> {
+pub fn subscription() -> Subscription<IpcEvent> {
     Subscription::run(|| {
         iced::futures::stream::unfold(None::<tokio::net::UnixListener>, |listener| async {
             let listener = match listener {

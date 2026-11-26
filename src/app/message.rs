@@ -1,7 +1,7 @@
 use crate::{
     components::{ButtonUIRef, menu::MenuType},
     config::Config,
-    ipc::IpcCommand,
+    ipc::{IpcCommand, Reply},
     modules::{self, custom_module},
     osd,
 };
@@ -31,6 +31,7 @@ pub enum Message {
     Notifications(modules::notifications::Message),
     Osd(osd::Message),
     IpcOsdCommand(IpcCommand),
+    IpcQuery(IpcCommand, Reply),
     OutputEvent(OutputEvent),
     CloseAllMenus,
     ResumeFromSleep,

@@ -2,7 +2,7 @@ use crate::{
     components::{Centerbox, menu::MenuType},
     config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
     get_log_spec,
-    ipc::IpcCommand,
+    ipc::{IpcCommand, IpcEvent},
     modules::{
         self,
         custom_module::Custom,
@@ -621,10 +621,11 @@ impl App {
                         );
                         modules::settings::Action::None
                     }
-                    IpcCommand::LoadConfig { .. } => {
-                        warn!(
-                            "IpcCommand::LoadConfig reached IpcOsdCommand handler; use Message::LoadConfig instead"
-                        );
+                    IpcCommand::LoadConfig { .. }
+                    | IpcCommand::NotificationsClear { .. }
+                    | IpcCommand::NotificationsInvoke { .. }
+                    | IpcCommand::NotificationsList => {
+                        warn!("Non-OSD command reached IpcOsdCommand handler");
                         modules::settings::Action::None
                     }
                 };
@@ -658,6 +659,25 @@ impl App {
             Message::None => Task::none(),
             Message::ToggleVisibility => self.set_bar_visibility(!self.outputs.bar_is_shown()),
             Message::SetVisibility(shown) => self.set_bar_visibility(shown),
+            Message::IpcQuery(cmd, reply) => {
+                let response = match cmd {
+                    IpcCommand::NotificationsList => {
+                        if self
+                            .general_config
+                            .modules
+                            .contains(&ModuleName::Notifications)
+                        {
+                            self.notifications
+                                .list_json()
+                                .unwrap_or_else(|e| format!("error {e}"))
+                        } else {
+                            "error Notifications module is disabled".to_string()
+                        }
+                    }
+                    other => format!("error {other} is not a query"),
+                };
+                Task::perform(reply.send(response), |_| Message::None)
+            }
             Message::LoadConfig(config_file) => match config::read_config(&config_file) {
                 Ok(config) => {
                     self.config_path = config_file;
@@ -904,11 +924,24 @@ impl App {
             // Always subscribe to audio/brightness services so OSD works
             // even when the Settings module isn't in the module list.
             self.settings.subscription().map(Message::Settings),
-            crate::ipc::subscription().map(|cmd| match cmd {
-                IpcCommand::ToggleVisibility => Message::ToggleVisibility,
-                IpcCommand::SetVisibility { state } => Message::SetVisibility(state),
-                IpcCommand::LoadConfig { file } => Message::LoadConfig(file),
-                other => Message::IpcOsdCommand(other),
+            crate::ipc::subscription().map(|event| match event {
+                IpcEvent::Query(cmd, reply) => Message::IpcQuery(cmd, reply),
+                IpcEvent::Command(cmd) => match cmd {
+                    IpcCommand::ToggleVisibility => Message::ToggleVisibility,
+                    IpcCommand::SetVisibility { state } => Message::SetVisibility(state),
+                    IpcCommand::LoadConfig { file } => Message::LoadConfig(file),
+                    IpcCommand::NotificationsClear { id } => Message::Notifications(match id {
+                        Some(id) => modules::notifications::Message::CloseNotificationById(id),
+                        None => modules::notifications::Message::ClearNotifications,
+                    }),
+                    IpcCommand::NotificationsInvoke { id, action } => {
+                        Message::Notifications(modules::notifications::Message::InvokeIpc {
+                            id,
+                            action,
+                        })
+                    }
+                    other => Message::IpcOsdCommand(other),
+                },
             }),
         ])
     }
