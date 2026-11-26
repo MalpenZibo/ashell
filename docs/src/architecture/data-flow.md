@@ -33,6 +33,7 @@ pub enum Message {
     // OSD and IPC
     Osd(osd::Message),
     IpcOsdCommand(IpcCommand),
+    IpcQuery(IpcCommand, Reply),
 
     // System events
     OutputEvent(OutputEvent),

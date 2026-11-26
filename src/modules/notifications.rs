@@ -28,6 +28,7 @@ use iced::{
 };
 use itertools::Itertools;
 use log::{debug, error};
+use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     sync::Arc,
@@ -262,6 +263,42 @@ fn needs_wakeup(previous: Option<ToastTimer>, deadline: Instant) -> bool {
         .is_none_or(|wakeup| deadline < wakeup)
 }
 
+#[derive(Serialize)]
+struct NotificationInfo<'a> {
+    id: u32,
+    app_name: &'a str,
+    summary: &'a str,
+    body: &'a str,
+    urgency: &'static str,
+    actions: Vec<NotificationAction<'a>>,
+}
+
+#[derive(Serialize)]
+struct NotificationAction<'a> {
+    key: &'a str,
+    label: &'a str,
+}
+
+impl<'a> From<&'a Notification> for NotificationInfo<'a> {
+    fn from(notification: &'a Notification) -> Self {
+        Self {
+            id: notification.id,
+            app_name: &notification.app_name,
+            summary: &notification.summary,
+            body: &notification.body,
+            urgency: match notification.urgency {
+                Urgency::Low => "low",
+                Urgency::Normal => "normal",
+                Urgency::Critical => "critical",
+            },
+            actions: notification
+                .action_pairs()
+                .map(|(key, label)| NotificationAction { key, label })
+                .collect(),
+        }
+    }
+}
+
 pub struct Notifications {
     config: NotificationsModuleConfig,
     /// The daemon's part of `config`, built once per reload.
@@ -309,8 +346,14 @@ impl Notifications {
         self.dnd = !self.dnd;
     }
 
-    pub fn snapshot(&self) -> Arc<[Arc<Notification>]> {
-        Arc::clone(&self.notifications)
+    /// The retained notifications as a JSON array, newest first.
+    pub fn list_json(&self) -> serde_json::Result<String> {
+        let list: Vec<_> = self
+            .notifications
+            .iter()
+            .map(|notification| NotificationInfo::from(notification.as_ref()))
+            .collect();
+        serde_json::to_string(&list)
     }
 
     fn find_notification(&self, id: u32) -> Option<&Notification> {

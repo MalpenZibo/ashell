@@ -16,15 +16,12 @@ use crate::xdg;
 use anyhow::{Context, Result, anyhow};
 use clap::Subcommand;
 use iced::Subscription;
-use serde::Serialize;
-
-use crate::services::notifications::{Notification, Urgency};
 
 use iced::futures::StreamExt;
 
 /// Maximum bytes to read from a client connection.
 const MAX_REQUEST_LEN: u64 = 4096;
-/// Socket timeout for reading requests and writing notification lists.
+/// Socket timeout for reading requests and writing query replies.
 const SOCKET_IO_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// IPC command that can be sent to the daemon.
@@ -136,6 +133,11 @@ pub enum IpcCommand {
 }
 
 impl IpcCommand {
+    /// Queries are answered by the app with data instead of `ok` on receipt.
+    pub fn is_query(&self) -> bool {
+        matches!(self, IpcCommand::NotificationsList)
+    }
+
     pub fn no_osd(&self) -> bool {
         match self {
             IpcCommand::ToggleVisibility
@@ -244,7 +246,7 @@ impl FromStr for IpcCommand {
                 let id = if rest.is_empty() {
                     None
                 } else {
-                    Some(rest.parse()?)
+                    Some(rest.parse().context("invalid notification ID")?)
                 };
                 return Ok(IpcCommand::NotificationsClear { id });
             }
@@ -252,7 +254,11 @@ impl FromStr for IpcCommand {
                 let (id, action) = rest.split_once(' ').ok_or_else(|| {
                     anyhow!("notifications-invoke requires an ID or * and an action")
                 })?;
-                let id = if id == "*" { None } else { Some(id.parse()?) };
+                let id = if id == "*" {
+                    None
+                } else {
+                    Some(id.parse().context("invalid notification ID")?)
+                };
                 return Ok(IpcCommand::NotificationsInvoke {
                     id,
                     action: serde_json::from_str(action)
@@ -336,77 +342,30 @@ impl FromStr for IpcCommand {
     }
 }
 
-#[derive(Serialize)]
-struct NotificationInfo<'a> {
-    id: u32,
-    app_name: &'a str,
-    summary: &'a str,
-    body: &'a str,
-    urgency: &'static str,
-    actions: Vec<NotificationAction<'a>>,
-}
-
-#[derive(Serialize)]
-struct NotificationAction<'a> {
-    key: &'a str,
-    label: &'a str,
-}
-
-impl<'a> From<&'a Notification> for NotificationInfo<'a> {
-    fn from(notification: &'a Notification) -> Self {
-        Self {
-            id: notification.id,
-            app_name: &notification.app_name,
-            summary: &notification.summary,
-            body: &notification.body,
-            urgency: match notification.urgency {
-                Urgency::Low => "low",
-                Urgency::Normal => "normal",
-                Urgency::Critical => "critical",
-            },
-            actions: notification
-                .action_pairs()
-                .map(|(key, label)| NotificationAction { key, label })
-                .collect(),
-        }
-    }
-}
-
-/// Commands are acknowledged on receipt; only listing needs an app response.
+/// Commands are acknowledged on receipt; queries carry the reply for the app.
 #[derive(Debug, Clone)]
 pub enum IpcEvent {
     Command(IpcCommand),
-    NotificationsList(NotificationListReply),
+    Query(IpcCommand, Reply),
 }
 
+/// The client connection of a query, waiting for the app's response line.
 #[derive(Debug, Clone)]
-pub struct NotificationListReply(Arc<UnixStream>);
+pub struct Reply(Arc<UnixStream>);
 
-impl NotificationListReply {
-    /// Send the newest-first snapshot, or report that notifications are disabled.
-    pub async fn send(self, snapshot: Option<Arc<[Arc<Notification>]>>) {
+impl Reply {
+    pub async fn send(self, response: String) {
         if let Err(e) = tokio::task::spawn_blocking(move || {
             let stream = &*self.0;
             if let Err(e) = stream.set_write_timeout(Some(SOCKET_IO_TIMEOUT)) {
-                log::debug!("IPC: failed to set list response timeout: {e}");
+                log::debug!("IPC: failed to set reply timeout: {e}");
                 return;
             }
-
-            let response = match snapshot {
-                Some(notifications) => {
-                    let list: Vec<_> = notifications
-                        .iter()
-                        .map(|notification| NotificationInfo::from(notification.as_ref()))
-                        .collect();
-                    serde_json::to_string(&list).unwrap_or_else(|e| format!("error {e}"))
-                }
-                None => "error Notifications module is disabled".into(),
-            };
             write_response(stream, &response);
         })
         .await
         {
-            log::error!("IPC list response failed: {e}");
+            log::error!("IPC reply failed: {e}");
         }
     }
 }
@@ -433,9 +392,8 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
     stream.shutdown(std::net::Shutdown::Write)?;
 
     let mut response = String::new();
-    let is_notification_list = matches!(cmd, IpcCommand::NotificationsList);
-    // Notification history can be larger than the command size limit.
-    let response_limit = if is_notification_list {
+    // A query reply can be larger than the command size limit.
+    let response_limit = if cmd.is_query() {
         u64::MAX
     } else {
         MAX_REQUEST_LEN
@@ -443,8 +401,8 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
     BufReader::new((&stream).take(response_limit))
         .read_line(&mut response)
         .context("read response")?;
-    if is_notification_list && !response.ends_with('\n') {
-        return Err(anyhow!("incomplete notification list response"));
+    if cmd.is_query() && !response.ends_with('\n') {
+        return Err(anyhow!("incomplete response"));
     }
     let response = response.trim_end();
 
@@ -538,9 +496,7 @@ fn handle_connection(mut stream: UnixStream) -> Option<IpcEvent> {
     }
 
     match read_request(&stream) {
-        Ok(IpcCommand::NotificationsList) => Some(IpcEvent::NotificationsList(
-            NotificationListReply(Arc::new(stream)),
-        )),
+        Ok(cmd) if cmd.is_query() => Some(IpcEvent::Query(cmd, Reply(Arc::new(stream)))),
         Ok(cmd) => {
             write_response(&mut stream, "ok");
             Some(IpcEvent::Command(cmd))

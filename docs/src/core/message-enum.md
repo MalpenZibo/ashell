@@ -34,6 +34,9 @@ pub enum Message {
     // IPC volume/brightness/toggle commands (with optional OSD)
     IpcOsdCommand(IpcCommand),
 
+    // IPC queries the app answers with data (notifications-list)
+    IpcQuery(IpcCommand, Reply),
+
     // System events
     OutputEvent(OutputEvent),                  // Wayland monitor added/removed
     CloseAllMenus,                             // Close menus on all outputs

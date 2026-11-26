@@ -93,7 +93,7 @@ Example `notifications-list` output:
 
 Urgency is `low`, `normal`, or `critical`.
 
-To run “Show in Folder” on notification 42, use its key:
+To run "Show in Folder" on notification 42, use its key:
 
 ```bash
 ashell msg notifications-invoke --id 42 show-folder

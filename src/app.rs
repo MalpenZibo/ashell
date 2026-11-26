@@ -647,13 +647,24 @@ impl App {
             Message::None => Task::none(),
             Message::ToggleVisibility => self.set_bar_visibility(!self.outputs.bar_is_shown()),
             Message::SetVisibility(shown) => self.set_bar_visibility(shown),
-            Message::IpcNotificationsList(reply) => {
-                let snapshot = self
-                    .general_config
-                    .modules
-                    .contains(&ModuleName::Notifications)
-                    .then(|| self.notifications.snapshot());
-                Task::perform(reply.send(snapshot), |_| Message::None)
+            Message::IpcQuery(cmd, reply) => {
+                let response = match cmd {
+                    IpcCommand::NotificationsList => {
+                        if self
+                            .general_config
+                            .modules
+                            .contains(&ModuleName::Notifications)
+                        {
+                            self.notifications
+                                .list_json()
+                                .unwrap_or_else(|e| format!("error {e}"))
+                        } else {
+                            "error Notifications module is disabled".to_string()
+                        }
+                    }
+                    other => format!("error {other} is not a query"),
+                };
+                Task::perform(reply.send(response), |_| Message::None)
             }
             Message::LoadConfig(config_file) => match config::read_config(&config_file) {
                 Ok(config) => {
@@ -902,7 +913,7 @@ impl App {
             // even when the Settings module isn't in the module list.
             self.settings.subscription().map(Message::Settings),
             crate::ipc::subscription().map(|event| match event {
-                IpcEvent::NotificationsList(reply) => Message::IpcNotificationsList(reply),
+                IpcEvent::Query(cmd, reply) => Message::IpcQuery(cmd, reply),
                 IpcEvent::Command(cmd) => match cmd {
                     IpcCommand::ToggleVisibility => Message::ToggleVisibility,
                     IpcCommand::SetVisibility { state } => Message::SetVisibility(state),
