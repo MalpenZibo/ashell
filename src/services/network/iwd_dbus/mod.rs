@@ -17,8 +17,6 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 // source for dbus: https://git.kernel.org/pub/scm/network/wireless/iwd.git/tree/doc
 //info!("{:?}",n.inner().introspect().await?); => can use this to generate proxy implementations
 
-use ashell_services::rfkill;
-
 use zbus::interface;
 
 use super::dbus::DeviceState;
@@ -92,16 +90,10 @@ impl super::NetworkBackend for IwdDbus<'_> {
     async fn initialize_data(&self) -> anyhow::Result<super::NetworkData> {
         let nm = self;
 
-        // airplane mode
-        let bluetooth_soft_blocked = rfkill::bluetooth_soft_blocked().await;
-
         let wifi_present = nm.wifi_device_present().await?;
 
         let wifi_enabled = nm.wireless_enabled().await.unwrap_or_default();
         debug!("Wifi enabled: {wifi_enabled}");
-
-        let airplane_mode = bluetooth_soft_blocked && !wifi_enabled;
-        debug!("Airplane mode: {airplane_mode}");
 
         let active_connections = nm.active_connections_info().await?;
         debug!("Active connections: {active_connections:?}");
@@ -122,7 +114,6 @@ impl super::NetworkBackend for IwdDbus<'_> {
             wifi_present,
             active_connections,
             wifi_enabled,
-            airplane_mode,
             connectivity: nm
                 .connectivity()
                 .await?
@@ -292,17 +283,6 @@ impl super::NetworkBackend for IwdDbus<'_> {
         Err(anyhow::anyhow!(
             "VPN management not implemented for IWD backend"
         ))
-    }
-
-    async fn set_airplane_mode(&self, airplane: bool) -> anyhow::Result<()> {
-        if let Err(e) = rfkill::set_bluetooth_soft_block(airplane).await {
-            warn!("Failed to set bluetooth rfkill: {e:#}");
-        } else {
-            debug!("Bluetooth rfkill set successfully");
-        }
-
-        self.set_wifi_enabled(!airplane).await?;
-        Ok(())
     }
 }
 

@@ -1,4 +1,7 @@
-use crate::{app::App, ipc::IpcCommand, modules::settings::audio, osd::OsdKind};
+use crate::{
+    app::App, ipc::IpcCommand, modules::settings::audio, osd::OsdKind,
+    services::airplane::AirplaneCommand,
+};
 
 /// Build OSD display info (kind, normalised value, bar scale, muted) for the given
 /// IPC command, reading current state from the Settings services.
@@ -87,15 +90,16 @@ pub fn osd_info_for(app: &App, cmd: &IpcCommand) -> Option<(OsdKind, f32, f32, b
             .brightness()
             .current_brightness()
             .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), 1.0, false)),
-        IpcCommand::SetAirplaneMode { state, .. } => {
-            // `muted` carries the enabled state; `value` is unused.
-            Some((OsdKind::Airplane, 0.0, 1.0, *state))
-        }
-        IpcCommand::ToggleAirplaneMode { .. } => {
-            // Invert: the toggle was just sent but the network service hasn't
-            // round-tripped yet, so the current state is stale.
-            let active = !app.settings.network().is_airplane_mode().unwrap_or(false);
-            Some((OsdKind::Airplane, 0.0, 1.0, active))
+        IpcCommand::SetAirplaneMode { .. } | IpcCommand::ToggleAirplaneMode { .. } => {
+            let command = match cmd {
+                IpcCommand::SetAirplaneMode { state, .. } => AirplaneCommand::Set(*state),
+                _ => AirplaneCommand::Toggle,
+            };
+            // `muted` carries the enabled state; `value` is unused. The command was
+            // just sent, so the state it leads to is derived from the current one.
+            app.settings
+                .airplane_after(command)
+                .map(|active| (OsdKind::Airplane, 0.0, 1.0, active))
         }
         IpcCommand::SetIdleInhibitor { state, .. } => {
             if app.settings.idle_inhibitor().is_some() {

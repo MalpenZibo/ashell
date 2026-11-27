@@ -118,6 +118,26 @@ The button is only shown when the [Notifications](notifications.md) module is
 part of the bar layout, since do not disturb only applies while ashell is the
 notification daemon.
 
+## Airplane Mode
+
+Airplane mode is on when every Wi-Fi and Bluetooth radio is blocked through the
+kernel rfkill switches, in software or by a hardware switch, whoever blocked them.
+Turning it on soft-blocks all of them, like `rfkill block wlan` and
+`rfkill block bluetooth`; turning it off unblocks them. A radio blocked by a
+hardware switch stays off, and so does airplane mode, until the switch is
+released. Other radio types, such as mobile broadband, are left alone.
+
+Only the radios present count. On a machine without Bluetooth, turning Wi-Fi off
+also turns airplane mode on.
+
+It does not need NetworkManager or IWD: both follow the rfkill switches. Wi-Fi
+that was turned off in NetworkManager before airplane mode stays off after it.
+
+Changing the switches needs write access to `/dev/rfkill`: systemd grants it to
+the user of the active seat, on other systems add the user to the `rfkill`
+group. The button is hidden without that access, and on systems without Wi-Fi
+or Bluetooth rfkill switches.
+
 ## Share Wi-Fi
 
 When connected to a Wi-Fi network via NetworkManager, a small QR-code button appears
@@ -387,7 +407,8 @@ the case when NetworkManager uses IWD as its Wi-Fi backend.
 Set `network_backend = "disabled"` to disable the network service completely. This
 is useful on hosts that use systemd-networkd, dhcpcd or another tool, or when
 you manage networking elsewhere and do not want ashell to connect to the bus.
-With `disabled`, the network indicator and menu are not backed by a service.
+With `disabled`, the network indicator and menu are not backed by a service. The
+airplane mode button does not depend on it and stays available.
 
 ```toml
 [settings]

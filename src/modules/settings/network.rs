@@ -93,8 +93,6 @@ pub enum Message {
     RequestWiFiPassword(SurfaceId, String),
     ConfirmOpenNetwork(String),
     ToggleVpn(Vpn),
-    ToggleAirplaneMode,
-    SetAirplaneMode(bool),
     OpenMore,
     ToggleWifiMenu,
     ToggleVPNMenu,
@@ -122,7 +120,6 @@ pub enum Action {
 pub struct NetworkSettingsConfig {
     pub wifi_more_cmd: Option<String>,
     pub vpn_more_cmd: Option<String>,
-    pub remove_airplane_btn: bool,
     pub indicator_format: SettingsFormat,
     pub backend: NetworkBackend,
 }
@@ -131,14 +128,12 @@ impl NetworkSettingsConfig {
     pub fn new(
         wifi_more_cmd: Option<String>,
         vpn_more_cmd: Option<String>,
-        remove_airplane_btn: bool,
         indicator_format: SettingsFormat,
         backend: NetworkBackend,
     ) -> Self {
         Self {
             wifi_more_cmd,
             vpn_more_cmd,
-            remove_airplane_btn,
             indicator_format,
             backend,
         }
@@ -158,10 +153,6 @@ impl NetworkSettings {
             share_in_flight: false,
             service: None,
         }
-    }
-
-    pub fn is_airplane_mode(&self) -> Option<bool> {
-        self.service.as_ref().map(|s| s.airplane_mode)
     }
 
     /// Whether `ssid` can be joined without saving it.
@@ -209,22 +200,6 @@ impl NetworkSettings {
                     self.share_in_flight = false;
                     Action::None
                 }
-            },
-            Message::ToggleAirplaneMode => match self.service.as_mut() {
-                Some(service) => Action::CloseSubMenu(
-                    service
-                        .command(NetworkCommand::ToggleAirplaneMode)
-                        .map(Message::Event),
-                ),
-                _ => Action::None,
-            },
-            Message::SetAirplaneMode(enabled) => match self.service.as_mut() {
-                Some(service) => Action::CloseSubMenu(
-                    service
-                        .command(NetworkCommand::SetAirplaneMode(enabled))
-                        .map(Message::Event),
-                ),
-                _ => Action::None,
             },
             Message::ToggleWiFi => match self.service.as_mut() {
                 Some(service) => Action::CloseSubMenu(
@@ -384,9 +359,10 @@ impl NetworkSettings {
         }
     }
 
-    pub fn connection_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
+    /// Hidden in airplane mode, wired connections included.
+    pub fn connection_indicator<'a>(&'a self, airplane: bool) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
-            if service.airplane_mode || !service.wifi_present {
+            if airplane || !service.wifi_present {
                 None
             } else {
                 let active = service.active_connections.iter().find(|c| {
@@ -579,31 +555,6 @@ impl NetworkSettings {
                     )
                 })
         })
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn airplane_mode_quick_setting_button<'a>(
-        &'a self,
-    ) -> Option<(Element<'a, Message>, Option<(bool, Element<'a, Message>)>)> {
-        if self.config.remove_airplane_btn {
-            None
-        } else {
-            self.service.as_ref().map(|service| {
-                (
-                    quick_setting_button(
-                        Self::airplane_mode_icon(service.airplane_mode),
-                        t!("settings-network-airplane-mode"),
-                        None,
-                        service.airplane_mode,
-                        Message::ToggleAirplaneMode,
-                        Some(Message::OpenMore),
-                        None,
-                        None,
-                    ),
-                    None,
-                )
-            })
-        }
     }
 
     fn wifi_menu<'a>(
@@ -817,14 +768,6 @@ impl NetworkSettings {
             Subscription::none()
         } else {
             NetworkService::subscribe().map(Message::Event)
-        }
-    }
-
-    pub fn airplane_mode_icon(active: bool) -> StaticIcon {
-        if active {
-            StaticIcon::AirplaneOn
-        } else {
-            StaticIcon::AirplaneOff
         }
     }
 

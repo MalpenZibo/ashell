@@ -1,3 +1,5 @@
+#[cfg(feature = "airplane")]
+pub mod airplane;
 #[cfg(feature = "audio")]
 pub mod audio;
 #[cfg(feature = "bluetooth")]
@@ -21,6 +23,7 @@ pub mod privacy;
     feature = "brightness",
     feature = "logind",
     feature = "privacy",
+    feature = "rfkill",
     feature = "upower"
 ))]
 mod retry;
@@ -34,13 +37,14 @@ mod snapshot;
     feature = "keyboard_locks",
     feature = "logind",
     feature = "privacy",
+    feature = "rfkill",
     feature = "upower",
     feature = "weather"
 ))]
 pub mod stream;
 #[cfg(feature = "throttle")]
 pub mod throttle;
-#[cfg(any(feature = "brightness", feature = "keyboard_locks"))]
+#[cfg(any(feature = "brightness", feature = "keyboard_locks", feature = "rfkill"))]
 mod udev_monitor;
 #[cfg(feature = "upower")]
 pub mod upower;

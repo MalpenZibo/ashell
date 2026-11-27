@@ -23,6 +23,7 @@ where
     feature = "bluetooth",
     feature = "brightness",
     feature = "keyboard_locks",
+    feature = "rfkill",
     feature = "upower"
 ))]
 pub(crate) async fn send<T: Clone + PartialEq>(

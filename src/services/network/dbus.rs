@@ -1,7 +1,6 @@
 use crate::services::network::{
     NetworkBackend, NetworkData, NetworkEvent, PskOutcome, Redacted, WifiSecurity,
 };
-use ashell_services::rfkill;
 
 use super::{AccessPointData, ActiveConnectionInfo, KnownConnection, Vpn};
 use iced::futures::{
@@ -19,16 +18,10 @@ impl super::NetworkBackend for NetworkDbus<'_> {
     async fn initialize_data(&self) -> anyhow::Result<super::NetworkData> {
         let nm = self;
 
-        // airplane mode
-        let bluetooth_soft_blocked = rfkill::bluetooth_soft_blocked().await;
-
         let wifi_present = nm.wifi_device_present().await?;
 
         let wifi_enabled = nm.wireless_enabled().await.unwrap_or_default();
         debug!("Wifi enabled: {wifi_enabled}");
-
-        let airplane_mode = bluetooth_soft_blocked && !wifi_enabled;
-        debug!("Airplane mode: {airplane_mode}");
 
         let active_connections = nm.active_connections_info().await?;
         debug!("Active connections: {active_connections:?}");
@@ -45,25 +38,11 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             wifi_present,
             active_connections,
             wifi_enabled,
-            airplane_mode,
             connectivity: nm.connectivity().await?,
             wireless_access_points,
             known_connections,
             scanning_nearby_wifi: false,
         })
-    }
-
-    async fn set_airplane_mode(&self, enable: bool) -> anyhow::Result<()> {
-        if let Err(e) = rfkill::set_bluetooth_soft_block(enable).await {
-            warn!("Failed to set bluetooth rfkill: {e:#}");
-        } else {
-            debug!("Bluetooth rfkill set successfully");
-        }
-
-        let nm = NetworkDbus::new(self.0.inner().connection()).await?;
-        nm.set_wireless_enabled(!enable).await?;
-
-        Ok(())
     }
 
     async fn scan_nearby_wifi(&self) -> anyhow::Result<()> {

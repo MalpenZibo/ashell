@@ -46,7 +46,6 @@ network writes an entry to `/var/lib/iwd`, and removing it again requires
 | Ethernet detection | ✅ | ❌ |
 | VPN management | ✅ | ❌ |
 | Temporary connections | ✅ | ❌ |
-| Airplane mode | ✅ | ✅ |
 | Connectivity state | ✅ | ✅ |
 | Share Wi-Fi (QR code) | ✅ | ❌ |
 
@@ -55,6 +54,10 @@ element is hidden or unavailable when running under that backend.
 
 ### Notes
 
+- **Airplane mode** - Not part of the network backend: it blocks the Wi-Fi and
+  Bluetooth radios through the kernel rfkill switches, so it also works without
+  NetworkManager or IWD. See
+  [Airplane Mode](./configuration/modules/settings.md#airplane-mode).
 - **Ethernet detection** - IWD is a wireless-only daemon and has no knowledge of
   wired connections.
 - **VPN management** - VPN support (including WireGuard) requires NetworkManager.

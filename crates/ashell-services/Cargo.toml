@@ -10,6 +10,7 @@ repository.workspace = true
 publish = false
 
 [features]
+airplane = ["rfkill"]
 audio = [
     "dep:anyhow",
     "dep:libc",
@@ -73,10 +74,13 @@ privacy = [
 rfkill = [
     "dep:anyhow",
     "dep:inotify",
+    "dep:libc",
     "dep:log",
     "dep:tokio",
+    "dep:udev",
     "tokio/fs",
-    "tokio/io-util",
+    "tokio/net",
+    "tokio/time",
 ]
 serde = ["dep:serde"]
 throttle = ["dep:pin-project-lite", "dep:tokio", "tokio/time"]

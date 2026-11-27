@@ -10,8 +10,7 @@ use crate::{
     components::icons::{Icon, StaticIcon},
     config::{OsdConfig, Surface},
     modules::settings::audio::AudioSettings,
-    modules::settings::network::NetworkSettings,
-    services::idle_inhibitor,
+    services::{airplane, idle_inhibitor},
     theme::{surface_border, use_theme},
 };
 use ashell_i18n::t;
@@ -134,7 +133,7 @@ impl Osd {
             OsdKind::Volume => AudioSettings::speaker_icon(state.muted, state.value, overdrive),
             OsdKind::Microphone => AudioSettings::microphone_icon(state.muted),
             OsdKind::Brightness => StaticIcon::Brightness,
-            OsdKind::Airplane => NetworkSettings::airplane_mode_icon(state.muted),
+            OsdKind::Airplane => airplane::icon(state.muted),
             OsdKind::IdleInhibitor => idle_inhibitor::icon(state.muted),
         };
 
