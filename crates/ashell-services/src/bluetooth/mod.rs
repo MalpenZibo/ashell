@@ -11,7 +11,7 @@ use futures::{
 };
 use log::{debug, error, warn};
 use std::{pin::pin, time::Duration};
-use zbus::{MatchRule, MessageStream, OwnedObjectPath, fdo::PropertiesChanged, message::Type};
+use zbus::{OwnedObjectPath, fdo::PropertiesChanged};
 
 mod dbus;
 
@@ -211,17 +211,9 @@ impl Bluetooth {
             objects.receive_interfaces_removed().await?.map(|_| {}),
         );
 
-        // One rule for every bluez object instead of a stream per device
-        let rule = MatchRule::builder()
-            .msg_type(Type::Signal)
-            .sender(BLUEZ)
-            .interface("org.freedesktop.DBus.Properties")
-            .member("PropertiesChanged")
-            .path_namespace("/org/bluez")
-            .build()?;
-        let properties = MessageStream::for_match_rule(rule, conn, None)
+        let properties = bus::properties_changed(conn, BLUEZ, "/org/bluez")
             .await?
-            .filter_map(|message| ready(message.ok().filter(shows_change).map(|_| {})));
+            .filter_map(|signal| ready(shows_change(&signal).then_some(())));
 
         let changed = stream_select!(topology, properties, rfkill::soft_block_changes())
             .map(|_| Event::Changed);
@@ -232,10 +224,7 @@ impl Bluetooth {
 
 /// Whether a `PropertiesChanged` touches something `BluetoothData` shows, so
 /// e.g. the RSSI updates during discovery don't trigger a read each.
-fn shows_change(message: &zbus::Message) -> bool {
-    let Some(signal) = PropertiesChanged::from_message(message.clone()) else {
-        return false;
-    };
+fn shows_change(signal: &PropertiesChanged) -> bool {
     let Ok(args) = signal.args() else {
         return false;
     };
@@ -247,8 +236,5 @@ fn shows_change(message: &zbus::Message) -> bool {
         _ => return false,
     };
 
-    args.changed_properties()
-        .keys()
-        .chain(args.invalidated_properties().iter())
-        .any(|name| shown.contains(name))
+    bus::changes_any(&args, shown)
 }
