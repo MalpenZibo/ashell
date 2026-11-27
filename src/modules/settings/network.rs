@@ -359,17 +359,18 @@ impl NetworkSettings {
         }
     }
 
-    /// Hidden in airplane mode, wired connections included.
+    /// In airplane mode only an active wired connection is shown.
     pub fn connection_indicator<'a>(&'a self, airplane: bool) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
-            if airplane || !service.wifi_present {
+            let active = service.active_connections.iter().find(|c| match c {
+                ActiveConnectionInfo::Wired { .. } => true,
+                ActiveConnectionInfo::WiFi { .. } => !airplane,
+                ActiveConnectionInfo::Vpn { .. } => false,
+            });
+
+            if !service.wifi_present || (airplane && active.is_none()) {
                 None
             } else {
-                let active = service.active_connections.iter().find(|c| {
-                    matches!(c, ActiveConnectionInfo::WiFi { .. })
-                        || matches!(c, ActiveConnectionInfo::Wired { .. })
-                });
-
                 Some(if let Some(a) = active {
                     let icon_type = a.get_icon();
                     let state =

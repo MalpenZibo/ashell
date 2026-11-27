@@ -132,6 +132,8 @@ also turns airplane mode on.
 
 It does not need NetworkManager or IWD: both follow the rfkill switches. Wi-Fi
 that was turned off in NetworkManager before airplane mode stays off after it.
+While airplane mode is on, the network indicator in the bar still shows an
+active wired connection.
 
 Changing the switches needs write access to `/dev/rfkill`: systemd grants it to
 the user of the active seat, on other systems add the user to the `rfkill`
