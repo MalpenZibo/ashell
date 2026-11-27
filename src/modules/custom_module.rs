@@ -179,8 +179,10 @@ impl Custom {
             }
             Message::Update(data) => {
                 let had_tooltip = self.tooltip().is_some();
+                let was_visible = self.is_visible();
                 self.data = data;
-                if had_tooltip && self.tooltip().is_none() {
+                if (had_tooltip && self.tooltip().is_none()) || (was_visible && !self.is_visible())
+                {
                     Action::CloseAllTooltipMenus
                 } else {
                     Action::None
@@ -412,6 +414,29 @@ mod tests {
             Action::CloseAllTooltipMenus
         ));
         assert!(matches!(custom.update(listen_data(None)), Action::None));
+    }
+
+    /// A module that becomes hidden loses its hover button, so the unhover that
+    /// closes an open tooltip never arrives: the update itself must close it.
+    #[test]
+    fn update_closes_tooltip_when_module_hides() {
+        let mut custom = probe();
+        assert!(matches!(
+            custom.update(Message::Update(CustomListenData {
+                alt: String::new(),
+                text: Some("recording".to_owned()),
+                tooltip: Some("line".to_owned()),
+            })),
+            Action::None
+        ));
+        assert!(matches!(
+            custom.update(Message::Update(CustomListenData {
+                alt: String::new(),
+                text: Some(String::new()),
+                tooltip: Some("line".to_owned()),
+            })),
+            Action::CloseAllTooltipMenus
+        ));
     }
 
     fn text_module() -> Custom {
