@@ -9,6 +9,8 @@ mod panel;
 #[cfg(test)]
 pub mod sample;
 
+use std::time::{Duration, Instant};
+
 use ashell_services::audio::{Audio, AudioCommand, AudioData, Device, NORMAL_VOLUME, Route};
 use ashell_services::bluetooth::{Bluetooth, BluetoothCommand};
 use ashell_services::brightness::{Brightness, BrightnessCommand};
@@ -32,6 +34,7 @@ pub struct Settings {
     bluetooth: Linked<Bluetooth>,
     brightness: Linked<Brightness>,
     idle: Idle,
+    asked: [Asked; 3],
 }
 
 /// The idle inhibitor: ashell's own, since other clients' cannot be seen.
@@ -51,6 +54,7 @@ impl Settings {
             bluetooth: link(),
             brightness: link(),
             idle: Idle::new(),
+            asked: std::array::from_fn(|_| Asked::new()),
         }
     }
 
@@ -90,6 +94,7 @@ impl Settings {
         else {
             return;
         };
+        let current = self.asked(Some(sound)).or(current);
         let (step, max) = self.config.into_signal().with_untracked(|config| {
             (
                 volume(config.volume_step as f32),
@@ -102,7 +107,9 @@ impl Settings {
             current.saturating_sub(step)
         };
 
-        self.audio.commands.send(sound.set(volume));
+        self.audio
+            .commands
+            .send(sound.set(self.asked(Some(sound)).ask(volume)));
     }
 
     /// Sets `sound` to `percent` of 100%, unmuting it.
@@ -111,7 +118,9 @@ impl Settings {
             self.audio.commands.send(sound.unmute());
         }
 
-        self.audio.commands.send(sound.set(volume(percent)));
+        self.audio
+            .commands
+            .send(sound.set(self.asked(Some(sound)).ask(volume(percent))));
     }
 
     /// Sets the backlight to `percent`, never under its lowest level that
@@ -122,9 +131,9 @@ impl Settings {
         };
         let value = (percent / 100.0 * data.max as f32).round() as u32;
 
-        self.brightness
-            .commands
-            .send(BrightnessCommand(value.max(data.max.min(1))));
+        self.brightness.commands.send(BrightnessCommand(
+            self.asked(None).ask(value.max(data.max.min(1))),
+        ));
     }
 
     /// A twentieth of the range, as ashell's. Down stops at 1, not 0: a raw 0
@@ -133,14 +142,54 @@ impl Settings {
         let Some(data) = self.brightness.data.get_untracked() else {
             return;
         };
+        let current = self.asked(None).or(data.current);
         let step = (data.max / 20).max(1);
         let value = if up {
-            (data.current + step).min(data.max)
+            (current + step).min(data.max)
         } else {
-            data.current.saturating_sub(step).max(data.max.min(1))
+            current.saturating_sub(step).max(data.max.min(1))
         };
 
-        self.brightness.commands.send(BrightnessCommand(value));
+        self.brightness
+            .commands
+            .send(BrightnessCommand(self.asked(None).ask(value)));
+    }
+
+    /// What was last asked of `sound`, or of the backlight.
+    fn asked(self, sound: Option<Sound>) -> Asked {
+        self.asked[match sound {
+            Some(Sound::Output) => 0,
+            Some(Sound::Input) => 1,
+            None => 2,
+        }]
+    }
+}
+
+/// The last level asked of a device, as ashell's: for a second a step starts
+/// from it rather than from the device's last report, so notches that come
+/// faster than the device answers add up instead of each repeating the same
+/// step.
+#[derive(Clone, Copy)]
+struct Asked(RwSignal<Option<(u32, Instant)>>);
+
+impl Asked {
+    const HELD: Duration = Duration::from_secs(1);
+
+    fn new() -> Self {
+        Self(create_signal(None))
+    }
+
+    /// The level asked less than a second ago, `reported` otherwise.
+    fn or(self, reported: u32) -> u32 {
+        self.0.with_untracked(|asked| match asked {
+            Some((level, at)) if at.elapsed() < Self::HELD => *level,
+            _ => reported,
+        })
+    }
+
+    fn ask(self, level: u32) -> u32 {
+        self.0.set(Some((level, Instant::now())));
+        level
     }
 }
 
@@ -346,4 +395,18 @@ fn check_options(id: ItemId, options: &Table) -> Vec<String> {
 
 fn panel_width(_panel: Panel) -> f32 {
     panel::width()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_step_starts_from_the_level_just_asked() {
+        let asked = Asked::new();
+
+        assert_eq!(asked.or(40), 40);
+        asked.ask(45);
+        assert_eq!(asked.or(40), 45);
+    }
 }

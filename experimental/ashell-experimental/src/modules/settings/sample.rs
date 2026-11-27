@@ -108,6 +108,7 @@ pub fn settings(config: Memo<super::SettingsConfig>) -> Settings {
     };
 
     Settings {
+        asked: std::array::from_fn(|_| super::Asked::new()),
         config,
         upower: fixed(upower),
         audio: fixed(audio),
