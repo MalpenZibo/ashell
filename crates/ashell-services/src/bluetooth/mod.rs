@@ -1,7 +1,10 @@
-use crate::{bus, rfkill, stream::channel};
+use crate::{
+    bus, rfkill,
+    stream::{channel, send},
+};
 use dbus::{ADAPTER, BATTERY, BluetoothDbus, DEVICE};
 use futures::{
-    FutureExt, SinkExt, Stream, StreamExt,
+    FutureExt, Stream, StreamExt,
     future::{Either, ready, select},
     stream::BoxStream,
     stream_select,
@@ -145,11 +148,8 @@ impl Bluetooth {
                     BluetoothData::default()
                 };
 
-                if last.as_ref() != Some(&data) {
-                    last = Some(data.clone());
-                    if output.send(data).await.is_err() {
-                        return;
-                    }
+                if !send(&mut output, &mut last, data).await {
+                    return;
                 }
             }
         })

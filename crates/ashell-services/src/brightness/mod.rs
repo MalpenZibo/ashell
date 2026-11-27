@@ -1,10 +1,10 @@
 use crate::{
     retry::{RETRY_DELAY, failed},
-    stream::channel,
+    stream::{channel, send},
     udev_monitor,
 };
 use dbus::BrightnessCtrlProxy;
-use futures::{SinkExt, Stream, channel::mpsc::Sender};
+use futures::{Stream, channel::mpsc::Sender};
 use log::{debug, info, warn};
 use std::{
     fs,
@@ -158,18 +158,6 @@ impl Brightness {
     fn device_path(&self) -> Option<PathBuf> {
         self.device_path.lock().ok().and_then(|slot| slot.clone())
     }
-}
-
-async fn send(
-    output: &mut Sender<Option<BrightnessData>>,
-    last: &mut Option<Option<BrightnessData>>,
-    data: Option<BrightnessData>,
-) -> bool {
-    if *last == Some(data) {
-        return true;
-    }
-    *last = Some(data);
-    output.send(data).await.is_ok()
 }
 
 /// Follows `device` until it goes away or the monitor fails. Returns false

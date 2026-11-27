@@ -1,11 +1,15 @@
-use crate::{bus, retry::RETRY_DELAY, stream::channel, throttle::ThrottleExt};
+use crate::{
+    bus,
+    retry::RETRY_DELAY,
+    stream::{channel, send},
+    throttle::ThrottleExt,
+};
 use dbus::{
     DeviceProxy, DeviceState, KbdBacklightProxy, PowerProfilesProxy, SystemBattery, UPowerDbus,
     UpDeviceKind,
 };
 use futures::{
-    FutureExt, SinkExt, Stream, StreamExt,
-    channel::mpsc::Sender,
+    FutureExt, Stream, StreamExt,
     future::{Either, ready, select},
     stream::{BoxStream, select_all},
     stream_select,
@@ -587,19 +591,6 @@ impl UPower {
                 .boxed(),
         ]
     }
-}
-
-async fn send(
-    output: &mut Sender<UPowerData>,
-    last: &mut Option<UPowerData>,
-    data: UPowerData,
-) -> bool {
-    if last.as_ref() == Some(&data) {
-        return true;
-    }
-
-    *last = Some(data.clone());
-    output.send(data).await.is_ok()
 }
 
 async fn start_service(conn: &zbus::Connection, name: &'static str) -> anyhow::Result<()> {
