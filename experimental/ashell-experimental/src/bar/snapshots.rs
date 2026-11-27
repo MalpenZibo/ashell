@@ -427,13 +427,13 @@ end     = ["status"]
 items = [
     { item = "idle_inhibitor", show = "always" },
     { item = "power_profile", show = "always" },
-    "bluetooth",
     { item = "brightness", show = "always" },
+    { item = "volume", show = "always", style = "icon-value" },
+    "microphone",
+    "bluetooth",
     "peripheral_battery",
     "battery",
     "battery_time",
-    { item = "volume", show = "always", style = "icon-value" },
-    "microphone",
 ]
 
 [settings]

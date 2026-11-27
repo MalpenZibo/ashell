@@ -18,7 +18,7 @@ items = [
 ]
 ```
 
-{{ <picture name="settings/settings-items" alt="The settings items: the idle inhibitor, the power profile, Bluetooth with a device connected, the brightness, the headphones' battery, the laptop's with the time it has left, the volume and the muted microphone" width="348" height="95" /> }}
+{{ <picture name="settings/settings-items" alt="The settings items: the idle inhibitor, the power profile, the brightness, the volume, the muted microphone, Bluetooth with a device connected, the headphones' battery and the laptop's with the time it has left" width="348" height="95" /> }}
 
 ## `[settings]`
 
