@@ -1105,7 +1105,7 @@ dependencies = [
 [[package]]
 name = "guido"
 version = "0.13.0"
-source = "git+https://github.com/MalpenZibo/guido?branch=main#1831ee2a1b8df9b98cd78f6f786b168e57832f3d"
+source = "git+https://github.com/MalpenZibo/guido?branch=main#5821ee1b6b9fcca43670f064f6e4337c4dea21bc"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -1134,7 +1134,7 @@ dependencies = [
 [[package]]
 name = "guido-macros"
 version = "0.13.0"
-source = "git+https://github.com/MalpenZibo/guido?branch=main#1831ee2a1b8df9b98cd78f6f786b168e57832f3d"
+source = "git+https://github.com/MalpenZibo/guido?branch=main#5821ee1b6b9fcca43670f064f6e4337c4dea21bc"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3168,7 +3168,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 [[package]]
 name = "styletto"
 version = "0.1.0"
-source = "git+https://github.com/MalpenZibo/styletto?branch=main#b9c1771bb702efb67183343157110dc2c52c94da"
+source = "git+https://github.com/MalpenZibo/styletto?branch=main#88dc389305ffc90eedda3e5ec1efc2e4fb8caae6"
 dependencies = [
  "guido",
  "image",
