@@ -1,4 +1,4 @@
-use crate::{bus, stream::channel, throttle::ThrottleExt};
+use crate::{bus, retry::RETRY_DELAY, stream::channel, throttle::ThrottleExt};
 use dbus::{
     DeviceProxy, DeviceState, KbdBacklightProxy, PowerProfilesProxy, SystemBattery, UPowerDbus,
     UpDeviceKind,
@@ -22,7 +22,6 @@ mod dbus;
 
 const UPOWER: &str = "org.freedesktop.UPower";
 const POWER_PROFILES: &str = "org.freedesktop.UPower.PowerProfiles";
-const RETRY_DELAY: Duration = Duration::from_secs(5);
 const TIME_ESTIMATE_THROTTLE: Duration = Duration::from_secs(30);
 
 #[derive(Copy, Clone, Debug, PartialEq)]

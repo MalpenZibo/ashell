@@ -16,6 +16,14 @@ pub mod logind;
 pub mod notifications;
 #[cfg(feature = "privacy")]
 pub mod privacy;
+#[cfg(any(
+    feature = "audio",
+    feature = "brightness",
+    feature = "logind",
+    feature = "privacy",
+    feature = "upower"
+))]
+mod retry;
 #[cfg(feature = "rfkill")]
 pub mod rfkill;
 #[cfg(any(feature = "audio", feature = "notifications"))]

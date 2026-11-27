@@ -1,4 +1,8 @@
-use crate::{stream::channel, udev_monitor};
+use crate::{
+    retry::{RETRY_DELAY, failed},
+    stream::channel,
+    udev_monitor,
+};
 use dbus::BrightnessCtrlProxy;
 use futures::{SinkExt, Stream, channel::mpsc::Sender};
 use log::{debug, info, warn};
@@ -6,13 +10,10 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    time::Duration,
 };
 use tokio::io::unix::AsyncFd;
 
 mod dbus;
-
-const RETRY_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BrightnessData {
@@ -56,10 +57,7 @@ impl Brightness {
                 let device = match find_backlight() {
                     Ok(device) => device,
                     Err(err) => {
-                        failed(
-                            &mut failing,
-                            format_args!("Failed to enumerate backlight devices: {err}"),
-                        );
+                        failed!(&mut failing, "Failed to enumerate backlight devices: {err}");
                         tokio::time::sleep(RETRY_DELAY).await;
                         continue;
                     }
@@ -71,18 +69,15 @@ impl Brightness {
                 let mut socket = match monitor {
                     Ok(socket) => socket,
                     Err(err) => {
-                        failed(
+                        failed!(
                             &mut failing,
-                            format_args!("Failed to listen for brightness events: {err}"),
+                            "Failed to listen for brightness events: {err}"
                         );
                         // Without events the state is read again on every retry
                         let data = match device.as_deref().map(initialize_data) {
                             Some(Ok(data)) => Some(Some(data)),
                             Some(Err(err)) => {
-                                failed(
-                                    &mut failing,
-                                    format_args!("Failed to read brightness data: {err}"),
-                                );
+                                failed!(&mut failing, "Failed to read brightness data: {err}");
                                 None
                             }
                             None => Some(None),
@@ -112,10 +107,7 @@ impl Brightness {
                 let data = match initialize_data(&device) {
                     Ok(data) => data,
                     Err(err) => {
-                        failed(
-                            &mut failing,
-                            format_args!("Failed to read brightness data: {err}"),
-                        );
+                        failed!(&mut failing, "Failed to read brightness data: {err}");
                         tokio::time::sleep(RETRY_DELAY).await;
                         continue;
                     }
@@ -165,16 +157,6 @@ impl Brightness {
 
     fn device_path(&self) -> Option<PathBuf> {
         self.device_path.lock().ok().and_then(|slot| slot.clone())
-    }
-}
-
-/// Warns about the first of a run of failures, and the retries after it only at
-/// debug level.
-fn failed(failing: &mut bool, message: std::fmt::Arguments) {
-    if std::mem::replace(failing, true) {
-        debug!("{message}");
-    } else {
-        warn!("{message}");
     }
 }
 
