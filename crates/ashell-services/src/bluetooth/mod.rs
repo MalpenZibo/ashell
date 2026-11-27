@@ -1,5 +1,6 @@
 use crate::{
-    bus, rfkill,
+    bus,
+    rfkill::{self, Kind, Switches},
     stream::{channel, send},
 };
 use dbus::{ADAPTER, BATTERY, BluetoothDbus, DEVICE};
@@ -10,7 +11,11 @@ use futures::{
     stream_select,
 };
 use log::{debug, error, warn};
-use std::{pin::pin, time::Duration};
+use std::{
+    io::{self, ErrorKind},
+    pin::pin,
+    time::Duration,
+};
 use zbus::{OwnedObjectPath, fdo::PropertiesChanged};
 
 mod dbus;
@@ -64,15 +69,44 @@ pub enum BluetoothCommand {
 enum Event {
     /// Whether bluez is running.
     Bluez(bool),
+    /// Whether a Bluetooth rfkill switch is soft-blocked, `None` while
+    /// `/dev/rfkill` can't be read.
+    Rfkill(Option<bool>),
     /// Something shown in `BluetoothData` may have changed.
     Changed,
 }
 
-impl Event {
-    fn apply(self, bluez_running: &mut bool) {
-        if let Self::Bluez(running) = self {
-            *bluez_running = running;
+/// What the events tell beyond bluez's objects.
+#[derive(Default)]
+struct Sources {
+    bluez_running: bool,
+    /// The last `Event::Rfkill`, `None` before the first, which comes right
+    /// after subscribing.
+    rfkill: Option<Option<bool>>,
+    /// The last soft block known, kept while none can be read.
+    soft_blocked: bool,
+}
+
+impl Sources {
+    fn apply(&mut self, event: Event) {
+        match event {
+            Event::Bluez(running) => self.bluez_running = running,
+            Event::Rfkill(blocked) => self.rfkill = Some(blocked),
+            Event::Changed => {}
         }
+    }
+
+    /// The soft block to show, `None` before the first `Event::Rfkill`.
+    /// While `/dev/rfkill` can't be read it asks `sysfs` on every read, and
+    /// keeps the last known value when that fails too.
+    fn soft_blocked(&mut self, sysfs: impl FnOnce() -> io::Result<bool>) -> Option<bool> {
+        let blocked = match self.rfkill? {
+            Some(blocked) => blocked,
+            None => sysfs().unwrap_or(self.soft_blocked),
+        };
+        self.soft_blocked = blocked;
+
+        Some(blocked)
     }
 }
 
@@ -101,7 +135,7 @@ impl Bluetooth {
                 }
             };
 
-            let mut bluez_running = false;
+            let mut sources = Sources::default();
             let mut last = None;
             // Something changed while the last read was in flight: read again
             let mut stale = false;
@@ -111,26 +145,32 @@ impl Bluetooth {
                     let Some(event) = events.next().await else {
                         return;
                     };
-                    event.apply(&mut bluez_running);
+                    sources.apply(event);
                 }
                 stale = false;
 
                 // One action fires a burst of signals (pairing: Paired, Connected,
                 // Battery1, Percentage): read once for all those already queued.
                 while let Some(event) = events.next().now_or_never().flatten() {
-                    event.apply(&mut bluez_running);
+                    sources.apply(event);
                 }
 
+                let Some(soft_blocked) =
+                    sources.soft_blocked(|| rfkill::sysfs_soft_blocked(Kind::Bluetooth))
+                else {
+                    continue;
+                };
+
                 // Reading bluez while it isn't running would activate it
-                let data = if bluez_running {
+                let data = if sources.bluez_running {
                     // Keep consuming events while waiting for the reply: once a zbus
                     // signal queue is full, the connection stops reading replies too.
-                    let mut read = pin!(Self::read_data(&conn));
+                    let mut read = pin!(Self::read_data(&conn, soft_blocked));
                     let result = loop {
                         match select(read.as_mut(), events.next()).await {
                             Either::Left((result, _)) => break result,
                             Either::Right((Some(event), _)) => {
-                                event.apply(&mut bluez_running);
+                                sources.apply(event);
                                 stale = true;
                             }
                             Either::Right((None, _)) => return,
@@ -161,11 +201,13 @@ impl Bluetooth {
         let bluetooth = BluetoothDbus::new(&self.conn).await?;
 
         match command {
-            BluetoothCommand::Toggle => match Self::read_data(&self.conn).await?.state {
-                BluetoothState::Unavailable => {}
-                BluetoothState::Active => bluetooth.set_powered(false).await?,
-                BluetoothState::Inactive => bluetooth.set_powered(true).await?,
-            },
+            BluetoothCommand::Toggle => {
+                match Self::read_data(&self.conn, soft_blocked_now()).await?.state {
+                    BluetoothState::Unavailable => {}
+                    BluetoothState::Active => bluetooth.set_powered(false).await?,
+                    BluetoothState::Inactive => bluetooth.set_powered(true).await?,
+                }
+            }
             BluetoothCommand::StartDiscovery => {
                 bluetooth.start_discovery().await?;
                 tokio::time::sleep(DISCOVERY_DURATION).await;
@@ -182,13 +224,16 @@ impl Bluetooth {
         Ok(())
     }
 
-    async fn read_data(conn: &zbus::Connection) -> anyhow::Result<BluetoothData> {
+    async fn read_data(
+        conn: &zbus::Connection,
+        soft_blocked: bool,
+    ) -> anyhow::Result<BluetoothData> {
         let snapshot = dbus::snapshot(conn).await?;
 
         let state = match snapshot.adapter {
             None => BluetoothState::Unavailable,
             Some(adapter) if !adapter.powered => BluetoothState::Inactive,
-            Some(_) if rfkill::bluetooth_soft_blocked().await => BluetoothState::Inactive,
+            Some(_) if soft_blocked => BluetoothState::Inactive,
             Some(_) => BluetoothState::Active,
         };
 
@@ -215,11 +260,42 @@ impl Bluetooth {
             .await?
             .filter_map(|signal| ready(shows_change(&signal).then_some(())));
 
-        let changed = stream_select!(topology, properties, rfkill::soft_block_changes())
-            .map(|_| Event::Changed);
+        // Every switch change comes through, keep only the Bluetooth soft block
+        let mut last = None;
+        let rfkill = rfkill::switches().boxed().filter_map(move |state| {
+            let blocked = state.map(|state| soft_blocked(&state.switches));
+            ready((last.replace(blocked) != Some(blocked)).then_some(Event::Rfkill(blocked)))
+        });
 
-        Ok(stream_select!(bluez, changed).boxed())
+        let changed = stream_select!(topology, properties).map(|_| Event::Changed);
+
+        Ok(stream_select!(bluez, rfkill, changed).boxed())
     }
+}
+
+/// Whether any Bluetooth rfkill switch is soft-blocked. A real hard block
+/// already shows as an unpowered adapter, and a platform switch that reports
+/// one wrongly must not show a working radio as off.
+fn soft_blocked(switches: &Switches) -> bool {
+    switches
+        .values()
+        .any(|switch| switch.kind == Kind::Bluetooth && switch.soft)
+}
+
+/// [`soft_blocked`] read once, from sysfs when `/dev/rfkill` can't be read. A
+/// system without rfkill has nothing to block, and so does one whose switches
+/// can't be read at all: this only tells whether the radio is off, it never
+/// changes it.
+fn soft_blocked_now() -> bool {
+    rfkill::current()
+        .map(|switches| soft_blocked(&switches))
+        .or_else(|_| rfkill::sysfs_soft_blocked(Kind::Bluetooth))
+        .unwrap_or_else(|err| {
+            if err.kind() != ErrorKind::NotFound {
+                warn!("Can't read the rfkill state, assuming bluetooth is not soft blocked: {err}");
+            }
+            false
+        })
 }
 
 /// Whether a `PropertiesChanged` touches something `BluetoothData` shows, so
@@ -237,4 +313,64 @@ fn shows_change(signal: &PropertiesChanged) -> bool {
     };
 
     bus::changes_any(&args, shown)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rfkill::Switch;
+
+    fn switches(radios: &[(Kind, bool, bool)]) -> Switches {
+        radios
+            .iter()
+            .zip(0..)
+            .map(|(&(kind, soft, hard), idx)| (idx, Switch { kind, soft, hard }))
+            .collect()
+    }
+
+    #[test]
+    fn unblocked_without_bluetooth_switches() {
+        assert!(!soft_blocked(&switches(&[])));
+        assert!(!soft_blocked(&switches(&[(Kind::Wlan, true, false)])));
+    }
+
+    #[test]
+    fn any_soft_blocked_bluetooth_switch_blocks() {
+        assert!(soft_blocked(&switches(&[
+            (Kind::Bluetooth, false, false),
+            (Kind::Bluetooth, true, false),
+        ])));
+    }
+
+    #[test]
+    fn waits_for_the_first_rfkill_state() {
+        let mut sources = Sources::default();
+        assert_eq!(sources.soft_blocked(|| Ok(true)), None);
+    }
+
+    #[test]
+    fn asks_sysfs_while_rfkill_is_unreadable() {
+        let mut sources = Sources::default();
+        sources.apply(Event::Rfkill(None));
+        assert_eq!(sources.soft_blocked(|| Ok(true)), Some(true));
+    }
+
+    #[test]
+    fn keeps_the_last_block_when_nothing_can_be_read() {
+        let unreadable = || Err(ErrorKind::PermissionDenied.into());
+        let mut sources = Sources::default();
+        sources.apply(Event::Rfkill(Some(true)));
+        assert_eq!(sources.soft_blocked(unreadable), Some(true));
+
+        sources.apply(Event::Rfkill(None));
+        assert_eq!(sources.soft_blocked(unreadable), Some(true));
+
+        sources.apply(Event::Rfkill(Some(false)));
+        assert_eq!(sources.soft_blocked(unreadable), Some(false));
+    }
+
+    #[test]
+    fn hard_block_alone_does_not_count() {
+        assert!(!soft_blocked(&switches(&[(Kind::Bluetooth, false, true)])));
+    }
 }

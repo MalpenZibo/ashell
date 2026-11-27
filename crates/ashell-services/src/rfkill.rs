@@ -1,11 +1,11 @@
 //! The kernel rfkill interface: the radio switches and their soft blocks.
 //!
-//! This talks to sysfs and `/dev/rfkill` directly instead of spawning the
-//! `rfkill` binary: it lives in `/usr/sbin` on some distros, which is not in
-//! a normal user's `PATH` there (openSUSE, ALT), and NixOS has no `/usr/sbin`
-//! at all. The binary is not setuid, so writing `/dev/rfkill` ourselves needs
-//! the same permissions it does: systemd gives the user of a seat write access
-//! to the device node, on other systems the user has to be in the `rfkill`
+//! This talks to `/dev/rfkill` directly instead of spawning the `rfkill`
+//! binary: it lives in `/usr/sbin` on some distros, which is not in a normal
+//! user's `PATH` there (openSUSE, ALT), and NixOS has no `/usr/sbin` at all.
+//! The binary is not setuid, so writing `/dev/rfkill` ourselves needs the
+//! same permissions it does: systemd gives the user of a seat write access to
+//! the device node, on other systems the user has to be in the `rfkill`
 //! group.
 
 use crate::{
@@ -25,7 +25,7 @@ use log::{info, warn};
 use std::{
     collections::BTreeMap,
     ffi::{CStr, OsStr},
-    fs::{File, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{self, ErrorKind, Read, Write},
     os::unix::fs::OpenOptionsExt,
     path::Path,
@@ -35,11 +35,11 @@ use tokio::{
     time::{sleep, timeout},
 };
 
-const SYSFS_RFKILL: &str = "/sys/class/rfkill";
 const DEV_DIR: &str = "/dev";
 const DEV_NAME: &str = "rfkill";
 const DEV_RFKILL: &str = "/dev/rfkill";
 const DEV_RFKILL_C: &CStr = c"/dev/rfkill";
+const SYSFS_RFKILL: &str = "/sys/class/rfkill";
 
 // From linux/rfkill.h.
 const TYPE_WLAN: u8 = 1;
@@ -49,6 +49,18 @@ const OP_DEL: u8 = 1;
 const OP_CHANGE: u8 = 2;
 const OP_CHANGE_ALL: u8 = 3;
 const EVENT_SIZE: usize = 8;
+// The `type` attribute in sysfs, by `RFKILL_TYPE_*`.
+const SYSFS_TYPES: [&str; 9] = [
+    "all",
+    "wlan",
+    "bluetooth",
+    "ultrawideband",
+    "wimax",
+    "wwan",
+    "gps",
+    "fm",
+    "nfc",
+];
 
 /// The radio a switch blocks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -321,10 +333,7 @@ struct Reader(AsyncFd<File>);
 
 impl Reader {
     fn open() -> io::Result<Self> {
-        let file = OpenOptions::new()
-            .read(true)
-            .custom_flags(libc::O_NONBLOCK)
-            .open(DEV_RFKILL)?;
+        let file = open(false)?;
         // SAFETY: the File owns its fd until it is dropped, and `as_raw_fd`
         // always returns that same fd.
         Ok(Self(unsafe {
@@ -351,6 +360,43 @@ impl Reader {
     }
 }
 
+fn open(write: bool) -> io::Result<File> {
+    OpenOptions::new()
+        .read(true)
+        .write(write)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(DEV_RFKILL)
+}
+
+/// The switches as they are now, read once from `/dev/rfkill`.
+pub fn current() -> io::Result<Switches> {
+    read_switches(&open(false)?)
+}
+
+/// Whether any switch of `kind` is soft-blocked, read from sysfs. Anyone can
+/// read sysfs, while `/dev/rfkill` is root-only without systemd's udev rules.
+pub fn sysfs_soft_blocked(kind: Kind) -> io::Result<bool> {
+    let Some(&name) = SYSFS_TYPES.get(usize::from(kind.raw())) else {
+        return Ok(false);
+    };
+
+    for entry in fs::read_dir(SYSFS_RFKILL)? {
+        let path = entry?.path();
+        let attr = |attr| fs::read_to_string(path.join(attr)).unwrap_or_default();
+        if attr("type").trim() == name && attr("soft").trim() == "1" {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+fn read_switches(file: &File) -> io::Result<Switches> {
+    let mut switches = Switches::new();
+    apply(&mut switches, read_queued(file)?);
+    Ok(switches)
+}
+
 fn read_queued(mut file: &File) -> io::Result<Vec<Event>> {
     let mut events = Vec::new();
     let mut buf = [0; EVENT_SIZE];
@@ -375,13 +421,8 @@ pub struct Control {
 
 impl Control {
     pub fn open() -> io::Result<Self> {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .custom_flags(libc::O_NONBLOCK)
-            .open(DEV_RFKILL)?;
-        let mut switches = Switches::new();
-        apply(&mut switches, read_queued(&file)?);
+        let file = open(true)?;
+        let switches = read_switches(&file)?;
 
         Ok(Self { file, switches })
     }
@@ -406,57 +447,6 @@ impl Control {
 // switches of the given type.
 fn change_all_event(kind: Kind, blocked: bool) -> [u8; EVENT_SIZE] {
     [0, 0, 0, 0, kind.raw(), OP_CHANGE_ALL, u8::from(blocked), 0]
-}
-
-/// Whether any Bluetooth rfkill switch is soft-blocked.
-///
-/// A system without rfkill support has nothing to block, so that counts as
-/// unblocked, and so does a system whose state we can't read: this is only
-/// used to tell whether the radios are off, never to change them.
-pub async fn bluetooth_soft_blocked() -> bool {
-    match read_bluetooth_soft_block().await {
-        Ok(blocked) => blocked,
-        Err(err) => {
-            warn!("Can't read the rfkill state, assuming bluetooth is not soft blocked: {err:#}");
-            false
-        }
-    }
-}
-
-/// Fires on every write to `/dev/rfkill`. Never fails: without a watch, soft
-/// block changes just aren't noticed until the next read.
-pub fn soft_block_changes() -> BoxStream<'static, ()> {
-    node_changes(WatchMask::MODIFY)
-}
-
-async fn read_bluetooth_soft_block() -> anyhow::Result<bool> {
-    let mut entries = match tokio::fs::read_dir(SYSFS_RFKILL).await {
-        Ok(entries) => entries,
-        // No rfkill support at all.
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(false),
-        Err(err) => {
-            return Err(anyhow::Error::new(err).context(format!("read {SYSFS_RFKILL}")));
-        }
-    };
-
-    while let Some(entry) = entries.next_entry().await? {
-        let path = entry.path();
-        let Ok(kind) = tokio::fs::read_to_string(path.join("type")).await else {
-            continue;
-        };
-        if kind.trim() != "bluetooth" {
-            continue;
-        }
-        // The soft attribute is the current soft block, the hard one is a
-        // switch we can't change anyway.
-        if let Ok(soft) = tokio::fs::read_to_string(path.join("soft")).await
-            && soft.trim() == "1"
-        {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
 }
 
 #[cfg(test)]
