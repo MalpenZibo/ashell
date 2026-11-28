@@ -82,7 +82,7 @@ table:
 | [`[monitor."<monitor>"]`](@/docs/rolling/configuration/bars.md#monitors) | Which bars a monitor has. |
 | [`[zone.<name>]`](@/docs/rolling/configuration/zones.md) | A zone's items, details and click. |
 | [`[tempo]`](@/docs/rolling/configuration/tempo.md) | The time zones, and where the weather is for. |
-| [`[settings]`](@/docs/rolling/configuration/settings.md) | The commands of the power buttons. |
+| [`[settings]`](@/docs/rolling/configuration/settings.md) | The commands of the power buttons, the volume's limit and step. |
 
 ## The levels of a bar
 
@@ -107,8 +107,8 @@ bar                  an edge of the screen: where, and how things open
 - [Tempo](@/docs/rolling/configuration/tempo.md): the time, the weather and
   the calendar.
 - [Settings](@/docs/rolling/configuration/settings.md): the batteries, the
-  power profile, Bluetooth, the idle inhibitor and the brightness, and the
-  settings panel.
+  power profile, Bluetooth, the idle inhibitor, the brightness and the
+  volume, and the settings panel.
 
 ## Options flow down
 

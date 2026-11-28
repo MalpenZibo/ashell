@@ -198,8 +198,8 @@ items! {
     IdleInhibitor = "idle_inhibitor", Notable, Settings, Settings;
     PowerProfile = "power_profile", Notable, Settings, Settings;
     Bluetooth = "bluetooth", Notable, Settings, Settings;
-    Microphone = "microphone", Notable, Settings, -;
-    Volume = "volume", Notable, Settings, -;
+    Microphone = "microphone", Notable, Settings, Settings;
+    Volume = "volume", Notable, Settings, Settings;
     Brightness = "brightness", Never, Settings, Settings;
     Network = "network", Notable, Settings, -;
     Vpn = "vpn", Notable, Settings, -;

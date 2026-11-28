@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::time::Duration;
 
+use ashell_services::audio::PortKind;
 use ashell_services::bluetooth::BluetoothState;
 use ashell_services::upower::{
     BatteryData, BatteryStatus, PeripheralDeviceKind, PowerProfile, UPowerData,
@@ -13,7 +14,7 @@ use styletto::primitives::text::typed;
 use styletto::{Icon, centered_row, icon, look};
 use toml::{Table, Value};
 
-use super::Settings;
+use super::{Settings, Sound};
 use crate::config::{Item, ItemId};
 use crate::modules::{ItemView, Style, shown, unknown_options};
 
@@ -35,6 +36,8 @@ const CONNECTED: &str = "connected";
 const BALANCED: &str = "balanced";
 const PERFORMANCE: &str = "performance";
 const POWER_SAVER: &str = "power_saver";
+const MUTED: &str = "muted";
+const UNMUTED: &str = "unmuted";
 
 /// The states an item can be in, for its `show`.
 pub fn states(id: ItemId) -> &'static [&'static str] {
@@ -45,6 +48,7 @@ pub fn states(id: ItemId) -> &'static [&'static str] {
         ItemId::Bluetooth => &[ON, OFF, CONNECTED],
         ItemId::IdleInhibitor => &[ON, OFF],
         ItemId::PowerProfile => &[BALANCED, PERFORMANCE, POWER_SAVER],
+        ItemId::Volume | ItemId::Microphone => &[MUTED, UNMUTED],
         _ => &[],
     }
 }
@@ -85,6 +89,10 @@ pub enum Options {
     Brightness {
         style: Style,
     },
+    Sound {
+        sound: Sound,
+        style: Style,
+    },
 }
 
 /// Where a battery's charge turns to a warning and to an alert: below
@@ -121,7 +129,9 @@ impl Options {
         let known: &[&str] = match id {
             ItemId::Battery => &["style", "glyph", "warn_threshold", "alert_threshold"],
             ItemId::PeripheralBattery => &["style", "warn_threshold", "alert_threshold", "kinds"],
-            ItemId::Bluetooth | ItemId::Brightness => &["style"],
+            ItemId::Bluetooth | ItemId::Brightness | ItemId::Volume | ItemId::Microphone => {
+                &["style"]
+            }
             _ => &[],
         };
         unknown_options(id, table, known, &mut problems);
@@ -150,6 +160,14 @@ impl Options {
                 style: Style::read(table, Style::Icon, &mut problems),
             },
             ItemId::IdleInhibitor => Options::IdleInhibitor,
+            ItemId::Volume => Options::Sound {
+                sound: Sound::Output,
+                style: Style::read(table, Style::Icon, &mut problems),
+            },
+            ItemId::Microphone => Options::Sound {
+                sound: Sound::Input,
+                style: Style::read(table, Style::Icon, &mut problems),
+            },
             _ => Options::Brightness {
                 style: Style::read(table, Style::Icon, &mut problems),
             },
@@ -232,6 +250,7 @@ pub fn view(settings: Settings, item: &Item) -> ItemView {
         Options::Bluetooth { style } => bluetooth(settings, item, style),
         Options::IdleInhibitor => idle_inhibitor(settings, item),
         Options::Brightness { style } => brightness(settings, item, style),
+        Options::Sound { sound, style } => sound_item(settings, item, sound, style),
     };
 
     ItemView {
@@ -558,6 +577,75 @@ fn idle_inhibitor(settings: Settings, item: &Item) -> Drawn {
     ));
 
     (view, shown(item, move || inhibited.get().is_some(), is))
+}
+
+/// The output's or the input's volume: its icon, dim while muted, and how
+/// loud, which beside the icon a muted one does not say.
+fn sound_item(settings: Settings, item: &Item, sound: Sound, style: Style) -> Drawn {
+    let audio = settings.audio.data;
+
+    let device = create_memo(move || {
+        audio.with(|data| {
+            sound
+                .percent(data)
+                .map(|percent| (sound.muted(data), percent.round()))
+        })
+    });
+    let muted = create_memo(move || device.get().is_some_and(|(muted, _)| muted));
+    let is = move |state: &str| match state {
+        MUTED => muted.get(),
+        UNMUTED => device.get().is_some_and(|(muted, _)| !muted),
+        _ => false,
+    };
+
+    let view = container()
+        .layout(centered_row(size::S1.px()))
+        .child(style.icon().then(|| {
+            icon(
+                move || sound_icon(sound, muted.get(), device.get().map_or(0.0, |(_, p)| p)),
+                icon_box::SMALL.px(),
+                look().color(move |c| if muted.get() { c.dim } else { c.text }),
+            )
+        }))
+        .child(move || {
+            (style.value() && !(style.icon() && muted.get())).then(|| {
+                label(move || {
+                    device
+                        .get()
+                        .map(|(_, percent)| format!("{percent}%"))
+                        .unwrap_or_default()
+                })
+            })
+        });
+
+    (view, shown(item, move || device.get().is_some(), is))
+}
+
+/// The icon of `sound`, muted or not: the output's shows how loud.
+pub(super) fn sound_icon(sound: Sound, muted: bool, percent: f32) -> Icon {
+    match (sound, muted) {
+        (Sound::Output, false) => Levels::VOLUME.icon(percent).unwrap_or(Icon::Volume),
+        (Sound::Output, true) => Icon::VolumeOff,
+        (Sound::Input, false) => Icon::Mic,
+        (Sound::Input, true) => Icon::MicOff,
+    }
+}
+
+/// A port's icon, the sound's own for one with none that fits.
+pub(super) fn port_icon(sound: Sound, kind: Option<PortKind>) -> Icon {
+    match kind {
+        Some(PortKind::Speaker) => Icon::Speaker,
+        Some(PortKind::Headphones) => Icon::Headphones,
+        Some(PortKind::Headset | PortKind::Handsfree) => Icon::Headset,
+        Some(PortKind::Hdmi | PortKind::Video) => Icon::Monitor,
+        Some(PortKind::Tv) => Icon::Tv,
+        Some(PortKind::Usb) => Icon::Usb,
+        Some(PortKind::Bluetooth) => Icon::Bluetooth,
+        _ => match sound {
+            Sound::Output => Icon::Volume,
+            Sound::Input => Icon::Mic,
+        },
+    }
 }
 
 fn brightness(settings: Settings, item: &Item, style: Style) -> Drawn {

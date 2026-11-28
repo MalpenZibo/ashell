@@ -5,6 +5,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use guido::prelude::*;
+use guido::widgets::SCROLL_PIXELS_PER_LINE;
 use styletto::centered_row;
 use styletto::components::button::{pill, pill_text};
 use styletto::foundations::control::Size;
@@ -13,10 +14,6 @@ use styletto::foundations::tokens::size;
 use crate::command;
 use crate::config::{Action, Item, Open};
 use crate::modules::{ItemView, Modules};
-
-/// How far a wheel or a finger scrolls for one step of `scroll_up` or
-/// `scroll_down`: a notch of the wheel, as guido counts it.
-const SCROLL_STEP: f32 = 40.0;
 
 /// Opens what an item or a zone opens: a panel under the zone the item is
 /// in, or the config window.
@@ -126,15 +123,15 @@ fn drawn(item: &Item, view: ItemView, zone_open: Open, opens: Opens) -> Containe
             // Down is positive, as for a scrolled list.
             let mut total = gathered.get() + delta;
 
-            while total <= -SCROLL_STEP {
-                total += SCROLL_STEP;
+            while total <= -SCROLL_PIXELS_PER_LINE {
+                total += SCROLL_PIXELS_PER_LINE;
                 if let Some(up) = &up {
                     up();
                 }
             }
 
-            while total >= SCROLL_STEP {
-                total -= SCROLL_STEP;
+            while total >= SCROLL_PIXELS_PER_LINE {
+                total -= SCROLL_PIXELS_PER_LINE;
                 if let Some(down) = &down {
                     down();
                 }

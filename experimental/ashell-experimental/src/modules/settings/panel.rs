@@ -1,8 +1,10 @@
 //! The `settings` panel, as the prototype's: the battery and the power
-//! buttons, the brightness, the toggles, and the batteries of other devices;
-//! and the pages they open: power, the power profiles and Bluetooth.
+//! buttons, the levels, the toggles, and the batteries of other devices; and
+//! the pages they open: power, the outputs, the inputs, the power profiles
+//! and Bluetooth.
 
 use ashell_i18n::t;
+use ashell_services::audio::Route;
 use ashell_services::bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothState};
 use ashell_services::upower::{
     BatteryData, BatteryStatus, PowerProfile, UPowerCommand, UPowerData,
@@ -22,7 +24,7 @@ use styletto::foundations::typography as ty;
 use styletto::primitives::text::{caption, typed};
 use styletto::{Icon, icon, look};
 
-use super::{Settings, items};
+use super::{Settings, Sound, items};
 use crate::command;
 use crate::modules::configurator::Shown;
 use crate::modules::{ClosePanel, Modules};
@@ -41,6 +43,7 @@ fn list_height() -> f32 {
 enum Page {
     Main,
     Power,
+    Devices(Sound),
     PowerProfiles,
     Bluetooth,
 }
@@ -57,6 +60,7 @@ pub fn view(settings: Settings) -> Container {
         .child(pages(stack, move |page| match page {
             Page::Main => main(settings, stack),
             Page::Power => power(settings, stack),
+            Page::Devices(sound) => devices(settings, sound, stack),
             Page::PowerProfiles => power_profiles(settings, stack),
             Page::Bluetooth => bluetooth(settings, stack),
         }))
@@ -80,7 +84,7 @@ fn main(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
 
     column(sections())
         .child(header(settings, stack))
-        .child(brightness(settings))
+        .child(levels(settings, stack))
         .child(tiles(settings, stack))
         .child(move || any_peripheral.get().then(|| peripherals(settings)))
 }
@@ -375,7 +379,161 @@ fn power(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
         }))
 }
 
-/// The brightness, while there is a backlight.
+/// The volume and the microphone, an icon muting each, and the brightness:
+/// each while there is a device for it. With more than one output or input,
+/// a chevron opens their page.
+fn levels(settings: Settings, stack: RwSignal<Vec<Page>>) -> Container {
+    column(size::S2.px())
+        .child(sound_slider(settings, Sound::Output, stack))
+        .child(sound_slider(settings, Sound::Input, stack))
+        .child(brightness(settings))
+}
+
+/// How loud `sound` is, zero while muted and none without a device, and
+/// whether it is muted.
+fn sound_state(settings: Settings, sound: Sound) -> (Memo<Option<f32>>, Memo<bool>) {
+    let audio = settings.audio.data;
+
+    (
+        create_memo(move || audio.with(|data| sound.percent(data))),
+        create_memo(move || audio.with(|data| sound.muted(data))),
+    )
+}
+
+fn sound_slider(settings: Settings, sound: Sound, stack: RwSignal<Vec<Page>>) -> Container {
+    let audio = settings.audio.data;
+
+    let (percent, muted) = sound_state(settings, sound);
+    let present = create_memo(move || percent.get().is_some());
+    let several = create_memo(move || audio.with(|data| sound.several(data)));
+    let max = create_memo(move || settings.config.with(|config| sound.max_percent(config)) as f32);
+    let step = create_memo(move || settings.config.with(|config| config.volume_step) as f32);
+
+    container().width(fill()).child(move || {
+        present.get().then(|| {
+            slider_row(
+                move || items::sound_icon(sound, muted.get(), percent.get().unwrap_or(0.0)),
+                move || percent.get().unwrap_or(0.0),
+            )
+            .max(max)
+            .step(step)
+            .on_change(move |percent| settings.set_volume(sound, percent))
+            .on_icon(move || settings.audio.commands.send(sound.toggle_mute()))
+            .on_more(move || {
+                several
+                    .get()
+                    .then(|| Callback::new(move || push(stack, Page::Devices(sound))))
+            })
+        })
+    })
+}
+
+/// The outputs, or the inputs: each port of a device on its own, the one in
+/// use checked. A click on another makes it the one in use.
+fn devices(settings: Settings, sound: Sound, stack: RwSignal<Vec<Page>>) -> Container {
+    let data = settings.audio.data;
+
+    let choices = create_memo(move || {
+        data.with(|data| {
+            let default = sound.default(data);
+
+            sound
+                .routes(data)
+                .map(|route| Choice::new(sound, route, default))
+                .collect::<Vec<_>>()
+        })
+    });
+    let title = match sound {
+        Sound::Output => t!("settings-audio-output"),
+        Sound::Input => t!("settings-audio-input"),
+    };
+    let (percent, muted) = sound_state(settings, sound);
+    let unmuted = create_memo(move || !muted.get());
+    let status = create_memo(move || {
+        let chosen = choices.with(|choices| {
+            choices
+                .iter()
+                .find(|choice| choice.chosen)
+                .map(|choice| choice.title.clone())
+        });
+
+        match (chosen, percent.get()) {
+            (Some(chosen), Some(percent)) => format!("{chosen} · {percent:.0}%"),
+            (Some(chosen), None) => chosen,
+            _ => String::new(),
+        }
+    });
+    let end = switch(
+        move || items::sound_icon(sound, muted.get(), percent.get().unwrap_or(0.0)),
+        unmuted,
+        move || settings.audio.commands.send(sound.toggle_mute()),
+    );
+
+    column(below_head())
+        .child(head(stack, title, status, end))
+        .child(scroll_list(list_height()).children(keyed(
+            move || choices.get(),
+            |choice| (choice.device.clone(), choice.port.clone()),
+            move |choice| choice_row(settings, sound, choice),
+        )))
+}
+
+/// An output or an input: a click makes it the one in use.
+fn choice_row(settings: Settings, sound: Sound, choice: Choice) -> impl Widget {
+    let Choice {
+        title,
+        subtitle,
+        icon: kind,
+        chosen,
+        device,
+        port,
+    } = choice;
+
+    row(title)
+        .icon(kind)
+        .subtitle(subtitle)
+        .checked(chosen)
+        .on_click(move || {
+            settings
+                .audio
+                .commands
+                .send(sound.choose(device.clone(), port.clone()))
+        })
+}
+
+/// An output or an input to choose, as the panel lists it.
+#[derive(Clone, PartialEq)]
+struct Choice {
+    title: String,
+    subtitle: String,
+    icon: Icon,
+    chosen: bool,
+    device: String,
+    port: Option<String>,
+}
+
+impl Choice {
+    /// The port, the device it is on under it; the device alone when it has
+    /// no ports. It is the one in use when it is the `default` device's
+    /// active port.
+    fn new(sound: Sound, route: Route<'_>, default: &str) -> Self {
+        let device = route.device.description.clone();
+        let (title, subtitle) = match route.port {
+            Some(port) => (port.description.clone(), device),
+            None => (device, String::new()),
+        };
+
+        Self {
+            title,
+            subtitle,
+            icon: items::port_icon(sound, route.port.map(|port| port.kind)),
+            chosen: route.device.name == default && route.is_active(),
+            device: route.device.name.clone(),
+            port: route.port.map(|port| port.name.clone()),
+        }
+    }
+}
+
 fn brightness(settings: Settings) -> Container {
     let data = settings.brightness.data;
 
