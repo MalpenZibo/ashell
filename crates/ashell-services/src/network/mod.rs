@@ -15,17 +15,23 @@ use futures::{
 };
 use iwd_dbus::{IwdDbus, Passphrases};
 use log::{debug, error, info};
+use password::PasswordRequests;
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
     mem::{replace, take},
     pin::pin,
+    sync::Arc,
 };
 use tokio::sync::watch;
 use zbus::{ObjectPath, OwnedObjectPath, OwnedVariant, Variant, proxy, proxy::CacheProperties};
 
 mod dbus;
 mod iwd_dbus;
+mod password;
+mod secret_agent;
+
+pub use password::{PasswordReply, PasswordRequest, PasswordRequestId};
 
 const NETWORK_MANAGER: &str = "org.freedesktop.NetworkManager";
 const IWD: &str = "net.connman.iwd";
@@ -464,6 +470,8 @@ pub struct Network {
     pending_scans: PendingScans,
     profiles: Profiles,
     passphrases: Passphrases,
+    password_requests: PasswordRequests,
+    secret_agent: Arc<secret_agent::Registration>,
 }
 
 impl Network {
@@ -475,6 +483,8 @@ impl Network {
             pending_scans: watch::Sender::new(HashSet::new()),
             profiles: Profiles::default(),
             passphrases: Passphrases::default(),
+            password_requests: PasswordRequests::default(),
+            secret_agent: Arc::default(),
         })
     }
 
@@ -528,6 +538,31 @@ impl Network {
         }
     }
 
+    /// The Wi-Fi passphrases NetworkManager or iwd wait for, oldest first: the
+    /// pending ones once subscribed, then after every change. Each waits for
+    /// [`reply_password`](Self::reply_password), or until its daemon takes it
+    /// back.
+    ///
+    /// While one is listened to, the handle is a NetworkManager secret agent,
+    /// registered again whenever NetworkManager starts, and its iwd agent asks
+    /// for the passphrases it wasn't given. Without one, both leave the
+    /// requests to other agents.
+    pub fn password_requests(&self) -> impl Stream<Item = Vec<PasswordRequest>> + Send + 'static {
+        let requests = self.password_requests.subscribe();
+        let agent = secret_agent::serve(
+            self.conn.clone(),
+            self.password_requests.clone(),
+            self.secret_agent.clone(),
+        );
+
+        stream::select(requests, stream::once(agent).filter_map(|()| ready(None)))
+    }
+
+    /// Ends the request `id`, if still pending.
+    pub fn reply_password(&self, id: PasswordRequestId, reply: PasswordReply) {
+        self.password_requests.reply(id, reply);
+    }
+
     async fn network_manager(&self) -> anyhow::Result<NetworkDbus<'static>> {
         NetworkDbus::new(
             &self.conn,
@@ -538,7 +573,12 @@ impl Network {
     }
 
     async fn iwd(&self) -> anyhow::Result<IwdDbus<'static>> {
-        IwdDbus::new(&self.conn, self.passphrases.clone()).await
+        IwdDbus::new(
+            &self.conn,
+            self.passphrases.clone(),
+            self.password_requests.clone(),
+        )
+        .await
     }
 }
 
