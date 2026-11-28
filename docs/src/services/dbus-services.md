@@ -42,8 +42,8 @@ The `#[proxy]` macro generates an `AdapterProxy` struct with async methods for e
 | Service | Bus | D-Bus Service Name | Proxy File |
 |---------|-----|-------------------|------------|
 | Bluetooth | System | `org.bluez` | `crates/ashell-services/src/bluetooth/dbus.rs` |
-| Network (NM) | System | `org.freedesktop.NetworkManager` | `services/network/dbus.rs` |
-| Network (IWD) | System | `net.connman.iwd` | `services/network/iwd_dbus/` |
+| Network (NM) | System | `org.freedesktop.NetworkManager` | `crates/ashell-services/src/network/dbus.rs` |
+| Network (IWD) | System | `net.connman.iwd` | `crates/ashell-services/src/network/iwd_dbus/` |
 | UPower | System | `org.freedesktop.UPower` | `crates/ashell-services/src/upower/dbus.rs` |
 | Logind | System | `org.freedesktop.login1` | `crates/ashell-services/src/logind.rs` |
 | MPRIS | Session | `org.mpris.MediaPlayer2.*` | `services/mpris/dbus.rs` |
@@ -89,7 +89,7 @@ fn subscribe() -> Subscription<ServiceEvent<Self>> {
 
 ## IWD Bindings
 
-The IWD (iNet Wireless Daemon) integration has the most extensive D-Bus bindings in the project, located in `services/network/iwd_dbus/`. This includes proxy definitions for:
+The IWD (iNet Wireless Daemon) integration has the most extensive D-Bus bindings in the project, located in `crates/ashell-services/src/network/iwd_dbus/`. This includes proxy definitions for:
 
 - `Station` — WiFi station management
 - `Network` — WiFi network connections

@@ -45,15 +45,14 @@ src/
 │   └── settings/        # settings sub-panels (audio, network, bluetooth, power, brightness)
 ├── services/            # iced glue (ReadOnlyService/Service) + services not yet migrated to ashell-services
 │   ├── compositor/      # Hyprland/Niri/generic Wayland abstraction
-│   ├── network/         # NetworkManager + IWD backends
 │   ├── notifications/   # notification daemon
 │   ├── mpris/           # media player control
 │   ├── tray/            # system tray
-│   └── ...              # airplane, audio, bluetooth, brightness, privacy, idle_inhibitor, logind, throttle, upower, xdg_icons
+│   └── ...              # airplane, audio, bluetooth, brightness, network, privacy, idle_inhibitor, logind, throttle, upower, xdg_icons
 └── utils/
 crates/
 ├── ashell-i18n/         # localization: locale/unit system, catalog loading, t!() macro
-└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. airplane, audio, bluetooth, brightness, idle_inhibitor, logind, privacy, upower
+└── ashell-services/     # UI-agnostic services (no iced dependency), e.g. airplane, audio, bluetooth, brightness, idle_inhibitor, logind, network, privacy, upower
 experimental/            # ashell-experimental (Guido + styletto) and its Zola site; a Cargo workspace of its own
 ```
 

@@ -98,10 +98,7 @@ src/
 │   ├── audio.rs             # iced glue for the ashell-services audio service
 │   ├── brightness.rs        # iced glue for the ashell-services brightness service
 │   ├── bluetooth.rs         # iced glue for the ashell-services Bluetooth service
-│   ├── network/
-│   │   ├── mod.rs            # Network service logic
-│   │   ├── dbus.rs           # NetworkManager D-Bus proxies
-│   │   └── iwd_dbus/         # IWD (iNet Wireless Daemon) D-Bus bindings
+│   ├── network.rs           # iced glue for the ashell-services network service
 │   ├── mpris/
 │   │   ├── mod.rs            # Media player service
 │   │   └── dbus.rs           # MPRIS D-Bus proxies

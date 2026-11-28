@@ -403,8 +403,9 @@ the network module.
 The default value is `auto`: ashell checks whether NetworkManager or IWD owns
 its D-Bus name and initializes the first one it finds. If neither service is
 present, ashell logs once and waits for one to appear instead of retrying every
-few seconds. NetworkManager is preferred when both are available, which is also
-the case when NetworkManager uses IWD as its Wi-Fi backend.
+few seconds. If the service in use stops, the network indicator and menu are
+hidden until one is back. NetworkManager is preferred when both are available,
+which is also the case when NetworkManager uses IWD as its Wi-Fi backend.
 
 Set `network_backend = "disabled"` to disable the network service completely. This
 is useful on hosts that use systemd-networkd, dhcpcd or another tool, or when
