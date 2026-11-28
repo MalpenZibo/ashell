@@ -10,7 +10,7 @@ repository.workspace = true
 publish = false
 
 [features]
-airplane = ["rfkill"]
+airplane = ["rfkill", "dep:anyhow", "dep:log"]
 audio = [
     "dep:anyhow",
     "dep:libc",
@@ -19,7 +19,7 @@ audio = [
     "dep:tokio",
     "tokio/sync",
 ]
-bluetooth = ["rfkill", "dep:zbus", "tokio/time"]
+bluetooth = ["rfkill", "dep:anyhow", "dep:log", "dep:zbus", "tokio/time"]
 brightness = [
     "dep:anyhow",
     "dep:log",
@@ -78,7 +78,6 @@ rfkill = [
     "dep:log",
     "dep:tokio",
     "dep:udev",
-    "tokio/fs",
     "tokio/net",
     "tokio/time",
 ]
