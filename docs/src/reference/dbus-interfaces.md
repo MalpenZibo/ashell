@@ -9,17 +9,17 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 | BlueZ | `org.bluez.Adapter1` | `crates/ashell-services/src/bluetooth/dbus.rs` | Bluetooth adapter control | `bluez` |
 | BlueZ | `org.bluez.Device1` | `crates/ashell-services/src/bluetooth/dbus.rs` | Bluetooth device management | `bluez` |
 | BlueZ | `org.bluez.Battery1` | `crates/ashell-services/src/bluetooth/dbus.rs` | Bluetooth device battery level | `bluez` |
-| NetworkManager | `org.freedesktop.NetworkManager` | `services/network/dbus.rs` | Network state and connections | `networkmanager` |
-| NetworkManager | `org.freedesktop.NetworkManager.Device` | `services/network/dbus.rs` | Network device info | `networkmanager` |
-| NetworkManager | `org.freedesktop.NetworkManager.Connection.Active` | `services/network/dbus.rs` | Active connections | `networkmanager` |
-| NetworkManager | `org.freedesktop.NetworkManager.Settings` | `services/network/dbus.rs` | Saved connection profiles | `networkmanager` |
-| NetworkManager | `org.freedesktop.NetworkManager.Settings.Connection` | `services/network/dbus.rs` | Individual connection profile (e.g. VPN) | `networkmanager` |
-| NetworkManager | `org.freedesktop.NetworkManager.Device.Wireless` | `services/network/dbus.rs` | WiFi device control | `networkmanager` |
-| NetworkManager | `org.freedesktop.NetworkManager.AccessPoint` | `services/network/dbus.rs` | WiFi access point info | `networkmanager` |
-| IWD | `net.connman.iwd.Station` | `services/network/iwd_dbus/` | WiFi station management | `iwd` |
-| IWD | `net.connman.iwd.Network` | `services/network/iwd_dbus/` | WiFi network connections | `iwd` |
-| IWD | `net.connman.iwd.Device` | `services/network/iwd_dbus/` | Wireless device | `iwd` |
-| IWD | `net.connman.iwd.Agent` (served by ashell) | `services/network/iwd_dbus/` | Passphrase agent for connecting to secured networks | `iwd` |
+| NetworkManager | `org.freedesktop.NetworkManager` | `crates/ashell-services/src/network/dbus.rs` | Network state and connections | `networkmanager` |
+| NetworkManager | `org.freedesktop.NetworkManager.Device` | `crates/ashell-services/src/network/dbus.rs` | Network device info | `networkmanager` |
+| NetworkManager | `org.freedesktop.NetworkManager.Connection.Active` | `crates/ashell-services/src/network/dbus.rs` | Active connections | `networkmanager` |
+| NetworkManager | `org.freedesktop.NetworkManager.Settings` | `crates/ashell-services/src/network/dbus.rs` | Saved connection profiles | `networkmanager` |
+| NetworkManager | `org.freedesktop.NetworkManager.Settings.Connection` | `crates/ashell-services/src/network/dbus.rs` | Individual connection profile (e.g. VPN) | `networkmanager` |
+| NetworkManager | `org.freedesktop.NetworkManager.Device.Wireless` | `crates/ashell-services/src/network/dbus.rs` | WiFi device control | `networkmanager` |
+| NetworkManager | `org.freedesktop.NetworkManager.AccessPoint` | `crates/ashell-services/src/network/dbus.rs` | WiFi access point info | `networkmanager` |
+| IWD | `net.connman.iwd.Station` | `crates/ashell-services/src/network/iwd_dbus/` | WiFi station management | `iwd` |
+| IWD | `net.connman.iwd.Network` | `crates/ashell-services/src/network/iwd_dbus/` | WiFi network connections | `iwd` |
+| IWD | `net.connman.iwd.Device` | `crates/ashell-services/src/network/iwd_dbus/` | Wireless device | `iwd` |
+| IWD | `net.connman.iwd.Agent` (served by ashell) | `crates/ashell-services/src/network/iwd_dbus/` | Passphrase agent for connecting to secured networks | `iwd` |
 | UPower | `org.freedesktop.UPower` | `crates/ashell-services/src/upower/dbus.rs` | Power daemon | `upower` |
 | UPower | `org.freedesktop.UPower.Device` | `crates/ashell-services/src/upower/dbus.rs` | Battery/device info | `upower` |
 | UPower | `org.freedesktop.UPower.PowerProfiles` | `crates/ashell-services/src/upower/dbus.rs` | Power profile switching | `power-profiles-daemon` |

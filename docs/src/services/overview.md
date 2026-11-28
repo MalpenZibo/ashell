@@ -11,7 +11,7 @@ Services are the backend layer of ashell. They manage communication with system 
 | Audio | `crates/ashell-services/src/audio/` (iced glue in `services/audio.rs`) | PulseAudio | libpulse C library | PulseAudio or PipeWire-Pulse |
 | Brightness | `crates/ashell-services/src/brightness/` (iced glue in `services/brightness.rs`) | sysfs + logind | File I/O + D-Bus | systemd-logind |
 | Bluetooth | `crates/ashell-services/src/bluetooth/` (iced glue in `services/bluetooth.rs`) | BlueZ + kernel rfkill | D-Bus + `/dev/rfkill` events | `bluez` |
-| Network | `services/network/` | NetworkManager / IWD | D-Bus | `networkmanager` or `iwd` |
+| Network | `crates/ashell-services/src/network/` (iced glue in `services/network.rs`) | NetworkManager / IWD | D-Bus | `networkmanager` or `iwd` |
 | MPRIS | `services/mpris/` | Media players | D-Bus | MPRIS-compatible player |
 | Tray | `services/tray/` | StatusNotifierItem | D-Bus | — |
 | UPower | `crates/ashell-services/src/upower/` (iced glue in `services/upower.rs`) | UPower daemon | D-Bus | `upower` |

@@ -74,6 +74,7 @@ ashell-services = { path = "crates/ashell-services", features = [
   "idle_inhibitor",
   "keyboard_locks",
   "logind",
+  "network",
   "notifications",
   "privacy",
   "serde",

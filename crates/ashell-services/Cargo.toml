@@ -50,6 +50,15 @@ keyboard_locks = [
     "wayland-protocols/staging",
 ]
 logind = ["dep:anyhow", "dep:log", "dep:tokio", "dep:zbus", "tokio/time"]
+network = [
+    "dep:anyhow",
+    "dep:log",
+    "dep:tokio",
+    "dep:zbus",
+    "tokio/rt",
+    "tokio/sync",
+    "tokio/time",
+]
 notifications = [
     "xdg_icons",
     "dep:anyhow",
