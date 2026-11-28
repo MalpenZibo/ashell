@@ -2,6 +2,7 @@
 //! publishes is also the state the commands are resolved against.
 
 use super::{AudioCommand, AudioData, Device, Port, PortKind};
+use crate::retry::RETRY_DELAY;
 use libpulse_binding::{
     callbacks::ListResult,
     context::{
@@ -27,11 +28,9 @@ use std::{
     os::fd::{AsRawFd, OwnedFd, RawFd},
     rc::Rc,
     sync::mpsc::{Receiver, RecvTimeoutError, TryRecvError},
-    time::Duration,
 };
 use tokio::sync::watch;
 
-const RETRY_DELAY: Duration = Duration::from_secs(5);
 const APP_NAME: &str = "ashell";
 
 /// Serves the server until every handle is gone, connecting again after

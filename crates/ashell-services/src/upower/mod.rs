@@ -1,28 +1,27 @@
-use crate::{bus, stream::channel, throttle::ThrottleExt};
+use crate::{
+    bus,
+    retry::RETRY_DELAY,
+    stream::{channel, send},
+    throttle::ThrottleExt,
+};
 use dbus::{
     DeviceProxy, DeviceState, KbdBacklightProxy, PowerProfilesProxy, SystemBattery, UPowerDbus,
     UpDeviceKind,
 };
 use futures::{
-    FutureExt, SinkExt, Stream, StreamExt,
-    channel::mpsc::Sender,
+    FutureExt, Stream, StreamExt,
     future::{Either, ready, select},
     stream::{BoxStream, select_all},
     stream_select,
 };
 use log::{debug, error, warn};
 use std::{fmt, pin::pin, time::Duration};
-use zbus::{
-    OwnedObjectPath,
-    fdo::DBusProxy,
-    names::{BusName, WellKnownName},
-};
+use zbus::{OwnedObjectPath, fdo::DBusProxy, names::WellKnownName};
 
 mod dbus;
 
 const UPOWER: &str = "org.freedesktop.UPower";
 const POWER_PROFILES: &str = "org.freedesktop.UPower.PowerProfiles";
-const RETRY_DELAY: Duration = Duration::from_secs(5);
 const TIME_ESTIMATE_THROTTLE: Duration = Duration::from_secs(30);
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -461,7 +460,7 @@ impl UPower {
 
     async fn read_power_profile(conn: &zbus::Connection) -> anyhow::Result<PowerProfile> {
         // Reading it would start power-profiles-daemon
-        if !has_owner(conn, POWER_PROFILES).await? {
+        if !bus::has_owner(conn, POWER_PROFILES).await? {
             return Ok(PowerProfile::Unknown);
         }
 
@@ -590,19 +589,6 @@ impl UPower {
     }
 }
 
-async fn send(
-    output: &mut Sender<UPowerData>,
-    last: &mut Option<UPowerData>,
-    data: UPowerData,
-) -> bool {
-    if last.as_ref() == Some(&data) {
-        return true;
-    }
-
-    *last = Some(data.clone());
-    output.send(data).await.is_ok()
-}
-
 async fn start_service(conn: &zbus::Connection, name: &'static str) -> anyhow::Result<()> {
     DBusProxy::new(conn)
         .await?
@@ -610,13 +596,6 @@ async fn start_service(conn: &zbus::Connection, name: &'static str) -> anyhow::R
         .await?;
 
     Ok(())
-}
-
-async fn has_owner(conn: &zbus::Connection, name: &'static str) -> anyhow::Result<bool> {
-    Ok(DBusProxy::new(conn)
-        .await?
-        .name_has_owner(BusName::try_from(name)?)
-        .await?)
 }
 
 // DBus exposes the keyboard backlight as a signed integer: clamp negative values to 0

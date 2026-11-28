@@ -9,9 +9,12 @@
 
 mod activity;
 
-use crate::{stream::channel, udev_monitor};
+use crate::{
+    stream::{channel, send},
+    udev_monitor,
+};
 use activity::Activity;
-use futures::{SinkExt, Stream, future::pending};
+use futures::{Stream, future::pending};
 use log::{info, warn};
 use std::{
     fs::{self, File},
@@ -87,8 +90,8 @@ impl KeyboardLocks {
             let mut active = true;
 
             let mut leds = find_leds();
-            let mut data = KeyboardLocksData::read(&leds);
-            if output.send(data).await.is_err() {
+            let mut last = None;
+            if !send(&mut output, &mut last, KeyboardLocksData::read(&leds)).await {
                 return;
             }
 
@@ -119,12 +122,8 @@ impl KeyboardLocks {
                     }
                 }
 
-                let next = KeyboardLocksData::read(&leds);
-                if next != data {
-                    data = next;
-                    if output.send(data).await.is_err() {
-                        return;
-                    }
+                if !send(&mut output, &mut last, KeyboardLocksData::read(&leds)).await {
+                    return;
                 }
             }
         })

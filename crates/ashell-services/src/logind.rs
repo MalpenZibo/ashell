@@ -1,9 +1,6 @@
-use crate::stream::channel;
+use crate::{retry::RETRY_DELAY, stream::channel};
 use futures::{SinkExt, Stream, StreamExt};
 use log::warn;
-use std::time::Duration;
-
-const RETRY_DELAY: Duration = Duration::from_secs(5);
 
 /// The system woke up from sleep.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

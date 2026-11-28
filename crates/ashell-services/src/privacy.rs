@@ -1,4 +1,4 @@
-use crate::stream::channel;
+use crate::{retry::RETRY_DELAY, stream::channel};
 use futures::{FutureExt, SinkExt, Stream, StreamExt, select, stream::pending};
 use inotify::{EventMask, Inotify, WatchMask};
 use log::{debug, error, info, warn};
@@ -10,7 +10,6 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     thread,
-    time::Duration,
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
@@ -18,7 +17,6 @@ use tokio::{
 };
 
 const DEV_DIR: &str = "/dev";
-const RETRY_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Media {
