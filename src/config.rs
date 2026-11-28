@@ -2004,16 +2004,22 @@ pub struct Modules {
     pub right: Vec<ModuleDef>,
 }
 
+impl ModuleDef {
+    pub fn contains(&self, target: &ModuleName) -> bool {
+        match self {
+            ModuleDef::Single(m) => m == target,
+            ModuleDef::Group(ms) => ms.contains(target),
+        }
+    }
+}
+
 impl Modules {
     pub fn contains(&self, target: &ModuleName) -> bool {
         self.left
             .iter()
             .chain(&self.center)
             .chain(&self.right)
-            .any(|def| match def {
-                ModuleDef::Single(m) => m == target,
-                ModuleDef::Group(ms) => ms.contains(target),
-            })
+            .any(|def| def.contains(target))
     }
 }
 

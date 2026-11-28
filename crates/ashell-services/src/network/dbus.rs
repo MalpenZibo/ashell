@@ -841,7 +841,7 @@ async fn connection_settings<'a>(
         .await
 }
 
-type ConnectionSettingsMap = HashMap<String, Properties>;
+pub(super) type ConnectionSettingsMap = HashMap<String, Properties>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ApSecurity {
@@ -1027,7 +1027,7 @@ fn wireless_bssid(settings: &ConnectionSettingsMap) -> anyhow::Result<Option<Str
     anyhow::bail!("invalid BSSID in saved Wi-Fi profile")
 }
 
-fn connection_ssid(settings: &ConnectionSettingsMap) -> Option<String> {
+pub(super) fn connection_ssid(settings: &ConnectionSettingsMap) -> Option<String> {
     let ssid = array::<u8>(settings.get("802-11-wireless")?, "ssid")?;
     Some(String::from_utf8_lossy(&ssid).into_owned())
 }

@@ -8,7 +8,9 @@ pub mod station;
 use super::{
     AccessPointData, AccessPointOf, ActiveConnectionInfo, Backend, ConnectivityState, Event, IWD,
     ManagedObjects, NetworkBackend, NetworkData, Patch, Properties, Redacted, Vpn, best_per_ssid,
-    interface, known_access_points, managed_objects, object_path, object_property, property,
+    interface, known_access_points, managed_objects, object_path, object_property,
+    password::{Asker, PasswordReply, PasswordRequests},
+    property,
 };
 use crate::bus::{changes_any, interface_properties_changed};
 use futures::{
@@ -25,7 +27,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 use zbus::{
-    OwnedObjectPath, fdo::ObjectManagerProxy, fdo::PropertiesChanged, interface,
+    DBusError, OwnedObjectPath, fdo::ObjectManagerProxy, fdo::PropertiesChanged, interface,
     proxy::CacheProperties,
 };
 
@@ -46,6 +48,7 @@ const PASSWORD_AGENT: &str = "/ashell/pwagent/main";
 pub struct IwdDbus<'a> {
     manager: ObjectManagerProxy<'a>,
     passphrases: Passphrases,
+    password_requests: PasswordRequests,
     /// The stations `events()` registered a signal level agent on.
     signal_agents: Mutex<Vec<OwnedObjectPath>>,
 }
@@ -432,27 +435,70 @@ impl SignalAgent {
     }
 }
 
+#[derive(Debug, DBusError)]
+#[zbus(prefix = "net.connman.iwd.Agent.Error")]
+enum AgentError {
+    #[zbus(error)]
+    ZBus(zbus::Error),
+    Canceled(String),
+}
+
+/// Answers from the passphrase ashell was given to join a network, and asks
+/// the user for the others.
 struct PasswordAgent {
     passphrases: Passphrases,
+    requests: PasswordRequests,
 }
 
 #[interface(name = "net.connman.iwd.Agent")]
 impl PasswordAgent {
     #[zbus(name = "RequestPassphrase")]
-    fn request_passphrase(&self, network_path: OwnedObjectPath) -> zbus::fdo::Result<String> {
-        self.passphrases
-            .lock()
-            .remove(&network_path)
-            .map(Redacted::into_inner)
-            .ok_or_else(|| {
-                warn!("No password available for {network_path}");
-                zbus::fdo::Error::Failed("No password set".into())
-            })
+    async fn request_passphrase(
+        &self,
+        network_path: OwnedObjectPath,
+        #[zbus(connection)] conn: &zbus::Connection,
+    ) -> Result<String, AgentError> {
+        if let Some(passphrase) = self.passphrases.lock().remove(&network_path) {
+            return Ok(passphrase.into_inner());
+        }
+
+        let ssid = NetworkProxy::builder(conn)
+            .destination(IWD)
+            .path(&network_path)
+            .cache_properties(CacheProperties::No)
+            .build()
+            .await?
+            .name()
+            .await?;
+        debug!("iwd asks for the passphrase of {ssid}");
+
+        match self.requests.ask(ssid, Asker::Iwd).await {
+            PasswordReply::Password(passphrase) => Ok(passphrase.into_inner()),
+            PasswordReply::Cancel | PasswordReply::Decline => Err(AgentError::Canceled(format!(
+                "No passphrase for {network_path}"
+            ))),
+        }
+    }
+
+    /// iwd gave up on the request it is waiting for: it waits for one at a time.
+    #[zbus(name = "Cancel")]
+    fn cancel(&self, reason: String) {
+        debug!("iwd cancels its passphrase request: {reason}");
+        self.requests.withdraw(Asker::is_iwd);
+    }
+
+    #[zbus(name = "Release")]
+    fn release(&self) {
+        self.requests.withdraw(Asker::is_iwd);
     }
 }
 
 impl IwdDbus<'static> {
-    pub async fn new(conn: &zbus::Connection, passphrases: Passphrases) -> anyhow::Result<Self> {
+    pub async fn new(
+        conn: &zbus::Connection,
+        passphrases: Passphrases,
+        password_requests: PasswordRequests,
+    ) -> anyhow::Result<Self> {
         let manager = ObjectManagerProxy::builder(conn)
             .destination(IWD)
             .path("/")
@@ -463,6 +509,7 @@ impl IwdDbus<'static> {
         Ok(Self {
             manager,
             passphrases,
+            password_requests,
             signal_agents: Mutex::default(),
         })
     }
@@ -480,6 +527,7 @@ impl IwdDbus<'_> {
                 PASSWORD_AGENT,
                 PasswordAgent {
                     passphrases: self.passphrases.clone(),
+                    requests: self.password_requests.clone(),
                 },
             )
             .await?;

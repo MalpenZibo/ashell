@@ -16,10 +16,12 @@ ashell connects to several D-Bus services. This reference lists all interfaces u
 | NetworkManager | `org.freedesktop.NetworkManager.Settings.Connection` | `crates/ashell-services/src/network/dbus.rs` | Individual connection profile (e.g. VPN) | `networkmanager` |
 | NetworkManager | `org.freedesktop.NetworkManager.Device.Wireless` | `crates/ashell-services/src/network/dbus.rs` | WiFi device control | `networkmanager` |
 | NetworkManager | `org.freedesktop.NetworkManager.AccessPoint` | `crates/ashell-services/src/network/dbus.rs` | WiFi access point info | `networkmanager` |
+| NetworkManager | `org.freedesktop.NetworkManager.AgentManager` | `crates/ashell-services/src/network/secret_agent.rs` | Registering ashell as a secret agent | `networkmanager` |
+| NetworkManager | `org.freedesktop.NetworkManager.SecretAgent` (served by ashell) | `crates/ashell-services/src/network/secret_agent.rs` | Asking the user for Wi-Fi passphrases NetworkManager needs | `networkmanager` |
 | IWD | `net.connman.iwd.Station` | `crates/ashell-services/src/network/iwd_dbus/` | WiFi station management | `iwd` |
 | IWD | `net.connman.iwd.Network` | `crates/ashell-services/src/network/iwd_dbus/` | WiFi network connections | `iwd` |
 | IWD | `net.connman.iwd.Device` | `crates/ashell-services/src/network/iwd_dbus/` | Wireless device | `iwd` |
-| IWD | `net.connman.iwd.Agent` (served by ashell) | `crates/ashell-services/src/network/iwd_dbus/` | Passphrase agent for connecting to secured networks | `iwd` |
+| IWD | `net.connman.iwd.Agent` (served by ashell) | `crates/ashell-services/src/network/iwd_dbus/` | Passphrase agent: the passphrase typed to join a network, or asks the user for it | `iwd` |
 | UPower | `org.freedesktop.UPower` | `crates/ashell-services/src/upower/dbus.rs` | Power daemon | `upower` |
 | UPower | `org.freedesktop.UPower.Device` | `crates/ashell-services/src/upower/dbus.rs` | Battery/device info | `upower` |
 | UPower | `org.freedesktop.UPower.PowerProfiles` | `crates/ashell-services/src/upower/dbus.rs` | Power profile switching | `power-profiles-daemon` |

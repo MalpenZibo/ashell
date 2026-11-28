@@ -5,7 +5,7 @@ use crate::{
 };
 use ashell_i18n::t;
 use iced::{
-    Alignment, Element, Length, SurfaceId,
+    Alignment, Element, Length,
     id::Id,
     widget::{column, row, space, text, text_input, toggler},
 };
@@ -17,12 +17,11 @@ pub enum Message {
     PasswordChanged(String),
     TogglePasswordVisibility,
     ConnectOnceToggled(bool),
-    DialogConfirmed(SurfaceId),
-    DialogCancelled(SurfaceId),
+    DialogConfirmed,
+    DialogCancelled,
 }
 
 pub fn view<'a>(
-    id: SurfaceId,
     wifi_ssid: &str,
     current_password: &str,
     show_password: bool,
@@ -32,6 +31,9 @@ pub fn view<'a>(
 ) -> Element<'a, Message> {
     let (space, font_size, text_input_style) =
         use_theme(|theme| (theme.space, theme.font_size, theme.text_input_style()));
+
+    let confirm =
+        (warning_only || !current_password.is_empty()).then_some(Message::DialogConfirmed);
 
     let title = if warning_only {
         t!("password-dialog-open-network-title")
@@ -69,7 +71,7 @@ pub fn view<'a>(
                     .padding([space.xs, space.md])
                     .style(text_input_style)
                     .on_input(Message::PasswordChanged)
-                    .on_submit(Message::DialogConfirmed(id))
+                    .on_submit_maybe(confirm.clone())
                     .width(Length::Fill),
                 icon_button(if show_password {
                     StaticIcon::EyeOpened
@@ -100,16 +102,12 @@ pub fn view<'a>(
             styled_button(t!("password-dialog-cancel"))
                 .kind(ButtonKind::Outline)
                 .height(Length::Fixed(50.))
-                .on_press(Message::DialogCancelled(id)),
+                .on_press(Message::DialogCancelled),
             styled_button(t!("password-dialog-confirm"))
                 .kind(ButtonKind::Solid)
                 .hierarchy(ButtonHierarchy::Primary)
                 .height(Length::Fixed(50.))
-                .on_press_maybe(if !warning_only && current_password.is_empty() {
-                    None
-                } else {
-                    Some(Message::DialogConfirmed(id))
-                })
+                .on_press_maybe(confirm)
         )
         .spacing(space.xs)
         .width(Length::Fill),

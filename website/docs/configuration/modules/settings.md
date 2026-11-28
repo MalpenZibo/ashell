@@ -25,6 +25,7 @@ And lets you interact with these settings:
 - Change audio and microphone volume
 - Change audio output and input devices
 - Toggle network connection
+- Enter the Wi-Fi password NetworkManager or IWD asks for
 - Toggle VPN connection
 - Toggle airplane mode
 - Change brightness
@@ -139,6 +140,37 @@ Changing the switches needs write access to `/dev/rfkill`: systemd grants it to
 the user of the active seat, on other systems add the user to the `rfkill`
 group. The button is hidden without that access, and on systems without Wi-Fi
 or Bluetooth rfkill switches.
+
+## Wi-Fi Passwords
+
+When NetworkManager or IWD needs the password of a Wi-Fi network, for example
+because the password of a saved network changed, ashell asks for it in its
+password dialog. If the settings menu is open, the dialog shows in it and the
+menu stays open. If it is closed, it opens directly on the dialog, where it was
+last opened, and closes again once you confirm or cancel. Before the menu was
+ever opened, it opens on the first bar: at its left edge when the settings
+module is on the left of the bar, at its right edge otherwise. While the bar is
+hidden, ashell leaves the question to other agents.
+
+Cancelling the dialog stops the connection attempt. Closing the menu without
+answering leaves the question open: the dialog comes back when the menu opens,
+until NetworkManager or IWD stops waiting for it.
+
+With NetworkManager, ashell is a secret agent, like the GNOME and KDE desktops.
+It answers only the passwords of WPA, WPA2 and WPA3 Personal networks, and only
+when NetworkManager allows asking. VPN, 802.1X enterprise and other secrets are
+left to the other agents running, such as nm-applet or the agent of a desktop.
+ashell stores no passwords: NetworkManager saves the one you type in the
+connection profile, unless the profile marks the password as owned by an agent
+or not to be saved, in which case NetworkManager asks again next time.
+NetworkManager accepts one ashell per user as an agent: a second ashell of the
+same user does not ask for passwords.
+
+With IWD, ashell asks when IWD has no passphrase for a network it joins, for
+example when the saved one was rejected the last time.
+
+Passwords are asked for only while the settings module is in the bar and
+`network_backend` is not `disabled`.
 
 ## Share Wi-Fi
 
@@ -410,8 +442,9 @@ which is also the case when NetworkManager uses IWD as its Wi-Fi backend.
 Set `network_backend = "disabled"` to disable the network service completely. This
 is useful on hosts that use systemd-networkd, dhcpcd or another tool, or when
 you manage networking elsewhere and do not want ashell to connect to the bus.
-With `disabled`, the network indicator and menu are not backed by a service. The
-airplane mode button does not depend on it and stays available.
+With `disabled`, the network indicator and menu are not backed by a service, and
+ashell does not answer Wi-Fi password requests. The airplane mode button does not
+depend on it and stays available.
 
 ```toml
 [settings]

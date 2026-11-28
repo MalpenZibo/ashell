@@ -22,4 +22,7 @@ use zbus::proxy;
 pub trait Network {
     /// Connect method
     fn connect(&self) -> zbus::Result<()>;
+
+    #[zbus(property)]
+    fn name(&self) -> zbus::Result<String>;
 }
