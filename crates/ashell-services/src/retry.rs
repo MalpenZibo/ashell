@@ -4,7 +4,7 @@ pub(crate) const RETRY_DELAY: Duration = Duration::from_secs(5);
 
 /// Warns about the first of a run of failures, and the retries after it only at
 /// debug level. A macro, so the log names the service that failed.
-#[cfg(feature = "brightness")]
+#[cfg(any(feature = "brightness", feature = "rfkill"))]
 macro_rules! failed {
     ($failing:expr, $($message:tt)+) => {
         if std::mem::replace($failing, true) {
@@ -15,5 +15,5 @@ macro_rules! failed {
     };
 }
 
-#[cfg(feature = "brightness")]
+#[cfg(any(feature = "brightness", feature = "rfkill"))]
 pub(crate) use failed;

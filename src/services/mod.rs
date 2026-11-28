@@ -1,5 +1,6 @@
 use iced::{Subscription, Task};
 
+pub mod airplane;
 pub mod audio;
 pub mod bluetooth;
 pub mod brightness;

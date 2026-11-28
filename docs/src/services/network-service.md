@@ -30,7 +30,7 @@ Both backends implement the `NetworkBackend` trait in `mod.rs`. At startup the s
 
 - List available WiFi networks
 - Connect to WiFi networks (with an optional password)
-- Enable/disable WiFi and airplane mode
+- Enable/disable WiFi
 - WiFi network scanning
 - VPN connection toggling
 - Connection state monitoring

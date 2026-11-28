@@ -57,9 +57,6 @@ pub trait NetworkBackend: Send + Sync {
     // NOTE: the backend implementation diverged and the lifetimes are unhappy
     //async fn subscribe_events(&self) -> anyhow::Result<impl Stream<Item = NetworkEvent>>;
 
-    /// Toggles the airplane mode.
-    async fn set_airplane_mode(&self, enable: bool) -> anyhow::Result<()>;
-
     /// Scans for nearby Wi-Fi networks.
     async fn scan_nearby_wifi(&self) -> anyhow::Result<()>;
 
@@ -92,7 +89,6 @@ pub trait NetworkBackend: Send + Sync {
 #[derive(Debug, Clone)]
 pub enum NetworkEvent {
     WiFiEnabled(bool),
-    AirplaneMode(bool),
     Connectivity(ConnectivityState),
     WirelessDevice {
         wifi_present: bool,
@@ -153,8 +149,6 @@ pub enum PskOutcome {
 pub enum NetworkCommand {
     ScanNearByWiFi,
     ToggleWiFi,
-    ToggleAirplaneMode,
-    SetAirplaneMode(bool),
     SelectAccessPoint {
         access_point: AccessPointData,
         password: Option<Redacted<String>>,
@@ -250,7 +244,6 @@ pub struct NetworkData {
     pub active_connections: Vec<ActiveConnectionInfo>,
     pub known_connections: Vec<KnownConnection>,
     pub wifi_enabled: bool,
-    pub airplane_mode: bool,
     pub connectivity: ConnectivityState,
     pub scanning_nearby_wifi: bool,
 }
@@ -299,9 +292,6 @@ impl ReadOnlyService for NetworkService {
 
     fn update(&mut self, event: Self::UpdateEvent) {
         match event {
-            NetworkEvent::AirplaneMode(airplane_mode) => {
-                self.data.airplane_mode = airplane_mode;
-            }
             NetworkEvent::WiFiEnabled(wifi_enabled) => {
                 debug!("WiFi enabled: {wifi_enabled}");
                 self.data.wifi_enabled = wifi_enabled;
@@ -481,23 +471,6 @@ impl NetworkBackend for BackendChoiceWithConnection {
                 NetworkDbus::new(&self.conn).await?.initialize_data().await
             }
             BackendChoice::Iwd => IwdDbus::new(&self.conn).await?.initialize_data().await,
-        }
-    }
-
-    async fn set_airplane_mode(&self, enable: bool) -> anyhow::Result<()> {
-        match self.choice {
-            BackendChoice::NetworkManager => {
-                NetworkDbus::new(&self.conn)
-                    .await?
-                    .set_airplane_mode(enable)
-                    .await
-            }
-            BackendChoice::Iwd => {
-                IwdDbus::new(&self.conn)
-                    .await?
-                    .set_airplane_mode(enable)
-                    .await
-            }
         }
     }
 
@@ -746,36 +719,6 @@ impl Service for NetworkService {
         let conn = self.conn.clone();
         let bc = self.backend_choice.with_connection(conn);
         match command {
-            NetworkCommand::ToggleAirplaneMode => {
-                let airplane_mode = self.airplane_mode;
-
-                Task::perform(
-                    async move {
-                        debug!("Toggling airplane mode to: {}", !airplane_mode);
-                        let res = bc.set_airplane_mode(!airplane_mode).await;
-
-                        if res.is_ok() {
-                            !airplane_mode
-                        } else {
-                            airplane_mode
-                        }
-                    },
-                    |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
-                )
-            }
-            NetworkCommand::SetAirplaneMode(enabled) => {
-                let previous = self.airplane_mode;
-
-                Task::perform(
-                    async move {
-                        debug!("Setting airplane mode to: {enabled}");
-                        let res = bc.set_airplane_mode(enabled).await;
-
-                        if res.is_ok() { enabled } else { previous }
-                    },
-                    |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
-                )
-            }
             NetworkCommand::ScanNearByWiFi => match self.backend_choice {
                 BackendChoice::NetworkManager => {
                     let conn = self.conn.clone();

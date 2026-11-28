@@ -22,7 +22,11 @@ use crate::{
         network::{NetworkSettings, NetworkSettingsConfig},
         power::{PowerSettings, PowerSettingsConfig},
     },
-    services::idle_inhibitor::{self, IdleInhibitor},
+    services::{
+        ReadOnlyService, Service, ServiceEvent,
+        airplane::{self, AirplaneCommand, AirplaneService},
+        idle_inhibitor::{self, IdleInhibitor},
+    },
     theme::{transparent_button_style, use_theme},
 };
 use ashell_i18n::t;
@@ -47,6 +51,8 @@ pub struct Settings {
     brightness: BrightnessSettings,
     network: NetworkSettings,
     bluetooth: BluetoothSettings,
+    airplane: Option<AirplaneService>,
+    remove_airplane_btn: bool,
     idle_inhibitor: Option<IdleInhibitor>,
     remove_dnd_btn: bool,
     sub_menu: Option<SubMenu>,
@@ -86,6 +92,8 @@ pub enum Message {
     Bluetooth(bluetooth::Message),
     Audio(audio::Message),
     Brightness(brightness::Message),
+    Airplane(ServiceEvent<AirplaneService>),
+    ToggleAirplaneMode,
     ToggleInhibitIdle,
     ToggleDnd,
     Lock(SurfaceId),
@@ -138,10 +146,6 @@ impl Settings {
         &self.brightness
     }
 
-    pub fn network(&self) -> &NetworkSettings {
-        &self.network
-    }
-
     pub fn idle_inhibitor(&self) -> &Option<IdleInhibitor> {
         &self.idle_inhibitor
     }
@@ -187,24 +191,41 @@ impl Settings {
         }
     }
 
+    pub fn is_airplane_mode(&self) -> bool {
+        self.airplane
+            .as_ref()
+            .is_some_and(|service| service.is_on())
+    }
+
+    /// Whether airplane mode is on after `command`, `None` when it can't
+    /// change anything.
+    pub fn airplane_after(&self, command: AirplaneCommand) -> Option<bool> {
+        self.airplane
+            .as_ref()
+            .and_then(|service| service.after(command))
+    }
+
     pub fn toggle_airplane(&mut self) -> Action {
-        match self.network.update(network::Message::ToggleAirplaneMode) {
-            network::Action::CloseSubMenu(task) | network::Action::Command(task) => {
-                Action::Command(task.map(Message::Network))
-            }
-            _ => Action::None,
-        }
+        self.airplane_command(AirplaneCommand::Toggle)
     }
 
     pub fn set_airplane(&mut self, enabled: bool) -> Action {
-        match self
-            .network
-            .update(network::Message::SetAirplaneMode(enabled))
-        {
-            network::Action::CloseSubMenu(task) | network::Action::Command(task) => {
-                Action::Command(task.map(Message::Network))
-            }
-            _ => Action::None,
+        self.airplane_command(AirplaneCommand::Set(enabled))
+    }
+
+    /// Resolved against the state the OSD reads, so a quick repeat does what
+    /// it shows.
+    fn airplane_command(&mut self, command: AirplaneCommand) -> Action {
+        let Some(service) = self.airplane.as_mut() else {
+            return Action::None;
+        };
+        match service.target(command) {
+            Some(enable) => Action::Command(
+                service
+                    .command(AirplaneCommand::Set(enable))
+                    .map(Message::Airplane),
+            ),
+            None => Action::None,
         }
     }
 
@@ -257,7 +278,6 @@ impl Settings {
             network: NetworkSettings::new(NetworkSettingsConfig::new(
                 config.wifi_more_cmd,
                 config.vpn_more_cmd,
-                config.remove_airplane_btn,
                 config.network_indicator_format,
                 config.network_backend,
             )),
@@ -265,6 +285,8 @@ impl Settings {
                 config.bluetooth_more_cmd,
                 config.bluetooth_indicator_format,
             )),
+            airplane: None,
+            remove_airplane_btn: config.remove_airplane_btn,
             idle_inhibitor: if config.remove_idle_btn {
                 None
             } else {
@@ -285,6 +307,12 @@ impl Settings {
     /// so this is just a state flip.
     fn close_submenu(&mut self) {
         self.sub_menu = None;
+    }
+
+    fn close_network_submenu(&mut self) {
+        if matches!(self.sub_menu, Some(SubMenu::Wifi | SubMenu::Vpn)) {
+            self.close_submenu();
+        }
     }
 
     fn toggle_submenu_to(&mut self, target: SubMenu) {
@@ -376,9 +404,7 @@ impl Settings {
                     Action::None
                 }
                 network::Action::CloseSubMenu(task) => {
-                    if self.sub_menu == Some(SubMenu::Wifi) || self.sub_menu == Some(SubMenu::Vpn) {
-                        self.close_submenu();
-                    }
+                    self.close_network_submenu();
                     Action::Command(task.map(Message::Network))
                 }
                 network::Action::CloseMenu(id) => Action::CloseMenu(id),
@@ -414,6 +440,22 @@ impl Settings {
                 } else {
                     Action::None
                 }
+            }
+            Message::Airplane(event) => {
+                match event {
+                    ServiceEvent::Init(service) => self.airplane = Some(service),
+                    ServiceEvent::Update(data) => {
+                        if let Some(service) = self.airplane.as_mut() {
+                            service.update(data);
+                        }
+                    }
+                    ServiceEvent::Error(_) => {}
+                }
+                Action::None
+            }
+            Message::ToggleAirplaneMode => {
+                self.close_network_submenu();
+                self.toggle_airplane()
             }
             Message::ToggleInhibitIdle => self.toggle_idle_inhibitor(),
             Message::ToggleDnd => Action::ToggleDnd,
@@ -604,7 +646,6 @@ impl Settings {
                     NetworkSettingsConfig::new(
                         config.wifi_more_cmd,
                         config.vpn_more_cmd,
-                        config.remove_airplane_btn,
                         config.network_indicator_format,
                         config.network_backend,
                     ),
@@ -623,6 +664,7 @@ impl Settings {
                 } else if self.idle_inhibitor.is_none() {
                     self.idle_inhibitor = idle_inhibitor::connect();
                 }
+                self.remove_airplane_btn = config.remove_airplane_btn;
                 self.remove_dnd_btn = config.remove_dnd_btn;
                 self.indicators = config.indicators;
                 self.custom_buttons = config.custom_buttons;
@@ -747,9 +789,24 @@ impl Settings {
                                 submenu.map(|(expanded, e)| (expanded, e.map(Message::Network))),
                             )
                         }),
-                    self.network
-                        .airplane_mode_quick_setting_button()
-                        .map(|(button, _)| (button.map(Message::Network), None)),
+                    self.airplane
+                        .as_ref()
+                        .filter(|service| !self.remove_airplane_btn && service.can_change())
+                        .map(|service| {
+                            (
+                                quick_setting_button(
+                                    airplane::icon(service.is_on()),
+                                    t!("settings-network-airplane-mode"),
+                                    None,
+                                    service.is_on(),
+                                    Message::ToggleAirplaneMode,
+                                    Some(Message::Network(network::Message::OpenMore)),
+                                    None,
+                                    None,
+                                ),
+                                None,
+                            )
+                        }),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
@@ -922,7 +979,7 @@ impl Settings {
                 }
                 SettingsIndicator::Network => self
                     .network
-                    .connection_indicator()
+                    .connection_indicator(self.is_airplane_mode())
                     .map(|e| e.map(Message::Network)),
                 SettingsIndicator::Vpn => self
                     .network
@@ -1020,6 +1077,7 @@ impl Settings {
             self.brightness.subscription().map(Message::Brightness),
             self.network.subscription().map(Message::Network),
             self.bluetooth.subscription().map(Message::Bluetooth),
+            AirplaneService::subscribe().map(Message::Airplane),
         ])
     }
 
