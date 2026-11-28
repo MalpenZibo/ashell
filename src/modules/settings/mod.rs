@@ -357,14 +357,6 @@ impl Settings {
             },
             Message::Network(msg) => match self.network.update(msg) {
                 network::Action::None => Action::None,
-                network::Action::RequestPasswordForSSID(ssid) => {
-                    self.network_dialog = Some(NetworkDialogState::Password {
-                        ssid,
-                        password: String::new(),
-                    });
-                    self.network_dialog_show_password = false;
-                    Action::Command(focus_password_input())
-                }
                 network::Action::RequestPassword(id, ssid) => {
                     self.network_dialog = Some(NetworkDialogState::Password {
                         ssid,

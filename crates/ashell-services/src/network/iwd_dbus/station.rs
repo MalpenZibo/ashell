@@ -20,15 +20,6 @@
 use zbus::proxy;
 #[proxy(interface = "net.connman.iwd.Station", assume_defaults = true)]
 pub trait Station {
-    /// `ConnectHiddenNetwork` method
-    fn connect_hidden_network(&self, name: &str) -> zbus::Result<()>;
-
-    /// Disconnect method
-    fn disconnect(&self) -> zbus::Result<()>;
-
-    /// `GetHiddenAccessPoints` method
-    fn get_hidden_access_points(&self) -> zbus::Result<Vec<(String, i16, String)>>;
-
     /// `GetOrderedNetworks` method
     fn get_ordered_networks(&self) -> zbus::Result<Vec<(zbus::OwnedObjectPath, i16)>>;
 
@@ -44,26 +35,4 @@ pub trait Station {
 
     /// `UnregisterSignalLevelAgent` method
     fn unregister_signal_level_agent(&self, path: &zbus::ObjectPath<'_>) -> zbus::Result<()>;
-
-    /// Affinities property
-    #[zbus(property)]
-    fn affinities(&self) -> zbus::Result<Vec<zbus::OwnedObjectPath>>;
-    #[zbus(property)]
-    fn set_affinities(&self, value: &[&zbus::ObjectPath<'_>]) -> zbus::Result<()>;
-
-    /// `ConnectedAccessPoint` property
-    #[zbus(property)]
-    fn connected_access_point(&self) -> zbus::Result<zbus::OwnedObjectPath>;
-
-    /// `ConnectedNetwork` property
-    #[zbus(property)]
-    fn connected_network(&self) -> zbus::Result<zbus::OwnedObjectPath>;
-
-    /// Scanning property
-    #[zbus(property)]
-    fn scanning(&self) -> zbus::Result<bool>;
-
-    /// State property
-    #[zbus(property)]
-    fn state(&self) -> zbus::Result<String>;
 }

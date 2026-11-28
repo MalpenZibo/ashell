@@ -3,17 +3,18 @@ use futures::{
     future::ready,
     stream::{self},
 };
-#[cfg(feature = "bluetooth")]
+#[cfg(any(feature = "bluetooth", feature = "network"))]
 use zbus::{
     MatchRule, MessageStream,
     fdo::{PropertiesChanged, PropertiesChangedArgs},
+    match_rule::Builder,
     message::Type,
 };
 use zbus::{fdo::DBusProxy, names::BusName};
 
 /// Whether `name` is owned on the bus right now. Asked to the bus itself, so
 /// it never triggers activation of the service.
-#[cfg(feature = "upower")]
+#[cfg(any(feature = "network", feature = "upower"))]
 pub(crate) async fn has_owner(conn: &zbus::Connection, name: &str) -> anyhow::Result<bool> {
     Ok(DBusProxy::new(conn)
         .await?
@@ -49,21 +50,55 @@ pub(crate) async fn properties_changed(
     sender: &str,
     path_namespace: &str,
 ) -> anyhow::Result<impl Stream<Item = PropertiesChanged> + Send + 'static> {
-    let rule = MatchRule::builder()
+    subscribe(conn, properties_changed_rule(sender, path_namespace)).await
+}
+
+/// The same for the properties of `interfaces` only, one rule each: the bus
+/// doesn't send the others at all, instead of the stream dropping them.
+#[cfg(feature = "network")]
+pub(crate) async fn interface_properties_changed(
+    conn: &zbus::Connection,
+    sender: &str,
+    path_namespace: &str,
+    interfaces: &[&str],
+) -> anyhow::Result<impl Stream<Item = PropertiesChanged> + Send + 'static> {
+    let subscriptions = interfaces.iter().map(|interface| {
+        subscribe(
+            conn,
+            properties_changed_rule(sender, path_namespace).arg(0, *interface),
+        )
+    });
+
+    Ok(stream::select_all(
+        futures::future::try_join_all(subscriptions)
+            .await?
+            .into_iter()
+            .map(StreamExt::boxed),
+    ))
+}
+
+#[cfg(any(feature = "bluetooth", feature = "network"))]
+fn properties_changed_rule<'m>(sender: &'m str, path_namespace: &'m str) -> Builder<'m> {
+    MatchRule::builder()
         .msg_type(Type::Signal)
         .sender(sender)
         .interface("org.freedesktop.DBus.Properties")
         .member("PropertiesChanged")
         .path_namespace(path_namespace)
-        .build()?;
+}
 
-    Ok(MessageStream::for_match_rule(rule, conn, None)
+#[cfg(any(feature = "bluetooth", feature = "network"))]
+async fn subscribe(
+    conn: &zbus::Connection,
+    rule: Builder<'_>,
+) -> anyhow::Result<impl Stream<Item = PropertiesChanged> + Send + use<>> {
+    Ok(MessageStream::for_match_rule(rule.build()?, conn, None)
         .await?
         .filter_map(|message| ready(message.ok().and_then(PropertiesChanged::from_message))))
 }
 
 /// Whether the change sets or invalidates any of `names`.
-#[cfg(feature = "bluetooth")]
+#[cfg(any(feature = "bluetooth", feature = "network"))]
 pub(crate) fn changes_any(args: &PropertiesChangedArgs<'_>, names: &[&str]) -> bool {
     args.changed_properties()
         .keys()

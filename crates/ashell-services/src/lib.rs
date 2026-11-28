@@ -6,7 +6,7 @@ pub mod audio;
 pub mod bluetooth;
 #[cfg(feature = "brightness")]
 pub mod brightness;
-#[cfg(any(feature = "bluetooth", feature = "upower"))]
+#[cfg(any(feature = "bluetooth", feature = "network", feature = "upower"))]
 mod bus;
 #[cfg(feature = "idle_inhibitor")]
 pub mod idle_inhibitor;
@@ -14,6 +14,8 @@ pub mod idle_inhibitor;
 pub mod keyboard_locks;
 #[cfg(feature = "logind")]
 pub mod logind;
+#[cfg(feature = "network")]
+pub mod network;
 #[cfg(feature = "notifications")]
 pub mod notifications;
 #[cfg(feature = "privacy")]
@@ -22,6 +24,7 @@ pub mod privacy;
     feature = "audio",
     feature = "brightness",
     feature = "logind",
+    feature = "network",
     feature = "privacy",
     feature = "rfkill",
     feature = "upower"
@@ -36,6 +39,7 @@ mod snapshot;
     feature = "brightness",
     feature = "keyboard_locks",
     feature = "logind",
+    feature = "network",
     feature = "privacy",
     feature = "rfkill",
     feature = "upower",

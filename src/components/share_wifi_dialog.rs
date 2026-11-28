@@ -2,7 +2,7 @@ use qrcode::QrCode;
 
 use crate::{
     components::{ButtonKind, styled_button},
-    services::network::{PskOutcome, WifiSecurity},
+    services::network::PskOutcome,
     theme::use_theme,
 };
 use ashell_i18n::t;
@@ -19,33 +19,24 @@ pub enum Message {
 /// Returns `(password, error, qr_payload)`.
 pub fn materialize(
     ssid: &str,
-    outcome: PskOutcome,
+    outcome: Option<PskOutcome>,
 ) -> (Option<String>, Option<String>, Option<String>) {
+    let payload = outcome.as_ref().and_then(|outcome| outcome.wifi_uri(ssid));
+
     match outcome {
-        PskOutcome::Password {
-            psk,
-            security,
-            hidden,
-        } => {
-            let payload =
-                build_wifi_payload(ssid, Some((psk.as_inner().as_str(), security)), hidden);
-            (Some(psk.into_inner()), None, Some(payload))
-        }
-        PskOutcome::Open { hidden } => {
-            let payload = build_wifi_payload(ssid, None, hidden);
-            (None, None, Some(payload))
-        }
-        PskOutcome::PasswordUnavailable => (
+        Some(PskOutcome::Password { psk, .. }) => (Some(psk.into_inner()), None, payload),
+        Some(PskOutcome::Open { .. }) => (None, None, payload),
+        Some(PskOutcome::PasswordUnavailable) => (
             None,
             Some(t!("share-wifi-password-unavailable-message").to_string()),
             None,
         ),
-        PskOutcome::Unsupported => (
+        Some(PskOutcome::Unsupported) => (
             None,
             Some(t!("share-wifi-unsupported-message").to_string()),
             None,
         ),
-        PskOutcome::Error => (None, Some(t!("share-wifi-error-message").to_string()), None),
+        None => (None, Some(t!("share-wifi-error-message").to_string()), None),
     }
 }
 
@@ -115,37 +106,6 @@ pub fn view<'a>(
     );
 
     col.spacing(space.md).padding(space.md).into()
-}
-
-fn wifi_escape(s: &str) -> String {
-    // https://github.com/zxing/zxing/wiki/Barcode-Contents#wifi-network-config
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '\\' | ';' | ',' | ':' | '"' => {
-                out.push('\\');
-                out.push(c);
-            }
-            _ => out.push(c),
-        }
-    }
-    out
-}
-
-fn build_wifi_payload(ssid: &str, password: Option<(&str, WifiSecurity)>, hidden: bool) -> String {
-    let escaped_ssid = wifi_escape(ssid);
-    let hidden_field = if hidden { "H:true;" } else { "" };
-    // The last ';' is the empty field that terminates the URI (`;;`).
-    match password {
-        Some((pw, security)) if !pw.is_empty() => format!(
-            "WIFI:T:{};S:{};P:{};{};",
-            security.qr_auth_type(),
-            escaped_ssid,
-            wifi_escape(pw),
-            hidden_field
-        ),
-        _ => format!("WIFI:T:nopass;S:{escaped_ssid};{hidden_field};"),
-    }
 }
 
 /// Returns the handle and its pixel size; build once on open to reuse iced's

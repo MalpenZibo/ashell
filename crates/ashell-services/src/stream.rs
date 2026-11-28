@@ -23,6 +23,7 @@ where
     feature = "bluetooth",
     feature = "brightness",
     feature = "keyboard_locks",
+    feature = "network",
     feature = "rfkill",
     feature = "upower"
 ))]

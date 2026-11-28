@@ -11,8 +11,9 @@ use crate::{
     services::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
-            AccessPointData, ActiveConnectionInfo, KnownConnection, NetworkCommand, NetworkEvent,
-            NetworkService, PskOutcome, Redacted, Vpn, dbus::ConnectivityState, frequency_band,
+            AccessPointData, ActiveConnectionInfo, ActiveConnectionInfoExt, ConnectivityState,
+            KnownConnection, NetworkCommand, NetworkService, PskOutcome, Redacted, Vpn,
+            frequency_band, wifi_icon, wifi_lock_icon,
         },
     },
     theme::use_theme,
@@ -25,23 +26,6 @@ use iced::{
 };
 use log::{info, warn};
 
-static WIFI_SIGNAL_ICONS: [StaticIcon; 6] = [
-    StaticIcon::Wifi0,
-    StaticIcon::Wifi1,
-    StaticIcon::Wifi2,
-    StaticIcon::Wifi3,
-    StaticIcon::Wifi4,
-    StaticIcon::Wifi5,
-];
-
-static WIFI_LOCK_SIGNAL_ICONS: [StaticIcon; 5] = [
-    StaticIcon::WifiLock1,
-    StaticIcon::WifiLock2,
-    StaticIcon::WifiLock3,
-    StaticIcon::WifiLock4,
-    StaticIcon::WifiLock5,
-];
-
 fn get_connectivity_state(
     connectivity: ConnectivityState,
     indicator_state: IndicatorState,
@@ -50,35 +34,6 @@ fn get_connectivity_state(
         (_, IndicatorState::Warning) => IndicatorState::Warning,
         (ConnectivityState::None, _) => IndicatorState::Danger,
         _ => IndicatorState::Normal,
-    }
-}
-
-impl ActiveConnectionInfo {
-    pub fn get_wifi_icon(signal: u8) -> StaticIcon {
-        let clamped_signal = signal.min(100);
-        WIFI_SIGNAL_ICONS[1 + f32::round(clamped_signal as f32 / 100. * 4.) as usize]
-    }
-
-    pub fn get_wifi_lock_icon(signal: u8) -> StaticIcon {
-        let clamped_signal = signal.min(100);
-        WIFI_LOCK_SIGNAL_ICONS[f32::round(clamped_signal as f32 / 100. * 4.) as usize]
-    }
-
-    pub fn get_icon(&self) -> StaticIcon {
-        match self {
-            Self::WiFi { strength, .. } => Self::get_wifi_icon(*strength),
-            Self::Wired { .. } => StaticIcon::Ethernet,
-            Self::Vpn { .. } => StaticIcon::Vpn,
-        }
-    }
-
-    pub fn get_indicator_state(&self) -> IndicatorState {
-        match self {
-            Self::WiFi {
-                strength: 0 | 1, ..
-            } => IndicatorState::Warning,
-            _ => IndicatorState::Normal,
-        }
     }
 }
 
@@ -100,18 +55,25 @@ pub enum Message {
     PasswordDialogConfirmed(String, String),
     OpenNetworkDialogConfirmed(String, bool),
     ShareActiveWifi,
+    /// `outcome` is `None` when reading the passphrase failed.
+    Psk {
+        ssid: String,
+        outcome: Option<PskOutcome>,
+    },
     ConfigReloaded(NetworkSettingsConfig),
 }
 
 pub enum Action {
     None,
-    RequestPasswordForSSID(String),
     RequestPassword(SurfaceId, String),
     ConfirmOpenNetwork(String),
     Command(Task<Message>),
     ToggleWifiMenu,
     ToggleVpnMenu,
-    OpenShareWifiDialog { ssid: String, outcome: PskOutcome },
+    OpenShareWifiDialog {
+        ssid: String,
+        outcome: Option<PskOutcome>,
+    },
     CloseSubMenu(Task<Message>),
     CloseMenu(SurfaceId),
 }
@@ -171,35 +133,18 @@ impl NetworkSettings {
                     self.share_in_flight = false;
                     Action::None
                 }
-                ServiceEvent::Update(NetworkEvent::RequestPasswordForSSID(ssid)) => {
-                    Action::RequestPasswordForSSID(ssid)
-                }
-                ServiceEvent::Update(data) => match data {
-                    NetworkEvent::Psk { ssid, outcome } => {
-                        self.share_in_flight = false;
-                        match self.connected_wifi_label() {
-                            Some(active) if active == ssid => {
-                                Action::OpenShareWifiDialog { ssid, outcome }
-                            }
-                            _ => {
-                                warn!(
-                                    "Discarding PSK for '{ssid}': no longer the active Wi-Fi connection"
-                                );
-                                Action::None
-                            }
-                        }
-                    }
-                    other => {
-                        if let Some(service) = self.service.as_mut() {
-                            service.update(other);
-                        }
-                        Action::None
-                    }
-                },
-                ServiceEvent::Error(_) => {
+                ServiceEvent::Update(None) => {
+                    self.service = None;
                     self.share_in_flight = false;
                     Action::None
                 }
+                ServiceEvent::Update(data) => {
+                    if let Some(service) = self.service.as_mut() {
+                        service.update(data);
+                    }
+                    Action::None
+                }
+                ServiceEvent::Error(()) => Action::None,
             },
             Message::ToggleWiFi => match self.service.as_mut() {
                 Some(service) => Action::CloseSubMenu(
@@ -344,16 +289,27 @@ impl NetworkSettings {
                 if self.share_in_flight {
                     return Action::None;
                 }
-                match (self.connected_wifi_label(), self.service.as_mut()) {
+                match (self.connected_wifi_label(), self.service.as_ref()) {
                     (Some(ssid), Some(service)) => {
                         self.share_in_flight = true;
-                        Action::Command(
-                            service
-                                .command(NetworkCommand::ReadPsk(ssid))
-                                .map(Message::Event),
-                        )
+                        Action::Command(service.read_psk(ssid.clone()).map(move |outcome| {
+                            Message::Psk {
+                                ssid: ssid.clone(),
+                                outcome,
+                            }
+                        }))
                     }
                     _ => Action::None,
+                }
+            }
+            Message::Psk { ssid, outcome } => {
+                self.share_in_flight = false;
+                match self.connected_wifi_label() {
+                    Some(active) if active == ssid => Action::OpenShareWifiDialog { ssid, outcome },
+                    _ => {
+                        warn!("Discarding PSK for '{ssid}': no longer the active Wi-Fi connection");
+                        Action::None
+                    }
                 }
             }
         }
@@ -381,7 +337,7 @@ impl NetworkSettings {
                     };
                     let strength_text = strength.map_or("100%".to_string(), |s| format!("{}%", s));
                     let label = match self.config.indicator_format {
-                        SettingsFormat::Name | SettingsFormat::IconAndName => a.name(),
+                        SettingsFormat::Name | SettingsFormat::IconAndName => a.name().to_string(),
                         _ => strength_text,
                     };
 
@@ -475,7 +431,7 @@ impl NetworkSettings {
                                 .map(|(name, strength, _, _)| (name.as_str(), *strength)),
                             self.config.wifi_more_cmd.is_some(),
                             self.share_in_flight,
-                            service.is_network_manager(),
+                            service.can_read_psk(),
                         ),
                     )),
                 ))
@@ -635,9 +591,9 @@ impl NetworkSettings {
 
                             let network_row = row!(
                                 icon(if ac.public {
-                                    ActiveConnectionInfo::get_wifi_icon(ac.strength)
+                                    wifi_icon(ac.strength)
                                 } else {
-                                    ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
+                                    wifi_lock_icon(ac.strength)
                                 })
                                 .width(Length::Shrink),
                                 text(ac.ssid.as_str()).width(Length::Fill),
