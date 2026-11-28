@@ -1,5 +1,5 @@
 use crate::{
-    components::{Centerbox, menu::MenuType},
+    components::{ButtonUIRef, Centerbox, menu::MenuType},
     config::{self, BarSurface, Config, ModuleName, Modules, Surface, WorkspaceIndicatorFormat},
     get_log_spec,
     ipc::{IpcCommand, IpcEvent},
@@ -13,7 +13,7 @@ use crate::{
         minimap::Minimap,
         notifications::Notifications,
         privacy::Privacy,
-        settings::{self, Settings},
+        settings::{self, PasswordDialog, Settings},
         system_info::SystemInfo,
         tempo::Tempo,
         tray::TrayModule,
@@ -40,6 +40,20 @@ use std::{collections::HashMap, path::PathBuf};
 
 const OSD_WIDTH: u32 = 250;
 const OSD_HEIGHT: u32 = 64;
+
+/// Where the settings button likely is, before it was ever pressed: the menu
+/// opens at the left edge for a module on the left, the right edge otherwise.
+fn settings_button_guess(modules: &Modules) -> ButtonUIRef {
+    let left = modules
+        .left
+        .iter()
+        .any(|module| module.contains(&ModuleName::Settings));
+
+    ButtonUIRef {
+        position: iced::Point::new(if left { 0.0 } else { f32::MAX }, 0.0),
+        viewport: (0.0, 0.0),
+    }
+}
 
 fn resolve_localizer(config: &Config) -> Localizer {
     Localizer::resolve(
@@ -77,6 +91,12 @@ pub struct App {
     pub media_player: MediaPlayer,
     pub notifications: Notifications,
     pub osd: Osd,
+    /// Where the settings menu was last opened from, to show a password
+    /// request there.
+    settings_menu_anchor: Option<(SurfaceId, ButtonUIRef)>,
+    /// The open settings menu was opened for a password request: it closes
+    /// once the request ends.
+    settings_menu_for_request: bool,
 }
 
 mod message;
@@ -149,6 +169,8 @@ impl App {
                     notifications,
                     media_player: MediaPlayer::new(config.media_player),
                     osd: Osd::new(config.osd),
+                    settings_menu_anchor: None,
+                    settings_menu_for_request: false,
                 },
                 warm_icons,
             )
@@ -237,6 +259,7 @@ impl App {
             .update(modules::settings::Message::ConfigReloaded(Box::new(
                 config.settings,
             )));
+        let password_task = self.sync_password_request(false);
         self.media_player
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,
@@ -252,7 +275,81 @@ impl App {
             .update(modules::tray::Message::ConfigReloaded(config.tray));
         self.osd.update(osd::Message::ConfigReloaded(config.osd));
 
-        Task::batch([close_custom_tooltips, workspaces_task, notifications_task])
+        Task::batch([
+            close_custom_tooltips,
+            workspaces_task,
+            notifications_task,
+            password_task,
+        ])
+    }
+
+    /// Shows the password request the settings module has now, or ends the
+    /// password dialog: the one of a request no longer pending, or the one the
+    /// user just closed when `dialog_closed`.
+    fn sync_password_request(&mut self, dialog_closed: bool) -> Task<Message> {
+        let menu = self.outputs.open_menu_of_type(&MenuType::Settings);
+        match self.settings.sync_password_request(menu.is_some()) {
+            PasswordDialog::Shown => match menu {
+                Some(menu) => self.focus_password_request(menu),
+                None => self.open_settings_for_password_request(),
+            },
+            PasswordDialog::Closed => self.password_dialog_closed(menu),
+            PasswordDialog::Unchanged if dialog_closed => self.password_dialog_closed(menu),
+            PasswordDialog::Unchanged => Task::none(),
+        }
+    }
+
+    /// Gives the settings menu `menu` the keyboard and focuses the password
+    /// input. The focus waits for the next update: widget operations run
+    /// before the surfaces requested in the same update exist.
+    fn focus_password_request(&self, menu: SurfaceId) -> Task<Message> {
+        Task::batch(vec![
+            self.outputs.request_keyboard(menu),
+            Task::perform(tokio::task::yield_now(), |()| {
+                Message::Settings(modules::settings::Message::FocusPasswordInput)
+            }),
+        ])
+    }
+
+    /// Closes the settings menu `menu` if it was opened for the request that
+    /// ended. Otherwise releases its keyboard, unless Escape needs it.
+    fn password_dialog_closed(&mut self, menu: Option<SurfaceId>) -> Task<Message> {
+        let for_request = std::mem::take(&mut self.settings_menu_for_request);
+        let enable_esc_key = self.general_config.enable_esc_key;
+        match menu {
+            Some(menu) if for_request => self.outputs.close_menu(menu, None, enable_esc_key),
+            Some(menu) if !enable_esc_key => self.outputs.release_keyboard(menu),
+            _ => Task::none(),
+        }
+    }
+
+    /// Opens the settings menu on the password dialog: where it was last
+    /// opened, or else on the first bar. With the bar hidden or no bar at all,
+    /// the requests are left to other agents.
+    fn open_settings_for_password_request(&mut self) -> Task<Message> {
+        if !self.outputs.bar_is_shown() {
+            info!("The bar is hidden, leaving the Wi-Fi password requests to other agents");
+            self.settings.decline_password_requests();
+            return Task::none();
+        }
+
+        let anchor = self
+            .settings_menu_anchor
+            .filter(|(id, _)| matches!(self.outputs.has(*id), Some(HasOutput::Main)))
+            .or_else(|| {
+                self.outputs
+                    .first_bar()
+                    .map(|id| (id, settings_button_guess(&self.general_config.modules)))
+            });
+        let Some((id, button_ui_ref)) = anchor else {
+            warn!("No bar to ask for a Wi-Fi password on, leaving it to other agents");
+            self.settings.decline_password_requests();
+            return Task::none();
+        };
+
+        let task = self.update(Message::ToggleMenu(MenuType::Settings, id, button_ui_ref));
+        self.settings_menu_for_request = true;
+        task
     }
 
     pub fn theme(&self, id: SurfaceId) -> Theme {
@@ -315,6 +412,8 @@ impl App {
                             .update(modules::tray::Message::MenuOpened(name.clone()));
                     }
                     MenuType::Settings => {
+                        self.settings_menu_anchor = Some((id, button_ui_ref));
+                        self.settings_menu_for_request = false;
                         cmd.push(
                             match self.settings.update(modules::settings::Message::MenuOpened) {
                                 modules::settings::Action::Command(task) => {
@@ -332,12 +431,19 @@ impl App {
                     }
                     _ => {}
                 }
+                let settings = menu_type == MenuType::Settings;
                 cmd.push(self.outputs.toggle_menu(
                     id,
                     menu_type,
                     button_ui_ref,
                     self.general_config.enable_esc_key,
                 ));
+                if settings
+                    && self.settings.shows_password_request()
+                    && let Some(menu) = self.outputs.open_menu_of_type(&MenuType::Settings)
+                {
+                    cmd.push(self.focus_password_request(menu));
+                }
 
                 Task::batch(cmd)
             }
@@ -463,13 +569,11 @@ impl App {
                         self.outputs.request_keyboard(id),
                     ])
                 }
-                modules::settings::Action::ReleaseKeyboard(id) => self.outputs.release_keyboard(id),
-                modules::settings::Action::ReleaseKeyboardWithCommand(id, task) => {
-                    Task::batch(vec![
-                        task.map(Message::Settings),
-                        self.outputs.release_keyboard(id),
-                    ])
-                }
+                modules::settings::Action::SyncPasswordRequest => self.sync_password_request(false),
+                modules::settings::Action::PasswordDialogClosed(task) => Task::batch(vec![
+                    task.map(Message::Settings),
+                    self.sync_password_request(true),
+                ]),
                 modules::settings::Action::OpenTooltipMenu(id, menu_type, ui_ref) => {
                     self.outputs.toggle_menu(id, menu_type, ui_ref, false)
                 }
@@ -923,7 +1027,9 @@ impl App {
             }),
             // Always subscribe to audio/brightness services so OSD works
             // even when the Settings module isn't in the module list.
-            self.settings.subscription().map(Message::Settings),
+            self.settings
+                .subscription(self.general_config.modules.contains(&ModuleName::Settings))
+                .map(Message::Settings),
             crate::ipc::subscription().map(|event| match event {
                 IpcEvent::Query(cmd, reply) => Message::IpcQuery(cmd, reply),
                 IpcEvent::Command(cmd) => match cmd {

@@ -442,7 +442,8 @@ impl App {
                     .subscription(self.outputs.menu_of_type_is_open(&MenuType::MediaPlayer))
                     .map(Message::MediaPlayer),
             ),
-            ModuleName::Settings => Some(self.settings.subscription().map(Message::Settings)),
+            // Always subscribed, by App::subscription
+            ModuleName::Settings => None,
             ModuleName::Notifications => Some(
                 self.notifications
                     .subscription()

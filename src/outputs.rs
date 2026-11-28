@@ -673,16 +673,34 @@ impl Outputs {
         })
     }
 
+    /// The menus of `menu_type` open on any output, closing or not.
+    fn menus_of_type<'a>(&'a self, menu_type: &'a MenuType) -> impl Iterator<Item = &'a Menu> {
+        self.entries.iter().filter_map(move |(_, shell_info, _)| {
+            let menu = &shell_info.as_ref()?.menu;
+            menu.open
+                .as_ref()
+                .is_some_and(|open| &open.menu_type == menu_type)
+                .then_some(menu)
+        })
+    }
+
     /// True while a menu of `menu_type` is open on any output.
     pub fn menu_of_type_is_open(&self, menu_type: &MenuType) -> bool {
-        self.entries.iter().any(|(_, shell_info, _)| {
-            shell_info.as_ref().is_some_and(|si| {
-                si.menu
-                    .open
-                    .as_ref()
-                    .is_some_and(|open| &open.menu_type == menu_type)
-            })
-        })
+        self.menus_of_type(menu_type).next().is_some()
+    }
+
+    /// The surface of a menu of `menu_type` open and not closing, if any.
+    pub fn open_menu_of_type(&self, menu_type: &MenuType) -> Option<SurfaceId> {
+        self.menus_of_type(menu_type)
+            .find(|menu| !menu.is_closing())
+            .and_then(Menu::surface_id)
+    }
+
+    /// The bar surface of the first output that has one.
+    pub fn first_bar(&self) -> Option<SurfaceId> {
+        self.entries
+            .iter()
+            .find_map(|(_, shell_info, _)| shell_info.as_ref().map(|si| si.id))
     }
 
     pub fn menu_is_closing(&self, id: SurfaceId) -> bool {

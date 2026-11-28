@@ -12,8 +12,9 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
             AccessPointData, ActiveConnectionInfo, ActiveConnectionInfoExt, ConnectivityState,
-            KnownConnection, NetworkCommand, NetworkService, PskOutcome, Redacted, Vpn,
-            frequency_band, wifi_icon, wifi_lock_icon,
+            KnownConnection, NetworkCommand, NetworkEvent, NetworkService, PasswordReply,
+            PasswordRequest, PasswordRequestId, PskOutcome, Redacted, Vpn, frequency_band,
+            wifi_icon, wifi_lock_icon,
         },
     },
     theme::use_theme,
@@ -66,6 +67,7 @@ pub enum Message {
 pub enum Action {
     None,
     RequestPassword(SurfaceId, String),
+    PasswordRequestsChanged,
     ConfirmOpenNetwork(String),
     Command(Task<Message>),
     ToggleWifiMenu,
@@ -117,6 +119,29 @@ impl NetworkSettings {
         }
     }
 
+    /// The oldest password request a daemon waits for.
+    pub fn password_request(&self) -> Option<&PasswordRequest> {
+        self.service.as_ref()?.password_request()
+    }
+
+    pub fn is_password_pending(&self, id: PasswordRequestId) -> bool {
+        self.service
+            .as_ref()
+            .is_some_and(|service| service.is_password_pending(id))
+    }
+
+    pub fn reply_password(&mut self, id: PasswordRequestId, reply: PasswordReply) {
+        if let Some(service) = self.service.as_mut() {
+            service.reply_password(id, reply);
+        }
+    }
+
+    pub fn decline_passwords(&mut self) {
+        if let Some(service) = self.service.as_mut() {
+            service.decline_passwords();
+        }
+    }
+
     /// Whether `ssid` can be joined without saving it.
     pub fn can_connect_once(&self, ssid: &str) -> bool {
         self.service
@@ -131,18 +156,23 @@ impl NetworkSettings {
                 ServiceEvent::Init(service) => {
                     self.service = Some(service);
                     self.share_in_flight = false;
-                    Action::None
+                    Action::PasswordRequestsChanged
                 }
-                ServiceEvent::Update(None) => {
+                ServiceEvent::Update(NetworkEvent::Data(None)) => {
                     self.service = None;
                     self.share_in_flight = false;
-                    Action::None
+                    Action::PasswordRequestsChanged
                 }
-                ServiceEvent::Update(data) => {
+                ServiceEvent::Update(event) => {
+                    let requests = matches!(event, NetworkEvent::PasswordRequests(_));
                     if let Some(service) = self.service.as_mut() {
-                        service.update(data);
+                        service.update(event);
                     }
-                    Action::None
+                    if requests {
+                        Action::PasswordRequestsChanged
+                    } else {
+                        Action::None
+                    }
                 }
                 ServiceEvent::Error(()) => Action::None,
             },
@@ -720,11 +750,12 @@ impl NetworkSettings {
         }
     }
 
-    pub fn subscription(&self) -> Subscription<Message> {
+    /// `password_requests` when the settings menu can show them.
+    pub fn subscription(&self, password_requests: bool) -> Subscription<Message> {
         if self.config.backend == NetworkBackend::Disabled {
             Subscription::none()
         } else {
-            NetworkService::subscribe().map(Message::Event)
+            NetworkService::subscription(password_requests).map(Message::Event)
         }
     }
 

@@ -26,6 +26,7 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         airplane::{self, AirplaneCommand, AirplaneService},
         idle_inhibitor::{self, IdleInhibitor},
+        network::{PasswordReply, PasswordRequestId, Redacted},
     },
     theme::{transparent_button_style, use_theme},
 };
@@ -69,6 +70,8 @@ enum NetworkDialogState {
     Password {
         ssid: String,
         password: String,
+        /// The request of NetworkManager or iwd it answers, if any.
+        request: Option<PasswordRequestId>,
     },
     OpenNetworkWarning {
         ssid: String,
@@ -100,6 +103,7 @@ pub enum Message {
     Power(power::Message),
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
+    FocusPasswordInput,
     ShareDialog(share_wifi_dialog::Message),
     CustomButton(String),
     CustomButtonsStatus(Vec<(String, Option<bool>)>),
@@ -119,11 +123,22 @@ pub enum Action {
     Command(Task<Message>),
     CloseMenu(SurfaceId),
     RequestKeyboardWithCommand(SurfaceId, Task<Message>),
-    ReleaseKeyboard(SurfaceId),
-    ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
+    /// Run `sync_password_request`.
+    SyncPasswordRequest,
+    /// The password dialog closed, with its task.
+    PasswordDialogClosed(Task<Message>),
     OpenTooltipMenu(SurfaceId, MenuType, ButtonUIRef),
     CloseTooltipMenu(SurfaceId, MenuType),
     ToggleDnd,
+}
+
+/// What `Settings::sync_password_request` did to the dialog.
+pub enum PasswordDialog {
+    /// It shows a password request now.
+    Shown,
+    /// The request it showed is no longer pending, and nothing took its place.
+    Closed,
+    Unchanged,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -315,6 +330,59 @@ impl Settings {
         }
     }
 
+    /// Closes the dialog of a password request no longer pending, and shows the
+    /// oldest pending one when no other dialog is open. Without a settings menu
+    /// open, a dialog left from the last one doesn't count.
+    pub fn sync_password_request(&mut self, menu_open: bool) -> PasswordDialog {
+        let request_closed = matches!(
+            &self.network_dialog,
+            Some(NetworkDialogState::Password { request: Some(id), .. })
+                if !self.network.is_password_pending(*id)
+        );
+        let left_over =
+            !menu_open && self.network_dialog.is_some() && !self.shows_password_request();
+        if request_closed || left_over {
+            self.network_dialog = None;
+            self.network_dialog_show_password = false;
+        }
+
+        if self.network_dialog.is_none()
+            && let Some(request) = self.network.password_request()
+        {
+            self.network_dialog = Some(NetworkDialogState::Password {
+                ssid: request.ssid.clone(),
+                password: String::new(),
+                request: Some(request.id),
+            });
+            self.network_dialog_show_password = false;
+            PasswordDialog::Shown
+        } else if request_closed {
+            PasswordDialog::Closed
+        } else {
+            PasswordDialog::Unchanged
+        }
+    }
+
+    /// Leaves the pending password requests to other agents: nothing can show
+    /// them.
+    pub fn decline_password_requests(&mut self) {
+        self.network.decline_passwords();
+        if self.shows_password_request() {
+            self.network_dialog = None;
+        }
+    }
+
+    /// Whether the dialog shown answers a password request.
+    pub fn shows_password_request(&self) -> bool {
+        matches!(
+            self.network_dialog,
+            Some(NetworkDialogState::Password {
+                request: Some(_),
+                ..
+            })
+        )
+    }
+
     fn toggle_submenu_to(&mut self, target: SubMenu) {
         if self.sub_menu == Some(target) {
             self.sub_menu = None;
@@ -361,10 +429,12 @@ impl Settings {
                     self.network_dialog = Some(NetworkDialogState::Password {
                         ssid,
                         password: String::new(),
+                        request: None,
                     });
                     self.network_dialog_show_password = false;
                     Action::RequestKeyboardWithCommand(id, focus_password_input())
                 }
+                network::Action::PasswordRequestsChanged => Action::SyncPasswordRequest,
                 network::Action::ConfirmOpenNetwork(ssid) => {
                     self.network_dialog = Some(NetworkDialogState::OpenNetworkWarning {
                         ssid,
@@ -483,11 +553,24 @@ impl Settings {
 
                     Action::None
                 }
-                password_dialog::Message::DialogConfirmed(id) => {
+                password_dialog::Message::DialogConfirmed => {
                     let message = match self.network_dialog.take() {
-                        Some(NetworkDialogState::Password { ssid, password }) => {
-                            Some(network::Message::PasswordDialogConfirmed(ssid, password))
+                        Some(NetworkDialogState::Password {
+                            password,
+                            request: Some(request),
+                            ..
+                        }) => {
+                            self.network.reply_password(
+                                request,
+                                PasswordReply::Password(Redacted::new(password)),
+                            );
+                            None
                         }
+                        Some(NetworkDialogState::Password {
+                            ssid,
+                            password,
+                            request: None,
+                        }) => Some(network::Message::PasswordDialogConfirmed(ssid, password)),
                         Some(NetworkDialogState::OpenNetworkWarning { ssid, connect_once }) => {
                             let connect_once = connect_once && self.network.can_connect_once(&ssid);
                             Some(network::Message::OpenNetworkDialogConfirmed(
@@ -502,26 +585,31 @@ impl Settings {
                         None => None,
                     };
 
-                    let action = match message.map(|message| self.network.update(message)) {
-                        Some(network::Action::Command(task)) => {
-                            Action::ReleaseKeyboardWithCommand(id, task.map(Message::Network))
-                        }
-                        _ => Action::ReleaseKeyboard(id),
+                    let task = match message.map(|message| self.network.update(message)) {
+                        Some(network::Action::Command(task)) => task.map(Message::Network),
+                        _ => Task::none(),
                     };
                     self.network_dialog_show_password = false;
-                    action
+                    Action::PasswordDialogClosed(task)
                 }
-                password_dialog::Message::DialogCancelled(id) => {
-                    self.network_dialog = None;
+                password_dialog::Message::DialogCancelled => {
+                    if let Some(NetworkDialogState::Password {
+                        request: Some(request),
+                        ..
+                    }) = self.network_dialog.take()
+                    {
+                        self.network.reply_password(request, PasswordReply::Cancel);
+                    }
                     self.network_dialog_show_password = false;
 
-                    Action::ReleaseKeyboard(id)
+                    Action::PasswordDialogClosed(Task::none())
                 }
             },
+            Message::FocusPasswordInput => Action::Command(focus_password_input()),
             Message::ShareDialog(msg) => match msg {
                 share_wifi_dialog::Message::Close => {
                     self.network_dialog = None;
-                    Action::None
+                    Action::SyncPasswordRequest
                 }
             },
             Message::CustomButton(name) => {
@@ -543,6 +631,7 @@ impl Settings {
             Message::MenuOpened => {
                 self.network_dialog = None;
                 self.network_dialog_show_password = false;
+                self.sync_password_request(true);
 
                 self.sub_menu = if self.power.config.peripheral_expanded_by_default {
                     Some(SubMenu::BatteryMenu)
@@ -693,8 +782,7 @@ impl Settings {
         let space = use_theme(|t| t.space);
         container(if let Some(dialog) = &self.network_dialog {
             match dialog {
-                NetworkDialogState::Password { ssid, password } => password_dialog::view(
-                    id,
+                NetworkDialogState::Password { ssid, password, .. } => password_dialog::view(
                     ssid,
                     password,
                     self.network_dialog_show_password,
@@ -705,7 +793,6 @@ impl Settings {
                 .map(Message::PasswordDialog),
                 NetworkDialogState::OpenNetworkWarning { ssid, connect_once } => {
                     password_dialog::view(
-                        id,
                         ssid,
                         "",
                         self.network_dialog_show_password,
@@ -1062,12 +1149,13 @@ impl Settings {
         row.spacing(spacing).into()
     }
 
-    pub fn subscription(&self) -> Subscription<Message> {
+    /// `in_bar` when the module is in the bar, so its menu can open.
+    pub fn subscription(&self, in_bar: bool) -> Subscription<Message> {
         Subscription::batch([
             self.power.subscription().map(Message::Power),
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
-            self.network.subscription().map(Message::Network),
+            self.network.subscription(in_bar).map(Message::Network),
             self.bluetooth.subscription().map(Message::Bluetooth),
             AirplaneService::subscribe().map(Message::Airplane),
         ])
