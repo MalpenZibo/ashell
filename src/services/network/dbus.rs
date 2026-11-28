@@ -82,55 +82,81 @@ impl super::NetworkBackend for NetworkDbus<'_> {
         password: Option<String>,
         connect_once: bool,
     ) -> anyhow::Result<()> {
-        let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
-        let connection = settings.find_connection(&access_point.ssid).await?;
+        let conn = self.0.inner().connection();
+        let settings = NetworkSettingsDbus::new(conn).await?;
+        let security = self.ap_security(access_point).await;
 
-        if let Some(connection) = connection.as_ref() {
+        if let Some(connection_path) = settings.find_connection(&access_point.ssid).await? {
+            let connection = ConnectionSettingsProxy::builder(conn)
+                .path(connection_path.clone())
+                .build()
+                .await?;
+
+            let mut s = connection.get_settings().await?;
+            let mut changed = false;
+            let password = password.as_deref().filter(|_| security != ApSecurity::Open);
+
             if let Some(password) = password {
-                let connection = ConnectionSettingsProxy::builder(self.0.inner().connection())
-                    .path(connection)
-                    .build()
-                    .await?;
-
-                let mut s = connection.get_settings().await?;
-                if let Some(wifi_settings) = s.get_mut("802-11-wireless-security") {
-                    let new_password = zbus::Variant::from(password.clone()).try_to_owned()?;
-                    wifi_settings.insert("psk".to_string(), new_password);
+                if !security.supports_psk() {
+                    anyhow::bail!(
+                        "cannot store a passphrase for '{}': unsupported Wi-Fi security ({security:?})",
+                        access_point.ssid
+                    );
                 }
 
-                connection.update(s).await?;
+                let sec = s.entry("802-11-wireless-security".to_string()).or_default();
+                write_psk(sec, password)?;
+                if !sec.contains_key("key-mgmt") {
+                    sec.insert(
+                        "key-mgmt".to_string(),
+                        OwnedVariant::try_from(Variant::from(new_section_key_mgmt(security)))?,
+                    );
+                }
+                changed = true;
+            }
+            if let Some(sec) = s.get_mut("802-11-wireless-security") {
+                changed |= downgrade_sae_to_wpa_psk(sec, security)?;
+            }
+
+            let mut specific_object = OwnedObjectPath::try_from("/")?;
+            if changed {
+                let matches_pin = if let Some(pinned) = wireless_bssid(&s)? {
+                    let selected = self.ap_bssid(access_point).await;
+                    let matches = bssid_matches(&pinned, selected.as_deref());
+                    if !matches && password.is_some() {
+                        anyhow::bail!(
+                            "saved profile '{}' is pinned to BSSID {pinned}, but the selected access point is {}; refusing to change its security",
+                            access_point.ssid,
+                            selected.as_deref().unwrap_or("unknown")
+                        );
+                    }
+                    matches
+                } else {
+                    true
+                };
+                // If the pin doesn't match, let NM try the original profile without a rewrite.
+                if matches_pin {
+                    connection.update(s).await?;
+                    specific_object = access_point.path.clone();
+                }
             }
 
             self.activate_connection(
-                connection.clone(),
+                connection_path,
                 access_point.device_path.to_owned(),
-                OwnedObjectPath::try_from("/")?,
+                specific_object,
             )
             .await?;
         } else {
             let name = access_point.ssid.clone();
             debug!("Create new wifi connection: {name}");
 
-            let mut conn_settings: HashMap<&str, HashMap<&str, zbus::Variant>> = HashMap::from([
-                (
-                    "802-11-wireless",
-                    HashMap::from([("ssid", Variant::Array(name.as_bytes().into()))]),
-                ),
-                (
-                    "connection",
-                    HashMap::from([
-                        ("id", Variant::Str(name.into())),
-                        ("type", Variant::Str("802-11-wireless".into())),
-                    ]),
-                ),
-            ]);
-
-            if let Some(pass) = password {
-                conn_settings.insert(
-                    "802-11-wireless-security",
-                    HashMap::from([("psk", Variant::Str(pass.into()))]),
-                );
-            }
+            let conn_settings = wifi_connection_settings(
+                &access_point.ssid,
+                password.as_deref(),
+                security,
+                connect_once,
+            )?;
 
             // "volatile" keeps the profile in memory only and NM deletes it on disconnect
             let persist = if connect_once { "volatile" } else { "disk" };
@@ -190,6 +216,46 @@ impl NetworkDbus<'_> {
         let nm = NetworkManagerProxy::new(conn).await?;
 
         Ok(Self(nm))
+    }
+
+    async fn ap_security(&self, access_point: &AccessPointData) -> ApSecurity {
+        let conn = self.0.inner().connection();
+        let Ok(ap) = AccessPointProxy::builder(conn)
+            .path(&access_point.path)
+            .build()
+            .await
+        else {
+            return ApSecurity::Unknown;
+        };
+
+        let (flags, rsn_flags, wpa_flags) =
+            match iced::futures::try_join!(ap.flags(), ap.rsn_flags(), ap.wpa_flags()) {
+                Ok(flags) => flags,
+                Err(err) => {
+                    debug!(
+                        "Could not read security flags for '{}': {err}",
+                        access_point.ssid
+                    );
+                    return ApSecurity::Unknown;
+                }
+            };
+
+        let security = ap_security_from_flags(flags, rsn_flags, wpa_flags);
+        debug!(
+            "AP '{}' security: flags={flags:#x} rsn={rsn_flags:#x} wpa={wpa_flags:#x} -> {security:?}",
+            access_point.ssid
+        );
+        security
+    }
+
+    async fn ap_bssid(&self, access_point: &AccessPointData) -> Option<String> {
+        let conn = self.0.inner().connection();
+        let ap = AccessPointProxy::builder(conn)
+            .path(&access_point.path)
+            .build()
+            .await
+            .ok()?;
+        ap.hw_address().await.ok()
     }
 
     /// Reads the stored passphrase for `ssid` from the profile of the connection
@@ -698,6 +764,185 @@ impl NetworkDbus<'_> {
 
 type ConnectionSettingsMap = HashMap<String, HashMap<String, OwnedVariant>>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ApSecurity {
+    Open,
+    Wpa2,
+    Wpa3,
+    Mixed,
+    Owe,
+    Enterprise,
+    Wep,
+    Unknown,
+}
+
+impl ApSecurity {
+    fn supports_psk(self) -> bool {
+        matches!(self, Self::Open | Self::Wpa2 | Self::Wpa3 | Self::Mixed)
+    }
+}
+
+const AP_SEC_KEY_MGMT_PSK: u32 = 0x0000_0100;
+const AP_SEC_KEY_MGMT_802_1X: u32 = 0x0000_0200;
+const AP_SEC_KEY_MGMT_SAE: u32 = 0x0000_0400;
+const AP_SEC_KEY_MGMT_OWE: u32 = 0x0000_0800;
+const AP_SEC_KEY_MGMT_OWE_TM: u32 = 0x0000_1000;
+const AP_SEC_KEY_MGMT_EAP_SUITE_B_192: u32 = 0x0000_2000;
+const AP_FLAG_PRIVACY: u32 = 0x0000_0001;
+
+fn ap_security_from_flags(flags: u32, rsn_flags: u32, wpa_flags: u32) -> ApSecurity {
+    let sec = rsn_flags | wpa_flags;
+
+    if sec & (AP_SEC_KEY_MGMT_OWE | AP_SEC_KEY_MGMT_OWE_TM) != 0 {
+        return ApSecurity::Owe;
+    }
+    if sec & (AP_SEC_KEY_MGMT_802_1X | AP_SEC_KEY_MGMT_EAP_SUITE_B_192) != 0 {
+        return ApSecurity::Enterprise;
+    }
+
+    let psk = sec & AP_SEC_KEY_MGMT_PSK != 0;
+    let sae = sec & AP_SEC_KEY_MGMT_SAE != 0;
+
+    if !psk && !sae {
+        return match (sec == 0, flags & AP_FLAG_PRIVACY != 0) {
+            (true, false) => ApSecurity::Open,
+            // NM treats privacy with no WPA/RSN flags as WEP (static or dynamic).
+            (true, true) => ApSecurity::Wep,
+            (false, _) => ApSecurity::Unknown,
+        };
+    }
+
+    match (psk, sae) {
+        (true, true) => ApSecurity::Mixed,
+        (true, false) => ApSecurity::Wpa2,
+        (false, true) => ApSecurity::Wpa3,
+        (false, false) => unreachable!("handled above"),
+    }
+}
+
+fn wifi_connection_settings(
+    ssid: &str,
+    password: Option<&str>,
+    security: ApSecurity,
+    connect_once: bool,
+) -> anyhow::Result<ConnectionSettingsMap> {
+    match (security, password.is_some()) {
+        (ApSecurity::Open, _) | (ApSecurity::Owe, false) => {}
+        (ApSecurity::Wpa2 | ApSecurity::Wpa3 | ApSecurity::Mixed, true) => {}
+        (ApSecurity::Wpa2 | ApSecurity::Wpa3 | ApSecurity::Mixed, false) => {
+            anyhow::bail!("a passphrase is required to create a profile for '{ssid}'");
+        }
+        _ => anyhow::bail!(
+            "unsupported Wi-Fi security for '{ssid}': {security:?} networks need credentials ashell cannot provide"
+        ),
+    }
+
+    let owned = |v: Variant<'_>| -> anyhow::Result<OwnedVariant> { Ok(v.try_to_owned()?) };
+
+    let connection = HashMap::from([
+        ("id".to_string(), owned(Variant::from(ssid))?),
+        ("type".to_string(), owned(Variant::from("802-11-wireless"))?),
+        (
+            "autoconnect".to_string(),
+            owned(Variant::from(!connect_once))?,
+        ),
+    ]);
+
+    let wireless = HashMap::from([(
+        "ssid".to_string(),
+        owned(Variant::Array(ssid.as_bytes().into()))?,
+    )]);
+
+    let mut settings = HashMap::from([
+        ("connection".to_string(), connection),
+        ("802-11-wireless".to_string(), wireless),
+    ]);
+
+    if let Some(password) = password.filter(|_| security != ApSecurity::Open) {
+        let mut security_section = HashMap::new();
+        security_section.insert("psk".to_string(), owned(Variant::from(password))?);
+        security_section.insert("psk-flags".to_string(), owned(Variant::from(0u32))?);
+        settings.insert("802-11-wireless-security".to_string(), security_section);
+    }
+
+    Ok(settings)
+}
+
+/// `sae` cannot authenticate to a WPA2-only AP. The reverse is not done: NM
+/// makes `wpa-psk` work with SAE-capable APs when PMF allows.
+fn downgrade_sae_to_wpa_psk(
+    sec: &mut HashMap<String, OwnedVariant>,
+    security: ApSecurity,
+) -> anyhow::Result<bool> {
+    if security != ApSecurity::Wpa2 {
+        return Ok(false);
+    }
+
+    let is_sae = matches!(
+        sec.get("key-mgmt").map(|v| v.deref()),
+        Some(Variant::Str(key_mgmt)) if key_mgmt == "sae"
+    );
+    if !is_sae {
+        return Ok(false);
+    }
+
+    sec.insert(
+        "key-mgmt".to_string(),
+        OwnedVariant::try_from(Variant::from("wpa-psk"))?,
+    );
+    Ok(true)
+}
+
+fn new_section_key_mgmt(security: ApSecurity) -> &'static str {
+    if security == ApSecurity::Wpa3 {
+        "sae"
+    } else {
+        "wpa-psk"
+    }
+}
+
+fn write_psk(sec: &mut HashMap<String, OwnedVariant>, password: &str) -> anyhow::Result<()> {
+    sec.insert(
+        "psk".to_string(),
+        OwnedVariant::try_from(Variant::from(password))?,
+    );
+    if !sec.contains_key("psk-flags") {
+        sec.insert(
+            "psk-flags".to_string(),
+            OwnedVariant::try_from(Variant::from(0u32))?,
+        );
+    }
+    Ok(())
+}
+
+fn bssid_matches(pinned: &str, selected: Option<&str>) -> bool {
+    selected.is_some_and(|bssid| bssid.eq_ignore_ascii_case(pinned))
+}
+
+fn wireless_bssid(settings: &ConnectionSettingsMap) -> anyhow::Result<Option<String>> {
+    let Some(bssid) = settings
+        .get("802-11-wireless")
+        .and_then(|wifi| wifi.get("bssid"))
+    else {
+        return Ok(None);
+    };
+    if let Variant::Array(bytes) = bssid.deref()
+        && let [
+            Variant::U8(a),
+            Variant::U8(b),
+            Variant::U8(c),
+            Variant::U8(d),
+            Variant::U8(e),
+            Variant::U8(f),
+        ] = bytes.as_ref()
+    {
+        return Ok(Some(format!(
+            "{a:02X}:{b:02X}:{c:02X}:{d:02X}:{e:02X}:{f:02X}"
+        )));
+    }
+    anyhow::bail!("invalid BSSID in saved Wi-Fi profile")
+}
+
 fn connection_ssid(settings: &ConnectionSettingsMap) -> Option<String> {
     let bytes: Vec<u8> = match settings.get("802-11-wireless")?.get("ssid")?.deref() {
         Variant::Array(bytes) => bytes
@@ -1130,7 +1375,7 @@ pub trait NetworkManager {
     #[zbus(name = "AddAndActivateConnection2")]
     fn add_and_activate_connection2(
         &self,
-        connection: HashMap<&str, HashMap<&str, Variant<'_>>>,
+        connection: ConnectionSettingsMap,
         device: &ObjectPath<'_>,
         specific_object: &ObjectPath<'_>,
         options: HashMap<&str, Variant<'_>>,
@@ -1246,6 +1491,15 @@ pub trait AccessPoint {
 
     #[zbus(property)]
     fn flags(&self) -> Result<u32>;
+
+    #[zbus(property)]
+    fn hw_address(&self) -> Result<String>;
+
+    #[zbus(property)]
+    fn rsn_flags(&self) -> Result<u32>;
+
+    #[zbus(property)]
+    fn wpa_flags(&self) -> Result<u32>;
 }
 
 #[proxy(
@@ -1319,5 +1573,295 @@ mod tests {
         for mode in ["ap", "adhoc", "mesh"] {
             assert_eq!(client_connection_ssid(&wifi_settings(Some(mode))), None);
         }
+    }
+
+    fn field<'a>(
+        s: &'a ConnectionSettingsMap,
+        section: &str,
+        key: &str,
+    ) -> Option<&'a OwnedVariant> {
+        s.get(section)?.get(key)
+    }
+
+    fn str_field(s: &ConnectionSettingsMap, section: &str, key: &str) -> Option<String> {
+        match field(s, section, key)?.deref() {
+            Variant::Str(v) => Some(v.to_string()),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn security_from_flags_maps_key_mgmt() {
+        assert_eq!(ap_security_from_flags(0, 0, 0), ApSecurity::Open);
+        assert_eq!(
+            ap_security_from_flags(AP_FLAG_PRIVACY, AP_SEC_KEY_MGMT_PSK, 0),
+            ApSecurity::Wpa2
+        );
+        assert_eq!(
+            ap_security_from_flags(AP_FLAG_PRIVACY, AP_SEC_KEY_MGMT_SAE, 0),
+            ApSecurity::Wpa3
+        );
+        assert_eq!(
+            ap_security_from_flags(
+                AP_FLAG_PRIVACY,
+                AP_SEC_KEY_MGMT_PSK | AP_SEC_KEY_MGMT_SAE,
+                0
+            ),
+            ApSecurity::Mixed
+        );
+        assert_eq!(
+            ap_security_from_flags(AP_FLAG_PRIVACY, AP_SEC_KEY_MGMT_OWE, 0),
+            ApSecurity::Owe
+        );
+        assert_eq!(
+            ap_security_from_flags(AP_FLAG_PRIVACY, AP_SEC_KEY_MGMT_OWE_TM, 0),
+            ApSecurity::Owe
+        );
+        assert_eq!(
+            ap_security_from_flags(AP_FLAG_PRIVACY, AP_SEC_KEY_MGMT_802_1X, 0),
+            ApSecurity::Enterprise
+        );
+        assert_eq!(
+            ap_security_from_flags(AP_FLAG_PRIVACY, AP_SEC_KEY_MGMT_EAP_SUITE_B_192, 0),
+            ApSecurity::Enterprise
+        );
+        // Real WEP APs report only the privacy flag, with no WPA/RSN flags.
+        assert_eq!(
+            ap_security_from_flags(AP_FLAG_PRIVACY, 0, 0),
+            ApSecurity::Wep
+        );
+        assert_eq!(
+            ap_security_from_flags(AP_FLAG_PRIVACY, 0x8, 0),
+            ApSecurity::Unknown
+        );
+        assert_eq!(ap_security_from_flags(0, 0x8, 0), ApSecurity::Unknown);
+    }
+
+    #[test]
+    fn security_from_flags_uses_networkmanager_values() {
+        // Real RsnFlags: WPA3-only 1160, mixed 1416, WPA2-only 392.
+        assert_eq!(ap_security_from_flags(1, 1160, 0), ApSecurity::Wpa3);
+        assert_eq!(ap_security_from_flags(3, 1416, 0), ApSecurity::Mixed);
+        assert_eq!(ap_security_from_flags(1, 392, 0), ApSecurity::Wpa2);
+    }
+
+    #[test]
+    fn open_profile_has_no_security_section() {
+        let s = wifi_connection_settings("Cafe", None, ApSecurity::Open, false).unwrap();
+
+        assert!(!s.contains_key("802-11-wireless-security"));
+        assert!(field(&s, "802-11-wireless", "mode").is_none());
+        assert_eq!(str_field(&s, "connection", "id").as_deref(), Some("Cafe"));
+        assert_eq!(
+            str_field(&s, "connection", "type").as_deref(),
+            Some("802-11-wireless")
+        );
+        assert!(matches!(
+            field(&s, "connection", "autoconnect").map(|v| v.deref()),
+            Some(Variant::Bool(true))
+        ));
+    }
+
+    #[test]
+    fn wpa2_profile_sets_psk_without_key_mgmt() {
+        let s = wifi_connection_settings("Home", Some("secret"), ApSecurity::Wpa2, false).unwrap();
+
+        assert_eq!(
+            str_field(&s, "802-11-wireless-security", "psk").as_deref(),
+            Some("secret")
+        );
+        assert_eq!(str_field(&s, "802-11-wireless-security", "key-mgmt"), None);
+        assert!(matches!(
+            field(&s, "802-11-wireless-security", "psk-flags").map(|v| v.deref()),
+            Some(Variant::U32(0))
+        ));
+    }
+
+    #[test]
+    fn wpa3_profile_sets_psk_without_key_mgmt() {
+        let s = wifi_connection_settings("Home", Some("secret"), ApSecurity::Wpa3, false).unwrap();
+
+        assert_eq!(
+            str_field(&s, "802-11-wireless-security", "psk").as_deref(),
+            Some("secret")
+        );
+        assert_eq!(str_field(&s, "802-11-wireless-security", "key-mgmt"), None);
+    }
+
+    #[test]
+    fn mixed_profile_sets_psk_without_key_mgmt() {
+        let s = wifi_connection_settings("Home", Some("secret"), ApSecurity::Mixed, false).unwrap();
+
+        assert_eq!(
+            str_field(&s, "802-11-wireless-security", "psk").as_deref(),
+            Some("secret")
+        );
+        assert_eq!(str_field(&s, "802-11-wireless-security", "key-mgmt"), None);
+    }
+
+    #[test]
+    fn connect_once_disables_autoconnect() {
+        let s = wifi_connection_settings("Guest", None, ApSecurity::Open, true).unwrap();
+
+        assert!(matches!(
+            field(&s, "connection", "autoconnect").map(|v| v.deref()),
+            Some(Variant::Bool(false))
+        ));
+    }
+
+    #[test]
+    fn unsupported_security_is_rejected() {
+        for security in [
+            ApSecurity::Owe,
+            ApSecurity::Enterprise,
+            ApSecurity::Wep,
+            ApSecurity::Unknown,
+        ] {
+            assert!(wifi_connection_settings("X", Some("pw"), security, false).is_err());
+        }
+        for security in [ApSecurity::Enterprise, ApSecurity::Wep, ApSecurity::Unknown] {
+            assert!(wifi_connection_settings("X", None, security, false).is_err());
+        }
+    }
+
+    #[test]
+    fn secured_profile_without_password_is_rejected() {
+        for security in [ApSecurity::Wpa2, ApSecurity::Wpa3, ApSecurity::Mixed] {
+            assert!(wifi_connection_settings("X", None, security, false).is_err());
+        }
+    }
+
+    #[test]
+    fn owe_profile_without_password_is_left_to_networkmanager() {
+        let s = wifi_connection_settings("X", None, ApSecurity::Owe, false).unwrap();
+
+        assert!(!s.contains_key("802-11-wireless-security"));
+    }
+
+    fn sec_with_key_mgmt(value: &str) -> HashMap<String, OwnedVariant> {
+        HashMap::from([(
+            "key-mgmt".to_string(),
+            OwnedVariant::try_from(Variant::from(value)).unwrap(),
+        )])
+    }
+
+    fn section_str(sec: &HashMap<String, OwnedVariant>, key: &str) -> Option<String> {
+        match sec.get(key).map(|v| v.deref()) {
+            Some(Variant::Str(value)) => Some(value.to_string()),
+            _ => None,
+        }
+    }
+
+    fn section_u32(sec: &HashMap<String, OwnedVariant>, key: &str) -> Option<u32> {
+        match sec.get(key).map(|v| v.deref()) {
+            Some(Variant::U32(value)) => Some(*value),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn downgrades_sae_for_a_wpa2_only_ap() {
+        let mut sec = sec_with_key_mgmt("sae");
+        assert!(downgrade_sae_to_wpa_psk(&mut sec, ApSecurity::Wpa2).unwrap());
+        assert_eq!(section_str(&sec, "key-mgmt").as_deref(), Some("wpa-psk"));
+    }
+
+    #[test]
+    fn does_not_rewrite_wpa_psk_to_sae() {
+        // NM supports SAE through wpa-psk; sae + pmf=optional fails Update.
+        let mut sec = sec_with_key_mgmt("wpa-psk");
+        assert!(!downgrade_sae_to_wpa_psk(&mut sec, ApSecurity::Wpa3).unwrap());
+        assert_eq!(section_str(&sec, "key-mgmt").as_deref(), Some("wpa-psk"));
+    }
+
+    #[test]
+    fn keeps_key_mgmt_that_works_with_the_ap() {
+        for (key_mgmt, security) in [
+            ("sae", ApSecurity::Wpa3),
+            ("sae", ApSecurity::Mixed),
+            ("wpa-psk", ApSecurity::Wpa2),
+            ("wpa-psk", ApSecurity::Wpa3),
+            ("wpa-psk", ApSecurity::Mixed),
+        ] {
+            let mut sec = sec_with_key_mgmt(key_mgmt);
+            assert!(!downgrade_sae_to_wpa_psk(&mut sec, security).unwrap());
+            assert_eq!(section_str(&sec, "key-mgmt").as_deref(), Some(key_mgmt));
+        }
+    }
+
+    #[test]
+    fn downgrade_never_touches_non_psk_security() {
+        for security in [
+            ApSecurity::Open,
+            ApSecurity::Owe,
+            ApSecurity::Enterprise,
+            ApSecurity::Wep,
+            ApSecurity::Unknown,
+        ] {
+            let mut sec = sec_with_key_mgmt("sae");
+            assert!(!downgrade_sae_to_wpa_psk(&mut sec, security).unwrap());
+            assert_eq!(section_str(&sec, "key-mgmt").as_deref(), Some("sae"));
+        }
+    }
+
+    #[test]
+    fn downgrade_does_not_add_a_missing_key_mgmt() {
+        let mut sec = HashMap::new();
+        assert!(!downgrade_sae_to_wpa_psk(&mut sec, ApSecurity::Wpa2).unwrap());
+        assert!(sec.get("key-mgmt").is_none());
+    }
+
+    #[test]
+    fn new_section_uses_psk_only_for_sae_aps() {
+        assert_eq!(new_section_key_mgmt(ApSecurity::Wpa2), "wpa-psk");
+        assert_eq!(new_section_key_mgmt(ApSecurity::Mixed), "wpa-psk");
+        assert_eq!(new_section_key_mgmt(ApSecurity::Wpa3), "sae");
+    }
+
+    #[test]
+    fn write_psk_preserves_existing_secret_flags() {
+        for flags in [1u32, 2u32] {
+            let mut sec = HashMap::from([(
+                "psk-flags".to_string(),
+                OwnedVariant::try_from(Variant::from(flags)).unwrap(),
+            )]);
+            write_psk(&mut sec, "secret").unwrap();
+            assert_eq!(section_u32(&sec, "psk-flags"), Some(flags));
+            assert_eq!(section_str(&sec, "psk").as_deref(), Some("secret"));
+        }
+    }
+
+    #[test]
+    fn write_psk_defaults_new_section_to_system_storage() {
+        let mut sec = HashMap::new();
+        write_psk(&mut sec, "secret").unwrap();
+        assert_eq!(section_u32(&sec, "psk-flags"), Some(0));
+    }
+
+    #[test]
+    fn reads_a_profile_bssid() {
+        let mut s = wifi_settings(None);
+        assert_eq!(wireless_bssid(&s).unwrap(), None);
+
+        let bytes: &[u8] = &[0xAA, 0xBB, 0x0C, 0xDD, 0xEE, 0xFF];
+        s.get_mut("802-11-wireless").unwrap().insert(
+            "bssid".to_string(),
+            OwnedVariant::try_from(Variant::Array(bytes.into())).unwrap(),
+        );
+        let pinned = wireless_bssid(&s).unwrap().unwrap();
+        assert!(bssid_matches(&pinned, Some("aa:bb:0c:dd:ee:ff")));
+        assert!(!bssid_matches(&pinned, Some("11:22:33:44:55:66")));
+        assert!(!bssid_matches(&pinned, None));
+    }
+
+    #[test]
+    fn rejects_an_invalid_profile_bssid() {
+        let mut s = wifi_settings(None);
+        let bytes: &[u8] = &[0xAA, 0xBB];
+        s.get_mut("802-11-wireless").unwrap().insert(
+            "bssid".to_string(),
+            OwnedVariant::try_from(Variant::Array(bytes.into())).unwrap(),
+        );
+        assert!(wireless_bssid(&s).is_err());
     }
 }
